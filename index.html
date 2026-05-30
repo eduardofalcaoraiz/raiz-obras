@@ -1293,21 +1293,23 @@ const _ciSitClass={'Resolvido':'b-ok','Em Andamento':'b-info','Cancelado':'b-neu
 let capexDrillYear=null,capexDrillMarca=null,capexDrillUnidade=null;
 
 const BRAND_COLORS={
-  'RAIZ':              {p:'#F08700',l:'#FFF3E0'},
-  'LEONARDO DA VINCI': {p:'#E86020',l:'#FEF0E8'},
-  'CUBO':              {p:'#5B2D8E',l:'#F3EDF8'},
-  'GLOBAL TREE':       {p:'#43A047',l:'#EDF7ED'},
-  'QI':                {p:'#D62828',l:'#FDECEA'},
-  'MATRIZ':            {p:'#1565C0',l:'#E8F1FB'},
-  'APOGEU':            {p:'#1A3A8F',l:'#E7EEF8'},
-  'AMERICANO':         {p:'#1565C0',l:'#E8F1FB'},
-  'SARAH DAWSEY':      {p:'#1B3A6B',l:'#E7EDF6'},
-  'SÁ PEREIRA':        {p:'#1976D2',l:'#E8F2FB'},
-  'UNIFICADO':         {p:'#5B2D8E',l:'#F3EDF8'},
-  'SAP':               {p:'#E64A19',l:'#FEEDE8'},
-  'INTEGRA':           {p:'#1A2E5A',l:'#E7EEF6'},
-  'UNIÃO':             {p:'#CC2222',l:'#FDECEA'},
-  'BOM TEMPO':         {p:'#3D3D9E',l:'#EBEBF8'},
+  'RAIZ':{p:'#F88808',l:'#FDE9D2'},
+  'QI':{p:'#480868',l:'#DED2E3'},
+  'CUBO':{p:'#08B8A8',l:'#D2F2EF'},
+  'GLOBAL TREE':{p:'#88B858',l:'#E9F2E0'},
+  'SARAH DAWSEY':{p:'#183868',l:'#D5DBE3'},
+  'MATRIZ':{p:'#1868A8',l:'#D5E3EF'},
+  'APOGEU':{p:'#0848B8',l:'#D2DEF2'},
+  'LEONARDO DA VINCI':{p:'#E86808',l:'#FAE3D2'},
+  'SÁ PEREIRA':{p:'#0878C8',l:'#D2E6F5'},
+  'SAP':{p:'#F85838',l:'#FDE0DB'},
+  'AMERICANO':{p:'#0868B8',l:'#D2E3F2'},
+  'UNIFICADO':{p:'#582878',l:'#E0D8E6'},
+  'UNIÃO':{p:'#C83838',l:'#F5DBDB'},
+  'INTEGRA':{p:'#182848',l:'#D5D8DE'},
+  'BOM TEMPO':{p:'#382888',l:'#DBD8E9'},
+  'RAIZ EDUCAÇÃO':{p:'#F88808',l:'#FDE9CD'},
+  '':{p:'#F08700',l:'#FDE9CD'},
 };
 function brandColor(marca){return(BRAND_COLORS[marca]||{p:'var(--accent)',l:'var(--surface)'}).p;}
 function brandLight(marca){return(BRAND_COLORS[marca]||{p:'var(--accent)',l:'var(--surface)'}).l;}
