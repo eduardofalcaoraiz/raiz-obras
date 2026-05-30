@@ -180,6 +180,12 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 .btn-logout{background:transparent;border:1px solid rgba(237,231,218,.2);color:var(--cream-soft);padding:4px 10px;border-radius:6px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .btn-logout:hover{background:rgba(237,231,218,.08);color:var(--cream)}
 .nav-sep{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(237,231,218,.25);padding:14px 12px 3px;font-weight:600;pointer-events:none}
+:root{--brand-cur:var(--accent);--brand-cur-light:var(--surface)}
+/* Cor de marca injetada dinamicamente por JS */
+#view-obra .tabbtn.active{border-bottom-color:var(--brand-cur)}
+#view-obra .o-bar>i{background:var(--brand-cur)}
+.brand-header-strip{height:4px;border-radius:2px;background:var(--brand-cur);margin-bottom:22px;opacity:.8}
+.esc-section-bg{border-radius:var(--r-lg);padding:16px;margin-bottom:28px;border:1px solid transparent}
 .esfera-sec{margin-bottom:36px}.esfera-sec-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
 .esfera-sec-head h2{font-size:19px;display:flex;align-items:center;gap:8px}.esfera-sec-head .sub{font-size:13px;color:var(--muted);margin-top:3px}
 
@@ -405,6 +411,7 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
           <button class="btn" style="color:var(--danger);border-color:var(--danger)88" onclick="deleteObra(cur?.id)"><span class="ic">🗑</span> Excluir obra</button>
         </div>
       </div>
+      <div id="o-brand-strip" class="brand-header-strip"></div>
       <div class="kpis" id="o-kpis"></div>
       <div class="bar" style="margin-bottom:24px"><i id="o-bar"></i></div>
       <div class="tabs">
@@ -961,24 +968,93 @@ const SERVICE_TIPOS=[
   {id:'outros_svc',   nome:'Outros serviços'},
 ];
 
-// Classificação automática inteligente — sem IA externa
+// ===== INTELIGÊNCIA DE MATERIAIS DE CONSTRUÇÃO =====
+// Dicionário completo: termos técnicos, abreviações, nomes de campo
+const MATERIAL_ALIASES={
+  concreto:['concreto','concr','fck','fkj','bombead','usinado','betonada','argamassa','graute','grout',
+    'cp-ii','cpii','cp2','cp5','cp-iv','cp-v','cimento portland','reboco pronto','massa pronta',
+    'contrapiso','screed','autonivelante','cimento','cimentado','assoalho cimentado'],
+  aco:['aço','aco','ca-50','ca50','ca-60','ca60','vergalh','ferragem','barra de aco','barra de aço',
+    'tela soldada','malha soldada','malha nervurada','arame recozido','chapa metalica','chapa metálica',
+    'perfil metalico','perfil metálico','viga metalica','treliça','treliça','metalon','cantoneira',
+    'tubo de aco','tubo de aço','barra chata','barra redonda'],
+  alvenaria:['tijolo','bloco','bloco ceramico','bloco de concreto','bloco de vedacao','bloco vedacao',
+    'tijolo ceramico','tijolo 8 furos','tijolo 6 furos','tijolo macico','bloco siporex',
+    'drywall','gesso acartonado','steel frame','bloco estrutural','canaleta','meia canaleta'],
+  ceramica:['ceramica','cerâmica','porcelanato','piso ceramico','revestimento ceramico',
+    'azulejo','placa ceramica','peca ceramica','granito','marmore','mármore','ardosia','ardósia',
+    'pedra natural','laminado','parquet','deck','piso vinilico','piso laminado','rgt','biscuit',
+    'pastilha','pisograma','cimento queimado','concreto polido','pedra miracema'],
+  pintura:['tinta','latex','acrilico','acrílico','esmalte','primer','selador','fundo preparador',
+    'verniz','textura','texturizado','grafiato','massa corrida','massa acrilica','rejunte',
+    'epoxi','epóxi','paint','solvente','thinner','aguarras','stain','imunizante','resina',
+    'hidrofugante','tapa poros','fundo nitro','tinta intumescente'],
+  madeira:['madeira','compensado','mdf','mdp','osb','caibro','ripa','vigamento','barrote',
+    'viga de madeira','tabua','pranchao','eucalipto','pinus','cedro','angelim','ipe','ipê',
+    'garapeira','forros de madeira','lambri','sarrafo','estacas de madeira','palanque'],
+  cobertura:['telha','calha','rufo','cumeeira','fibrocimento','eternit','brasilit','telhacap',
+    'policarbonato','zinco','aluzinco','trapezoidal','ondulada','colonial','francesa',
+    'shingle','cobertura','telhado','espigao','rincao','madeiramento de telhado'],
+  hidraulica:['tubo pvc','tubo cpvc','tubo pprc','tubo pe','tubo pead','tubo hidraulico',
+    'conexao pvc','conexão pvc','joelho','registro','valvula','válvula','cotovelo',
+    'luva','te hidraulico','sifao','ralo','caixa dagua','reservatorio','bomba dagua',
+    'torneira','chuveiro','ducha','misturador','banheira','caixa sifonada','esgoto',
+    'queda d','rede hidraulica','rede hidráulica','hidrante','sprinkler','cano','tubulacao'],
+  eletrica:['fio','cabo eletrico','cabo elétrico','eletroduto','conduíte','conduite','disjuntor',
+    'quadro eletrico','quadro elétrico','tomada','interruptor','eletrico','elétrico','fiacao',
+    'fiação','cabeamento','luminaria','luminária','lampada','lâmpada','led','transformador',
+    'chave eletrica','rele','relé','medidor de energia','spda','aterramento','eletroduto flexivel',
+    'caixa de passagem','caixa eletrica','modulo','módulo','dimerizado','automacao eletrica'],
+  esquadria:['porta','janela','esquadria','aluminio','alumínio','vidro','caixilho','veneziana',
+    'persiana','portao','portão','grade','corrimao','corrimão','guarda-corpo','escada',
+    'puxador','dobradica','dobradiça','fechadura','trinco','mola hidraulica','kit porta',
+    'janela de correr','janela de abrir','folha de porta','batente','marco'],
+  impermeab:['impermeabilizante','impermeabilizacao','impermeabilização','manta asfaltica',
+    'manta asfáltica','asfalto','emulsao asfaltica','emulsão asfáltica','banho asfaltico',
+    'cristalizante','vedacit','igol','sikaflex','sika','basf','geomembrana','geocomposto',
+    'dreno','drenagem','manta geotextil','geotextil','argamassa impermeavel','epoxi impermeavel'],
+};
+
+// Normaliza texto: remove acentos, lowercase, trim
+function _normText(s){return(s||'').toLowerCase().trim().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w\s-]/g,' ');}
+
+// Normaliza unidade de medida
+function normalizeUnit(u){
+  if(!u)return'un';
+  const s=_normText(u).replace(/\s+/g,'');
+  const map={m3:'m³',m2:'m²',kg:'kg',kgs:'kg',t:'ton',ton:'ton',tonelada:'ton',
+    un:'un',und:'un',unid:'un',unidade:'un',pc:'un',peca:'un',sc:'sc',sac:'sc',
+    saco:'sc',bag:'sc',l:'l',lt:'l',litro:'l',m:'m',ml:'m',metro:'m',mil:'mil',milheiro:'mil'};
+  return map[s]||u.trim();
+}
+
+// Detecta tipo de material a partir de qualquer descrição de texto
+function matchMaterialTipo(text){
+  const norm=_normText(text);
+  for(const[tipo,aliases]of Object.entries(MATERIAL_ALIASES)){
+    if(aliases.some(a=>norm.includes(_normText(a))))return tipo;
+  }
+  return'outros';
+}
+
+// Classifica NF/pagamento automaticamente
 function classifyPagamento(p){
-  // 1. Tipo de NF (100% confiável)
-  if(p.nfTipo==='NF-e')return 'material';
-  if(p.nfTipo==='NFS-e')return 'servico';
-  if(p.nfTipo==='Adiantamento')return '';
-  // 2. Categoria existente
+  if(p.nfTipo==='NF-e')return'material';
+  if(p.nfTipo==='NFS-e')return'servico';
+  if(p.nfTipo==='Adiantamento')return'';
   const cat=p.cat||'';
-  if(['mat'].includes(cat))return 'material';
-  if(['mo','proj','legal','demo'].some(c=>cat===c))return 'servico';
-  if(cat==='equip')return 'equipamento';
-  // 3. Palavras-chave na referência e fornecedor
-  const txt=((p.ref||'')+' '+(p.ben||'')).toLowerCase();
-  const matKW=['concreto','argamassa','aço','ferragem','cimento','tijolo','bloco','areia','brita','tinta','cerâmica','ceramica','porcelanato','vidro','madeira','telha','ferro','tubo','fio','cabo','material','impermeab','esquadria','alvenaria'];
-  const svcKW=['projeto','serviço','servico','mão de obra','honorário','honorario','taxa','habite','alvará','alvara','legalização','legalizacao','consultoria','administração','administracao','frete'];
-  if(matKW.some(k=>txt.includes(k)))return 'material';
-  if(svcKW.some(k=>txt.includes(k)))return 'servico';
-  return '';
+  if(cat==='mat')return'material';
+  if(['mo','proj','legal','demo'].some(c=>cat===c))return'servico';
+  if(cat==='equip')return'equipamento';
+  const txt=_normText((p.ref||'')+' '+(p.ben||''));
+  // Verifica se algum alias bate
+  for(const aliases of Object.values(MATERIAL_ALIASES)){
+    if(aliases.some(a=>txt.includes(_normText(a))))return'material';
+  }
+  const svcKW=['projeto','servico','mao de obra','honorario','taxa','habite','alvara',
+    'legalizacao','consultoria','administracao','frete','transporte','gerenciamento'];
+  if(svcKW.some(k=>txt.includes(k)))return'servico';
+  return'';
 }
 
 // Retorna o tipo custo: salvo explicitamente OU inferido automaticamente
@@ -1587,11 +1663,24 @@ async function saveCapexItem(){
 
 /* OBRA */
 let cur=null,pagFiltro="todos";
-function openObra(id){cur=obras.find(o=>o.id===id);curEsfera=cur.esfera||'nova';pagFiltro="todos";renderObra();showTab('resumo');go("obra");}
+function openObra(id){
+  cur=obras.find(o=>o.id===id);
+  curEsfera=cur.esfera||'nova';
+  pagFiltro="todos";
+  // Injeta cor da marca na página da obra
+  const _marcaP=(cur.marca||'').split(' + ')[0];
+  const _bc=brandColor(_marcaP);
+  const _bl=brandLight(_marcaP);
+  const _voEl=document.getElementById('view-obra');
+  if(_voEl){_voEl.style.setProperty('--brand-cur',_bc);_voEl.style.setProperty('--brand-cur-light',_bl);}
+  renderObra();showTab('resumo');go("obra");
+}
 function showTab(t){document.querySelectorAll("#view-obra .tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));document.querySelectorAll("#view-obra .tabpane").forEach(p=>p.classList.toggle("active",p.dataset.tab===t));}
 function renderObra(){const o=cur,pct=execObra(o);
   const _oMarcas=(o.marca||'').split(' + ');const _oMarcaPills=_oMarcas.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;background:${brandLight(m)};color:${brandColor(m)};padding:2px 9px 2px 4px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid ${brandColor(m)}33"><span style="display:inline-flex;background:white;border-radius:4px;padding:1px 3px;overflow:hidden;height:16px;width:26px;align-items:center;flex-shrink:0">${brandLogoImg(m,'height:14px;width:24px;object-fit:contain')}</span>${m}</span>`).join(' ');
   document.getElementById("o-nome").textContent=o.nome;
+  // Faixa colorida da marca abaixo do nome
+  const _stripEl=document.getElementById('o-brand-strip');if(_stripEl)_stripEl.style.background=brandColor(_oMarcas[0]);
   const _ouni=unidades.find(u=>u.obraId===o.id);
   const _constrLabel=o.tem_construtora===false?'Sem construtora contratada':(o.constr&&o.constr!=='—'?o.constr:'—');
   document.getElementById("o-crumb").innerHTML=_oMarcaPills+`<span style="color:var(--muted);font-size:13px"> · ${_constrLabel}</span>`;
@@ -2426,10 +2515,11 @@ function renderEscolas(){
 
   let html='';
   for(const marca of marcasOrd){
+    const _esc_sec_bg=brandColor(marca)+'0a'; // 4% tint
     const list=byMarca[marca].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
     const bc=brandColor(marca);const bl=brandLight(marca);
     const emb=brandEmblem(marca);
-    html+=`<div class="esc-section">
+    html+=`<div class="esc-section esc-section-bg" style="background:${_esc_sec_bg};border-color:${brandColor(marca)}22">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
         <div style="display:inline-flex;align-items:center;gap:12px;background:white;padding:6px 20px 6px 6px;border-radius:40px;border:2px solid ${bc};box-shadow:0 4px 16px ${bc}28">
           <div style="height:40px;min-width:64px;max-width:96px;border-radius:8px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">${emb}</div>
@@ -2713,13 +2803,35 @@ function impMatTipoChanged(){
 function impAutoClassify(data){
   const tipo=getTipoCusto(data);
   if(tipo)impSetCusto(tipo);
-  // Se NF-e com itens, pre-popula quantidade do primeiro item
   if(tipo==='material'&&data.itens&&data.itens.length>0){
-    const it=data.itens[0];
+    // Analisa todos os itens e detecta tipo dominante por valor
+    const analyzed=data.itens.map(it=>{
+      const mt=matchMaterialTipo(it.descricao||'');
+      const un=normalizeUnit(it.unidade);
+      return{...it,matTipo:mt,unNorm:un};
+    });
+    const byTipo={};
+    analyzed.forEach(it=>{byTipo[it.matTipo]=(byTipo[it.matTipo]||0)+(it.valor_total||0);});
+    const dominant=Object.entries(byTipo).sort((a,b)=>b[1]-a[1])[0]?.[0]||'outros';
+    // Popula select de tipo
+    const matSel=document.getElementById('imp-mat-tipo');
+    if(matSel){
+      matSel.innerHTML='<option value="">— Selecione o tipo —</option>'+MATERIAL_TIPOS.map(m=>`<option value="${m.id}">${m.nome}</option>`).join('');
+      matSel.value=dominant;
+      impMatTipoChanged();
+    }
+    // Soma quantidades do tipo dominante
+    const main=analyzed.filter(it=>it.matTipo===dominant);
+    const totalQtd=main.reduce((a,it)=>a+(parseFloat(it.quantidade)||0),0);
+    const un=main[0]?.unNorm||'';
     const qtdEl=document.getElementById('imp-mat-qtd');
     const unEl=document.getElementById('imp-mat-un');
-    if(qtdEl&&it.quantidade)qtdEl.value=parseFloat(it.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:4});
-    if(unEl&&it.unidade){const u=it.unidade.toLowerCase().replace('m3','m³').replace('m2','m²');unEl.innerHTML=`<option>${u}</option>${['m³','m²','kg','ton','un','sc','l','m'].filter(x=>x!==u).map(x=>`<option>${x}</option>`).join('')}`;}
+    if(qtdEl&&totalQtd>0)qtdEl.value=totalQtd.toLocaleString('pt-BR',{maximumFractionDigits:3});
+    if(unEl&&un){
+      const mt=MATERIAL_TIPOS.find(m=>m.id===dominant);
+      const allU=mt?mt.unidades:['un'];
+      unEl.innerHTML=[un,...allU.filter(u=>u!==un)].map(u=>`<option>${u}</option>`).join('');
+    }
   }
 }
 
