@@ -1199,7 +1199,8 @@ function setCurrencyValue(id,value){
 }
 let investidores=[];
 let FORN_DATA={}; // {cnpj: {nome, email, telefone, municipio, uf, atividade, porte, ...}}
-let CATS=[
+// Categorias padrão — usadas como fallback quando DB está vazio
+const DEFAULT_CATS=[
   {id:"proj",nome:"Projeto e licenciamento",subs:["Projeto arquitetônico","Projetos complementares","ART / RRT"]},
   {id:"legal",nome:"Legalização",subs:["Ambiental (supressão/poda)","Alvará e Habite-se","Bombeiros (CBMERJ)","DARM e taxas"]},
   {id:"demo",nome:"Demolição e terraplanagem",subs:["Demolição","Remoção de entulho","Terraplanagem"]},
@@ -1215,15 +1216,16 @@ let CATS=[
   {id:"taxa",nome:"Taxa de administração",subs:["Parcelas da taxa"]},
   {id:"outros",nome:"Outros",subs:["Comissões","Ressarcimentos","Adiantamentos"]},
 ];
+let CATS=[]; // Preenchido pelo loadFromDB() — se vazio, usa DEFAULT_CATS
 const catById=id=>CATS.find(c=>c.id===id)||{nome:"(removida)",subs:[]};
-const CNPJS={"Manchester Ferro e Aço":"12.345.678/0001-90","Aldeias Construções":"22.333.444/0001-55","Manecão Legalizações":"98.765.432/0001-21","Gerdau":"33.611.500/0001-19","Concrelagos":"40.111.222/0001-08"};
-Object.assign(CNPJS,{"COLOR FILM": "15.140.996/0001-08", "NOVA RIO LIMPO": "57.390.129/0001-70", "ANDERSON ROCHA BARBOZA": "46.973.736/0001-47", "VALTENIR CARDOSO DA SILVA": "64.586.448/0001-11", "BRISAN ENGENHARIA": "33.168.669/0001-46", "JLIRA GREEN LIFE": "41.982.144/0001-78", "VAGNER JOSE DA SILVA": "20.458.333/0001-76", "PAULO SERGIO DE SOUSA": "41.547.642/0001-92", "WELLINGTON CAMPOS GOMES": "35.821.238/0001-62", "CASA DO CONSTRUTOR": "10.405.813/0001-15", "L A COMERCIO DE MINERAIS": "11.452.772/0001-80", "MGM Comércio de Materiais Elétricos": "51.144.652/0001-30", "MULTITEINER": "00.240.568/0001-80", "RENANN PABLO RODRIGUES DA CONCEICAO": "52.471.825/0001-98"});
+let CNPJS={}; // Preenchido pelo loadFromDB() — nunca hardcoded
+// (hardcoded CNPJ data removed — loaded from DB)
 
 let obras=[]
-let nextObraId=5, catSeq=1;
+let nextObraId=1, catSeq=1;
 
 let unidades=[]
-let uniSeq=16;
+let uniSeq=1;
 const ESFERAS={capex:{label:'Capex de Melhorias',desc:'Obras de melhoria e retrofit em unidades existentes.',icon:'🔧'},expansao:{label:'Expansões de Unidades',desc:'Ampliação e expansão de unidades em operação.',icon:'🏗'},nova:{label:'Novas Unidades',desc:'Construção e abertura de novas unidades do grupo.',icon:'🏢'}};
 let curEsfera='nova',esfBusca='',esfFiltroMarca='Todas';
 let capexItens=[],capexEditId=null;
@@ -3043,7 +3045,7 @@ async function loadFromDB(){
       contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null}))
     }));
     nextObraId=obras.reduce((m,o)=>Math.max(m,o.id),0)+1;
-    if(catR.data&&catR.data.length){CATS=catR.data.map(c=>({id:c.id,nome:c.nome,subs:Array.isArray(c.subs)?c.subs:(c.subs||['Geral'])}));catSeq=Math.max(catSeq,...CATS.filter(c=>c.id.startsWith('cat_')).map(c=>parseInt(c.id.replace('cat_',''))||0))+1;}
+    if(catR.data&&catR.data.length){CATS=catR.data.map(c=>({id:c.id,nome:c.nome,subs:Array.isArray(c.subs)?c.subs:(c.subs||['Geral'])}));catSeq=Math.max(catSeq,...CATS.filter(c=>c.id.startsWith('cat_')).map(c=>parseInt(c.id.replace('cat_',''))||0))+1;}else{CATS=[...DEFAULT_CATS];}
     if(uniR.data&&uniR.data.length){unidades=uniR.data.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obraId:u.obra_id||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||'',docs:{}}));uniSeq=unidades.reduce((m,u)=>Math.max(m,parseInt(u.id.replace('u',''))||0),15)+1;}
     if(cnpjR.data)cnpjR.data.forEach(r=>{CNPJS[r.nome]=r.cnpj;if(r.cnpj)FORN_DATA[r.cnpj.replace(/\D/g,'')]={nome:r.nome,email:r.email||'',telefone:r.telefone||'',municipio:r.municipio||'',uf:r.uf||'',atividade:r.atividade||'',porte:r.porte||'',endereco:r.endereco||''};});
     const{data:ciR}=await db.from('capex_itens').select('*').order('id',{ascending:false});
