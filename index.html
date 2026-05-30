@@ -186,7 +186,14 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 #view-obra .o-bar>i{background:var(--brand-cur)}
 .brand-header-strip{height:4px;border-radius:2px;background:var(--brand-cur);margin-bottom:22px;opacity:.8}
 /* Faixas transversais de marca */
-.obra-brand-banner{height:120px;margin:-36px -44px 28px;position:relative;overflow:hidden;flex-shrink:0}
+.obra-brand-banner{display:none} /* replaced by page art */
+/* Arte de página — faixas transversais artísticas */
+.page-art-layer{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;overflow:hidden;z-index:0;min-height:100vh}
+#view-obra,#view-escolas{position:relative}
+#view-obra .wrap,#view-escolas .wrap{position:relative;z-index:1}
+#view-obra .card,#view-obra .kpi,#view-obra .pag-row,#view-obra .tablewrap,#view-obra .tabs,#view-obra .imp-sec{background:var(--surface);position:relative}
+#view-escolas .esc-card,#view-escolas .card,#view-escolas .kpi{background:var(--surface);position:relative}
+.phead{position:relative;z-index:1}
 .obra-brand-banner .banner-stripes{position:absolute;inset:0;background:repeating-linear-gradient(-55deg,transparent 0,transparent 30px,rgba(255,255,255,0.07) 30px,rgba(255,255,255,0.07) 60px)}
 .obra-brand-banner .banner-fade{position:absolute;bottom:0;left:0;right:0;height:50px;background:linear-gradient(to bottom,transparent,var(--paper))}
 .obra-brand-banner .banner-content{position:absolute;inset:0;display:flex;align-items:center;padding:0 44px;gap:16px;z-index:2}
@@ -381,6 +388,7 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 
     <!-- NOSSAS ESCOLAS -->
     <section id="view-escolas" class="view">
+      <div class="page-art-layer" id="esc-page-art"></div>
       <div class="phead">
         <div><div class="eyebrow">Cadastro central</div><h1>Nossas Escolas</h1><p>Diretório completo das unidades do grupo — base para todas as esferas.</p></div>
         <div class="acts"><button class="btn btn-primary" onclick="openUniModal(null)"><span class="ic">＋</span> Nova escola</button></div>
@@ -415,12 +423,8 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 
     <!-- OBRA -->
     <section id="view-obra" class="view">
-      <!-- Banner diagonal de marca — populado pelo JS ao abrir obra -->
-      <div class="obra-brand-banner" id="o-brand-banner">
-        <div class="banner-stripes"></div>
-        <div class="banner-content" id="o-banner-content"></div>
-        <div class="banner-fade"></div>
-      </div>
+      <!-- Arte da página — gerada pelo JS com as cores da marca -->
+      <div class="page-art-layer" id="o-page-art"></div>
       <button class="btn btn-ghost btn-sm" style="margin-bottom:14px" onclick="go(curEsfera||'geral')">← Voltar</button>
       <div class="phead">
         <div><div class="eyebrow" id="o-crumb"></div><h1 id="o-nome"></h1><p id="o-meta"></p></div>
@@ -1444,7 +1448,80 @@ function fmtD(iso){if(!iso)return"—";const p=iso.split("-");return p.length===
 function statusBadge(s){const m={"Em andamento":"b-info","Planejamento":"b-neutral","Concluído":"b-ok"};return `<span class="badge ${m[s]||'b-neutral'}">${s}</span>`;}
 function stPag(p){const s=pagStatus(p);const m={"PAGO":"b-ok","PENDENTE":"b-warn","ATRASADO":"b-danger","Cancelado":"b-neutral"};return `<span class="badge ${m[s]||'b-neutral'}">${s}</span>`;}
 
-/* ===== BRAND BANNERS — faixas diagonais ===== */
+/* ===== ARTE DA PÁGINA — faixas transversais orgânicas ===== */
+
+// Gera número pseudo-aleatório determinístico (seed-based)
+function _prng(seed){let s=seed;return()=>{s=(s*16807+0)%2147483647;return(s-1)/2147483646;};}
+
+// Gera SVG com faixas diagonais onduladas e trêmulas
+function _makePageArt(colors,w,h){
+  if(!colors||!colors.length)colors=['#F08700'];
+  const rand=_prng(colors.join('').length*42+w);
+  let svg='';
+
+  // Cada cor gera 3-4 faixas em posições variadas
+  colors.forEach((col,ci)=>{
+    const numBands=3+(ci%2);
+    for(let b=0;b<numBands;b++){
+      const r=rand;
+      // Posição base da faixa (dividida ao longo da altura)
+      const yFrac=(ci*numBands+b+0.3)/(colors.length*numBands)*1.3-0.1;
+      const yBase=yFrac*h;
+      const thickness=h*(0.06+rand()*0.08); // 6-14% da altura
+      const opacity=0.08+rand()*0.09;       // 8-17% de opacidade
+
+      // Gera pontos da borda superior com múltiplas ondas (tremulação)
+      const nPts=10;
+      const pts=[];
+      for(let i=0;i<=nPts;i++){
+        const t=i/nPts;
+        const x=t*(w+200)-100;
+        // Deriva diagonal + ondas de frequências diferentes (efeito trêmulo)
+        const y=yBase
+          +t*(h*0.35)              // deriva diagonal principal
+          +Math.sin(t*Math.PI*2.5+ci)*h*0.05   // onda longa
+          +Math.sin(t*Math.PI*6.3+b*1.7)*h*0.025 // onda média
+          +Math.sin(t*Math.PI*13+ci*3.1+b)*h*0.01 // tremulação fina
+          +(rand()-0.5)*h*0.012;   // ruído aleatório
+        pts.push({x,y});
+      }
+
+      // Path da borda superior (smooth cubic bezier)
+      let d=`M${pts[0].x},${pts[0].y}`;
+      for(let i=1;i<pts.length;i++){
+        const prev=pts[i-1],cur=pts[i];
+        const cpx=(prev.x+cur.x)/2;
+        d+=` Q${cpx},${prev.y} ${cur.x},${cur.y}`;
+      }
+
+      // Fecha descendo pela borda inferior (offset = thickness)
+      const bot=pts.map(p=>({x:p.x,y:p.y+thickness+(Math.sin(p.x/w*Math.PI*3+ci)*h*0.015)}));
+      d+=` L${bot[bot.length-1].x},${bot[bot.length-1].y}`;
+      for(let i=bot.length-2;i>=0;i--){
+        const prev=bot[i+1],cur=bot[i];
+        const cpx=(prev.x+cur.x)/2;
+        d+=` Q${cpx},${prev.y} ${cur.x},${cur.y}`;
+      }
+      d+=' Z';
+
+      svg+=`<path d="${d}" fill="${col}" opacity="${opacity.toFixed(3)}"/>`;
+    }
+  });
+
+  return`<svg width="100%" height="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" style="position:absolute;inset:0">${svg}</svg>`;
+}
+
+function updatePageArt(elId,marcas){
+  const el=document.getElementById(elId);
+  if(!el)return;
+  const cols=marcas.map(m=>brandColor(m)).filter(c=>c&&!c.startsWith('var('));
+  if(!cols.length){el.innerHTML='';return;}
+  // Dimensões dinâmicas para cobrir a página
+  const w=Math.max(window.innerWidth,1200);
+  const h=Math.max(el.closest('.view')?.scrollHeight||window.innerHeight,800);
+  el.innerHTML=_makePageArt(cols,w,h);
+}
+
 function _brandGradient(marcas){
   const cols=marcas.map(m=>brandColor(m)).filter(c=>c&&!c.startsWith('var'));
   if(!cols.length)cols.push('#F08700');
@@ -1910,6 +1987,7 @@ function openObra(id){
   const _voEl=document.getElementById('view-obra');
   if(_voEl){_voEl.style.setProperty('--brand-cur',_bc);_voEl.style.setProperty('--brand-cur-light',_bl);}
   renderObra();showTab('resumo');go("obra");
+  setTimeout(()=>updatePageArt('o-page-art',[(cur?.marca||'').split(' + ')[0],...((cur?.marca||'').split(' + ').slice(1))]),100);
 }
 function showTab(t){document.querySelectorAll("#view-obra .tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));document.querySelectorAll("#view-obra .tabpane").forEach(p=>p.classList.toggle("active",p.dataset.tab===t));}
 function renderObra(){const o=cur,pct=execObra(o);
@@ -2735,6 +2813,10 @@ function toggleNovaMarca(val){
 }
 
 function renderEscolas(){
+  // Injeta arte da página com todas as marcas presentes
+  const allMarcas=[...new Set(unidades.map(u=>u.marca).filter(m=>m&&m!=='—'))];
+  // Delay para garantir que o DOM está montado
+  setTimeout(()=>updatePageArt('esc-page-art',allMarcas.slice(0,4)),80);
   const q=(document.getElementById('esc-busca')?.value||'').trim().toLowerCase();
   const lista=q?unidades.filter(u=>
     u.nome.toLowerCase().includes(q)||
@@ -2763,18 +2845,13 @@ function renderEscolas(){
     const list=byMarca[marca].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
     const bc=brandColor(marca);const bl=brandLight(marca);
     const emb=brandEmblem(marca);
-    const _marcaBanner=_brandGradient([marca]);
     html+=`<div class="esc-section">
-      <div class="esc-brand-banner" style="background:${_marcaBanner}">
-        <div class="banner-stripes"></div>
-        <div class="banner-content">
-          <div style="background:rgba(255,255,255,0.92);border-radius:10px;padding:5px 10px;height:44px;min-width:72px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">${emb}</div>
-          <div>
-            <div style="font-size:18px;font-weight:700;color:white;font-family:'Fraunces',serif;text-shadow:0 1px 4px rgba(0,0,0,0.35);line-height:1.2">${marca}</div>
-            <div style="font-size:12.5px;color:rgba(255,255,255,0.82);margin-top:3px">${list.length} unidade${list.length!==1?'s':''} cadastrada${list.length!==1?'s':''}</div>
-          </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid ${bc}">
+        <div style="height:42px;min-width:68px;border-radius:10px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 2px 10px ${bc}40;padding:4px 8px">${emb}</div>
+        <div>
+          <div style="font-size:20px;font-weight:700;color:${bc};font-family:'Fraunces',serif">${marca}</div>
+          <div style="font-size:12.5px;color:var(--muted)">${list.length} unidade${list.length!==1?'s':''}</div>
         </div>
-        <div class="banner-fade"></div>
       </div>
 
       <div class="esc-grid">`;
