@@ -390,8 +390,7 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 
     <!-- NOSSAS ESCOLAS -->
     <section id="view-escolas" class="view">
-      <div class="page-art-layer" id="esc-page-art"></div>
-      <div class="phead">
+<div class="phead">
         <div><div class="eyebrow">Cadastro central</div><h1>Nossas Escolas</h1><p>Diretório completo das unidades do grupo — base para todas as esferas.</p></div>
         <div class="acts"><button class="btn btn-primary" onclick="openUniModal(null)"><span class="ic">＋</span> Nova escola</button></div>
       </div>
@@ -1223,23 +1222,7 @@ Object.assign(CNPJS,{"COLOR FILM": "15.140.996/0001-08", "NOVA RIO LIMPO": "57.3
 let obras=[]
 let nextObraId=5, catSeq=1;
 
-let unidades=[
- {id:"u1",nome:"QI Valqueire",marca:"QI",obraId:1,tipo:"Em obra",docs:{}},
- {id:"u2",nome:"QI Recreio – Praça do Amor",marca:"QI",obraId:2,tipo:"Em obra",docs:{}},
- {id:"u3",nome:"Tijuca",marca:"Sarah Dawsey",obraId:3,tipo:"Em obra",docs:{}},
- {id:"u4",nome:"Barra Golf",marca:"Cubo + Global Tree",obraId:4,tipo:"Em obra",docs:{}},
- {id:"u5",nome:"Sede administrativa – Raiz",marca:"Raiz Educação",obraId:null,tipo:"Em operação",docs:{}},
- {id:"u6",nome:"QI Jacarepaguá",marca:"QI",obraId:null,tipo:"Em operação",docs:{}},
- {id:"u7",nome:"QI Freguesia",marca:"QI",obraId:null,tipo:"Em operação",docs:{}},
- {id:"u8",nome:"QI Barra da Tijuca",marca:"QI",obraId:null,tipo:"Em operação",docs:{}},
- {id:"u9",nome:"QI Ipanema",marca:"QI",obraId:null,tipo:"Em operação",docs:{}},
- {id:"u10",nome:"QI Botafogo",marca:"QI",obraId:null,tipo:"Em operação",docs:{}},
- {id:"u11",nome:"QI Méier",marca:"QI",obraId:null,tipo:"Em operação",docs:{}},
- {id:"u12",nome:"QI Maracanã",marca:"QI",obraId:null,tipo:"Em operação",docs:{}},
- {id:"u13",nome:"QI Campo Grande",marca:"QI",obraId:null,tipo:"Em operação",docs:{}},
- {id:"u14",nome:"Sarah Dawsey Recreio",marca:"Sarah Dawsey",obraId:null,tipo:"Em operação",docs:{}},
- {id:"u15",nome:"Global Tree Barra",marca:"Global Tree",obraId:null,tipo:"Em operação",docs:{}},
-];
+let unidades=[]
 let uniSeq=16;
 const ESFERAS={capex:{label:'Capex de Melhorias',desc:'Obras de melhoria e retrofit em unidades existentes.',icon:'🔧'},expansao:{label:'Expansões de Unidades',desc:'Ampliação e expansão de unidades em operação.',icon:'🏗'},nova:{label:'Novas Unidades',desc:'Construção e abertura de novas unidades do grupo.',icon:'🏢'}};
 let curEsfera='nova',esfBusca='',esfFiltroMarca='Todas';
@@ -2603,7 +2586,6 @@ async function deleteObra(id,e){
 
 async function persistUnidades(){
   try{
-    if(unidades.length)await db.from('unidades').upsert(unidades.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obra_id:u.obraId||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||''})));
   }catch(e){console.error('persistUnidades:',e);}
 }
 
@@ -2839,9 +2821,6 @@ function toggleNovaMarca(val){
 
 function renderEscolas(){
   // Injeta arte da página com todas as marcas presentes
-  const allMarcas=[...new Set(unidades.map(u=>u.marca).filter(m=>m&&m!=='—'))];
-  // Delay para garantir que o DOM está montado
-  setTimeout(()=>updatePageArt('esc-page-art',allMarcas.slice(0,4)),80);
   const q=(document.getElementById('esc-busca')?.value||'').trim().toLowerCase();
   const lista=q?unidades.filter(u=>
     u.nome.toLowerCase().includes(q)||
@@ -2866,20 +2845,14 @@ function renderEscolas(){
 
   let html='';
   for(const marca of marcasOrd){
-    const _esc_sec_bg=brandColor(marca)+'0a'; // 4% tint
     const list=byMarca[marca].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
     const bc=brandColor(marca);const bl=brandLight(marca);
     const emb=brandEmblem(marca);
     html+=`<div class="esc-section">
-      <div style="background:${bc};border-radius:var(--r-lg);padding:0;margin-bottom:18px;overflow:hidden;display:flex;align-items:stretch;min-height:80px">
-        <div style="display:flex;align-items:center;gap:16px;padding:14px 22px;flex:1">
-          <div style="background:rgba(255,255,255,0.95);border-radius:10px;padding:7px 14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;min-height:54px;min-width:76px">${(()=>{const _lu=getBrandLogoUrl(marca);return _lu?`<img src="${_lu}" style="height:40px;width:auto;max-width:110px;object-fit:contain" alt="${marca}">`:`${emb}`;})()}</div>
-          <div>
-            <div style="font-size:22px;font-weight:800;color:white;font-family:'Fraunces',serif;text-shadow:0 1px 4px rgba(0,0,0,0.3)">${marca}</div>
-            <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:2px">${list.length} unidade${list.length!==1?'s':''}</div>
-          </div>
-        </div>
-        <div style="width:70px;background:linear-gradient(to right,transparent,rgba(255,255,255,0.12));flex-shrink:0"></div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid ${bc}22">
+        <div style="height:38px;min-width:62px;border-radius:8px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;border:2px solid ${bc}30;padding:4px 8px">${emb}</div>
+        <span style="font-size:17px;font-weight:700;color:${bc};font-family:'Fraunces',serif">${marca}</span>
+        <span style="font-size:13px;color:var(--muted);margin-left:4px">${list.length} unidade${list.length!==1?'s':''}</span>
       </div>
 
       <div class="esc-grid">`;
@@ -3034,7 +3007,6 @@ async function persist(obraId){
       if(o.contratos.length)await db.from('contratos').insert(o.contratos.map(c=>({obra_id:o.id,forn:c.forn||'',escopo:c.escopo||'',v:c.v||0,pago:c.pago||0,seq:c.seq||0,numero:c.nome_contr||c.numero||'',nome_contr:c.nome_contr||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:c.parcelas_contr||[],medicao_freq:c.medicao_freq||null})));
     }
     if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs})));
-    if(unidades.length)await db.from('unidades').upsert(unidades.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obra_id:u.obraId||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||''})));
     const cl=Object.entries(CNPJS).map(([n,c])=>({nome:n,cnpj:c}));
     if(cl.length)await db.from('fornecedores_cnpj').upsert(cl);
   }catch(e){console.error('persist:',e);}
@@ -3042,7 +3014,6 @@ async function persist(obraId){
 async function persistGlobal(){
   try{
     if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs})));
-    if(unidades.length)await db.from('unidades').upsert(unidades.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obra_id:u.obraId||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||''})));
   }catch(e){console.error('persistGlobal:',e);}
 }
 async function loadFromDB(){
