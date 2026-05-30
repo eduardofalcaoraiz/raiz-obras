@@ -157,6 +157,11 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--cream);padding:13px 22px;border-radius:30px;font-size:14px;font-weight:500;opacity:0;transition:all .3s;z-index:60;display:flex;gap:9px}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.toast .ic{color:#9FE1CB}
 .empty{text-align:center;padding:26px;color:var(--soft);font-size:14px}
+.pag-row{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:13px 16px;margin-bottom:8px;transition:box-shadow .15s}
+.pag-row:hover{box-shadow:0 2px 12px rgba(23,60,52,.08)}
+.pag-row.pag-atraso{border-left:4px solid var(--danger);background:var(--danger-bg)08}
+.pag-row.pag-pend{border-left:4px solid var(--warn)}
+.pag-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--soft);margin-top:5px}
 .flag{font-size:11px;color:var(--danger);font-weight:500}
 .demo-note{font-size:12px;color:var(--soft);text-align:center;margin-top:24px;font-style:italic}
 .pgrow{display:flex;gap:8px;align-items:center;justify-content:center;padding:10px 0 0}
@@ -1467,36 +1472,66 @@ function renderPag(){const o=cur;let rows=o.pag.map((p,i)=>({p,i}));
   if(pagDe)rows=rows.filter(r=>!r.p.venc||r.p.venc>=pagDe);if(pagAte)rows=rows.filter(r=>!r.p.venc||r.p.venc<=pagAte);const q=pagBusca.trim().toLowerCase();if(q)rows=rows.filter(r=>((r.p.ben||"")+" "+(r.p.ref||"")+" "+(r.p.nota||"")).toLowerCase().indexOf(q)>=0);
   const fb=(f,l)=>`<button class="chip ${pagFiltro===f?'active':''}" onclick="setPagFiltro('${f}')">${l}</button>`;
   const total=rows.length,totalPgs=Math.max(1,Math.ceil(total/PAGE_SIZE));if(pagPage>=totalPgs)pagPage=totalPgs-1;const show=rows.slice(pagPage*PAGE_SIZE,(pagPage+1)*PAGE_SIZE);
-  const body=show.length?show.map(({p,i})=>{
+  const rows_html=show.length?show.map(({p,i})=>{
     const atr=isAtraso(p);
-    // Nº da NF
-    const nfNum=p.nfNum||'—';
-    // Nota Fiscal: badge de tipo + link do arquivo
+    const nfNum=p.nfNum||'';
+    // Nota fiscal: badge de tipo
     const nfBadge=p.nfTipo==='Adiantamento'?`<span class="badge b-warn" style="font-size:10px">💸 Adiantamento</span>`:
                   p.nfTipo==='Sem nota'?`<span style="font-size:11px;color:var(--soft)">sem NF</span>`:
-                  p.nfTipo?`<span class="badge b-doc" style="font-size:10px">${p.nfTipo}</span>`:'—';
-    const nfFile=p.nfDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)" style="font-size:11px">ver ↓</button>`:
-                 p.nfTipo!=='Sem nota'?`<button class="linkbtn" onclick="anexarNF(${o.id},${i})" style="font-size:11px">anexar</button>`:'';
-    // Comprovante de pagamento
-    const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)" style="font-size:11px">ver ↓</button>`:
-               `<button class="linkbtn" onclick="anexarComp(${o.id},${i})" style="font-size:11px">anexar</button>`;
-    // Referência
-    const refText=p.ref?`<span title="${p.ref.replace(/"/g,'&quot;')}">${p.ref.length>45?p.ref.slice(0,43)+'…':p.ref}</span>`:`<span style="color:var(--soft);font-style:italic;font-size:12px">—</span>`;
-    return`<tr>
-      <td style="text-align:center;color:var(--muted);font-size:12px;width:38px">${i+1}</td>
-      <td style="font-weight:600">${p.ben}</td>
-      <td class="num" style="font-size:12px;color:var(--muted);white-space:nowrap">${nfNum}</td>
-      <td style="min-width:110px">${nfBadge}${nfFile?` ${nfFile}`:''}</td>
-      <td class="n" style="font-weight:700;font-size:14px;white-space:nowrap">${fmt(p.v)}</td>
-      <td style="font-size:13px;max-width:220px">${refText}</td>
-      <td>${p.pagn&&p.pagn!=='—'?`<span class="badge b-neutral" style="font-size:11px">${p.pagn}</span>`:'—'}</td>
-      <td style="white-space:nowrap">${fmtD(p.venc)}${atr?`<div class="flag">${diasAtraso(p)}d em atraso</div>`:''}</td>
-      <td>${stPag(p)}</td>
-      <td style="min-width:80px">${comp}</td>
-      <td style="white-space:nowrap"><button class="iconbtn" title="Editar" onclick="openPagModal(${i})">✎</button><button class="iconbtn" title="Excluir" onclick="deletePagment(${o.id},${i})">🗑</button></td>
-    </tr>`;}).join(""):'<tr><td colspan="11"><p class="empty">Nenhum lançamento neste filtro.</p></td></tr>';
+                  p.nfTipo&&p.nfTipo!=='Sem nota'?`<span class="badge b-doc" style="font-size:10px">${p.nfTipo}</span>`:'';
+    // Arquivo da NF
+    const nfFile=p.nfDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">📄 ver NF ↓</button>`:
+                 p.nfTipo==='Adiantamento'?`<button class="linkbtn" onclick="anexarNF(${o.id},${i})">📎 anexar NF</button>`:
+                 p.nfTipo&&p.nfTipo!=='Sem nota'?`<button class="linkbtn" onclick="anexarNF(${o.id},${i})">📎 anexar</button>`:'';
+    // Comprovante
+    const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾 comprovante ↓</button>`:
+               `<button class="linkbtn" style="color:var(--muted)" onclick="anexarComp(${o.id},${i})">+ comprovante</button>`;
+    return`<div class="pag-row ${atr?'pag-atraso':p.st==='PENDENTE'?'pag-pend':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:${p.ref?'3px':'0'}">
+            <span style="font-size:11px;color:var(--muted);font-family:'Spline Sans Mono',monospace">#${i+1}</span>
+            <span style="font-weight:700;font-size:15px">${p.ben}</span>
+            ${stPag(p)}
+            ${atr?`<span class="flag">${diasAtraso(p)}d em atraso</span>`:''}
+          </div>
+          ${p.ref?`<div style="font-size:13px;color:var(--ink);margin-bottom:5px;padding-left:30px">${p.ref}</div>`:''}
+          <div class="pag-meta" style="padding-left:30px">
+            <span>📅 ${fmtD(p.venc)}</span>
+            ${p.pagn&&p.pagn!=='—'?`<span class="badge b-neutral" style="font-size:10.5px">👤 ${p.pagn}</span>`:''}
+            ${nfNum?`<span style="font-family:'Spline Sans Mono',monospace;font-size:11px;background:var(--surface-2);padding:2px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)">${nfNum}</span>`:''}
+            ${nfBadge}
+            ${nfFile}
+            ${comp}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:20px;font-weight:800;font-family:'Spline Sans Mono',monospace;white-space:nowrap">${fmt(p.v)}</div>
+          <div style="display:flex;gap:3px;justify-content:flex-end;margin-top:6px">
+            <button class="iconbtn" title="Editar" onclick="openPagModal(${i})">✎</button>
+            <button class="iconbtn" title="Excluir" onclick="deletePagment(${o.id},${i})" style="color:var(--danger)">🗑</button>
+          </div>
+        </div>
+      </div>
+    </div>`;}).join(""):`<p class="empty">Nenhum lançamento neste filtro.</p>`;
   const pgH=totalPgs>1?`<div class="pgrow"><button class="pgbtn" onclick="setPagPage(${pagPage-1})" ${pagPage===0?"disabled":""}>← Anterior</button><span class="pginfo">Página ${pagPage+1} de ${totalPgs} · ${total.toLocaleString("pt-BR")} lançamentos</span><button class="pgbtn" onclick="setPagPage(${pagPage+1})" ${pagPage>=totalPgs-1?"disabled":""}>Próxima →</button></div>`:`<p class="sub" style="margin-top:10px;text-align:center">${total.toLocaleString("pt-BR")} lançamento(s).</p>`;
-  document.getElementById("pane-pag").innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px"><div class="filters" style="margin:0">${fb('todos','Todos')}${fb('pagos','Pagos')}${fb('pend','Pendentes')}${fb('atraso','Em atraso')}</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><label style="font-size:12.5px;color:var(--muted)">De</label><input class="fi" type="date" style="width:140px;padding:7px 10px;font-size:13px" value="${pagDe}" onchange="setPagDe(this.value)"><label style="font-size:12.5px;color:var(--muted)">Até</label><input class="fi" type="date" style="width:140px;padding:7px 10px;font-size:13px" value="${pagAte}" onchange="setPagAte(this.value)"></div><div style="display:flex;gap:8px"><input class="fi" id="pag-busca" style="width:210px;padding:8px 12px;font-size:13px" placeholder="Buscar fornecedor, ref…" value="${pagBusca.replace(/"/g,'&quot;')}" oninput="setPagBusca(this.value)"><button class="btn btn-sm" onclick="exportCSV()" title="Exportar CSV"><span class="ic">↓</span> CSV</button><button class="btn btn-primary btn-sm" onclick="openImport()"><span class="ic">＋</span> Lançar</button></div></div><div class="tablewrap"><table><thead><tr><th style="text-align:center;width:38px">#</th><th>Fornecedor</th><th>Nº da NF</th><th>Nota Fiscal</th><th style="text-align:right">Valor</th><th>Referência</th><th>Pagante</th><th>Data de Pagamento</th><th>Status</th><th>Comprovante</th><th></th></tr></thead><tbody>${body}</tbody></table></div>${pgH}`;
+  document.getElementById("pane-pag").innerHTML=`
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="filters" style="margin:0">${fb('todos','Todos')}${fb('pagos','Pagos')}${fb('pend','Pendentes')}${fb('atraso','Em atraso')}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-sm" onclick="exportCSV()" title="Exportar CSV"><span class="ic">↓</span> CSV</button>
+        <button class="btn btn-primary btn-sm" onclick="openImport()"><span class="ic">＋</span> Lançar</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <input class="fi" id="pag-busca" style="flex:1;min-width:160px;max-width:320px;padding:8px 12px;font-size:13px" placeholder="Buscar fornecedor ou referência…" value="${pagBusca.replace(/"/g,'&quot;')}" oninput="setPagBusca(this.value)">
+      <label style="font-size:12.5px;color:var(--muted)">De</label>
+      <input class="fi" type="date" style="width:130px;padding:7px 10px;font-size:13px" value="${pagDe}" onchange="setPagDe(this.value)">
+      <label style="font-size:12.5px;color:var(--muted)">Até</label>
+      <input class="fi" type="date" style="width:130px;padding:7px 10px;font-size:13px" value="${pagAte}" onchange="setPagAte(this.value)">
+    </div>
+    <div id="pag-list">${rows_html}</div>
+    ${pgH}`;
   if(pagBusca){const sb=document.getElementById("pag-busca");if(sb){const e=sb.value.length;sb.focus();sb.setSelectionRange(e,e);}}
 }
 
