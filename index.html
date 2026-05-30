@@ -615,7 +615,18 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
         <div id="imp-parcelas-wrap" style="display:none;margin-top:4px"></div>
       </div>
 
-      <!-- 6. Observações / Discriminação -->
+      <!-- 6. Vínculo com contrato -->
+      <div class="imp-sec">
+        <div class="imp-sec-hd">Vínculo com Contrato</div>
+        <div>
+          <label class="fl">Este pagamento faz parte de algum contrato da obra?</label>
+          <select class="fi" id="imp-contrato">
+            <option value="">Não vinculado a contrato</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 7. Observações / Discriminação -->
       <div class="imp-sec">
         <div class="imp-sec-hd">Observações / Discriminação dos Serviços</div>
         <textarea class="fi" id="imp-obs" rows="3" style="height:auto;resize:vertical;font-size:13.5px" placeholder="Informações adicionais extraídas da nota..."></textarea>
@@ -709,6 +720,7 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
     <div class="fgrid"><div class="frow"><label class="fl">Vencimento / Data do pagamento</label><input class="fi" id="pm-venc" type="date"></div><div class="frow"><label class="fl">Documento fiscal</label><select class="fi" id="pm-nf" onchange="pmNfChange()"><option>Sem nota</option><option>NF-e</option><option>NFS-e</option><option value="Adiantamento">Adiantamento</option><option>Recibo</option><option>Guia</option></select></div></div>
     <div class="frow" id="pm-nfnum-row" style="display:none"><label class="fl">Nº do documento fiscal</label><input class="fi mono" id="pm-nfnum" placeholder="NF-e nº 12345 ou NFS-e nº 67890"></div>
     <div class="fgrid"><div class="frow"><label class="fl">Pago por</label><select class="fi" id="pm-pag"></select></div><div class="frow"><label class="fl">Status</label><select class="fi" id="pm-st"><option>PAGO</option><option>PENDENTE</option><option>Cancelado</option></select></div></div>
+    <div class="frow"><label class="fl">Vinculado ao contrato</label><select class="fi" id="pm-contrato"><option value="">Sem vínculo de contrato</option></select></div>
     <div class="fgrid" style="display:none"><div class="frow"><label class="fl">Categoria</label><select class="fi" id="pm-cat" onchange="pmSubs()"></select></div><div class="frow"><label class="fl">Subcategoria</label><select class="fi" id="pm-sub"></select></div></div>
     <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn btn-ghost" onclick="closePagModal()">Cancelar</button><button class="btn btn-primary" onclick="savePag()"><span class="ic">✓</span> Salvar</button></div>
   </div>
@@ -814,13 +826,38 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px"><button class="btn btn-ghost" onclick="closeDocModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmDocs()"><span class="ic">✓</span> Confirmar e anexar</button></div></div></div>
 </div></div>
 
-<div class="overlay" id="contr-overlay"><div class="modal" style="max-width:500px">
+<div class="overlay" id="contr-overlay"><div class="modal" style="max-width:600px">
   <div class="mhead"><h2 id="contr-title">Novo contrato</h2><button class="x" onclick="closeContrModal()">×</button></div>
   <div class="mbody">
-    <div class="fgrid"><div class="frow"><label class="fl">Fornecedor</label><input class="fi" id="cm-forn"></div><div class="frow"><label class="fl">Valor contratado (R$)</label><input class="fi num" id="cm-v" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div></div>
-    <div class="frow"><label class="fl">Escopo / descrição</label><input class="fi" id="cm-escopo" placeholder="o que foi contratado"></div>
-    <div class="frow"><label class="fl">Valor já pago (R$)</label><input class="fi num" id="cm-pago" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div>
-    <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn btn-ghost" onclick="closeContrModal()">Cancelar</button><button class="btn btn-primary" onclick="saveContr()"><span class="ic">✓</span> Salvar</button></div>
+    <div class="fgrid">
+      <div class="frow"><label class="fl">Nº do contrato</label><input class="fi mono" id="cm-num" placeholder="ex.: 001/2026"></div>
+      <div class="frow"><label class="fl">Data de assinatura</label><input class="fi" id="cm-data" type="date"></div>
+    </div>
+    <div class="frow"><label class="fl">Empresa / Fornecedor contratado</label><input class="fi" id="cm-forn" placeholder="Nome da empresa ou profissional"></div>
+    <div class="frow"><label class="fl">Objeto do contrato (escopo)</label><textarea class="fi" id="cm-escopo" rows="2" style="height:auto;resize:vertical" placeholder="Descreva o que está sendo contratado…"></textarea></div>
+    <div class="fgrid">
+      <div class="frow"><label class="fl">Modelo de contrato</label>
+        <select class="fi" id="cm-modelo">
+          <option value="Preço Global">Preço Global (valor fixo)</option>
+          <option value="Por Administração">Por Administração (% sobre custos)</option>
+          <option value="Hora Técnica">Hora Técnica</option>
+          <option value="Fornecimento">Fornecimento de material</option>
+          <option value="Misto">Misto</option>
+        </select>
+      </div>
+      <div class="frow"><label class="fl">Status</label>
+        <select class="fi" id="cm-status">
+          <option value="Ativo">🟢 Ativo</option>
+          <option value="Concluído">✅ Concluído</option>
+          <option value="Suspenso">⏸ Suspenso</option>
+          <option value="Rescindido">❌ Rescindido</option>
+          <option value="Em negociação">🤝 Em negociação</option>
+        </select>
+      </div>
+    </div>
+    <div class="frow"><label class="fl">Valor contratado (R$)</label><input class="fi num" id="cm-v" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div>
+    <div class="frow"><label class="fl">Observações</label><textarea class="fi" id="cm-obs" rows="2" style="height:auto;resize:vertical" placeholder="Informações adicionais, condições especiais…"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px"><button class="btn btn-ghost" onclick="closeContrModal()">Cancelar</button><button class="btn btn-primary" onclick="saveContr()"><span class="ic">✓</span> Salvar contrato</button></div>
   </div>
 </div></div>
 
@@ -942,9 +979,56 @@ function exportCSV(){if(!cur)return;let rows=cur.pag.map((p,i)=>({p,i}));if(pagF
 
 /* CRUD CONTRATOS */
 let contrEditIdx=null;
-function openContrModal(idx){contrEditIdx=(typeof idx==="number")?idx:null;const g=v=>document.getElementById(v);if(contrEditIdx!==null){const c=cur.contratos[contrEditIdx];g("contr-title").textContent="Editar contrato";g("cm-forn").value=c.forn;g("cm-escopo").value=c.escopo||"";setCurrencyValue("cm-v",c.v);setCurrencyValue("cm-pago",c.pago);}else{g("contr-title").textContent="Novo contrato";["cm-forn","cm-escopo","cm-v","cm-pago"].forEach(x=>g(x).value="");}g("contr-overlay").classList.add("show");setTimeout(()=>g("cm-forn").focus(),60);}
+let _contrSeqNext=1;
+function _contrSeqFor(obra){return obra.contratos.reduce((m,c)=>Math.max(m,c.seq||0),0)+1;}
+function _fillContrSelect(elId,cur,val){const el=document.getElementById(elId);if(!el)return;el.innerHTML='<option value="">Sem vínculo de contrato</option>'+(cur?.contratos||[]).filter(c=>c.seq).map(c=>`<option value="${c.seq}">${c.numero?`Nº ${c.numero} — `:''}${c.forn}${c.escopo?' · '+c.escopo.slice(0,30):''}</option>`).join('');if(val)el.value=val;}
+
+function openContrModal(idx){
+  contrEditIdx=(typeof idx==="number")?idx:null;
+  const g=v=>document.getElementById(v);
+  if(contrEditIdx!==null){
+    const c=cur.contratos[contrEditIdx];
+    g("contr-title").textContent="Editar contrato";
+    g("cm-num").value=c.numero||'';
+    g("cm-data").value=c.data_assn||'';
+    g("cm-forn").value=c.forn||'';
+    g("cm-escopo").value=c.escopo||'';
+    g("cm-modelo").value=c.modelo||'Preço Global';
+    g("cm-status").value=c.status_contr||'Ativo';
+    setCurrencyValue("cm-v",c.v);
+    g("cm-obs").value=c.observacoes||'';
+  }else{
+    g("contr-title").textContent="Novo contrato";
+    ["cm-num","cm-data","cm-forn","cm-escopo","cm-obs"].forEach(x=>g(x).value="");
+    g("cm-modelo").value='Preço Global';
+    g("cm-status").value='Ativo';
+    document.getElementById("cm-v").value='';
+  }
+  g("contr-overlay").classList.add("show");
+  setTimeout(()=>g("cm-forn").focus(),60);
+}
 function closeContrModal(){document.getElementById("contr-overlay").classList.remove("show");contrEditIdx=null;}
-function saveContr(){const g=v=>document.getElementById(v).value.trim();const forn=g("cm-forn");if(!forn){toast("Informe o fornecedor.");return;}const obj={forn,escopo:g("cm-escopo"),v:parseCurrency(document.getElementById("cm-v").value),pago:parseCurrency(document.getElementById("cm-pago").value)};if(contrEditIdx!==null){cur.contratos[contrEditIdx]=obj;}else{cur.contratos.push(obj);}persist(cur.id);closeContrModal();renderObra();showTab("contr");toast(contrEditIdx!==null?"Contrato atualizado.":"Contrato criado.");}
+function saveContr(){
+  const g=v=>document.getElementById(v).value.trim();
+  const forn=g("cm-forn");if(!forn){toast("Informe o fornecedor.");return;}
+  const v=parseCurrency(document.getElementById("cm-v").value);
+  const obj={
+    forn,escopo:g("cm-escopo"),v,pago:0,
+    numero:g("cm-num"),data_assn:g("cm-data"),
+    modelo:g("cm-modelo"),status_contr:g("cm-status"),
+    observacoes:g("cm-obs")
+  };
+  if(contrEditIdx!==null){
+    obj.seq=cur.contratos[contrEditIdx].seq;
+    obj.pago=cur.contratos[contrEditIdx].pago;
+    cur.contratos[contrEditIdx]=obj;
+  }else{
+    obj.seq=_contrSeqFor(cur);
+    cur.contratos.push(obj);
+  }
+  persist(cur.id);closeContrModal();renderObra();showTab("contr");
+  toast(contrEditIdx!==null?"Contrato atualizado.":"Contrato criado.");
+}
 function deleteContr(idx){const c=cur.contratos[idx];askConfirm('Excluir contrato com "'+c.forn+'"? Esta ação não pode ser desfeita.',()=>{cur.contratos.splice(idx,1);persist(cur.id);renderObra();showTab("contr");toast("Contrato excluído.");});}
 
 /* CRUD APORTES */
@@ -1483,7 +1567,63 @@ function renderObra(){const o=cur,pct=execObra(o);
   if(atr.length)al+=`<div class="alert alert-danger"><span class="ic">◉</span><div><b>${atr.length} pagamento(s) em atraso</b> nesta obra. Veja na aba Pagamentos.</div></div>`;
   document.getElementById("pane-resumo").innerHTML=`${al?`<div class="card"><h2>Alertas</h2><div class="sub">O que merece atenção.</div>${al}</div>`:""}${contratoH}${taxaH}<div class="card"><h2>Evolução mensal de gastos</h2><div class="sub">Total pago por mês (apenas lançamentos com data).</div>${chartH||'<p class="empty">Sem datas de pagamento cadastradas.</p>'}</div><div class="card"><h2>Gasto por categoria</h2><div class="sub">Distribuição do que já foi pago.</div>${cats||'<p class="empty">Sem pagamentos.</p>'}</div><div class="card"><h2>Quem pagou</h2><div class="sub">Consolidado por fonte de recurso.</div>${fH||'<p class="empty">Sem pagamentos.</p>'}</div>`;
   renderPag();
-  document.getElementById("pane-contr").innerHTML=`<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-primary btn-sm" onclick="openContrModal()"><span class="ic">＋</span> Novo contrato</button></div><div class="tablewrap"><table><thead><tr><th>Fornecedor</th><th>Escopo</th><th style="text-align:right">Contrato</th><th style="text-align:right">Pago</th><th style="text-align:right">Pendente</th><th>Execução</th><th></th></tr></thead><tbody>${o.contratos.length?o.contratos.map((c,ci)=>{const pend=c.v-c.pago,p=c.v?Math.round(c.pago/c.v*100):0;return `<tr><td style="font-weight:500">${c.forn}</td><td class="ref">${c.escopo}</td><td class="n">${fmt(c.v)}</td><td class="n">${fmt(c.pago)}</td><td class="n" style="color:${pend<0?'var(--danger)':'inherit'}">${fmt(pend)}</td><td style="min-width:120px"><div class="bar"><i class="${barClass(p)}" style="width:${Math.min(p,100)}%"></i></div></td><td style="white-space:nowrap"><button class="iconbtn" title="Editar" onclick="openContrModal(${ci})">✎</button><button class="iconbtn" title="Excluir" onclick="deleteContr(${ci})">🗑</button></td></tr>`;}).join(""):'<tr><td colspan="7"><p class="empty">Nenhum contrato cadastrado.</p></td></tr>'}</tbody></table></div>`;
+  // Calcula quanto foi pago por contrato via pagamentos vinculados
+  const pagoPorContr={};
+  o.pag.filter(p=>p.st==='PAGO'&&p.contratoSeq).forEach(p=>{pagoPorContr[p.contratoSeq]=(pagoPorContr[p.contratoSeq]||0)+p.v;});
+  const totalContratado=o.contratos.reduce((a,c)=>a+c.v,0);
+  const totalPagoContr=Object.values(pagoPorContr).reduce((a,v)=>a+v,0);
+  const STATUS_COLOR={'Ativo':'var(--ok)','Concluído':'var(--accent)','Suspenso':'var(--warn)','Rescindido':'var(--danger)','Em negociação':'var(--info)'};
+  const contrCards=o.contratos.length?o.contratos.map((c,ci)=>{
+    const pagReal=pagoPorContr[c.seq]||0;
+    const pct=c.v?Math.min(Math.round(pagReal/c.v*100),100):0;
+    const falta=c.v-pagReal;
+    const sc=STATUS_COLOR[c.status_contr]||'var(--muted)';
+    return`<div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+            ${c.numero?`<span style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--surface-2);padding:2px 8px;border-radius:6px;border:1px solid var(--line)">Nº ${c.numero}</span>`:''}
+            <span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:12px;background:${sc}18;color:${sc};border:1px solid ${sc}44">${c.status_contr||'Ativo'}</span>
+            ${c.modelo&&c.modelo!=='Preço Global'?`<span style="font-size:11px;color:var(--muted);background:var(--surface-2);padding:2px 8px;border-radius:10px;border:1px solid var(--line)">${c.modelo}</span>`:''}
+          </div>
+          <div style="font-weight:700;font-size:16px;margin-bottom:3px">${c.forn}</div>
+          ${c.escopo?`<div style="font-size:13px;color:var(--muted);margin-bottom:6px">${c.escopo}</div>`:''}
+          ${c.data_assn?`<div style="font-size:12px;color:var(--soft)">📅 Assinado em ${fmtD(c.data_assn)}</div>`:''}
+          ${c.observacoes?`<div style="font-size:12px;color:var(--muted);margin-top:6px;padding:7px 10px;background:var(--surface-2);border-radius:var(--r);border-left:3px solid var(--line)">${c.observacoes}</div>`:''}
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:11px;color:var(--muted)">Valor contratado</div>
+          <div style="font-size:22px;font-weight:800;font-family:'Spline Sans Mono',monospace">${fmt(c.v)}</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:12.5px;color:var(--muted)">Execução financeira (pagamentos vinculados)</span>
+          <span style="font-size:13px;font-weight:700;color:var(--ok)">${fmt(pagReal)}</span>
+        </div>
+        <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:6px">
+          <div style="height:100%;width:${pct}%;background:${pct>=100?'var(--ok)':pct>70?'var(--accent)':'var(--info)'};border-radius:4px;transition:width .5s"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
+          <span>${pct}% executado</span>
+          <span>${falta>=0?`Falta pagar: ${fmt(falta)}`:`<span style="color:var(--danger)">Excedeu em ${fmt(-falta)}</span>`}</span>
+        </div>
+        ${pagReal===0?`<p style="font-size:12px;color:var(--soft);margin-top:8px;font-style:italic">Nenhum pagamento vinculado a este contrato ainda. Vincule ao lançar pagamentos.</p>`:''}
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+        <button class="btn btn-ghost btn-sm" onclick="openContrModal(${ci})">✎ Editar</button>
+        <button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)99;font-size:12px" onclick="deleteContr(${ci})">Excluir</button>
+      </div>
+    </div>`;
+  }).join(''):`<div class="card"><p class="empty">Nenhum contrato cadastrado.<br><span style="font-size:13px">Clique em "+ Novo contrato" para começar.</span></p></div>`;
+  document.getElementById("pane-contr").innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div>
+        ${o.contratos.length>0?`<span style="font-size:13px;color:var(--muted)">${o.contratos.length} contrato${o.contratos.length!==1?'s':''} · Total: ${fmt(totalContratado)} · Pago (vinculados): ${fmt(totalPagoContr)}</span>`:''}
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openContrModal()"><span class="ic">＋</span> Novo contrato</button>
+    </div>
+    ${contrCards}`;
   const porInv={};o.aportes.forEach(a=>porInv[a.inv]=(porInv[a.inv]||0)+a.v);
   document.getElementById("pane-aportes").innerHTML=`<div class="invgrid">${Object.entries(porInv).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="invc"><div class="nm">${k}</div><div class="v">${fmt(v)}</div><div class="pc">${Math.round(v/o.aportado*100)}% do aporte</div></div>`).join("")}</div><div style="display:flex;justify-content:flex-end;margin:12px 0 8px"><button class="btn btn-primary btn-sm" onclick="openAporteModal()"><span class="ic">＋</span> Novo aporte</button></div><div class="tablewrap"><table><thead><tr><th>Investidor</th><th style="text-align:right">Valor</th><th>Data</th><th></th></tr></thead><tbody>${o.aportes.length?o.aportes.map((a,ai)=>`<tr><td style="font-weight:500">${a.inv}</td><td class="n">${fmt(a.v)}</td><td>${a.d||'—'}</td><td style="white-space:nowrap"><button class="iconbtn" title="Editar" onclick="openAporteModal(${ai})">✎</button><button class="iconbtn" title="Excluir" onclick="deleteAporte(${ai})">🗑</button></td></tr>`).join(""):'<tr><td colspan="4"><p class="empty">Nenhum aporte registrado.</p></td></tr>'}</tbody></table></div>`;
 }
@@ -1525,6 +1665,8 @@ function renderPag(){const o=cur;let rows=o.pag.map((p,i)=>({p,i}));
                  p.nfTipo&&p.nfTipo!=='Sem nota'?`<button class="linkbtn" onclick="anexarNF(${o.id},${i})">📎 anexar</button>`:'';
     const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾 comp</button>`:
                `<button class="linkbtn" style="color:var(--muted)" onclick="anexarComp(${o.id},${i})">+ comp</button>`;
+    const cVinc=p.contratoSeq?o.contratos.find(c=>c.seq===p.contratoSeq):null;
+    const contrTag=cVinc?`<span style="font-size:10px;background:var(--info-bg);color:var(--info);padding:2px 8px;border-radius:10px;border:1px solid var(--info)33">📋 ${cVinc.forn.slice(0,22)}${cVinc.numero?' Nº'+cVinc.numero:''}</span>`:'';
     const markBtn=(p.st==='PENDENTE'||atr)?`<button onclick="marcarPagoLista(${o.id},${i})" style="background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok);border-radius:8px;font-size:11px;padding:3px 9px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap;opacity:.85">✓ Marcar pago</button>`:'';
     const adiantWarn=p.nfTipo==='Adiantamento'&&!p.nfDoc?`<span style="font-size:10px;color:var(--warn);background:var(--warn-bg);padding:2px 7px;border-radius:10px">⚠ NF aguardada</span>`:'';
     const obsIcon=p.obs?`<span style="color:var(--info);cursor:help;font-size:13px" title="${(p.obs||'').replace(/"/g,'&quot;')}">💬</span>`:'';
@@ -1543,7 +1685,7 @@ function renderPag(){const o=cur;let rows=o.pag.map((p,i)=>({p,i}));
             <span>📅 ${fmtD(p.venc)}</span>
             ${p.pagn&&p.pagn!=='—'?`<span class="badge b-neutral" style="font-size:10.5px">👤 ${p.pagn}</span>`:''}
             ${nfNum?`<span style="font-family:'Spline Sans Mono',monospace;font-size:11px;background:var(--surface-2);padding:2px 7px;border-radius:5px;border:1px solid var(--line);color:var(--muted)">${nfNum}</span>`:''}
-            ${nfBadge}${nfFile}${comp}${markBtn}
+            ${contrTag}${nfBadge}${nfFile}${comp}${markBtn}
             <button class="iconbtn" title="Editar" onclick="openPagModal(${i})">✎</button>
             <button class="iconbtn" title="Excluir" onclick="deletePagment(${o.id},${i})" style="color:var(--danger)">🗑</button>
           </div>
@@ -2062,12 +2204,13 @@ function pmSubs(){const c=catById(document.getElementById("pm-cat").value);docum
 function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(typeof idx==="number")?idx:null;const g=v=>document.getElementById(v);
   g("pm-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
   g("pm-pag").innerHTML=Array.from(new Set([...cur.aportes.map(a=>a.inv),...FONTES])).map(f=>`<option>${f}</option>`).join("");
-  if(pagEditIdx!==null){const p=cur.pag[pagEditIdx];g("pag-title").textContent="Editar pagamento";g("pm-ben").value=p.ben;setCurrencyValue("pm-val",p.v);g("pm-ref").value=p.ref||'';if(g("pm-nfnum"))g("pm-nfnum").value=p.nfNum||'';g("pm-cat").value=p.cat||CATS[0].id;pmSubs();g("pm-sub").value=p.sub||0;g("pm-pag").value=p.pagn;g("pm-st").value=p.st;g("pm-venc").value=p.venc||"";g("pm-nf").value=p.nfTipo||"Sem nota";pmNfChange();}
-  else{g("pag-title").textContent="Lançar pagamento";["pm-ben","pm-val","pm-ref","pm-venc"].forEach(x=>g(x).value="");if(g("pm-nfnum"))g("pm-nfnum").value="";g("pm-cat").value=CATS[0].id;pmSubs();g("pm-st").value="PENDENTE";g("pm-nf").value="Sem nota";pmNfChange();}
+  _fillContrSelect("pm-contrato",cur,'');
+  if(pagEditIdx!==null){const p=cur.pag[pagEditIdx];g("pag-title").textContent="Editar pagamento";g("pm-ben").value=p.ben;setCurrencyValue("pm-val",p.v);g("pm-ref").value=p.ref||'';if(g("pm-nfnum"))g("pm-nfnum").value=p.nfNum||'';g("pm-cat").value=p.cat||CATS[0].id;pmSubs();g("pm-sub").value=p.sub||0;g("pm-pag").value=p.pagn;g("pm-st").value=p.st;g("pm-venc").value=p.venc||"";g("pm-nf").value=p.nfTipo||"Sem nota";pmNfChange();if(g("pm-contrato"))g("pm-contrato").value=p.contratoSeq||'';}
+  else{g("pag-title").textContent="Lançar pagamento";["pm-ben","pm-val","pm-ref","pm-venc"].forEach(x=>g(x).value="");if(g("pm-nfnum"))g("pm-nfnum").value="";g("pm-cat").value=CATS[0].id;pmSubs();g("pm-st").value="PENDENTE";g("pm-nf").value="Sem nota";pmNfChange();if(g("pm-contrato"))g("pm-contrato").value='';}
   g("pag-overlay").classList.add("show");}
 function closePagModal(){document.getElementById("pag-overlay").classList.remove("show");}
 function pmNfChange(){const t=document.getElementById('pm-nf')?.value||'';const r=document.getElementById('pm-nfnum-row');if(r)r.style.display=(t&&t!=='Sem nota'&&t!=='Adiantamento')?'':'none';}
-function savePag(){const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:+g("pm-sub")||0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),nfTipo:g("pm-nf")};
+function savePag(){const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const cSeq=document.getElementById("pm-contrato")?.value||'';const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:+g("pm-sub")||0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null};
   if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];const wasPago=old.st==="PAGO";const willPago=obj.st==="PAGO";cur.pago+=(willPago?obj.v:0)-(wasPago?old.v:0);cur.pag[pagEditIdx]={...old,...obj};}
   else{if(obj.st==="PAGO")cur.pago+=obj.v;cur.pag.push({...obj,comp:""});}
   persist(cur.id);closePagModal();renderObra();renderPainel();updateNavBadge();toast(pagEditIdx!==null?"Pagamento atualizado":"Pagamento lançado");}
@@ -2284,11 +2427,11 @@ async function persist(obraId){
     if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:o.pago||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,aditivos_contrato:o.aditivos_contrato||[]})));
     for(const o of ts){
       await db.from('pagamentos').delete().eq('obra_id',o.id);
-      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:p.nfNum||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||''})));
+      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:p.nfNum||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',contrato_seq:p.contratoSeq||null})));
       await db.from('aportes').delete().eq('obra_id',o.id);
       if(o.aportes.length)await db.from('aportes').insert(o.aportes.map(a=>({obra_id:o.id,inv:a.inv||'',v:a.v||0,d:a.d||''})));
       await db.from('contratos').delete().eq('obra_id',o.id);
-      if(o.contratos.length)await db.from('contratos').insert(o.contratos.map(c=>({obra_id:o.id,forn:c.forn||'',escopo:c.escopo||'',v:c.v||0,pago:c.pago||0})));
+      if(o.contratos.length)await db.from('contratos').insert(o.contratos.map(c=>({obra_id:o.id,forn:c.forn||'',escopo:c.escopo||'',v:c.v||0,pago:c.pago||0,seq:c.seq||0,numero:c.numero||'',data_assn:c.data_assn||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global'})));
     }
     if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs})));
     if(unidades.length)await db.from('unidades').upsert(unidades.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obra_id:u.obraId||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||''})));
@@ -2324,9 +2467,9 @@ async function loadFromDB(){
       investimento_disponivel:+o.investimento_disponivel||0,
       aditivos_contrato:Array.isArray(o.aditivos_contrato)?o.aditivos_contrato:[],
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
-      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null})),
+      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null,contratoSeq:p.contrato_seq||null})),
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
-      contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map(c=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0}))
+      contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',data_assn:c.data_assn||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global'}))
     }));
     nextObraId=obras.reduce((m,o)=>Math.max(m,o.id),0)+1;
     if(catR.data&&catR.data.length){CATS=catR.data.map(c=>({id:c.id,nome:c.nome,subs:Array.isArray(c.subs)?c.subs:(c.subs||['Geral'])}));catSeq=Math.max(catSeq,...CATS.filter(c=>c.id.startsWith('cat_')).map(c=>parseInt(c.id.replace('cat_',''))||0))+1;}
@@ -2360,6 +2503,7 @@ function openImport(){
   document.getElementById("imp-file").value="";
   document.getElementById("imp-chave-paste").value="";
   const _refEl=document.getElementById("imp-ref");if(_refEl)_refEl.value="";
+  _fillContrSelect("imp-contrato",cur,'');
   document.getElementById("imp-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
   const pagadores=['Raiz Educação',...unidades.map(u=>u.nome),...investidores.map(i=>i.nome)];
   document.getElementById("imp-pag").innerHTML=pagadores.map(f=>`<option>${f}</option>`).join('');
@@ -3102,9 +3246,10 @@ async function confirmImport(){
   const nfTipo=document.getElementById("imp-nftipo").value;
   const forma=document.getElementById("imp-pag-forma").value;
   const obs=document.getElementById("imp-obs").value.trim();
+  const impContrSeq=document.getElementById("imp-contrato")?.value||'';
   if(!ben){toast("Informe o beneficiário.");return;}
   if(!val){toast("Informe o valor.");return;}
-  const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:date,nfTipo,tipo};
+  const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:date,nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null};
   if(chave)p.chave=chave;
   if(obs)p.obs=obs;
   if(forma!=='A_VISTA')p.pagForma=forma;
