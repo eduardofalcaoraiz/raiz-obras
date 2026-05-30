@@ -185,6 +185,20 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 #view-obra .tabbtn.active{border-bottom-color:var(--brand-cur)}
 #view-obra .o-bar>i{background:var(--brand-cur)}
 .brand-header-strip{height:4px;border-radius:2px;background:var(--brand-cur);margin-bottom:22px;opacity:.8}
+/* Faixas transversais de marca */
+.obra-brand-banner{height:120px;margin:-36px -44px 28px;position:relative;overflow:hidden;flex-shrink:0}
+.obra-brand-banner .banner-stripes{position:absolute;inset:0;background:repeating-linear-gradient(-55deg,transparent 0,transparent 30px,rgba(255,255,255,0.07) 30px,rgba(255,255,255,0.07) 60px)}
+.obra-brand-banner .banner-fade{position:absolute;bottom:0;left:0;right:0;height:50px;background:linear-gradient(to bottom,transparent,var(--paper))}
+.obra-brand-banner .banner-content{position:absolute;inset:0;display:flex;align-items:center;padding:0 44px;gap:16px;z-index:2}
+.esc-brand-banner{border-radius:var(--r-lg);margin-bottom:14px;padding:22px 24px 20px;position:relative;overflow:hidden}
+.esc-brand-banner .banner-stripes{position:absolute;inset:0;background:repeating-linear-gradient(-55deg,transparent 0,transparent 35px,rgba(255,255,255,0.06) 35px,rgba(255,255,255,0.06) 70px)}
+.esc-brand-banner .banner-fade{position:absolute;bottom:0;left:0;right:0;height:40px;background:linear-gradient(to bottom,transparent,rgba(0,0,0,0.08))}
+.esc-brand-banner .banner-content{position:relative;z-index:2;display:flex;align-items:center;gap:16px}
+@media(max-width:768px){
+  .obra-brand-banner{height:88px;margin:-18px -14px 18px}
+  .obra-brand-banner .banner-content{padding:0 16px;gap:10px}
+  .esc-brand-banner{padding:16px 16px 14px}
+}
 .esc-section-bg{border-radius:var(--r-lg);padding:16px;margin-bottom:28px;border:1px solid transparent}
 .esfera-sec{margin-bottom:36px}.esfera-sec-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
 .esfera-sec-head h2{font-size:19px;display:flex;align-items:center;gap:8px}.esfera-sec-head .sub{font-size:13px;color:var(--muted);margin-top:3px}
@@ -401,6 +415,12 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 
     <!-- OBRA -->
     <section id="view-obra" class="view">
+      <!-- Banner diagonal de marca — populado pelo JS ao abrir obra -->
+      <div class="obra-brand-banner" id="o-brand-banner">
+        <div class="banner-stripes"></div>
+        <div class="banner-content" id="o-banner-content"></div>
+        <div class="banner-fade"></div>
+      </div>
       <button class="btn btn-ghost btn-sm" style="margin-bottom:14px" onclick="go(curEsfera||'geral')">← Voltar</button>
       <div class="phead">
         <div><div class="eyebrow" id="o-crumb"></div><h1 id="o-nome"></h1><p id="o-meta"></p></div>
@@ -411,7 +431,6 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
           <button class="btn" style="color:var(--danger);border-color:var(--danger)88" onclick="deleteObra(cur?.id)"><span class="ic">🗑</span> Excluir obra</button>
         </div>
       </div>
-      <div id="o-brand-strip" class="brand-header-strip"></div>
       <div class="kpis" id="o-kpis"></div>
       <div class="bar" style="margin-bottom:24px"><i id="o-bar"></i></div>
       <div class="tabs">
@@ -1425,6 +1444,32 @@ function fmtD(iso){if(!iso)return"—";const p=iso.split("-");return p.length===
 function statusBadge(s){const m={"Em andamento":"b-info","Planejamento":"b-neutral","Concluído":"b-ok"};return `<span class="badge ${m[s]||'b-neutral'}">${s}</span>`;}
 function stPag(p){const s=pagStatus(p);const m={"PAGO":"b-ok","PENDENTE":"b-warn","ATRASADO":"b-danger","Cancelado":"b-neutral"};return `<span class="badge ${m[s]||'b-neutral'}">${s}</span>`;}
 
+/* ===== BRAND BANNERS — faixas diagonais ===== */
+function _brandGradient(marcas){
+  const cols=marcas.map(m=>brandColor(m)).filter(c=>c&&!c.startsWith('var'));
+  if(!cols.length)cols.push('#F08700');
+  if(cols.length===1)return`linear-gradient(135deg,${cols[0]}f0 0%,${cols[0]}b0 60%,${cols[0]}e0 100%)`;
+  if(cols.length===2)return`linear-gradient(135deg,${cols[0]} 0%,${cols[0]} 35%,${cols[1]} 65%,${cols[1]} 100%)`;
+  const stops=cols.flatMap((c,i)=>{const p=Math.round(i*100/(cols.length-1));return`${c} ${p}%`;});
+  return`linear-gradient(135deg,${stops.join(',')})`;
+}
+
+function updateObraBanner(o){
+  const banner=document.getElementById('o-brand-banner');
+  if(!banner)return;
+  const marcas=(o.marca||'').split(' + ').filter(Boolean);
+  banner.style.background=_brandGradient(marcas);
+  // Conteúdo do banner: logos + construtora
+  const logos=marcas.map(m=>`<span style="display:inline-flex;background:rgba(255,255,255,0.9);border-radius:8px;padding:4px 8px;overflow:hidden;height:36px;min-width:60px;align-items:center;justify-content:center">${brandLogoImg(m,'height:26px;width:54px;object-fit:contain')}</span>`).join('');
+  const constrLabel=o.tem_construtora===false?'Sem construtora':(o.constr&&o.constr!=='—'?o.constr:'');
+  document.getElementById('o-banner-content').innerHTML=`
+    ${logos}
+    <div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${marcas.map(m=>`<span style="font-size:13px;font-weight:700;color:white;text-shadow:0 1px 3px rgba(0,0,0,0.4)">${m}</span>`).join('<span style="color:rgba(255,255,255,0.5);font-size:13px">+</span>')}</div>
+      ${constrLabel?`<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px">🏗 ${constrLabel}</div>`:''}
+    </div>`;
+}
+
 function toggleSidebar(){document.querySelector('.side').classList.toggle('mobile-open');document.getElementById('side-backdrop').classList.toggle('show');}
 function closeSidebar(){document.querySelector('.side').classList.remove('mobile-open');document.getElementById('side-backdrop').classList.remove('show');}
 
@@ -1870,8 +1915,7 @@ function showTab(t){document.querySelectorAll("#view-obra .tabbtn").forEach(b=>b
 function renderObra(){const o=cur,pct=execObra(o);
   const _oMarcas=(o.marca||'').split(' + ');const _oMarcaPills=_oMarcas.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;background:${brandLight(m)};color:${brandColor(m)};padding:2px 9px 2px 4px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid ${brandColor(m)}33"><span style="display:inline-flex;background:white;border-radius:4px;padding:1px 3px;overflow:hidden;height:16px;width:26px;align-items:center;flex-shrink:0">${brandLogoImg(m,'height:14px;width:24px;object-fit:contain')}</span>${m}</span>`).join(' ');
   document.getElementById("o-nome").textContent=o.nome;
-  // Faixa colorida da marca abaixo do nome
-  const _stripEl=document.getElementById('o-brand-strip');if(_stripEl)_stripEl.style.background=brandColor(_oMarcas[0]);
+  updateObraBanner(o);
   const _ouni=unidades.find(u=>u.obraId===o.id);
   const _constrLabel=o.tem_construtora===false?'Sem construtora contratada':(o.constr&&o.constr!=='—'?o.constr:'—');
   document.getElementById("o-crumb").innerHTML=_oMarcaPills+`<span style="color:var(--muted);font-size:13px"> · ${_constrLabel}</span>`;
@@ -2719,14 +2763,20 @@ function renderEscolas(){
     const list=byMarca[marca].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
     const bc=brandColor(marca);const bl=brandLight(marca);
     const emb=brandEmblem(marca);
-    html+=`<div class="esc-section esc-section-bg" style="background:${_esc_sec_bg};border-color:${brandColor(marca)}22">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-        <div style="display:inline-flex;align-items:center;gap:12px;background:white;padding:6px 20px 6px 6px;border-radius:40px;border:2px solid ${bc};box-shadow:0 4px 16px ${bc}28">
-          <div style="height:40px;min-width:64px;max-width:96px;border-radius:8px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">${emb}</div>
-          <span style="font-size:14px;font-weight:600;font-family:'Fraunces',serif;color:${bc}">${marca}</span>
+    const _marcaBanner=_brandGradient([marca]);
+    html+=`<div class="esc-section">
+      <div class="esc-brand-banner" style="background:${_marcaBanner}">
+        <div class="banner-stripes"></div>
+        <div class="banner-content">
+          <div style="background:rgba(255,255,255,0.92);border-radius:10px;padding:5px 10px;height:44px;min-width:72px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">${emb}</div>
+          <div>
+            <div style="font-size:18px;font-weight:700;color:white;font-family:'Fraunces',serif;text-shadow:0 1px 4px rgba(0,0,0,0.35);line-height:1.2">${marca}</div>
+            <div style="font-size:12.5px;color:rgba(255,255,255,0.82);margin-top:3px">${list.length} unidade${list.length!==1?'s':''} cadastrada${list.length!==1?'s':''}</div>
+          </div>
         </div>
-        <span style="font-size:13px;color:var(--muted)">${list.length} unidade${list.length!==1?'s':''}</span>
+        <div class="banner-fade"></div>
       </div>
+
       <div class="esc-grid">`;
     list.forEach(u=>{
       const obraVinc=u.obraId?obras.find(o=>o.id===u.obraId):null;
