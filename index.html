@@ -864,38 +864,121 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px"><button class="btn btn-ghost" onclick="closeDocModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmDocs()"><span class="ic">✓</span> Confirmar e anexar</button></div></div></div>
 </div></div>
 
-<div class="overlay" id="contr-overlay"><div class="modal" style="max-width:600px">
+<div class="overlay" id="contr-overlay"><div class="modal" style="max-width:700px">
   <div class="mhead"><h2 id="contr-title">Novo contrato</h2><button class="x" onclick="closeContrModal()">×</button></div>
   <div class="mbody">
-    <div class="fgrid">
-      <div class="frow"><label class="fl">Nº do contrato</label><input class="fi mono" id="cm-num" placeholder="ex.: 001/2026"></div>
-      <div class="frow"><label class="fl">Data de assinatura</label><input class="fi" id="cm-data" type="date"></div>
+
+    <!-- 1. Identificação -->
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Identificação do Contrato</div>
+      <div class="frow">
+        <label class="fl">Nome do contrato</label>
+        <input class="fi" id="cm-nome-contr" placeholder="Ex.: Fundação e estrutura, Instalações hidráulicas, Acabamento do bloco A…">
+        <p style="font-size:11.5px;color:var(--muted);margin:5px 0 0">Use um nome que descreva claramente o que este contrato abrange — será exibido nos cards e relatórios.</p>
+      </div>
+      <div class="fgrid">
+        <div class="frow"><label class="fl">Modelo de contrato</label>
+          <select class="fi" id="cm-modelo">
+            <option value="Preço Global">Preço Global (valor fixo)</option>
+            <option value="Por Administração">Por Administração (% sobre custos)</option>
+            <option value="Hora Técnica">Hora Técnica</option>
+            <option value="Fornecimento">Fornecimento de material</option>
+            <option value="Misto">Misto</option>
+          </select>
+        </div>
+        <div class="frow"><label class="fl">Status</label>
+          <select class="fi" id="cm-status">
+            <option value="Ativo">🟢 Ativo</option>
+            <option value="Em negociação">🤝 Em negociação</option>
+            <option value="Concluído">✅ Concluído</option>
+            <option value="Suspenso">⏸ Suspenso</option>
+            <option value="Rescindido">❌ Rescindido</option>
+          </select>
+        </div>
+      </div>
     </div>
-    <div class="frow"><label class="fl">Empresa / Fornecedor contratado</label><input class="fi" id="cm-forn" placeholder="Nome da empresa ou profissional"></div>
-    <div class="frow"><label class="fl">Objeto do contrato (escopo)</label><textarea class="fi" id="cm-escopo" rows="2" style="height:auto;resize:vertical" placeholder="Descreva o que está sendo contratado…"></textarea></div>
-    <div class="fgrid">
-      <div class="frow"><label class="fl">Modelo de contrato</label>
-        <select class="fi" id="cm-modelo">
-          <option value="Preço Global">Preço Global (valor fixo)</option>
-          <option value="Por Administração">Por Administração (% sobre custos)</option>
-          <option value="Hora Técnica">Hora Técnica</option>
-          <option value="Fornecimento">Fornecimento de material</option>
-          <option value="Misto">Misto</option>
+
+    <!-- 2. Fornecedor -->
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Fornecedor Contratado</div>
+      <div class="frow">
+        <label class="fl">Empresa / Prestador</label>
+        <select class="fi" id="cm-forn-select" onchange="cmFornChanged(this.value)" style="margin-bottom:6px">
+          <option value="">— Selecionar fornecedor cadastrado —</option>
         </select>
       </div>
-      <div class="frow"><label class="fl">Status</label>
-        <select class="fi" id="cm-status">
-          <option value="Ativo">🟢 Ativo</option>
-          <option value="Concluído">✅ Concluído</option>
-          <option value="Suspenso">⏸ Suspenso</option>
-          <option value="Rescindido">❌ Rescindido</option>
-          <option value="Em negociação">🤝 Em negociação</option>
-        </select>
+      <div class="frow" id="cm-forn-novo-row" style="display:none;margin-top:-8px">
+        <label class="fl">Nome do novo fornecedor</label>
+        <input class="fi" id="cm-forn" placeholder="Nome da empresa ou profissional autônomo">
+      </div>
+      <div id="cm-forn-info" style="display:none;font-size:12.5px;color:var(--muted);padding:9px 12px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line)"></div>
+      <!-- hidden field para manter compatibilidade quando selecionando de lista -->
+      <input type="hidden" id="cm-forn-hidden">
+    </div>
+
+    <!-- 3. Objeto do contrato -->
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Objeto do Contrato</div>
+      <div class="frow" style="margin-bottom:0">
+        <label class="fl">Descreva detalhadamente o que está sendo contratado</label>
+        <textarea class="fi" id="cm-escopo" rows="5" style="height:auto;resize:vertical;font-size:14px;line-height:1.7" placeholder="• Quais serviços ou materiais estão incluídos&#10;• Especificações técnicas relevantes&#10;• Áreas, etapas ou fases cobertas&#10;• O que NÃO está incluído (exclusões)"></textarea>
       </div>
     </div>
-    <div class="frow"><label class="fl">Valor contratado (R$)</label><input class="fi num" id="cm-v" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div>
-    <div class="frow"><label class="fl">Observações</label><textarea class="fi" id="cm-obs" rows="2" style="height:auto;resize:vertical" placeholder="Informações adicionais, condições especiais…"></textarea></div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px"><button class="btn btn-ghost" onclick="closeContrModal()">Cancelar</button><button class="btn btn-primary" onclick="saveContr()"><span class="ic">✓</span> Salvar contrato</button></div>
+
+    <!-- 4. Valores e prazo -->
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Valores e Prazo</div>
+      <div class="frow">
+        <label class="fl" style="font-weight:700;color:var(--ink)">Valor total do contrato (R$)</label>
+        <input class="fi num" id="cm-v" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this);cmBuildParcelas()" placeholder="0,00" style="font-size:20px;font-weight:700">
+      </div>
+      <div class="fgrid">
+        <div class="frow"><label class="fl">Data de início</label><input class="fi" id="cm-inicio" type="date"></div>
+        <div class="frow"><label class="fl">Previsão de conclusão</label><input class="fi" id="cm-fim" type="date"></div>
+      </div>
+      <div class="frow"><label class="fl">Data de assinatura</label><input class="fi" id="cm-data" type="date" style="max-width:220px"></div>
+    </div>
+
+    <!-- 5. Plano de pagamento -->
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Plano de Pagamento</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        <button type="button" id="cm-plan-parc-btn" onclick="cmSetPlano('parcelas')" class="btn" style="flex:1;justify-content:center;gap:6px">📅 Parcelas fixas<span style="font-size:11px;font-weight:400;display:block;margin-top:2px">datas e valores definidos</span></button>
+        <button type="button" id="cm-plan-med-btn" onclick="cmSetPlano('medicoes')" class="btn" style="flex:1;justify-content:center;gap:6px">📐 Por medições<span style="font-size:11px;font-weight:400;display:block;margin-top:2px">pago conforme execução</span></button>
+        <button type="button" id="cm-plan-livre-btn" onclick="cmSetPlano('livre')" class="btn btn-ghost" style="flex:1;justify-content:center">A definir</button>
+      </div>
+      <div id="cm-plan-parcelas" style="display:none">
+        <div class="frow">
+          <label class="fl">Número de parcelas</label>
+          <input class="fi" id="cm-num-parc" type="number" min="1" max="120" value="1" style="max-width:100px" oninput="cmBuildParcelas()">
+        </div>
+        <div id="cm-parcelas-contr-table" style="margin-top:8px"></div>
+      </div>
+      <div id="cm-plan-medicoes" style="display:none;padding:14px;background:var(--info-bg);border:1px solid var(--info)22;border-radius:var(--r)">
+        <p style="font-size:13.5px;font-weight:500;margin-bottom:8px">📐 Pagamento por medições (boletins de medição)</p>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Os pagamentos serão lançados conforme os boletins de medição enviados pelo contratado e aprovados pela Raiz — cada medição representa o serviço executado no período.</p>
+        <div class="frow" style="margin-bottom:0">
+          <label class="fl">Periodicidade estimada das medições</label>
+          <select class="fi" id="cm-medicao-freq" style="max-width:260px">
+            <option value="">Não definida</option>
+            <option value="7">Semanal (a cada 7 dias)</option>
+            <option value="15">Quinzenal (a cada 15 dias)</option>
+            <option value="30">Mensal (a cada 30 dias)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Observações -->
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Observações e Condições Especiais</div>
+      <textarea class="fi" id="cm-obs" rows="2" style="height:auto;resize:vertical;font-size:13.5px" placeholder="Garantias, penalidades por atraso, reajustes previstos, condições especiais, ART/RRT…"></textarea>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--line);padding-top:16px">
+      <button class="btn btn-ghost" onclick="closeContrModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveContr()"><span class="ic">✓</span> Salvar contrato</button>
+    </div>
   </div>
 </div></div>
 
@@ -1140,42 +1223,148 @@ function exportCSV(){if(!cur)return;let rows=cur.pag.map((p,i)=>({p,i}));if(pagF
 let contrEditIdx=null;
 let _contrSeqNext=1;
 function _contrSeqFor(obra){return obra.contratos.reduce((m,c)=>Math.max(m,c.seq||0),0)+1;}
-function _fillContrSelect(elId,cur,val){const el=document.getElementById(elId);if(!el)return;el.innerHTML='<option value="">Sem vínculo de contrato</option>'+(cur?.contratos||[]).filter(c=>c.seq).map(c=>`<option value="${c.seq}">${c.numero?`Nº ${c.numero} — `:''}${c.forn}${c.escopo?' · '+c.escopo.slice(0,30):''}</option>`).join('');if(val)el.value=val;}
+function _fillContrSelect(elId,cur,val){const el=document.getElementById(elId);if(!el)return;el.innerHTML='<option value="">Sem vínculo de contrato</option>'+(cur?.contratos||[]).filter(c=>c.seq).map(c=>`<option value="${c.seq}">${c.nome_contr||c.forn||'Contrato'}${c.forn?' · '+c.forn.slice(0,25):''}</option>`).join('');if(val)el.value=val;}
+
+// Popula o select de fornecedores com todos os cadastrados
+function _populateContrFornSelect(){
+  const el=document.getElementById('cm-forn-select');if(!el)return;
+  const known=[...new Set([...Object.keys(CNPJS),...(cur?.contratos||[]).map(c=>c.forn).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  el.innerHTML='<option value="">— Selecionar fornecedor cadastrado —</option>'+known.map(s=>`<option value="${s}">${s}${CNPJS[s]?' — '+CNPJS[s]:''}</option>`).join('')+'<option value="__novo__">＋ Novo fornecedor (não cadastrado)</option>';
+}
+
+function cmFornChanged(val){
+  const novoRow=document.getElementById('cm-forn-novo-row');
+  const info=document.getElementById('cm-forn-info');
+  const hidden=document.getElementById('cm-forn-hidden');
+  if(val==='__novo__'){
+    if(novoRow)novoRow.style.display='';
+    if(info)info.style.display='none';
+    if(hidden)hidden.value='';
+  }else if(val){
+    if(novoRow)novoRow.style.display='none';
+    if(hidden)hidden.value=val;
+    // Mostra dados RF se disponíveis
+    const cnpj=CNPJS[val]||'';
+    const fd=FORN_DATA[(cnpj||'').replace(/\D/g,'')]||{};
+    if(info){
+      const infoLines=[];
+      if(cnpj)infoLines.push(`CNPJ: ${cnpj}`);
+      if(fd.atividade)infoLines.push(`Atividade: ${fd.atividade.slice(0,60)}`);
+      if(fd.municipio)infoLines.push(`📍 ${fd.municipio}${fd.uf?'/'+fd.uf:''}`);
+      if(fd.email)infoLines.push(`✉ ${fd.email}`);
+      info.innerHTML=infoLines.join(' &nbsp;·&nbsp; ');
+      info.style.display=infoLines.length?'block':'none';
+    }
+  }else{
+    if(novoRow)novoRow.style.display='none';
+    if(info)info.style.display='none';
+    if(hidden)hidden.value='';
+  }
+}
+
+let _cmPlanoAtual='livre';
+function cmSetPlano(plano){
+  _cmPlanoAtual=plano;
+  const btns={parcelas:'cm-plan-parc-btn',medicoes:'cm-plan-med-btn',livre:'cm-plan-livre-btn'};
+  Object.entries(btns).forEach(([k,id])=>{
+    const el=document.getElementById(id);if(!el)return;
+    const active=k===plano;
+    el.style.background=active?'var(--accent)':'';
+    el.style.color=active?'white':'';
+    el.style.borderColor=active?'var(--accent)':'';
+  });
+  document.getElementById('cm-plan-parcelas').style.display=plano==='parcelas'?'block':'none';
+  document.getElementById('cm-plan-medicoes').style.display=plano==='medicoes'?'block':'none';
+  if(plano==='parcelas')cmBuildParcelas();
+}
+
+function cmBuildParcelas(){
+  const n=parseInt(document.getElementById('cm-num-parc')?.value)||1;
+  const total=parseCurrency(document.getElementById('cm-v')?.value);
+  const base=parseFloat((total/n).toFixed(2));
+  const ultimo=parseFloat((total-base*(n-1)).toFixed(2));
+  const inicio=document.getElementById('cm-inicio')?.value||new Date().toISOString().slice(0,10);
+  const d0=new Date(inicio+'T12:00:00');
+  const rows=Array.from({length:n},(_,i)=>{
+    const d=new Date(d0);d.setMonth(d.getMonth()+i+1);
+    return{n:i+1,v:i<n-1?base:ultimo,venc:d.toISOString().slice(0,10)};
+  });
+  const fmtN=v=>'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const tbl=document.getElementById('cm-parcelas-contr-table');
+  if(!tbl)return;
+  tbl.innerHTML=`<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);overflow:hidden"><table style="font-size:13px;width:100%;border-collapse:collapse"><thead><tr><th style="padding:7px 10px;text-align:left;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--line)">Parcela</th><th style="padding:7px 10px;text-align:right;border-bottom:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px">Valor</th><th style="padding:7px 10px;border-bottom:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px">Vencimento previsto</th></tr></thead><tbody>${rows.map(r=>`<tr><td style="padding:7px 10px;font-weight:600">${r.n}ª parcela</td><td style="padding:7px 10px;text-align:right;font-weight:700;font-family:'Spline Sans Mono',monospace">${fmtN(r.v)}</td><td style="padding:7px 10px"><input type="date" value="${r.venc}" data-parc="${r.n}" style="border:1px solid var(--line-2);border-radius:6px;padding:4px 8px;font-size:12.5px;font-family:inherit;background:var(--surface);color:var(--ink)"></td></tr>`).join('')}</tbody></table></div>`;
+}
 
 function openContrModal(idx){
   contrEditIdx=(typeof idx==="number")?idx:null;
   const g=v=>document.getElementById(v);
+  _populateContrFornSelect();
+  _cmPlanoAtual='livre';
+  // Reset form
+  ['cm-nome-contr','cm-data','cm-forn','cm-escopo','cm-obs','cm-inicio','cm-fim'].forEach(x=>{const el=g(x);if(el)el.value='';});
+  g('cm-v').value='';g('cm-num-parc').value='1';
+  g('cm-modelo').value='Preço Global';g('cm-status').value='Ativo';
+  g('cm-forn-select').value='';g('cm-forn-novo-row').style.display='none';g('cm-forn-info').style.display='none';
+  g('cm-plan-parcelas').style.display='none';g('cm-plan-medicoes').style.display='none';
+  // Reset plan buttons
+  ['cm-plan-parc-btn','cm-plan-med-btn','cm-plan-livre-btn'].forEach(id=>{const el=g(id);if(el){el.style.background='';el.style.color='';el.style.borderColor='';}});
   if(contrEditIdx!==null){
     const c=cur.contratos[contrEditIdx];
     g("contr-title").textContent="Editar contrato";
-    g("cm-num").value=c.numero||'';
+    g("cm-nome-contr").value=c.nome_contr||c.numero||'';
     g("cm-data").value=c.data_assn||'';
-    g("cm-forn").value=c.forn||'';
+    g("cm-inicio").value=c.data_inicio||'';
+    g("cm-fim").value=c.data_fim_prev||'';
+    // Fornecedor: tenta selecionar na lista ou mostra campo novo
+    const fornOpts=[...g('cm-forn-select').options].map(o=>o.value);
+    if(c.forn&&fornOpts.includes(c.forn)){g('cm-forn-select').value=c.forn;cmFornChanged(c.forn);}
+    else if(c.forn){g('cm-forn-select').value='__novo__';g('cm-forn').value=c.forn;g('cm-forn-novo-row').style.display='';}
     g("cm-escopo").value=c.escopo||'';
     g("cm-modelo").value=c.modelo||'Preço Global';
     g("cm-status").value=c.status_contr||'Ativo';
     setCurrencyValue("cm-v",c.v);
     g("cm-obs").value=c.observacoes||'';
+    if(c.plano_pagamento)cmSetPlano(c.plano_pagamento);
+    if(c.plano_pagamento==='parcelas'){g('cm-num-parc').value=c.num_parc_contr||1;setTimeout(cmBuildParcelas,50);}
+    if(c.plano_pagamento==='medicoes'&&c.medicao_freq)g('cm-medicao-freq').value=c.medicao_freq;
   }else{
     g("contr-title").textContent="Novo contrato";
-    ["cm-num","cm-data","cm-forn","cm-escopo","cm-obs"].forEach(x=>g(x).value="");
-    g("cm-modelo").value='Preço Global';
-    g("cm-status").value='Ativo';
-    document.getElementById("cm-v").value='';
+    g("cm-inicio").value=new Date().toISOString().slice(0,10);
   }
   g("contr-overlay").classList.add("show");
-  setTimeout(()=>g("cm-forn").focus(),60);
+  setTimeout(()=>g("cm-nome-contr").focus(),80);
 }
 function closeContrModal(){document.getElementById("contr-overlay").classList.remove("show");contrEditIdx=null;}
 function saveContr(){
-  const g=v=>document.getElementById(v).value.trim();
-  const forn=g("cm-forn");if(!forn){toast("Informe o fornecedor.");return;}
-  const v=parseCurrency(document.getElementById("cm-v").value);
+  const g=v=>document.getElementById(v);
+  const nomeContr=g("cm-nome-contr").value.trim();
+  if(!nomeContr){toast("Dê um nome ao contrato.");return;}
+  // Resolve fornecedor
+  const fornSel=g('cm-forn-select').value;
+  const forn=fornSel==='__novo__'?(g('cm-forn').value.trim()||''):(fornSel||g('cm-forn-hidden').value.trim()||'');
+  if(!forn){toast("Selecione ou informe o fornecedor.");return;}
+  const v=parseCurrency(g("cm-v").value);
+  // Parcelas
+  let parcelasContr=[];
+  if(_cmPlanoAtual==='parcelas'){
+    g('cm-parcelas-contr-table').querySelectorAll('[data-parc]').forEach(el=>{
+      const n=+el.getAttribute('data-parc');
+      const vParc=v/(parseInt(g('cm-num-parc').value)||1);
+      parcelasContr.push({n,v:parseFloat(vParc.toFixed(2)),venc:el.value});
+    });
+  }
   const obj={
-    forn,escopo:g("cm-escopo"),v,pago:0,
-    numero:g("cm-num"),data_assn:g("cm-data"),
-    modelo:g("cm-modelo"),status_contr:g("cm-status"),
-    observacoes:g("cm-obs")
+    nome_contr:nomeContr,forn,escopo:g("cm-escopo").value.trim(),v,pago:0,
+    numero:nomeContr, // mantém compat
+    data_assn:g("cm-data").value,
+    data_inicio:g("cm-inicio").value,
+    data_fim_prev:g("cm-fim").value,
+    modelo:g("cm-modelo").value,status_contr:g("cm-status").value,
+    observacoes:g("cm-obs").value.trim(),
+    plano_pagamento:_cmPlanoAtual,
+    num_parc_contr:parseInt(g("cm-num-parc").value)||0,
+    parcelas_contr:parcelasContr,
+    medicao_freq:_cmPlanoAtual==='medicoes'?(parseInt(g('cm-medicao-freq').value)||null):null,
   };
   if(contrEditIdx!==null){
     obj.seq=cur.contratos[contrEditIdx].seq;
@@ -1186,7 +1375,7 @@ function saveContr(){
     cur.contratos.push(obj);
   }
   persist(cur.id);closeContrModal();renderObra();showTab("contr");
-  toast(contrEditIdx!==null?"Contrato atualizado.":"Contrato criado.");
+  toast(contrEditIdx!==null?"Contrato atualizado.":"Contrato criado com sucesso.");
 }
 function deleteContr(idx){const c=cur.contratos[idx];askConfirm('Excluir contrato com "'+c.forn+'"? Esta ação não pode ser desfeita.',()=>{cur.contratos.splice(idx,1);persist(cur.id);renderObra();showTab("contr");toast("Contrato excluído.");});}
 
@@ -1760,9 +1949,18 @@ function renderObra(){const o=cur,pct=execObra(o);
             <span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:12px;background:${sc}18;color:${sc};border:1px solid ${sc}44">${c.status_contr||'Ativo'}</span>
             ${c.modelo&&c.modelo!=='Preço Global'?`<span style="font-size:11px;color:var(--muted);background:var(--surface-2);padding:2px 8px;border-radius:10px;border:1px solid var(--line)">${c.modelo}</span>`:''}
           </div>
-          <div style="font-weight:700;font-size:16px;margin-bottom:3px">${c.forn}</div>
-          ${c.escopo?`<div style="font-size:13px;color:var(--muted);margin-bottom:6px">${c.escopo}</div>`:''}
-          ${c.data_assn?`<div style="font-size:12px;color:var(--soft)">📅 Assinado em ${fmtD(c.data_assn)}</div>`:''}
+          <div style="font-weight:700;font-size:18px;margin-bottom:4px">${c.nome_contr||c.forn||'Contrato'}</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:6px">
+            <span>🏢 ${c.forn||'Fornecedor não definido'}</span>
+          </div>
+          ${c.escopo?`<div style="font-size:13px;color:var(--ink);margin-bottom:8px;padding:10px 12px;background:var(--surface-2);border-radius:var(--r);border-left:3px solid var(--line);white-space:pre-line;line-height:1.5">${c.escopo.slice(0,200)}${c.escopo.length>200?'…':''}</div>`:''}
+          <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--soft)">
+            ${c.data_assn?`<span>📋 Assinado: ${fmtD(c.data_assn)}</span>`:''}
+            ${c.data_inicio?`<span>🚀 Início: ${fmtD(c.data_inicio)}</span>`:''}
+            ${c.data_fim_prev?`<span>🏁 Previsão: ${fmtD(c.data_fim_prev)}</span>`:''}
+            ${c.plano_pagamento==='parcelas'?`<span>📅 ${c.num_parc_contr||'?'} parcelas fixas</span>`:''}
+            ${c.plano_pagamento==='medicoes'?`<span>📐 Por medições${c.medicao_freq?' ('+c.medicao_freq+'d)':''}</span>`:''}
+          </div>
           ${c.observacoes?`<div style="font-size:12px;color:var(--muted);margin-top:6px;padding:7px 10px;background:var(--surface-2);border-radius:var(--r);border-left:3px solid var(--line)">${c.observacoes}</div>`:''}
         </div>
         <div style="text-align:right;flex-shrink:0">
@@ -2678,7 +2876,7 @@ async function persist(obraId){
       await db.from('aportes').delete().eq('obra_id',o.id);
       if(o.aportes.length)await db.from('aportes').insert(o.aportes.map(a=>({obra_id:o.id,inv:a.inv||'',v:a.v||0,d:a.d||''})));
       await db.from('contratos').delete().eq('obra_id',o.id);
-      if(o.contratos.length)await db.from('contratos').insert(o.contratos.map(c=>({obra_id:o.id,forn:c.forn||'',escopo:c.escopo||'',v:c.v||0,pago:c.pago||0,seq:c.seq||0,numero:c.numero||'',data_assn:c.data_assn||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global'})));
+      if(o.contratos.length)await db.from('contratos').insert(o.contratos.map(c=>({obra_id:o.id,forn:c.forn||'',escopo:c.escopo||'',v:c.v||0,pago:c.pago||0,seq:c.seq||0,numero:c.nome_contr||c.numero||'',nome_contr:c.nome_contr||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:c.parcelas_contr||[],medicao_freq:c.medicao_freq||null})));
     }
     if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs})));
     if(unidades.length)await db.from('unidades').upsert(unidades.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obra_id:u.obraId||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||''})));
@@ -2716,7 +2914,7 @@ async function loadFromDB(){
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
       pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null,contratoSeq:p.contrato_seq||null,tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||''})),
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
-      contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',data_assn:c.data_assn||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global'}))
+      contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null}))
     }));
     nextObraId=obras.reduce((m,o)=>Math.max(m,o.id),0)+1;
     if(catR.data&&catR.data.length){CATS=catR.data.map(c=>({id:c.id,nome:c.nome,subs:Array.isArray(c.subs)?c.subs:(c.subs||['Geral'])}));catSeq=Math.max(catSeq,...CATS.filter(c=>c.id.startsWith('cat_')).map(c=>parseInt(c.id.replace('cat_',''))||0))+1;}
