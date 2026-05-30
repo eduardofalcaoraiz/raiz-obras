@@ -427,7 +427,8 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
       <div class="page-art-layer" id="o-page-art"></div>
       <button class="btn btn-ghost btn-sm" style="margin-bottom:14px" onclick="go(curEsfera||'geral')">← Voltar</button>
       <div class="phead">
-        <div><div class="eyebrow" id="o-crumb"></div><h1 id="o-nome"></h1><p id="o-meta"></p></div>
+        <div style="flex:1;min-width:0"><div class="eyebrow" id="o-crumb"></div><h1 id="o-nome"></h1><p id="o-meta"></p></div>
+        <div id="o-brand-logos" style="display:flex;gap:10px;align-items:center;flex-shrink:0;margin-left:20px;opacity:.95"></div>
         <div class="acts">
           <button class="btn" onclick="openObraModal(cur.id)"><span class="ic">✎</span> Editar obra</button>
           <button class="btn" onclick="openCsvImport()"><span class="ic">📊</span> Importar planilha</button>
@@ -1048,6 +1049,10 @@ const SUPA_URL='https://hjccxfznojjosvanwztv.supabase.co';
 const SUPA_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqY2N4Znpub2pqb3N2YW53enR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NzQ0MzUsImV4cCI6MjA5NTQ1MDQzNX0.sdOyn4CdxhSAb_6G6TdUwd5Yv3diQEuTbNoay7uHko8';
 const db=supabase.createClient(SUPA_URL,SUPA_ANON);
 const FONTES=["WMJ","RIO ZHEN","CUBO","CONSÓRCIO","QI","Raiz Educação"];
+/* URLs das logos reais no GitHub */
+const _RAW='https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/';
+const BRAND_LOGO_FILES={'RAIZ':'LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png','RAIZ EDUCAÇÃO':'LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png','QI':'LOGO%20DO%20QI.png','CUBO':'LOGO%20DO%20CUBO%20GLOBAL%20SCHOOL.png','GLOBAL TREE':'LOGO%20DA%20GLOBAL%20TREE.png','SARAH DAWSEY':'LOGO%20DO%20SARAH%20DAWSEY.png','MATRIZ':'LOGO%20DO%20MATRIZ%20EDUCA%C3%87%C3%83O.png','APOGEU':'LOGO%20DO%20APOGEU%20GLOBAL%20SCHOOL.png','LEONARDO DA VINCI':'LOGO%20DO%20LEONARDO%20DA%20VINCI.png','SÁ PEREIRA':'LOGO%20DO%20S%C3%81%20PEREIRA.png','SAP':'LOGO%20DO%20SAP.png','AMERICANO':'LOGO%20DO%20AMERICANO.png','UNIFICADO':'LOGO%20DO%20UNIFICADO.png','UNIÃO':'LOGO%20DO%20UNI%C3%83O.png','INTEGRA':'LOGO%20DA%20ESCOLA%20INTEGRA.png','BOM TEMPO':'LOGO%20DA%20BOM%20TEMPO.png'};
+function getBrandLogoUrl(marca){const f=BRAND_LOGO_FILES[marca];return f?_RAW+f:null;}
 
 /* ===== ANÁLISE DE CUSTOS — CLASSIFICAÇÃO MATERIAL × SERVIÇO ===== */
 const MATERIAL_TIPOS=[
@@ -1454,7 +1459,7 @@ function stPag(p){const s=pagStatus(p);const m={"PAGO":"b-ok","PENDENTE":"b-warn
 function _prng(seed){let s=seed;return()=>{s=(s*16807+0)%2147483647;return(s-1)/2147483646;};}
 
 // Gera SVG com faixas diagonais onduladas e trêmulas
-function _makePageArt(colors,w,h){
+function _makePageArt(colors,w,h,marcas){
   if(!colors||!colors.length)colors=['#F08700'];
   const rand=_prng(colors.join('').length*42+w);
   let svg='';
@@ -1508,6 +1513,17 @@ function _makePageArt(colors,w,h){
     }
   });
 
+    // Marcas d'agua das logos — 3 instancias por logo, espalhadas e rotacionadas
+  const _logUrls=(marcas||[]).map(m=>getBrandLogoUrl(m)).filter(Boolean);
+  _logUrls.forEach((url,li)=>{
+    [{x:w*(-0.02+li*0.28),y:h*0.03,w:w*0.40,h:h*0.36,rot:-20+li*10,op:0.042},
+     {x:w*(0.48-li*0.1),y:h*0.45,w:w*0.34,h:h*0.30,rot:14-li*6,op:0.030},
+     {x:w*(0.18+li*0.38),y:h*0.68,w:w*0.26,h:h*0.24,rot:-9+li*13,op:0.024}
+    ].forEach(p=>{
+      const cx=p.x+p.w/2,cy=p.y+p.h/2;
+      svg+=`<image href="${url}" x="${p.x|0}" y="${p.y|0}" width="${p.w|0}" height="${p.h|0}" opacity="${p.op}" preserveAspectRatio="xMidYMid meet" transform="rotate(${p.rot},${cx|0},${cy|0})"/>`;
+    });
+  });
   return`<svg width="100%" height="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" style="position:absolute;inset:0">${svg}</svg>`;
 }
 
@@ -1519,7 +1535,7 @@ function updatePageArt(elId,marcas){
   // Dimensões dinâmicas para cobrir a página
   const w=Math.max(window.innerWidth,1200);
   const h=Math.max(el.closest('.view')?.scrollHeight||window.innerHeight,800);
-  el.innerHTML=_makePageArt(cols,w,h);
+  el.innerHTML=_makePageArt(cols,w,h,marcas);
 }
 
 function _brandGradient(marcas){
@@ -1998,6 +2014,9 @@ function renderObra(){const o=cur,pct=execObra(o);
   const _constrLabel=o.tem_construtora===false?'Sem construtora contratada':(o.constr&&o.constr!=='—'?o.constr:'—');
   document.getElementById("o-crumb").innerHTML=_oMarcaPills+`<span style="color:var(--muted);font-size:13px"> · ${_constrLabel}</span>`;
   document.getElementById("o-meta").innerHTML=`${statusBadge(o.status)}${_ouni?` <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="openUni('${_ouni.id}')">↗ ${_ouni.nome}</button>`:""}`;
+  // Logo real da marca no cabeçalho
+  const _logArea=document.getElementById('o-brand-logos');
+  if(_logArea){_logArea.innerHTML=_oMarcas.map(m=>{const lu=getBrandLogoUrl(m);return lu?`<img src="${lu}" style="height:80px;width:auto;max-width:180px;object-fit:contain;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.2));border-radius:10px" alt="${m}">`:brandLogoImg(m,'height:80px;width:auto;max-width:180px;object-fit:contain');}).join('');}
   // KPIs — modelo financeiro correto: cada pagamento debita do investimento
   const _aditTot=aditivosTotal(o);
   const _contrTot=contratadoTotal(o);
@@ -2847,7 +2866,7 @@ function renderEscolas(){
     const emb=brandEmblem(marca);
     html+=`<div class="esc-section">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid ${bc}">
-        <div style="height:42px;min-width:68px;border-radius:10px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 2px 10px ${bc}40;padding:4px 8px">${emb}</div>
+        <div style="height:42px;min-width:68px;border-radius:10px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 3px 16px ${bc}50;padding:6px 10px">${(()=>{const _lu=getBrandLogoUrl(marca);return _lu?`<img src="${_lu}" style="height:40px;width:auto;max-width:72px;object-fit:contain" alt="${marca}">`:`${emb}`;})()}</div>
         <div>
           <div style="font-size:20px;font-weight:700;color:${bc};font-family:'Fraunces',serif">${marca}</div>
           <div style="font-size:12.5px;color:var(--muted)">${list.length} unidade${list.length!==1?'s':''}</div>
