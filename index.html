@@ -411,11 +411,13 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
         <button class="tabbtn active" data-tab="resumo" onclick="showTab('resumo')">Resumo</button>
         <button class="tabbtn" data-tab="pag" onclick="showTab('pag')">Pagamentos</button>
         <button class="tabbtn" data-tab="contr" onclick="showTab('contr')">Contratos</button>
+        <button class="tabbtn" data-tab="custos" onclick="showTab('custos')">📊 Análise de Custos</button>
         <button class="tabbtn" data-tab="aportes" onclick="showTab('aportes')">Aportes</button>
       </div>
       <div class="tabpane active" data-tab="resumo" id="pane-resumo"></div>
       <div class="tabpane" data-tab="pag" id="pane-pag"></div>
       <div class="tabpane" data-tab="contr" id="pane-contr"></div>
+      <div class="tabpane" data-tab="custos" id="pane-custos"></div>
       <div class="tabpane" data-tab="aportes" id="pane-aportes"></div>
     </section>
 
@@ -565,6 +567,35 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- 2.4. Classificação do custo -->
+      <div class="imp-sec">
+        <div class="imp-sec-hd">Tipo de Custo</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <button type="button" id="imp-custo-mat" onclick="impSetCusto('material')" class="btn btn-sm" style="gap:5px">🧱 Material</button>
+          <button type="button" id="imp-custo-svc" onclick="impSetCusto('servico')" class="btn btn-sm" style="gap:5px">🔧 Serviço</button>
+          <button type="button" id="imp-custo-eqp" onclick="impSetCusto('equipamento')" class="btn btn-sm" style="gap:5px">🏗 Equipamento</button>
+          <button type="button" id="imp-custo-out" onclick="impSetCusto('')" class="btn btn-sm btn-ghost" style="gap:5px">Outro</button>
+        </div>
+        <div id="imp-mat-detail" style="display:none;padding:10px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line)">
+          <div class="fgrid">
+            <div class="frow" style="margin-bottom:0">
+              <label class="fl">Tipo de material</label>
+              <select class="fi" id="imp-mat-tipo" onchange="impMatTipoChanged()">
+                <option value="">— Selecione —</option>
+              </select>
+            </div>
+            <div class="frow" style="margin-bottom:0">
+              <label class="fl">Quantidade</label>
+              <div style="display:flex;gap:6px">
+                <input class="fi num" id="imp-mat-qtd" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0" style="flex:1">
+                <select class="fi" id="imp-mat-un" style="width:90px;flex-shrink:0"><option>un</option></select>
+              </div>
+            </div>
+          </div>
+        </div>
+        <input type="hidden" id="imp-custo-val" value="">
       </div>
 
       <!-- 2.5. Referência do pagamento -->
@@ -904,6 +935,58 @@ const SUPA_URL='https://hjccxfznojjosvanwztv.supabase.co';
 const SUPA_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqY2N4Znpub2pqb3N2YW53enR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NzQ0MzUsImV4cCI6MjA5NTQ1MDQzNX0.sdOyn4CdxhSAb_6G6TdUwd5Yv3diQEuTbNoay7uHko8';
 const db=supabase.createClient(SUPA_URL,SUPA_ANON);
 const FONTES=["WMJ","RIO ZHEN","CUBO","CONSÓRCIO","QI","Raiz Educação"];
+
+/* ===== ANÁLISE DE CUSTOS — CLASSIFICAÇÃO MATERIAL × SERVIÇO ===== */
+const MATERIAL_TIPOS=[
+  {id:'concreto',  nome:'Concreto / Argamassa',     unidades:['m³','sc','kg']},
+  {id:'aco',       nome:'Aço / Ferragem',            unidades:['kg','ton','un']},
+  {id:'alvenaria', nome:'Alvenaria (tijolos/blocos)',unidades:['mil','un','m²']},
+  {id:'ceramica',  nome:'Cerâmica / Porcelanato',    unidades:['m²','un']},
+  {id:'pintura',   nome:'Pintura / Revestimento',    unidades:['l','un','m²']},
+  {id:'madeira',   nome:'Madeira / Formas',          unidades:['m²','m³','un']},
+  {id:'cobertura', nome:'Cobertura / Telhas',        unidades:['m²','un']},
+  {id:'hidraulica',nome:'Hidráulica (tubos/conexões)',unidades:['un','kg','m']},
+  {id:'eletrica',  nome:'Elétrica (fios/quadros)',   unidades:['m','un','kg']},
+  {id:'esquadria', nome:'Esquadrias (portas/janelas)',unidades:['un','m²']},
+  {id:'impermeab', nome:'Impermeabilização',         unidades:['m²','kg','l']},
+  {id:'outros',    nome:'Outros materiais',          unidades:['un','kg','m²','m³']},
+];
+const SERVICE_TIPOS=[
+  {id:'projeto',      nome:'Projetos (Arq/Estrut/Hidr/Elét)'},
+  {id:'legalizacao',  nome:'Legalização e Licenças'},
+  {id:'empreitada',   nome:'Empreitada / Mão de obra'},
+  {id:'administracao',nome:'Administração / Gerenciamento'},
+  {id:'consultoria',  nome:'Consultoria Especializada'},
+  {id:'frete',        nome:'Frete / Transporte / Logística'},
+  {id:'outros_svc',   nome:'Outros serviços'},
+];
+
+// Classificação automática inteligente — sem IA externa
+function classifyPagamento(p){
+  // 1. Tipo de NF (100% confiável)
+  if(p.nfTipo==='NF-e')return 'material';
+  if(p.nfTipo==='NFS-e')return 'servico';
+  if(p.nfTipo==='Adiantamento')return '';
+  // 2. Categoria existente
+  const cat=p.cat||'';
+  if(['mat'].includes(cat))return 'material';
+  if(['mo','proj','legal','demo'].some(c=>cat===c))return 'servico';
+  if(cat==='equip')return 'equipamento';
+  // 3. Palavras-chave na referência e fornecedor
+  const txt=((p.ref||'')+' '+(p.ben||'')).toLowerCase();
+  const matKW=['concreto','argamassa','aço','ferragem','cimento','tijolo','bloco','areia','brita','tinta','cerâmica','ceramica','porcelanato','vidro','madeira','telha','ferro','tubo','fio','cabo','material','impermeab','esquadria','alvenaria'];
+  const svcKW=['projeto','serviço','servico','mão de obra','honorário','honorario','taxa','habite','alvará','alvara','legalização','legalizacao','consultoria','administração','administracao','frete'];
+  if(matKW.some(k=>txt.includes(k)))return 'material';
+  if(svcKW.some(k=>txt.includes(k)))return 'servico';
+  return '';
+}
+
+// Retorna o tipo custo: salvo explicitamente OU inferido automaticamente
+function getTipoCusto(p){return p.tipoCusto||classifyPagamento(p)||'';}
+
+const CUSTO_LABEL={'material':'🧱 Material','servico':'🔧 Serviço','equipamento':'🏗 Equipamento','':''};
+const CUSTO_COLOR={'material':'var(--info)','servico':'var(--ok)','equipamento':'var(--warn)','':''};
+const CUSTO_BG={'material':'var(--info-bg)','servico':'var(--ok-bg)','equipamento':'var(--warn-bg)','':''};
 /* ===== FORMATAÇÃO DE MOEDA ===== */
 function parseCurrency(s){
   if(s===''||s===null||s===undefined)return 0;
@@ -1566,7 +1649,7 @@ function renderObra(){const o=cur,pct=execObra(o);
   if(_temInv&&_saldoInv>=0&&_saldoInv<_contrTot*0.1)al+=`<div class="alert alert-warn"><span class="ic">⚠</span><div>Saldo do investimento baixo — restam apenas <b>${fmt(_saldoInv)}</b> (${Math.round(_saldoInv/o.investimento_disponivel*100)}% do total).</div></div>`;
   if(atr.length)al+=`<div class="alert alert-danger"><span class="ic">◉</span><div><b>${atr.length} pagamento(s) em atraso</b> nesta obra. Veja na aba Pagamentos.</div></div>`;
   document.getElementById("pane-resumo").innerHTML=`${al?`<div class="card"><h2>Alertas</h2><div class="sub">O que merece atenção.</div>${al}</div>`:""}${contratoH}${taxaH}<div class="card"><h2>Evolução mensal de gastos</h2><div class="sub">Total pago por mês (apenas lançamentos com data).</div>${chartH||'<p class="empty">Sem datas de pagamento cadastradas.</p>'}</div><div class="card"><h2>Gasto por categoria</h2><div class="sub">Distribuição do que já foi pago.</div>${cats||'<p class="empty">Sem pagamentos.</p>'}</div><div class="card"><h2>Quem pagou</h2><div class="sub">Consolidado por fonte de recurso.</div>${fH||'<p class="empty">Sem pagamentos.</p>'}</div>`;
-  renderPag();
+  renderPag();renderMatServ();
   // Calcula quanto foi pago por contrato via pagamentos vinculados
   const pagoPorContr={};
   o.pag.filter(p=>p.st==='PAGO'&&p.contratoSeq).forEach(p=>{pagoPorContr[p.contratoSeq]=(pagoPorContr[p.contratoSeq]||0)+p.v;});
@@ -1627,6 +1710,76 @@ function renderObra(){const o=cur,pct=execObra(o);
   const porInv={};o.aportes.forEach(a=>porInv[a.inv]=(porInv[a.inv]||0)+a.v);
   document.getElementById("pane-aportes").innerHTML=`<div class="invgrid">${Object.entries(porInv).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="invc"><div class="nm">${k}</div><div class="v">${fmt(v)}</div><div class="pc">${Math.round(v/o.aportado*100)}% do aporte</div></div>`).join("")}</div><div style="display:flex;justify-content:flex-end;margin:12px 0 8px"><button class="btn btn-primary btn-sm" onclick="openAporteModal()"><span class="ic">＋</span> Novo aporte</button></div><div class="tablewrap"><table><thead><tr><th>Investidor</th><th style="text-align:right">Valor</th><th>Data</th><th></th></tr></thead><tbody>${o.aportes.length?o.aportes.map((a,ai)=>`<tr><td style="font-weight:500">${a.inv}</td><td class="n">${fmt(a.v)}</td><td>${a.d||'—'}</td><td style="white-space:nowrap"><button class="iconbtn" title="Editar" onclick="openAporteModal(${ai})">✎</button><button class="iconbtn" title="Excluir" onclick="deleteAporte(${ai})">🗑</button></td></tr>`).join(""):'<tr><td colspan="4"><p class="empty">Nenhum aporte registrado.</p></td></tr>'}</tbody></table></div>`;
 }
+function renderMatServ(){
+  const o=cur;
+  const pagsPagos=o.pag.filter(p=>p.st==='PAGO');
+  const totalPago=pagsPagos.reduce((a,p)=>a+p.v,0)||1;
+  const grouped={material:[],servico:[],equipamento:[],outro:[]};
+  pagsPagos.forEach(p=>{
+    const tc=getTipoCusto(p);
+    if(tc==='material')grouped.material.push(p);
+    else if(tc==='servico')grouped.servico.push(p);
+    else if(tc==='equipamento')grouped.equipamento.push(p);
+    else grouped.outro.push(p);
+  });
+  const sumV=arr=>arr.reduce((a,p)=>a+p.v,0);
+  const tMat=sumV(grouped.material),tSvc=sumV(grouped.servico),tEqp=sumV(grouped.equipamento),tOut=sumV(grouped.outro);
+  // Inventário de materiais por tipo
+  const matInv={};
+  grouped.material.forEach(p=>{
+    const ti=p.matTipo||'outros';
+    if(!matInv[ti])matInv[ti]={tipo:ti,nome:(MATERIAL_TIPOS.find(m=>m.id===ti)||{nome:'Outros materiais'}).nome,valor:0,qtd:0,unidade:p.matUnidade||'',compras:0,fornecedores:new Set()};
+    matInv[ti].valor+=p.v;matInv[ti].compras++;
+    if(p.matQtd)matInv[ti].qtd+=p.matQtd;
+    if(p.matUnidade&&!matInv[ti].unidade)matInv[ti].unidade=p.matUnidade;
+    matInv[ti].fornecedores.add(p.ben);
+  });
+  const matInvArr=Object.values(matInv).sort((a,b)=>b.valor-a.valor);
+  // Inventário de serviços por fornecedor
+  const svcInv={};
+  grouped.servico.forEach(p=>{
+    const k=p.ben;
+    if(!svcInv[k])svcInv[k]={nome:k,valor:0,n:0};
+    svcInv[k].valor+=p.v;svcInv[k].n++;
+  });
+  const svcArr=Object.values(svcInv).sort((a,b)=>b.valor-a.valor);
+  const semClass=o.pag.filter(p=>p.st==='PAGO'&&!getTipoCusto(p));
+  const barFn=(v,tot,cor)=>`<div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:10px;background:var(--line);border-radius:5px;overflow:hidden"><div style="height:100%;width:${tot>0?Math.min(v/tot*100,100).toFixed(1):0}%;background:${cor};border-radius:5px"></div></div><span style="font-size:12px;color:var(--muted);min-width:40px;text-align:right">${tot>0?(v/tot*100).toFixed(1):0}%</span></div>`;
+  document.getElementById('pane-custos').innerHTML=`
+  <div class="kpis" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:20px">
+    <div class="kpi"><div class="lab">🧱 Materiais</div><div class="val" style="color:var(--info)">${fmt(tMat)}</div><div class="sub">${totalPago>0?(tMat/totalPago*100).toFixed(1):0}% do total</div></div>
+    <div class="kpi"><div class="lab">🔧 Serviços</div><div class="val" style="color:var(--ok)">${fmt(tSvc)}</div><div class="sub">${totalPago>0?(tSvc/totalPago*100).toFixed(1):0}% do total</div></div>
+    ${tEqp>0?`<div class="kpi"><div class="lab">🏗 Equipamentos</div><div class="val" style="color:var(--warn)">${fmt(tEqp)}</div><div class="sub">${(tEqp/totalPago*100).toFixed(1)}%</div></div>`:''}
+    ${tOut>0?`<div class="kpi"><div class="lab">⬜ Não classificado</div><div class="val" style="color:var(--muted)">${fmt(tOut)}</div><div class="sub">${semClass.length} pgto${semClass.length!==1?'s':''}</div></div>`:''}
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <h2 style="font-size:17px;margin-bottom:14px">Distribuição de Custos</h2>
+    <div style="display:grid;gap:14px">
+      ${tMat>0?`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">🧱 Materiais</span><span style="font-weight:700;color:var(--info)">${fmt(tMat)}</span></div>${barFn(tMat,totalPago,'var(--info)')}</div>`:''}
+      ${tSvc>0?`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">🔧 Serviços</span><span style="font-weight:700;color:var(--ok)">${fmt(tSvc)}</span></div>${barFn(tSvc,totalPago,'var(--ok)')}</div>`:''}
+      ${tEqp>0?`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">🏗 Equipamentos</span><span style="font-weight:700;color:var(--warn)">${fmt(tEqp)}</span></div>${barFn(tEqp,totalPago,'var(--warn)')}</div>`:''}
+    </div>
+    ${tMat>0&&tSvc>0?`<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)">Razão Material/Serviço: <b>${tSvc>0?(tMat/tSvc).toFixed(2):'—'}</b> — para cada R$ 1 em serviço, R$ ${tSvc>0?(tMat/tSvc).toFixed(2):'—'} em material.</div>`:''}
+  </div>
+  ${matInvArr.length>0?`<div class="card" style="margin-bottom:16px">
+    <h2 style="font-size:17px;margin-bottom:4px">Inventário de Materiais</h2>
+    <div class="sub" style="margin-bottom:14px">Quantidades e valores acumulados por tipo — baseado nos pagamentos lançados.</div>
+    <div class="tablewrap"><table><thead><tr><th>Tipo de material</th><th style="text-align:right">Qtd total</th><th>Un</th><th style="text-align:right">Valor total</th><th style="text-align:right">Preço médio/un</th><th style="text-align:right">Compras</th><th>Fornecedores</th></tr></thead><tbody>${matInvArr.map(m=>`<tr><td style="font-weight:600">${m.nome}</td><td class="n">${m.qtd>0?m.qtd.toLocaleString('pt-BR',{maximumFractionDigits:3}):'—'}</td><td style="color:var(--muted)">${m.unidade||'—'}</td><td class="n" style="font-weight:700">${fmt(m.valor)}</td><td class="n" style="color:var(--muted);font-size:12px">${m.qtd>0?fmt(m.valor/m.qtd):fmt(m.valor/m.compras)}</td><td class="n">${m.compras}</td><td style="font-size:12px;color:var(--muted)">${[...m.fornecedores].slice(0,2).join(', ')}${m.fornecedores.size>2?' +'+( m.fornecedores.size-2):''}</td></tr>`).join('')}</tbody></table></div>
+    ${matInvArr.some(m=>!m.qtd)?`<p style="font-size:12px;color:var(--soft);margin-top:8px;font-style:italic">💡 Dica: edite os pagamentos de material e preencha a quantidade para análise completa de inventário.</p>`:''}
+  </div>`:''}
+  ${svcArr.length>0?`<div class="card" style="margin-bottom:16px">
+    <h2 style="font-size:17px;margin-bottom:4px">Serviços Contratados</h2>
+    <div class="sub" style="margin-bottom:14px">Prestadores de serviço e participação no custo total de serviços.</div>
+    <div class="tablewrap"><table><thead><tr><th>Fornecedor / Prestador</th><th style="text-align:right">Valor pago</th><th>Participação</th><th style="text-align:right">Pagamentos</th></tr></thead><tbody>${svcArr.map(s=>`<tr><td style="font-weight:500">${s.nome}</td><td class="n" style="font-weight:600">${fmt(s.valor)}</td><td><div style="display:flex;align-items:center;gap:6px"><div style="width:80px;height:5px;background:var(--line);border-radius:3px;overflow:hidden"><div style="height:100%;width:${tSvc>0?Math.min(s.valor/tSvc*100,100).toFixed(1):0}%;background:var(--ok);border-radius:3px"></div></div><span style="font-size:12px;color:var(--muted)">${tSvc>0?(s.valor/tSvc*100).toFixed(1):0}%</span></div></td><td class="n">${s.n}</td></tr>`).join('')}</tbody></table></div>
+  </div>`:''}
+  ${semClass.length>0?`<div class="card" style="border-left:4px solid var(--warn)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h2 style="font-size:17px;margin-bottom:3px">⚠ Aguardando classificação</h2><div class="sub">${semClass.length} pagamento${semClass.length!==1?'s sem':'sem'} tipo de custo definido.</div></div></div>
+    <div style="display:flex;flex-direction:column;gap:7px">${semClass.slice(0,5).map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface-2);border-radius:var(--r);gap:10px"><div style="flex:1;min-width:0"><span style="font-weight:600">${p.ben}</span>${p.ref?` <span style="color:var(--muted);font-size:12.5px">· ${p.ref.slice(0,40)}</span>`:''}</div><div style="display:flex;align-items:center;gap:8px;flex-shrink:0"><span style="font-weight:700">${fmt(p.v)}</span><button class="btn btn-sm" onclick="openPagModal(${o.pag.indexOf(p)});showTab('pag')">Classificar ✎</button></div></div>`).join('')}${semClass.length>5?`<p style="font-size:13px;color:var(--muted);text-align:center;margin-top:4px">… e mais ${semClass.length-5}</p>`:''}</div>
+  </div>`:''}
+  ${pagsPagos.length===0?'<div class="card"><p class="empty">Nenhum pagamento pago registrado ainda. Quando você lançar e quitar pagamentos, a análise de custos aparecerá aqui.</p></div>':''}`;
+}
+
+
 function setPagFiltro(f){pagFiltro=f;pagPage=0;renderPag();}
 function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfDoc.name.slice(0,14)+"…":p.nfDoc.name;nf=`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${nm} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:10.5px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${p.nota?("NF "+p.nota):(p.nfTipo||"NF")}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
   const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">comprovante ↓</button>`:`<button class="linkbtn" onclick="anexarComp(${o.id},${i})">anexar</button>`;
@@ -1665,6 +1818,8 @@ function renderPag(){const o=cur;let rows=o.pag.map((p,i)=>({p,i}));
                  p.nfTipo&&p.nfTipo!=='Sem nota'?`<button class="linkbtn" onclick="anexarNF(${o.id},${i})">📎 anexar</button>`:'';
     const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾 comp</button>`:
                `<button class="linkbtn" style="color:var(--muted)" onclick="anexarComp(${o.id},${i})">+ comp</button>`;
+    const tc=getTipoCusto(p);
+    const custoTag=tc?`<span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;background:${CUSTO_BG[tc]};color:${CUSTO_COLOR[tc]};border:1px solid ${CUSTO_COLOR[tc]}33">${CUSTO_LABEL[tc]}</span>`:'';
     const cVinc=p.contratoSeq?o.contratos.find(c=>c.seq===p.contratoSeq):null;
     const contrTag=cVinc?`<span style="font-size:10px;background:var(--info-bg);color:var(--info);padding:2px 8px;border-radius:10px;border:1px solid var(--info)33">📋 ${cVinc.forn.slice(0,22)}${cVinc.numero?' Nº'+cVinc.numero:''}</span>`:'';
     const markBtn=(p.st==='PENDENTE'||atr)?`<button onclick="marcarPagoLista(${o.id},${i})" style="background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok);border-radius:8px;font-size:11px;padding:3px 9px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap;opacity:.85">✓ Marcar pago</button>`:'';
@@ -1685,7 +1840,7 @@ function renderPag(){const o=cur;let rows=o.pag.map((p,i)=>({p,i}));
             <span>📅 ${fmtD(p.venc)}</span>
             ${p.pagn&&p.pagn!=='—'?`<span class="badge b-neutral" style="font-size:10.5px">👤 ${p.pagn}</span>`:''}
             ${nfNum?`<span style="font-family:'Spline Sans Mono',monospace;font-size:11px;background:var(--surface-2);padding:2px 7px;border-radius:5px;border:1px solid var(--line);color:var(--muted)">${nfNum}</span>`:''}
-            ${contrTag}${nfBadge}${nfFile}${comp}${markBtn}
+            ${custoTag}${contrTag}${nfBadge}${nfFile}${comp}${markBtn}
             <button class="iconbtn" title="Editar" onclick="openPagModal(${i})">✎</button>
             <button class="iconbtn" title="Excluir" onclick="deletePagment(${o.id},${i})" style="color:var(--danger)">🗑</button>
           </div>
@@ -2427,7 +2582,7 @@ async function persist(obraId){
     if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:o.pago||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,aditivos_contrato:o.aditivos_contrato||[]})));
     for(const o of ts){
       await db.from('pagamentos').delete().eq('obra_id',o.id);
-      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:p.nfNum||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',contrato_seq:p.contratoSeq||null})));
+      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:p.nfNum||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||''})));
       await db.from('aportes').delete().eq('obra_id',o.id);
       if(o.aportes.length)await db.from('aportes').insert(o.aportes.map(a=>({obra_id:o.id,inv:a.inv||'',v:a.v||0,d:a.d||''})));
       await db.from('contratos').delete().eq('obra_id',o.id);
@@ -2467,7 +2622,7 @@ async function loadFromDB(){
       investimento_disponivel:+o.investimento_disponivel||0,
       aditivos_contrato:Array.isArray(o.aditivos_contrato)?o.aditivos_contrato:[],
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
-      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null,contratoSeq:p.contrato_seq||null})),
+      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null,contratoSeq:p.contrato_seq||null,tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||''})),
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
       contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',data_assn:c.data_assn||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global'}))
     }));
@@ -2528,6 +2683,44 @@ function showAdiantamento(){
   const tag=document.getElementById('imp-tag');
   tag.textContent='💸 Adiantamento — preencha os dados do pagamento';
   tag.style.cssText='display:inline-flex;gap:6px;align-items:center;font-size:11.5px;color:var(--warn);background:var(--warn-bg);padding:4px 12px;border-radius:30px';
+}
+
+/* ===== FORMULÁRIO DE CUSTO — CLASSIFICAÇÃO ===== */
+function impSetCusto(tipo){
+  document.getElementById('imp-custo-val').value=tipo;
+  // Visual dos botões
+  const btns={'material':'imp-custo-mat','servico':'imp-custo-svc','equipamento':'imp-custo-eqp','':'imp-custo-out'};
+  Object.entries(btns).forEach(([t,id])=>{
+    const el=document.getElementById(id);if(!el)return;
+    const active=t===tipo;
+    el.style.background=active?(CUSTO_COLOR[tipo]||'var(--accent)'):'';
+    el.style.color=active?'#fff':'';
+    el.style.borderColor=active?(CUSTO_COLOR[tipo]||'var(--accent)'):'';
+  });
+  // Mostrar detalhes de material
+  const matDetail=document.getElementById('imp-mat-detail');
+  if(matDetail)matDetail.style.display=tipo==='material'?'block':'none';
+  if(tipo==='material'&&!document.getElementById('imp-mat-tipo').innerHTML.includes('<option value="concreto">')){
+    document.getElementById('imp-mat-tipo').innerHTML='<option value="">— Selecione o tipo —</option>'+MATERIAL_TIPOS.map(m=>`<option value="${m.id}">${m.nome}</option>`).join('');
+  }
+}
+function impMatTipoChanged(){
+  const tipoId=document.getElementById('imp-mat-tipo').value;
+  const mt=MATERIAL_TIPOS.find(m=>m.id===tipoId);
+  const unEl=document.getElementById('imp-mat-un');
+  if(unEl&&mt)unEl.innerHTML=mt.unidades.map(u=>`<option>${u}</option>`).join('');
+}
+function impAutoClassify(data){
+  const tipo=getTipoCusto(data);
+  if(tipo)impSetCusto(tipo);
+  // Se NF-e com itens, pre-popula quantidade do primeiro item
+  if(tipo==='material'&&data.itens&&data.itens.length>0){
+    const it=data.itens[0];
+    const qtdEl=document.getElementById('imp-mat-qtd');
+    const unEl=document.getElementById('imp-mat-un');
+    if(qtdEl&&it.quantidade)qtdEl.value=parseFloat(it.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:4});
+    if(unEl&&it.unidade){const u=it.unidade.toLowerCase().replace('m3','m³').replace('m2','m²');unEl.innerHTML=`<option>${u}</option>${['m³','m²','kg','ton','un','sc','l','m'].filter(x=>x!==u).map(x=>`<option>${x}</option>`).join('')}`;}
+  }
 }
 
 function showSemNota(){
@@ -3103,6 +3296,7 @@ function showImportReview(data){
   const nfTipo=data.tipo||'NF-e';
   document.getElementById("imp-nftipo").value=nfTipo;
   impNfTipoChanged(nfTipo);
+  if(document.getElementById('imp-custo-val'))impAutoClassify(data);
   // Documento
   document.getElementById("imp-doc").value=data.doc||'';
   document.getElementById("imp-date").value=data.date||new Date().toISOString().slice(0,10);
@@ -3247,9 +3441,14 @@ async function confirmImport(){
   const forma=document.getElementById("imp-pag-forma").value;
   const obs=document.getElementById("imp-obs").value.trim();
   const impContrSeq=document.getElementById("imp-contrato")?.value||'';
+  const tipoCusto=document.getElementById('imp-custo-val')?.value||'';
+  const matTipo=document.getElementById('imp-mat-tipo')?.value||'';
+  const matQtdRaw=document.getElementById('imp-mat-qtd')?.value||'';
+  const matQtd=matQtdRaw?parseCurrency(matQtdRaw):null;
+  const matUnidade=document.getElementById('imp-mat-un')?.value||'';
   if(!ben){toast("Informe o beneficiário.");return;}
   if(!val){toast("Informe o valor.");return;}
-  const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:date,nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null};
+  const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:date,nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade};
   if(chave)p.chave=chave;
   if(obs)p.obs=obs;
   if(forma!=='A_VISTA')p.pagForma=forma;
