@@ -496,10 +496,28 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
         </div>
         <p style="font-size:11px;color:var(--muted);margin:5px 0 0">A chave está no PDF, no XML ou no e-mail da NF. Extraímos CNPJ, data e número da nota automaticamente.</p>
       </div>
+      <!-- Pagamentos sem nota fiscal -->
+      <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
+        <div style="flex:1;height:1px;background:var(--line)"></div>
+        <span style="font-size:12px;color:var(--muted)">ou registre sem nota fiscal</span>
+        <div style="flex:1;height:1px;background:var(--line)"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+        <button class="btn" type="button" onclick="showAdiantamento()" style="flex-direction:column;height:auto;padding:14px 12px;gap:3px;text-align:center;border-color:var(--warn);background:var(--warn-bg)">
+          <span style="font-size:22px;line-height:1">💸</span>
+          <span style="font-weight:700;font-size:13px;color:var(--warn)">Adiantamento</span>
+          <span style="font-size:11px;color:var(--muted);line-height:1.3">Pago agora,<br>NF chega depois</span>
+        </button>
+        <button class="btn" type="button" onclick="showSemNota()" style="flex-direction:column;height:auto;padding:14px 12px;gap:3px;text-align:center">
+          <span style="font-size:22px;line-height:1">🚫</span>
+          <span style="font-weight:700;font-size:13px">Sem nota fiscal</span>
+          <span style="font-size:11px;color:var(--muted);line-height:1.3">Pagamento que<br>nunca terá NF</span>
+        </button>
+      </div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:14px">
-        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <div style="flex:1;height:1px;background:var(--line)"></div>
         <span style="font-size:12px;color:var(--muted)">ou</span>
-        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <div style="flex:1;height:1px;background:var(--line)"></div>
       </div>
       <div style="text-align:center;margin-top:12px"><button class="btn btn-ghost" onclick="showManualEntry()">Preencher manualmente</button></div>
     </div>
@@ -519,6 +537,8 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
             <select class="fi" id="imp-nftipo" onchange="impNfTipoChanged(this.value)">
               <option value="NF-e">NF-e — Nota Fiscal de Produtos (DANFE)</option>
               <option value="NFS-e">NFS-e — Nota Fiscal de Serviços</option>
+              <option value="Adiantamento">💸 Adiantamento — NF a receber depois</option>
+              <option value="Sem nota">🚫 Sem nota fiscal</option>
             </select>
           </div>
           <div class="frow"><label class="fl">Status do pagamento</label><select class="fi" id="imp-st"><option value="PAGO">PAGO</option><option value="PENDENTE">PENDENTE</option></select></div>
@@ -1422,7 +1442,7 @@ function renderObra(){const o=cur,pct=execObra(o);
   document.getElementById("pane-aportes").innerHTML=`<div class="invgrid">${Object.entries(porInv).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="invc"><div class="nm">${k}</div><div class="v">${fmt(v)}</div><div class="pc">${Math.round(v/o.aportado*100)}% do aporte</div></div>`).join("")}</div><div style="display:flex;justify-content:flex-end;margin:12px 0 8px"><button class="btn btn-primary btn-sm" onclick="openAporteModal()"><span class="ic">＋</span> Novo aporte</button></div><div class="tablewrap"><table><thead><tr><th>Investidor</th><th style="text-align:right">Valor</th><th>Data</th><th></th></tr></thead><tbody>${o.aportes.length?o.aportes.map((a,ai)=>`<tr><td style="font-weight:500">${a.inv}</td><td class="n">${fmt(a.v)}</td><td>${a.d||'—'}</td><td style="white-space:nowrap"><button class="iconbtn" title="Editar" onclick="openAporteModal(${ai})">✎</button><button class="iconbtn" title="Excluir" onclick="deleteAporte(${ai})">🗑</button></td></tr>`).join(""):'<tr><td colspan="4"><p class="empty">Nenhum aporte registrado.</p></td></tr>'}</tbody></table></div>`;
 }
 function setPagFiltro(f){pagFiltro=f;pagPage=0;renderPag();}
-function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfDoc.name.slice(0,14)+"…":p.nfDoc.name;nf=`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${nm} ↓</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${p.nota?("NF "+p.nota):(p.nfTipo||"NF")}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
+function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfDoc.name.slice(0,14)+"…":p.nfDoc.name;nf=`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${nm} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:10.5px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${p.nota?("NF "+p.nota):(p.nfTipo||"NF")}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
   const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">comprovante ↓</button>`:`<button class="linkbtn" onclick="anexarComp(${o.id},${i})">anexar</button>`;
   return `<div style="display:flex;flex-direction:column;gap:3px;font-size:11.5px;min-width:155px"><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">NF</b> ${nf}</span><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Pgto</b> ${comp}</span></div>`;}
 let pagBusca="",pagDe="",pagAte="",pagPage=0;
@@ -2149,6 +2169,38 @@ function closeImport(){document.getElementById("overlay").classList.remove("show
 
 function fillSubs(){const c=catById(document.getElementById("imp-cat").value);document.getElementById("imp-sub").innerHTML=c.subs.map((s,i)=>`<option value="${i}">${s}</option>`).join("");}
 
+function showAdiantamento(){
+  document.getElementById('imp-upload').style.display='none';
+  document.getElementById('imp-reading').style.display='none';
+  document.getElementById('imp-review').style.display='block';
+  showImportReview({
+    tipo:'Adiantamento',st:'PAGO',
+    date:new Date().toISOString().slice(0,10),
+    ben:'',cnpj:'',val:0,doc:'',chave:'',
+    itens:[],discriminacao:'',subtotal:0,desconto:0,frete:0,
+    pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:''
+  });
+  const tag=document.getElementById('imp-tag');
+  tag.textContent='💸 Adiantamento — preencha os dados do pagamento';
+  tag.style.cssText='display:inline-flex;gap:6px;align-items:center;font-size:11.5px;color:var(--warn);background:var(--warn-bg);padding:4px 12px;border-radius:30px';
+}
+
+function showSemNota(){
+  document.getElementById('imp-upload').style.display='none';
+  document.getElementById('imp-reading').style.display='none';
+  document.getElementById('imp-review').style.display='block';
+  showImportReview({
+    tipo:'Sem nota',st:'PAGO',
+    date:new Date().toISOString().slice(0,10),
+    ben:'',cnpj:'',val:0,doc:'',chave:'',
+    itens:[],discriminacao:'',subtotal:0,desconto:0,frete:0,
+    pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:''
+  });
+  const tag=document.getElementById('imp-tag');
+  tag.textContent='🚫 Pagamento sem nota fiscal — preencha os dados';
+  tag.style.cssText='display:inline-flex;gap:6px;align-items:center;font-size:11.5px;color:var(--muted);background:var(--surface-2);padding:4px 12px;border-radius:30px;border:1px solid var(--line)';
+}
+
 function showManualEntry(){
   document.getElementById("imp-upload").style.display="none";
   document.getElementById("imp-reading").style.display="none";
@@ -2745,17 +2797,40 @@ function showImportReview(data){
 
 function impNfTipoChanged(tipo){
   const isNFSe=tipo==='NFS-e';
+  const isNFDoc=tipo==='NF-e'||tipo==='NFS-e';
   const badge=document.getElementById("imp-nf-badge");
-  if(badge){badge.textContent=tipo;badge.className=isNFSe?'badge b-info':'badge b-ok';}
-  const fr=document.getElementById("imp-frete-row");if(fr)fr.style.display=isNFSe?'none':'';
-  const hd=document.getElementById("imp-itens-hd");if(hd)hd.textContent=isNFSe?'Serviços Prestados':'Itens da Nota';
+  if(badge){
+    badge.textContent=tipo;
+    badge.className=tipo==='NFS-e'?'badge b-info':tipo==='Adiantamento'?'badge b-warn':tipo==='Sem nota'?'badge b-neutral':'badge b-ok';
+  }
+  // Frete: só NF-e de produto
+  const fr=document.getElementById("imp-frete-row");if(fr)fr.style.display=tipo==='NF-e'?'':'none';
+  // Chave de acesso + Nº do documento: apenas para notas fiscais reais
+  const chaveRow=document.getElementById("imp-chave")?.closest('.full');
+  if(chaveRow)chaveRow.style.display=isNFDoc?'':'none';
+  const docRow=document.getElementById("imp-doc")?.closest('.frow');
+  if(docRow)docRow.style.display=isNFDoc?'':'none';
+  // Rótulo da seção de itens
+  const hd=document.getElementById("imp-itens-hd");
+  if(hd)hd.textContent=isNFSe?'Serviços Prestados':tipo==='Adiantamento'?'Descrição do Adiantamento':tipo==='Sem nota'?'Motivo do Pagamento':'Itens da Nota';
+  // Tipos sem NF: exibe textarea no lugar da tabela de itens
+  if(!isNFDoc){
+    const wrap=document.getElementById('imp-itens-wrap');
+    if(wrap){
+      const ph=tipo==='Adiantamento'
+        ?'Descreva o adiantamento: para que é, qual fornecedor/serviço, prazo estimado para receber a nota fiscal...'
+        :'Descreva o motivo deste pagamento sem nota fiscal (ex: despesa avulsa, serviço informal, pequena compra)...';
+      wrap.innerHTML=`<textarea class="fi" id="imp-discriminacao" rows="3" style="height:auto;resize:vertical;font-size:13.5px" placeholder="${ph}"></textarea>`;
+    }
+  }
 }
 
 function impRenderItens(itens,discriminacao,nfTipo){
   const wrap=document.getElementById("imp-itens-wrap");if(!wrap)return;
-  if(nfTipo==='NFS-e'){
+  if(nfTipo==='NFS-e'||nfTipo==='Adiantamento'||nfTipo==='Sem nota'){
     const safe=(discriminacao||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    wrap.innerHTML=`<textarea class="fi" id="imp-discriminacao" rows="4" style="height:auto;resize:vertical;font-size:13px" placeholder="Discriminação dos serviços prestados...">${safe}</textarea>`;
+    const ph=nfTipo==='Adiantamento'?'Descreva o adiantamento: para que é, prazo para NF...':nfTipo==='Sem nota'?'Descreva o motivo deste pagamento sem nota...':'Discriminação dos serviços prestados...';
+    wrap.innerHTML=`<textarea class="fi" id="imp-discriminacao" rows="3" style="height:auto;resize:vertical;font-size:13.5px" placeholder="${ph}">${safe}</textarea>`;
     return;
   }
   if(!itens||!itens.length){
