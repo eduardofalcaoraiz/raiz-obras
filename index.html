@@ -974,8 +974,12 @@ function deleteAporte(idx){const a=cur.aportes[idx];askConfirm('Excluir aporte d
 /* helpers financeiros */
 const aditivosTotal=o=>(o.aditivos_contrato||[]).reduce((a,d)=>a+(d.valor||0),0);
 const contratadoTotal=o=>o.contratado+aditivosTotal(o);
+// Saldo do contrato: quanto falta pagar à construtora
 const saldoContr=o=>contratadoTotal(o)-o.pago;
-const saldoInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-contratadoTotal(o):o.aportado-o.pago;
+// Saldo do investimento: cada pagamento debita do teto disponível
+const saldoInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-o.pago:o.aportado-o.pago;
+// Margem: diferença entre investimento disponível e o total contratado (para outros gastos além da construtora)
+const margemInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-contratadoTotal(o):null;
 const execObra=o=>contratadoTotal(o)?Math.round(o.pago/contratadoTotal(o)*100):0;
 function isAtraso(p){return p.st==="PENDENTE"&&p.venc&&new Date(p.venc)<HOJE;}
 function diasAtraso(p){return Math.floor((HOJE-new Date(p.venc))/86400000);}
@@ -1425,22 +1429,45 @@ function renderObra(){const o=cur,pct=execObra(o);
   const _constrLabel=o.tem_construtora===false?'Sem construtora contratada':(o.constr&&o.constr!=='—'?o.constr:'—');
   document.getElementById("o-crumb").innerHTML=_oMarcaPills+`<span style="color:var(--muted);font-size:13px"> · ${_constrLabel}</span>`;
   document.getElementById("o-meta").innerHTML=`${statusBadge(o.status)}${_ouni?` <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="openUni('${_ouni.id}')">↗ ${_ouni.nome}</button>`:""}`;
-  // KPIs com lógica de investimento e aditivos
+  // KPIs — modelo financeiro correto: cada pagamento debita do investimento
   const _aditTot=aditivosTotal(o);
   const _contrTot=contratadoTotal(o);
-  const _saldoContr=saldoContr(o);
-  const _saldoInv=saldoInv(o);
+  const _saldoContr=saldoContr(o);        // quanto falta pagar ao contratado
+  const _saldoInv=saldoInv(o);            // investimento disponível − total pago
+  const _margem=margemInv(o);             // investimento − contratado (folga para outros gastos)
   const _temInv=o.investimento_disponivel>0;
+  const _execPct=execObra(o);
   document.getElementById("o-kpis").innerHTML=`
-   ${_temInv?`<div class="kpi"><div class="lab">Investimento disponível</div><div class="val">${fmt(o.investimento_disponivel)}</div></div>`:''}
-   <div class="kpi"><div class="lab">Valor contratado${_aditTot>0?' + aditivos':''}</div><div class="val">${fmt(_contrTot)}</div>${_aditTot>0?`<div class="sub">${fmt(o.contratado)} + ${fmt(_aditTot)} em aditivos</div>`:''}</div>
-   ${_temInv?`<div class="kpi"><div class="lab">Margem disponível</div><div class="val ${_saldoInv<0?'dg':'ok'}">${fmt(_saldoInv)}</div><div class="sub">${_saldoInv<0?'investimento estourado':'para outros gastos'}</div></div>`:'<div class="kpi"><div class="lab">Aportado</div><div class="val">${fmt(o.aportado)}</div></div>'}
-   <div class="kpi"><div class="lab">Pago</div><div class="val acc">${fmt(o.pago)}</div><div class="sub">saldo do contrato: ${_saldoContr<0?'<span style="color:var(--danger)">estourou '+fmt(-_saldoContr)+'</span>':fmt(_saldoContr)+' a pagar'}</div></div>`;
+   ${_temInv?`
+   <div class="kpi">
+     <div class="lab">Investimento disponível</div>
+     <div class="val">${fmt(o.investimento_disponivel)}</div>
+     ${_margem!==null?`<div class="sub" style="color:${_margem<0?'var(--danger)':'var(--soft)'}">${_margem>=0?fmt(_margem)+' acima do contrato':'contrato excede investimento por '+fmt(-_margem)}</div>`:''}
+   </div>
+   <div class="kpi">
+     <div class="lab">Já pago (debitado do investimento)</div>
+     <div class="val acc">${fmt(o.pago)}</div>
+     <div class="sub">${_execPct}% do contratado · falta ${_saldoContr<0?`<span style="color:var(--danger)">estourou ${fmt(-_saldoContr)}</span>`:fmt(_saldoContr)}</div>
+   </div>
+   <div class="kpi">
+     <div class="lab">Saldo do investimento</div>
+     <div class="val ${_saldoInv<0?'dg':'ok'}">${fmt(_saldoInv)}</div>
+     <div class="sub">${_saldoInv<0?'<span style="color:var(--danger)">investimento esgotado</span>':'ainda disponível para gastar'}</div>
+   </div>
+   <div class="kpi">
+     <div class="lab">Contratado${_aditTot>0?' + aditivos':''}</div>
+     <div class="val">${fmt(_contrTot)}</div>
+     ${_aditTot>0?`<div class="sub">${fmt(o.contratado)} base + ${fmt(_aditTot)} aditivos</div>`:''}
+   </div>`:`
+   <div class="kpi"><div class="lab">Contratado${_aditTot>0?' + aditivos':''}</div><div class="val">${fmt(_contrTot)}</div>${_aditTot>0?`<div class="sub">${fmt(o.contratado)} + ${fmt(_aditTot)}</div>`:''}</div>
+   <div class="kpi"><div class="lab">Aportado</div><div class="val">${fmt(o.aportado)}</div></div>
+   <div class="kpi"><div class="lab">Pago</div><div class="val acc">${fmt(o.pago)}</div><div class="sub">${_execPct}% executado</div></div>
+   <div class="kpi"><div class="lab">Saldo (aportado − pago)</div><div class="val ${_saldoInv<0?'dg':'ok'}">${fmt(_saldoInv)}</div></div>`}`;
   const bar=document.getElementById("o-bar");bar.className=barClass(pct);bar.style.width=Math.min(pct,100)+"%";
   // resumo
   const tot=CATS.reduce((a,c)=>a+gastoCat(o,c.id),0)||1;
   const cats=CATS.filter(c=>gastoCat(o,c.id)>0).sort((a,b)=>gastoCat(o,b.id)-gastoCat(o,a.id)).map(c=>{const g=gastoCat(o,c.id),p=Math.round(g/tot*100);return `<div class="catbar"><span class="nm">${c.nome}</span><div class="bar"><i style="width:${p}%"></i></div><span class="vv">${fmt(g)} · ${p}%</span></div>`;}).join("");
-  const f=porFonte(o);const fH=Object.keys(f).length?`<div class="invgrid">${Object.entries(f).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="invc"><div class="nm">${k}</div><div class="v">${fmt(v)}</div><div class="pc">${Math.round(v/o.pago*100)}% do pago</div></div>`).join("")}</div>`:"";
+  const f=porFonte(o);const fH=Object.keys(f).length?`<div class="invgrid">${Object.entries(f).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="invc"><div class="nm">${k}</div><div class="v">${fmt(v)}</div><div class="pc">${Math.round(v/o.pago*100)}% do total pago</div></div>`).join("")}</div>${_temInv?`<p style="font-size:12.5px;color:var(--muted);margin-top:10px">Cada fonte acima debitou do investimento de ${fmt(o.investimento_disponivel)}, reduzindo o saldo.</p>`:''}`:""
   const chartH=renderChart(o);
   const taxaH=o.taxa&&o.taxa.total>0&&o.modelo_contrato==='ADMINISTRACAO'?`<div class="card"><h2>Taxa de administração</h2><div class="sub">Cobrança da construtora pelo modelo por administração.</div><div class="invgrid"><div class="invc"><div class="nm">Acordada</div><div class="v">${fmt(o.taxa.total)}</div></div><div class="invc"><div class="nm">Paga</div><div class="v">${fmt(o.taxa.pago)}</div></div><div class="invc"><div class="nm">Saldo</div><div class="v" style="color:${o.taxa.total-o.taxa.pago<0?'var(--danger)':'var(--ok)'}">${fmt(o.taxa.total-o.taxa.pago)}</div></div></div></div>`:"";
   // Card de contrato e aditivos
@@ -1449,7 +1476,10 @@ function renderObra(){const o=cur,pct=execObra(o);
   const _modeloLabel=o.modelo_contrato==='ADMINISTRACAO'?'Por Administração':'Preço Global';
   const contratoH=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><div><h2>Contrato da Obra</h2><div class="sub">Modelo: <b>${_modeloLabel}</b> · Construtora: <b>${_constrLabel}</b></div></div><button class="btn btn-sm btn-primary" onclick="openAditivoModal()"><span class="ic">＋</span> Aditivo</button></div><div class="invgrid" style="margin-top:12px"><div class="invc"><div class="nm">Valor contratado</div><div class="v">${fmt(o.contratado)}</div></div>${_adits.length?`<div class="invc"><div class="nm">Aditivos (${_adits.length})</div><div class="v" style="color:var(--warn)">${fmt(aditivosTotal(o))}</div></div><div class="invc"><div class="nm">Total com aditivos</div><div class="v">${fmt(contratadoTotal(o))}</div></div>`:''}</div>${_aditsH}</div>`;
   const atr=o.pag.filter(isAtraso);
-  let al="";if(saldoContr(o)<0)al+=`<div class="alert alert-danger"><span class="ic">▲</span><div>Pagamentos passaram do contratado em <b>${fmt(-saldoContr(o))}</b>.</div></div>`;
+  let al="";
+  if(saldoContr(o)<0)al+=`<div class="alert alert-danger"><span class="ic">▲</span><div>Pagamentos ultrapassaram o valor contratado em <b>${fmt(-saldoContr(o))}</b>.</div></div>`;
+  if(_temInv&&_saldoInv<0)al+=`<div class="alert alert-danger"><span class="ic">💸</span><div>Investimento esgotado — pagamentos já superam o teto disponível em <b>${fmt(-_saldoInv)}</b>.</div></div>`;
+  if(_temInv&&_saldoInv>=0&&_saldoInv<_contrTot*0.1)al+=`<div class="alert alert-warn"><span class="ic">⚠</span><div>Saldo do investimento baixo — restam apenas <b>${fmt(_saldoInv)}</b> (${Math.round(_saldoInv/o.investimento_disponivel*100)}% do total).</div></div>`;
   if(atr.length)al+=`<div class="alert alert-danger"><span class="ic">◉</span><div><b>${atr.length} pagamento(s) em atraso</b> nesta obra. Veja na aba Pagamentos.</div></div>`;
   document.getElementById("pane-resumo").innerHTML=`${al?`<div class="card"><h2>Alertas</h2><div class="sub">O que merece atenção.</div>${al}</div>`:""}${contratoH}${taxaH}<div class="card"><h2>Evolução mensal de gastos</h2><div class="sub">Total pago por mês (apenas lançamentos com data).</div>${chartH||'<p class="empty">Sem datas de pagamento cadastradas.</p>'}</div><div class="card"><h2>Gasto por categoria</h2><div class="sub">Distribuição do que já foi pago.</div>${cats||'<p class="empty">Sem pagamentos.</p>'}</div><div class="card"><h2>Quem pagou</h2><div class="sub">Consolidado por fonte de recurso.</div>${fH||'<p class="empty">Sem pagamentos.</p>'}</div>`;
   renderPag();
@@ -3159,6 +3189,14 @@ function renderInvestidores(){
       porto[a.inv].obras.push({nome:o.nome,v:a.v,d:a.d,id:o.id,status:o.status});
     });
   });
+  // Consolida pagamentos efetivamente feitos por cada investidor (via campo pagn)
+  const pago={};
+  obras.forEach(o=>{
+    o.pag.filter(p=>p.st==='PAGO').forEach(p=>{
+      if(!p.pagn||p.pagn==='—')return;
+      pago[p.pagn]=(pago[p.pagn]||0)+p.v;
+    });
+  });
   const totalInv=Object.values(porto).reduce((a,p)=>a+p.total,0);
   const obrasFinanciadas=new Set(Object.values(porto).flatMap(p=>p.obras.map(o=>o.id))).size;
   const maior=investidores.length?investidores.reduce((a,b)=>(porto[b.nome]?.total||0)>(porto[a.nome]?.total||0)?b:a,investidores[0]):null;
@@ -3181,6 +3219,8 @@ function renderInvestidores(){
       const p=porto[inv.nome]||{total:0,count:0,obras:[]};
       const obrasSorted=[...p.obras].sort((a,b)=>b.v-a.v);
       const share=totalInv>0?(p.total/totalInv*100):0;
+      const pagTot=pago[inv.nome]||0; // total efetivamente pago pelo investidor
+      const execPct=p.total>0?Math.min(Math.round(pagTot/p.total*100),100):0;
       return`<div class="card">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px">
           <div style="flex:1;min-width:0">
@@ -3191,10 +3231,21 @@ function renderInvestidores(){
             ${inv.cnpj_cpf?`<div style="font-size:11.5px;color:var(--muted);font-family:'Spline Sans Mono',monospace;margin-top:3px">${inv.cnpj_cpf}</div>`:''}
           </div>
           <div style="text-align:right;flex-shrink:0">
-            <div style="font-size:23px;font-weight:800;color:var(--accent);line-height:1">${fmt(p.total)}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">${share.toFixed(1)}% do capital total</div>
+            <div style="font-size:11px;color:var(--muted)">Capital comprometido</div>
+            <div style="font-size:23px;font-weight:800;color:var(--accent);line-height:1.1">${fmt(p.total)}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${share.toFixed(1)}% do total investido</div>
           </div>
         </div>
+        ${pagTot>0?`<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:600;color:var(--muted)">Já desembolsado (pagamentos lançados)</span>
+            <span style="font-weight:700;color:var(--ok)">${fmt(pagTot)}</span>
+          </div>
+          <div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${execPct}%;background:var(--ok);border-radius:3px"></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;text-align:right">${execPct}% do capital comprometido · saldo: ${fmt(p.total-pagTot)}</div>
+        </div>`:''}
         ${p.total>0?`<div style="height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-bottom:12px">
           <div style="height:100%;width:${Math.min(share,100)}%;background:var(--accent);border-radius:2px"></div>
         </div>`:''}
