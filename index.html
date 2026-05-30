@@ -194,6 +194,8 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 #view-obra .card,#view-obra .kpi,#view-obra .pag-row,#view-obra .tablewrap,#view-obra .tabs,#view-obra .imp-sec{background:var(--surface);position:relative}
 #view-escolas .esc-card,#view-escolas .card,#view-escolas .kpi{background:var(--surface);position:relative}
 .phead{position:relative;z-index:1}
+#o-identity-bar{position:relative;z-index:2}
+#view-obra .phead{padding-top:0;margin-top:0}
 .obra-brand-banner .banner-stripes{position:absolute;inset:0;background:repeating-linear-gradient(-55deg,transparent 0,transparent 30px,rgba(255,255,255,0.07) 30px,rgba(255,255,255,0.07) 60px)}
 .obra-brand-banner .banner-fade{position:absolute;bottom:0;left:0;right:0;height:50px;background:linear-gradient(to bottom,transparent,var(--paper))}
 .obra-brand-banner .banner-content{position:absolute;inset:0;display:flex;align-items:center;padding:0 44px;gap:16px;z-index:2}
@@ -425,16 +427,20 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
     <section id="view-obra" class="view">
       <!-- Arte da página — gerada pelo JS com as cores da marca -->
       <div class="page-art-layer" id="o-page-art"></div>
-      <button class="btn btn-ghost btn-sm" style="margin-bottom:14px" onclick="go(curEsfera||'geral')">← Voltar</button>
-      <div class="phead">
-        <div style="flex:1;min-width:0"><div class="eyebrow" id="o-crumb"></div><h1 id="o-nome"></h1><p id="o-meta"></p></div>
-        <div id="o-brand-logos" style="display:flex;gap:10px;align-items:center;flex-shrink:0;margin-left:20px;opacity:.95"></div>
-        <div class="acts">
-          <button class="btn" onclick="openObraModal(cur.id)"><span class="ic">✎</span> Editar obra</button>
-          <button class="btn" onclick="openCsvImport()"><span class="ic">📊</span> Importar planilha</button>
-          <button class="btn btn-primary" onclick="openImport()"><span class="ic">＋</span> Lançar pagamento</button>
-          <button class="btn" style="color:var(--danger);border-color:var(--danger)88" onclick="deleteObra(cur?.id)"><span class="ic">🗑</span> Excluir obra</button>
+      <!-- Barra de identidade de marca — logo + ações juntos -->
+      <div id="o-identity-bar" style="display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="go(curEsfera||'geral')">← Voltar</button>
+        <div id="o-brand-logo-bar" style="display:flex;gap:10px;align-items:center;flex:1;justify-content:flex-start"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">
+          <button class="btn btn-sm" onclick="openObraModal(cur.id)"><span class="ic">✎</span> Editar</button>
+          <button class="btn btn-sm" onclick="openCsvImport()"><span class="ic">📊</span> Planilha</button>
+          <button class="btn btn-primary btn-sm" onclick="openImport()"><span class="ic">＋</span> Lançar</button>
+          <button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)88" onclick="deleteObra(cur?.id)">🗑</button>
         </div>
+      </div>
+      <div class="phead">
+        <div><div class="eyebrow" id="o-crumb"></div><h1 id="o-nome"></h1><p id="o-meta"></p></div>
+
       </div>
       <div class="kpis" id="o-kpis"></div>
       <div class="bar" style="margin-bottom:24px"><i id="o-bar"></i></div>
@@ -1466,14 +1472,14 @@ function _makePageArt(colors,w,h,marcas){
 
   // Cada cor gera 3-4 faixas em posições variadas
   colors.forEach((col,ci)=>{
-    const numBands=3+(ci%2);
+    const numBands=4-(ci%2);
     for(let b=0;b<numBands;b++){
       const r=rand;
       // Posição base da faixa (dividida ao longo da altura)
       const yFrac=(ci*numBands+b+0.3)/(colors.length*numBands)*1.3-0.1;
       const yBase=yFrac*h;
-      const thickness=h*(0.06+rand()*0.08); // 6-14% da altura
-      const opacity=0.08+rand()*0.09;       // 8-17% de opacidade
+      const thickness=h*(0.10+rand()*0.12); // 10-22% da altura — faixas mais largas
+      const opacity=0.18+rand()*0.14;       // 18-32% de opacidade — mais vivo!
 
       // Gera pontos da borda superior com múltiplas ondas (tremulação)
       const nPts=10;
@@ -1516,9 +1522,9 @@ function _makePageArt(colors,w,h,marcas){
     // Marcas d'agua das logos — 3 instancias por logo, espalhadas e rotacionadas
   const _logUrls=(marcas||[]).map(m=>getBrandLogoUrl(m)).filter(Boolean);
   _logUrls.forEach((url,li)=>{
-    [{x:w*(-0.02+li*0.28),y:h*0.03,w:w*0.40,h:h*0.36,rot:-20+li*10,op:0.042},
-     {x:w*(0.48-li*0.1),y:h*0.45,w:w*0.34,h:h*0.30,rot:14-li*6,op:0.030},
-     {x:w*(0.18+li*0.38),y:h*0.68,w:w*0.26,h:h*0.24,rot:-9+li*13,op:0.024}
+    [{x:w*(-0.02+li*0.28),y:h*0.03,w:w*0.45,h:h*0.40,rot:-18+li*9,op:0.10},
+     {x:w*(0.46-li*0.08),y:h*0.42,w:w*0.38,h:h*0.34,rot:13-li*6,op:0.07},
+     {x:w*(0.16+li*0.36),y:h*0.66,w:w*0.30,h:h*0.28,rot:-8+li*12,op:0.055}
     ].forEach(p=>{
       const cx=p.x+p.w/2,cy=p.y+p.h/2;
       svg+=`<image href="${url}" x="${p.x|0}" y="${p.y|0}" width="${p.w|0}" height="${p.h|0}" opacity="${p.op}" preserveAspectRatio="xMidYMid meet" transform="rotate(${p.rot},${cx|0},${cy|0})"/>`;
@@ -2014,9 +2020,9 @@ function renderObra(){const o=cur,pct=execObra(o);
   const _constrLabel=o.tem_construtora===false?'Sem construtora contratada':(o.constr&&o.constr!=='—'?o.constr:'—');
   document.getElementById("o-crumb").innerHTML=_oMarcaPills+`<span style="color:var(--muted);font-size:13px"> · ${_constrLabel}</span>`;
   document.getElementById("o-meta").innerHTML=`${statusBadge(o.status)}${_ouni?` <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="openUni('${_ouni.id}')">↗ ${_ouni.nome}</button>`:""}`;
-  // Logo real da marca no cabeçalho
-  const _logArea=document.getElementById('o-brand-logos');
-  if(_logArea){_logArea.innerHTML=_oMarcas.map(m=>{const lu=getBrandLogoUrl(m);return lu?`<img src="${lu}" style="height:80px;width:auto;max-width:180px;object-fit:contain;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.2));border-radius:10px" alt="${m}">`:brandLogoImg(m,'height:80px;width:auto;max-width:180px;object-fit:contain');}).join('');}
+  // Logo da marca na barra de identidade
+  const _logBar=document.getElementById('o-brand-logo-bar');
+  if(_logBar){_logBar.innerHTML=_oMarcas.map(m=>{const lu=getBrandLogoUrl(m);const bc2=brandColor(m);return `<div style="background:white;border-radius:12px;padding:8px 14px;display:inline-flex;align-items:center;box-shadow:0 2px 12px ${bc2}40;border:2px solid ${bc2}30">${lu?`<img src="${lu}" style="height:52px;width:auto;max-width:140px;object-fit:contain" alt="${m}">`:brandLogoImg(m,'height:52px;width:auto;max-width:140px;object-fit:contain')}</div>`;}).join('');}
   // KPIs — modelo financeiro correto: cada pagamento debita do investimento
   const _aditTot=aditivosTotal(o);
   const _contrTot=contratadoTotal(o);
@@ -2865,12 +2871,15 @@ function renderEscolas(){
     const bc=brandColor(marca);const bl=brandLight(marca);
     const emb=brandEmblem(marca);
     html+=`<div class="esc-section">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid ${bc}">
-        <div style="height:42px;min-width:68px;border-radius:10px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 3px 16px ${bc}50;padding:6px 10px">${(()=>{const _lu=getBrandLogoUrl(marca);return _lu?`<img src="${_lu}" style="height:40px;width:auto;max-width:72px;object-fit:contain" alt="${marca}">`:`${emb}`;})()}</div>
-        <div>
-          <div style="font-size:20px;font-weight:700;color:${bc};font-family:'Fraunces',serif">${marca}</div>
-          <div style="font-size:12.5px;color:var(--muted)">${list.length} unidade${list.length!==1?'s':''}</div>
+      <div style="background:${bc};border-radius:var(--r-lg);padding:0;margin-bottom:18px;overflow:hidden;display:flex;align-items:stretch;min-height:80px">
+        <div style="display:flex;align-items:center;gap:16px;padding:14px 22px;flex:1">
+          <div style="background:rgba(255,255,255,0.95);border-radius:10px;padding:7px 14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;min-height:54px;min-width:76px">${(()=>{const _lu=getBrandLogoUrl(marca);return _lu?`<img src="${_lu}" style="height:40px;width:auto;max-width:110px;object-fit:contain" alt="${marca}">`:`${emb}`;})()}</div>
+          <div>
+            <div style="font-size:22px;font-weight:800;color:white;font-family:'Fraunces',serif;text-shadow:0 1px 4px rgba(0,0,0,0.3)">${marca}</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:2px">${list.length} unidade${list.length!==1?'s':''}</div>
+          </div>
         </div>
+        <div style="width:70px;background:linear-gradient(to right,transparent,rgba(255,255,255,0.12));flex-shrink:0"></div>
       </div>
 
       <div class="esc-grid">`;
