@@ -2013,9 +2013,15 @@ function savePag(){const g=v=>document.getElementById(v).value;const ben=g("pm-b
   else{if(obj.st==="PAGO")cur.pago+=obj.v;cur.pag.push({...obj,comp:""});}
   persist(cur.id);closePagModal();renderObra();renderPainel();updateNavBadge();toast(pagEditIdx!==null?"Pagamento atualizado":"Pagamento lançado");}
 function anexarComp(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getElementById("comp-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="comp-input";inp.style.display="none";document.body.appendChild(inp);}
-  inp.onchange=async()=>{if(!inp.files.length)return;const f=inp.files[0];o.pag[i].compDoc={name:f.name,dataUrl:await fileToDataUrl(f),type:f.type};persist(oid);if(cur&&cur.id===oid)renderObra();toast("Comprovante anexado.");inp.value="";};inp.click();}
+  inp.onchange=async()=>{if(!inp.files.length)return;const f=inp.files[0];toast('Enviando comprovante…');
+    try{const path=await uploadPagDoc(oid,f,'comp');o.pag[i].compDoc={name:f.name,storagePath:path,type:f.type};}
+    catch(e){console.error('upload comp:',e);o.pag[i].compDoc={name:f.name,dataUrl:await fileToDataUrl(f),type:f.type};}
+    persist(oid);if(cur&&cur.id===oid)renderObra();toast("Comprovante anexado.");inp.value="";};inp.click();}
 function anexarNF(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getElementById("nf-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="nf-input";inp.style.display="none";document.body.appendChild(inp);}
-  inp.onchange=async()=>{if(!inp.files.length)return;const f=inp.files[0];o.pag[i].nfDoc={name:f.name,dataUrl:await fileToDataUrl(f),type:f.type};persist(oid);if(cur&&cur.id===oid)renderObra();toast("Nota anexada.");inp.value="";};inp.click();}
+  inp.onchange=async()=>{if(!inp.files.length)return;const f=inp.files[0];toast('Enviando nota fiscal…');
+    try{const path=await uploadPagDoc(oid,f,'nf');o.pag[i].nfDoc={name:f.name,storagePath:path,type:f.type};}
+    catch(e){console.error('upload NF:',e);o.pag[i].nfDoc={name:f.name,dataUrl:await fileToDataUrl(f),type:f.type};}
+    persist(oid);if(cur&&cur.id===oid)renderObra();toast("Nota fiscal anexada.");inp.value="";};inp.click();}
 
 /* NOSSAS ESCOLAS */
 function populateEscolasSelect(){
@@ -2193,7 +2199,25 @@ async function confirmDocs(){for(const p of pendingDocs)if(p.newCat&&!(p.newCatN
 
 /* ===== viewer + persistência ===== */
 function fileToDataUrl(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});}
-async function viewFile(d){if(!d)return;const url=d._signedUrl||d.dataUrl;document.getElementById("viewer-name").textContent=d.name;const dl=document.getElementById("viewer-download");dl.href=url||"#";dl.setAttribute("download",d.name);const body=document.getElementById("viewer-body");body.innerHTML='<div style="padding:50px;text-align:center;color:var(--muted)">Carregando…</div>';document.getElementById("viewer-overlay").classList.add("show");const t=d.type||"";if(!url){body.innerHTML='<div style="padding:54px 30px;text-align:center;color:var(--muted)"><div style="font-size:42px;margin-bottom:12px">📄</div><p>Arquivo não disponível.</p></div>';return;}if(t.indexOf("image/")===0)body.innerHTML=`<img src="${url}" style="max-width:100%;max-height:78vh;display:block;margin:0 auto;border-radius:8px">`;else if(t.indexOf("pdf")>=0){let src=url;try{const b=await(await fetch(url)).blob();src=URL.createObjectURL(b);}catch(e){}body.innerHTML=`<iframe src="${src}" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff"></iframe>`;}else body.innerHTML=`<div style="padding:54px 30px;text-align:center;color:var(--muted)"><div style="font-size:42px;margin-bottom:12px">📄</div><p>Pré-visualização não disponível. Use Baixar.</p></div>`;}
+
+/* ===== STORAGE DE ARQUIVOS DE PAGAMENTO ===== */
+async function uploadPagDoc(obraId,file,tipo){
+  const ts=Date.now();
+  const path=`obra_${obraId}/${tipo}_${ts}/${file.name}`;
+  const{error}=await db.storage.from('pagamentos').upload(path,file,{upsert:true});
+  if(error)throw error;
+  return path;
+}
+async function getPagDocUrl(storagePath){
+  const{data}=await db.storage.from('pagamentos').createSignedUrl(storagePath,3600);
+  return data?.signedUrl||null;
+}
+function inferType(path){
+  if(/\.(jpg|jpeg|png|gif|webp)$/i.test(path))return'image/jpeg';
+  if(/\.pdf$/i.test(path))return'application/pdf';
+  return'application/octet-stream';
+}
+async function viewFile(d){if(!d)return;let url=d._signedUrl||d.dataUrl;if(!url&&d.storagePath){url=await getPagDocUrl(d.storagePath);if(url)d._signedUrl=url;}document.getElementById("viewer-name").textContent=d.name;const dl=document.getElementById("viewer-download");dl.href=url||"#";dl.setAttribute("download",d.name);const body=document.getElementById("viewer-body");body.innerHTML='<div style="padding:50px;text-align:center;color:var(--muted)">Carregando…</div>';document.getElementById("viewer-overlay").classList.add("show");const t=d.type||"";if(!url){body.innerHTML='<div style="padding:54px 30px;text-align:center;color:var(--muted)"><div style="font-size:42px;margin-bottom:12px">📄</div><p>Arquivo não disponível.</p></div>';return;}if(t.indexOf("image/")===0)body.innerHTML=`<img src="${url}" style="max-width:100%;max-height:78vh;display:block;margin:0 auto;border-radius:8px">`;else if(t.indexOf("pdf")>=0){let src=url;try{const b=await(await fetch(url)).blob();src=URL.createObjectURL(b);}catch(e){}body.innerHTML=`<iframe src="${src}" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff"></iframe>`;}else body.innerHTML=`<div style="padding:54px 30px;text-align:center;color:var(--muted)"><div style="font-size:42px;margin-bottom:12px">📄</div><p>Pré-visualização não disponível. Use Baixar.</p></div>`;}
 function closeViewer(){document.getElementById("viewer-overlay").classList.remove("show");document.getElementById("viewer-body").innerHTML="";}
 async function persist(obraId){
   try{
@@ -2201,7 +2225,7 @@ async function persist(obraId){
     if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:o.pago||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,aditivos_contrato:o.aditivos_contrato||[]})));
     for(const o of ts){
       await db.from('pagamentos').delete().eq('obra_id',o.id);
-      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:p.nfNum||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||''})));
+      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:p.nfNum||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||''})));
       await db.from('aportes').delete().eq('obra_id',o.id);
       if(o.aportes.length)await db.from('aportes').insert(o.aportes.map(a=>({obra_id:o.id,inv:a.inv||'',v:a.v||0,d:a.d||''})));
       await db.from('contratos').delete().eq('obra_id',o.id);
@@ -2241,7 +2265,7 @@ async function loadFromDB(){
       investimento_disponivel:+o.investimento_disponivel||0,
       aditivos_contrato:Array.isArray(o.aditivos_contrato)?o.aditivos_contrato:[],
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
-      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||''})),
+      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null})),
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
       contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map(c=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0}))
     }));
@@ -3034,7 +3058,7 @@ async function confirmImport(){
   }
   // Itens
   if(impReviewData&&impReviewData.itens&&impReviewData.itens.length)p.itens=impReviewData.itens;
-  if(impFile)p.nfDoc={name:impFile.name,dataUrl:await fileToDataUrl(impFile),type:impFile.type};
+  if(impFile){try{const path=await uploadPagDoc(cur.id,impFile,'nf');p.nfDoc={name:impFile.name,storagePath:path,type:impFile.type};}catch(e){p.nfDoc={name:impFile.name,dataUrl:await fileToDataUrl(impFile),type:impFile.type};}}
   if(cnpj&&cnpj!=='—'){CNPJS[ben]=cnpj;autoSaveFornecedor(ben,cnpj);}
   cur.pag.push(p);
   if(st==='PAGO')cur.pago+=val;
