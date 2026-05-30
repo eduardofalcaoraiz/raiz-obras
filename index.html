@@ -1742,7 +1742,43 @@ function deleteAditivo(idx){
   askConfirm('Excluir este aditivo?',()=>{cur.aditivos_contrato.splice(idx,1);persist(cur.id);renderObra();toast('Aditivo removido.');});
 }
 function setObraStatus(id,st){const o=obras.find(x=>x.id===id);if(!o)return;o.status=st;persist(id);const cv=document.querySelector('.view.active')?.id?.replace('view-','');if(cv==='esfera')renderEsfera();else if(cv==='geral')renderGeral();if(cur&&cur.id===id)renderObra();toast("Status: "+st);}
-async function deleteObra(id,e){if(e)e.stopPropagation();const o=obras.find(x=>x.id===id);if(!o)return;askConfirm(`Excluir "${o.nome}"? Todos os pagamentos, contratos e aportes serão removidos permanentemente. Esta ação não pode ser desfeita.`,async()=>{try{await db.from('pagamentos').delete().eq('obra_id',id);await db.from('aportes').delete().eq('obra_id',id);await db.from('contratos').delete().eq('obra_id',id);await db.from('obras').delete().eq('id',id);}catch(err){console.error('deleteObra:',err);}obras=obras.filter(x=>x.id!==id);if(cur&&cur.id===id){cur=null;go(curEsfera||'geral');}else{const cv=document.querySelector('.view.active')?.id?.replace('view-','');if(cv==='esfera')renderEsfera();else renderGeral();}renderPainel();renderCobranca();updateNavBadge();toast('Obra excluída.');});}
+async function deleteObra(id,e){
+  if(e)e.stopPropagation();
+  const o=obras.find(x=>x.id===id);
+  if(!o)return;
+  askConfirm(`Excluir "${o.nome}"? Todos os pagamentos, contratos e aportes serão removidos permanentemente. Esta ação não pode ser desfeita.`,async()=>{
+    // Deletar dados relacionados
+    const r1=await db.from('pagamentos').delete().eq('obra_id',id);
+    const r2=await db.from('aportes').delete().eq('obra_id',id);
+    const r3=await db.from('contratos').delete().eq('obra_id',id);
+    const r4=await db.from('obras').delete().eq('id',id);
+
+    // Verificar se houve erro
+    const err=r1.error||r2.error||r3.error||r4.error;
+    if(err){toast(`❌ Falha ao excluir: ${err.message}. Tente novamente.`);console.error('deleteObra:',err);return;}
+
+    // Verificar que a obra realmente saiu do banco
+    const{data:check}=await db.from('obras').select('id').eq('id',id);
+    if(check&&check.length>0){toast('❌ A obra não foi removida do banco. Verifique a conexão e tente novamente.');return;}
+
+    // Desvincula unidade se houver
+    const uni=unidades.find(u=>u.obraId===id);
+    if(uni){uni.obraId=null;persistUnidades();}
+
+    // Atualiza estado local
+    obras=obras.filter(x=>x.id!==id);
+    if(cur&&cur.id===id){cur=null;go(curEsfera||'geral');}
+    else{const cv=document.querySelector('.view.active')?.id?.replace('view-','');if(cv==='esfera')renderEsfera();else renderGeral();}
+    renderPainel();renderCobranca();updateNavBadge();
+    toast('✓ Obra excluída permanentemente.');
+  });
+}
+
+async function persistUnidades(){
+  try{
+    if(unidades.length)await db.from('unidades').upsert(unidades.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obra_id:u.obraId||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||''})));
+  }catch(e){console.error('persistUnidades:',e);}
+}
 
 /* ===== CSV / PLANILHA IMPORT ===== */
 let _csvRows=[], _csvHeaders=[], _csvRawRows=[];
@@ -1916,7 +1952,14 @@ function saveObra(){
     obras.push({id:nextObraId++,nome,marca,constr,tem_construtora,modelo_contrato,status:'Planejamento',esfera,contratado,investimento_disponivel,aportado:totalAportado,pago:0,taxa:{total:taxaTotal,pago:0},aportes:novosAportes,contratos:[],pag:[],aditivos_contrato:[],ano_inauguracao,endereco_obra});
     escolaObj.obraId=newId;
   }
-  persist();closeObraModal();if(obraEditId&&cur&&cur.id===obraEditId)renderObra();const cv=document.querySelector('.view.active')?.id?.replace('view-','');if(cv==='geral')renderGeral();else if(cv==='esfera')renderEsfera();else renderGeral();toast(obraEditId?"Obra atualizada":"Obra criada");
+  // Persiste apenas a obra específica (nunca todas) + unidades
+  const _savedId=obraEditId||nextObraId-1;
+  persist(_savedId);persistUnidades();
+  closeObraModal();
+  if(obraEditId&&cur&&cur.id===obraEditId)renderObra();
+  const cv=document.querySelector('.view.active')?.id?.replace('view-','');
+  if(cv==='geral')renderGeral();else if(cv==='esfera')renderEsfera();else renderGeral();
+  toast(obraEditId?"Obra atualizada":"Obra criada");
 }
 
 /* ===== modais: pagamento ===== */
