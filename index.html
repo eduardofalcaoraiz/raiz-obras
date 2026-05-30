@@ -1467,71 +1467,100 @@ function setPagDe(v){pagDe=v;pagPage=0;renderPag();}
 function setPagAte(v){pagAte=v;pagPage=0;renderPag();}
 function setPagPage(p){pagPage=p;renderPag();}
 function setPagBusca(v){pagBusca=v;pagPage=0;renderPag();}
+function marcarPagoLista(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;o.pag[i].st='PAGO';o.pago+=o.pag[i].v;persist(oid);renderObra();updateNavBadge();toast('✓ Pagamento marcado como pago.');}
+
+const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+function _monthLabel(k){if(k==='sem-data')return'Sem data definida';const[y,m]=k.split('-');return`${MESES[+m-1]} ${y}`;}
+
 function renderPag(){const o=cur;let rows=o.pag.map((p,i)=>({p,i}));
   if(pagFiltro==="pagos")rows=rows.filter(r=>r.p.st==="PAGO");else if(pagFiltro==="atraso")rows=rows.filter(r=>isAtraso(r.p));else if(pagFiltro==="pend")rows=rows.filter(r=>r.p.st==="PENDENTE");
-  if(pagDe)rows=rows.filter(r=>!r.p.venc||r.p.venc>=pagDe);if(pagAte)rows=rows.filter(r=>!r.p.venc||r.p.venc<=pagAte);const q=pagBusca.trim().toLowerCase();if(q)rows=rows.filter(r=>((r.p.ben||"")+" "+(r.p.ref||"")+" "+(r.p.nota||"")).toLowerCase().indexOf(q)>=0);
+  if(pagDe)rows=rows.filter(r=>!r.p.venc||r.p.venc>=pagDe);if(pagAte)rows=rows.filter(r=>!r.p.venc||r.p.venc<=pagAte);const q=pagBusca.trim().toLowerCase();if(q)rows=rows.filter(r=>((r.p.ben||"")+" "+(r.p.ref||"")+" "+(r.p.nfNum||"")).toLowerCase().includes(q));
+  // Totais de TODOS os filtrados (não só página atual)
+  const totalPago=rows.filter(r=>r.p.st==='PAGO').reduce((a,r)=>a+r.p.v,0);
+  const totalPend=rows.filter(r=>r.p.st!=='PAGO').reduce((a,r)=>a+r.p.v,0);
   const fb=(f,l)=>`<button class="chip ${pagFiltro===f?'active':''}" onclick="setPagFiltro('${f}')">${l}</button>`;
   const total=rows.length,totalPgs=Math.max(1,Math.ceil(total/PAGE_SIZE));if(pagPage>=totalPgs)pagPage=totalPgs-1;const show=rows.slice(pagPage*PAGE_SIZE,(pagPage+1)*PAGE_SIZE);
-  const rows_html=show.length?show.map(({p,i})=>{
+  // Agrupar por mês
+  const byMonth={};show.forEach(r=>{const k=r.p.venc?r.p.venc.slice(0,7):'sem-data';if(!byMonth[k])byMonth[k]=[];byMonth[k].push(r);});
+  const sortedMonths=Object.keys(byMonth).sort((a,b)=>a==='sem-data'?1:b==='sem-data'?-1:b.localeCompare(a));
+  // Função para gerar cada linha
+  const rowFn=({p,i})=>{
     const atr=isAtraso(p);
     const nfNum=p.nfNum||'';
-    // Nota fiscal: badge de tipo
-    const nfBadge=p.nfTipo==='Adiantamento'?`<span class="badge b-warn" style="font-size:10px">💸 Adiantamento</span>`:
+    const nfBadge=p.nfTipo==='Adiantamento'?`<span class="badge b-warn" style="font-size:10px">💸 Adiant.</span>`:
                   p.nfTipo==='Sem nota'?`<span style="font-size:11px;color:var(--soft)">sem NF</span>`:
-                  p.nfTipo&&p.nfTipo!=='Sem nota'?`<span class="badge b-doc" style="font-size:10px">${p.nfTipo}</span>`:'';
-    // Arquivo da NF
-    const nfFile=p.nfDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">📄 ver NF ↓</button>`:
+                  p.nfTipo?`<span class="badge b-doc" style="font-size:10px">${p.nfTipo}</span>`:'';
+    const nfFile=p.nfDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">📄 ver NF</button>`:
                  p.nfTipo==='Adiantamento'?`<button class="linkbtn" onclick="anexarNF(${o.id},${i})">📎 anexar NF</button>`:
                  p.nfTipo&&p.nfTipo!=='Sem nota'?`<button class="linkbtn" onclick="anexarNF(${o.id},${i})">📎 anexar</button>`:'';
-    // Comprovante
-    const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾 comprovante ↓</button>`:
-               `<button class="linkbtn" style="color:var(--muted)" onclick="anexarComp(${o.id},${i})">+ comprovante</button>`;
+    const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾 comp</button>`:
+               `<button class="linkbtn" style="color:var(--muted)" onclick="anexarComp(${o.id},${i})">+ comp</button>`;
+    const markBtn=(p.st==='PENDENTE'||atr)?`<button onclick="marcarPagoLista(${o.id},${i})" style="background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok);border-radius:8px;font-size:11px;padding:3px 9px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap;opacity:.85">✓ Marcar pago</button>`:'';
+    const adiantWarn=p.nfTipo==='Adiantamento'&&!p.nfDoc?`<span style="font-size:10px;color:var(--warn);background:var(--warn-bg);padding:2px 7px;border-radius:10px">⚠ NF aguardada</span>`:'';
+    const obsIcon=p.obs?`<span style="color:var(--info);cursor:help;font-size:13px" title="${(p.obs||'').replace(/"/g,'&quot;')}">💬</span>`:'';
     return`<div class="pag-row ${atr?'pag-atraso':p.st==='PENDENTE'?'pag-pend':''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:${p.ref?'3px':'0'}">
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:${p.ref?'4px':'0'}">
             <span style="font-size:11px;color:var(--muted);font-family:'Spline Sans Mono',monospace">#${i+1}</span>
             <span style="font-weight:700;font-size:15px">${p.ben}</span>
-            ${stPag(p)}
+            ${obsIcon}${stPag(p)}
             ${atr?`<span class="flag">${diasAtraso(p)}d em atraso</span>`:''}
+            ${adiantWarn}
           </div>
-          ${p.ref?`<div style="font-size:13px;color:var(--ink);margin-bottom:5px;padding-left:30px">${p.ref}</div>`:''}
+          ${p.ref?`<div style="font-size:13px;color:var(--ink);margin-bottom:6px;padding-left:30px">${p.ref}</div>`:''}
           <div class="pag-meta" style="padding-left:30px">
             <span>📅 ${fmtD(p.venc)}</span>
             ${p.pagn&&p.pagn!=='—'?`<span class="badge b-neutral" style="font-size:10.5px">👤 ${p.pagn}</span>`:''}
-            ${nfNum?`<span style="font-family:'Spline Sans Mono',monospace;font-size:11px;background:var(--surface-2);padding:2px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)">${nfNum}</span>`:''}
-            ${nfBadge}
-            ${nfFile}
-            ${comp}
-          </div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:20px;font-weight:800;font-family:'Spline Sans Mono',monospace;white-space:nowrap">${fmt(p.v)}</div>
-          <div style="display:flex;gap:3px;justify-content:flex-end;margin-top:6px">
+            ${nfNum?`<span style="font-family:'Spline Sans Mono',monospace;font-size:11px;background:var(--surface-2);padding:2px 7px;border-radius:5px;border:1px solid var(--line);color:var(--muted)">${nfNum}</span>`:''}
+            ${nfBadge}${nfFile}${comp}${markBtn}
             <button class="iconbtn" title="Editar" onclick="openPagModal(${i})">✎</button>
             <button class="iconbtn" title="Excluir" onclick="deletePagment(${o.id},${i})" style="color:var(--danger)">🗑</button>
           </div>
         </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:20px;font-weight:800;font-family:'Spline Sans Mono',monospace;white-space:nowrap">${fmt(p.v)}</div>
+        </div>
       </div>
-    </div>`;}).join(""):`<p class="empty">Nenhum lançamento neste filtro.</p>`;
-  const pgH=totalPgs>1?`<div class="pgrow"><button class="pgbtn" onclick="setPagPage(${pagPage-1})" ${pagPage===0?"disabled":""}>← Anterior</button><span class="pginfo">Página ${pagPage+1} de ${totalPgs} · ${total.toLocaleString("pt-BR")} lançamentos</span><button class="pgbtn" onclick="setPagPage(${pagPage+1})" ${pagPage>=totalPgs-1?"disabled":""}>Próxima →</button></div>`:`<p class="sub" style="margin-top:10px;text-align:center">${total.toLocaleString("pt-BR")} lançamento(s).</p>`;
+    </div>`;
+  };
+  // Agrupamento por mês
+  let listHtml='';
+  if(!show.length){listHtml=`<p class="empty">Nenhum lançamento neste filtro.</p>`;}
+  else{sortedMonths.forEach((k,ki)=>{
+    const mr=byMonth[k];const mt=mr.reduce((a,r)=>a+r.p.v,0);
+    listHtml+=`<div style="display:flex;align-items:center;gap:10px;${ki>0?'margin-top:20px;':''}margin-bottom:8px">
+      <span style="font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">${_monthLabel(k)}</span>
+      <div style="flex:1;height:1px;background:var(--line)"></div>
+      <span style="font-size:11.5px;color:var(--muted);white-space:nowrap">${mr.length} lançamento${mr.length!==1?'s':''} · ${fmt(mt)}</span>
+    </div>`;
+    listHtml+=mr.map(rowFn).join('');
+  });}
+  // Barra de totais
+  const summaryBar=total>0?`<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:11px 16px;margin-top:14px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:13px">
+    <span style="color:var(--muted)">${total} lançamento${total!==1?'s':''}</span>
+    ${totalPago>0?`<span>✓ Pago: <b style="color:var(--ok)">${fmt(totalPago)}</b></span>`:''}
+    ${totalPend>0?`<span>⏳ Pendente: <b style="color:var(--warn)">${fmt(totalPend)}</b></span>`:''}
+    <span style="margin-left:auto;font-weight:700;font-size:14px">Total: ${fmt(totalPago+totalPend)}</span>
+  </div>`:'';
+  const pgH=totalPgs>1?`<div class="pgrow"><button class="pgbtn" onclick="setPagPage(${pagPage-1})" ${pagPage===0?"disabled":""}>← Anterior</button><span class="pginfo">Página ${pagPage+1} de ${totalPgs} · ${total.toLocaleString("pt-BR")} lançamentos</span><button class="pgbtn" onclick="setPagPage(${pagPage+1})" ${pagPage>=totalPgs-1?"disabled":""}>Próxima →</button></div>`:'';
   document.getElementById("pane-pag").innerHTML=`
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:12px">
       <div class="filters" style="margin:0">${fb('todos','Todos')}${fb('pagos','Pagos')}${fb('pend','Pendentes')}${fb('atraso','Em atraso')}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div style="display:flex;gap:8px">
         <button class="btn btn-sm" onclick="exportCSV()" title="Exportar CSV"><span class="ic">↓</span> CSV</button>
         <button class="btn btn-primary btn-sm" onclick="openImport()"><span class="ic">＋</span> Lançar</button>
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-      <input class="fi" id="pag-busca" style="flex:1;min-width:160px;max-width:320px;padding:8px 12px;font-size:13px" placeholder="Buscar fornecedor ou referência…" value="${pagBusca.replace(/"/g,'&quot;')}" oninput="setPagBusca(this.value)">
+      <input class="fi" id="pag-busca" style="flex:1;min-width:160px;max-width:300px;padding:8px 12px;font-size:13px" placeholder="Buscar fornecedor ou referência…" value="${pagBusca.replace(/"/g,'&quot;')}" oninput="setPagBusca(this.value)">
       <label style="font-size:12.5px;color:var(--muted)">De</label>
-      <input class="fi" type="date" style="width:130px;padding:7px 10px;font-size:13px" value="${pagDe}" onchange="setPagDe(this.value)">
+      <input class="fi" type="date" style="width:128px;padding:7px 10px;font-size:13px" value="${pagDe}" onchange="setPagDe(this.value)">
       <label style="font-size:12.5px;color:var(--muted)">Até</label>
-      <input class="fi" type="date" style="width:130px;padding:7px 10px;font-size:13px" value="${pagAte}" onchange="setPagAte(this.value)">
+      <input class="fi" type="date" style="width:128px;padding:7px 10px;font-size:13px" value="${pagAte}" onchange="setPagAte(this.value)">
     </div>
-    <div id="pag-list">${rows_html}</div>
-    ${pgH}`;
+    <div id="pag-list">${listHtml}</div>
+    ${summaryBar}${pgH}`;
   if(pagBusca){const sb=document.getElementById("pag-busca");if(sb){const e=sb.value.length;sb.focus();sb.setSelectionRange(e,e);}}
 }
 
