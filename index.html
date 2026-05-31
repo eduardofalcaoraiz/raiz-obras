@@ -2340,8 +2340,8 @@ function renderUni(){const u=curUni;document.getElementById("u-crumb").innerHTML
   const dlOf=(arr,cid)=>arr.length?arr.map((d,idx)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><button onclick="viewUniDoc('${cid}',${idx})" style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink);background:none;border:0;font-weight:500;min-width:0;text-align:left;padding:0;cursor:pointer"><span style="color:var(--accent)">📄</span> <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.name}</span></button><span style="display:flex;gap:6px;flex:none"><button class="btn btn-sm" onclick="viewUniDoc('${cid}',${idx})">Ver</button><button class="btn btn-sm" onclick="downloadDoc('${cid}',${idx})">Baixar</button><button class="iconbtn" title="Excluir" onclick="deleteDoc('${cid}',${idx})">🗑</button></span></div>`).join(""):'<div style="font-size:13px;color:var(--soft);padding:5px 0">Nenhum documento.</div>';
   document.getElementById("uni-cats").innerHTML=CATS.map(c=>{const docs=u.docs[c.id]||[];return `<div class="card" style="padding:16px 20px;margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:8px;font-weight:500">${c.nome}${docs.length?` <span class="badge b-neutral" style="font-size:10px">${docs.length}</span>`:''}<button class="iconbtn" title="Editar nome" onclick="openCatModal('${c.id}')">✎</button></div><button class="btn btn-sm" onclick="anexarCat('${c.id}')"><span class="ic">📎</span> Anexar aqui</button></div><div style="margin-top:8px">${dlOf(docs,c.id)}</div></div>`;}).join("");
 }
-async function viewUniDoc(cid,idx){const d=(curUni.docs[cid]||[])[idx];if(!d)return;if(d.storagePath&&!d.dataUrl){const{data}=await db.storage.from('documentos').createSignedUrl(d.storagePath,3600);if(data?.signedUrl)d._signedUrl=data.signedUrl;}viewFile(d);}
-async function downloadDoc(cid,idx){const d=(curUni.docs[cid]||[])[idx];if(!d)return;let url=d.dataUrl;if(d.storagePath&&!url){const{data}=await db.storage.from('documentos').createSignedUrl(d.storagePath,3600);url=data?.signedUrl;}if(!url){toast("Arquivo não encontrado.");return;}const a=document.createElement('a');a.href=url;a.download=d.name;a.click();}
+async function viewUniDoc(cid,idx){const d=(curUni.docs[cid]||[])[idx];if(!d)return;if(d.storagePath&&!d.dataUrl){d._signedUrl=getDocUrl('documentos',d.storagePath);}viewFile(d);}
+async function downloadDoc(cid,idx){const d=(curUni.docs[cid]||[])[idx];if(!d)return;const url=d.dataUrl||getDocUrl('documentos',d.storagePath);if(!url){toast("Arquivo não encontrado.");return;}const a=document.createElement('a');a.href=url;a.download=d.name;a.click();}
 async function deleteDoc(cid,idx){const d=(curUni.docs[cid]||[])[idx];if(!d)return;askConfirm(`Excluir "${d.name}"? Esta ação não pode ser desfeita.`,async()=>{if(d.storagePath)await db.storage.from('documentos').remove([d.storagePath]);if(d.dbId)await db.from('documentos_unidade').delete().eq('id',d.dbId);(curUni.docs[cid]||[]).splice(idx,1);renderUni();toast("Documento excluído.");});}
 
 /* FORNECEDORES */
@@ -2986,16 +2986,21 @@ async function uploadPagDoc(obraId,file,tipo){
   if(error)throw error;
   return path;
 }
-async function getPagDocUrl(storagePath){
-  const{data}=await db.storage.from('pagamentos').createSignedUrl(storagePath,3600);
-  return data?.signedUrl||null;
+function getPagDocUrl(storagePath){
+  // URL publica permanente — nunca expira, sem necessidade de renovacao
+  if(!storagePath)return null;
+  return `${SUPA_URL}/storage/v1/object/public/pagamentos/${storagePath}`;
+}
+function getDocUrl(bucket,storagePath){
+  if(!storagePath)return null;
+  return `${SUPA_URL}/storage/v1/object/public/${bucket}/${storagePath}`;
 }
 function inferType(path){
   if(/\.(jpg|jpeg|png|gif|webp)$/i.test(path))return'image/jpeg';
   if(/\.pdf$/i.test(path))return'application/pdf';
   return'application/octet-stream';
 }
-async function viewFile(d){if(!d)return;let url=d._signedUrl||d.dataUrl;if(!url&&d.storagePath){url=await getPagDocUrl(d.storagePath);if(url)d._signedUrl=url;}document.getElementById("viewer-name").textContent=d.name;const dl=document.getElementById("viewer-download");dl.href=url||"#";dl.setAttribute("download",d.name);const body=document.getElementById("viewer-body");body.innerHTML='<div style="padding:50px;text-align:center;color:var(--muted)">Carregando…</div>';document.getElementById("viewer-overlay").classList.add("show");const t=d.type||"";if(!url){body.innerHTML='<div style="padding:54px 30px;text-align:center;color:var(--muted)"><div style="font-size:42px;margin-bottom:12px">📄</div><p>Arquivo não disponível.</p></div>';return;}if(t.indexOf("image/")===0)body.innerHTML=`<img src="${url}" style="max-width:100%;max-height:78vh;display:block;margin:0 auto;border-radius:8px">`;else if(t.indexOf("pdf")>=0){let src=url;try{const b=await(await fetch(url)).blob();src=URL.createObjectURL(b);}catch(e){}body.innerHTML=`<iframe src="${src}" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff"></iframe>`;}else body.innerHTML=`<div style="padding:54px 30px;text-align:center;color:var(--muted)"><div style="font-size:42px;margin-bottom:12px">📄</div><p>Pré-visualização não disponível. Use Baixar.</p></div>`;}
+async function viewFile(d){if(!d)return;let url=d.dataUrl;if(!url&&d.storagePath){const bucket=d.bucket||'pagamentos';url=getDocUrl(bucket,d.storagePath);}if(!url&&d._signedUrl){url=d._signedUrl;}document.getElementById("viewer-name").textContent=d.name;const dl=document.getElementById("viewer-download");dl.href=url||"#";dl.setAttribute("download",d.name);const body=document.getElementById("viewer-body");body.innerHTML='<div style="padding:50px;text-align:center;color:var(--muted)">Carregando…</div>';document.getElementById("viewer-overlay").classList.add("show");const t=d.type||"";if(!url){body.innerHTML='<div style="padding:54px 30px;text-align:center;color:var(--muted)"><div style="font-size:42px;margin-bottom:12px">📄</div><p>Arquivo não disponível.</p></div>';return;}if(t.indexOf("image/")===0)body.innerHTML=`<img src="${url}" style="max-width:100%;max-height:78vh;display:block;margin:0 auto;border-radius:8px">`;else if(t.indexOf("pdf")>=0){let src=url;try{const b=await(await fetch(url)).blob();src=URL.createObjectURL(b);}catch(e){}body.innerHTML=`<iframe src="${src}" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff"></iframe>`;}else body.innerHTML=`<div style="padding:54px 30px;text-align:center;color:var(--muted)"><div style="font-size:42px;margin-bottom:12px">📄</div><p>Pré-visualização não disponível. Use Baixar.</p></div>`;}
 function closeViewer(){document.getElementById("viewer-overlay").classList.remove("show");document.getElementById("viewer-body").innerHTML="";}
 async function persist(obraId){
   try{
