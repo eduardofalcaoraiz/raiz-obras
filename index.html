@@ -145,6 +145,9 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 .extracted .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
 .extracted .k{font-size:11.5px;color:var(--muted)}.extracted .v{font-weight:500;font-size:13.5px;margin-top:2px}.extracted .v.mono{font-family:"Spline Sans Mono",monospace;font-size:12px}.full{grid-column:1/-1}
 .imp-sec{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:12px}
+textarea.fi{width:100%;padding:11px 13px;border:1px solid var(--line-2);border-radius:var(--r);font-family:inherit;font-size:14.5px;background:var(--surface);color:var(--ink);line-height:1.6;resize:vertical}
+textarea.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px rgba(23,60,52,.1)}
+textarea.fi::placeholder{color:var(--muted);font-size:13px}
 .imp-sec-hd{font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
 .imp-itens-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
 .imp-itens-tbl th{text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:5px 7px;border-bottom:2px solid var(--line)}
@@ -607,20 +610,30 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 
       <!-- 2.4. Classificação do custo -->
       <div class="imp-sec">
-        <div class="imp-sec-hd">Tipo de Custo</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-          <button type="button" id="imp-custo-mat" onclick="impSetCusto('material')" class="btn btn-sm" style="gap:5px">🧱 Material</button>
-          <button type="button" id="imp-custo-svc" onclick="impSetCusto('servico')" class="btn btn-sm" style="gap:5px">🔧 Serviço</button>
-          <button type="button" id="imp-custo-eqp" onclick="impSetCusto('equipamento')" class="btn btn-sm" style="gap:5px">🏗 Equipamento</button>
-          <button type="button" id="imp-custo-out" onclick="impSetCusto('')" class="btn btn-sm btn-ghost" style="gap:5px">Outro</button>
+        <div class="imp-sec-hd">Classificação do Gasto</div>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">Classifique o tipo de gasto para alimentar os relatórios financeiros da obra.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="imp-custo-btns">
+          <button type="button" id="imp-custo-mat" onclick="impSetCusto('material')" class="btn" style="flex-direction:column;height:auto;padding:12px 10px;gap:3px;text-align:center;font-size:13px">
+            <span style="font-size:18px;line-height:1">🧱</span><span style="font-weight:600">Material</span><span style="font-size:10.5px;color:var(--muted)">concreto, aço, pisos...</span>
+          </button>
+          <button type="button" id="imp-custo-svc" onclick="impSetCusto('servico')" class="btn" style="flex-direction:column;height:auto;padding:12px 10px;gap:3px;text-align:center;font-size:13px">
+            <span style="font-size:18px;line-height:1">🔧</span><span style="font-weight:600">Serviço</span><span style="font-size:10.5px;color:var(--muted)">projetos, mão de obra...</span>
+          </button>
+          <button type="button" id="imp-custo-eqp" onclick="impSetCusto('equipamento')" class="btn" style="flex-direction:column;height:auto;padding:12px 10px;gap:3px;text-align:center;font-size:13px">
+            <span style="font-size:18px;line-height:1">🏗</span><span style="font-weight:600">Equipamento</span><span style="font-size:10.5px;color:var(--muted)">aluguel, compra...</span>
+          </button>
+          <button type="button" id="imp-custo-out" onclick="impSetCusto('outros')" class="btn" style="flex-direction:column;height:auto;padding:12px 10px;gap:3px;text-align:center;font-size:13px">
+            <span style="font-size:18px;line-height:1">📋</span><span style="font-weight:600">Categorizar</span><span style="font-size:10.5px;color:var(--muted)">comissões, taxas, adiant...</span>
+          </button>
         </div>
-        <div id="imp-mat-detail" style="display:none;padding:10px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line)">
+
+        <!-- Detalhe: Material -->
+        <div id="imp-mat-detail" style="display:none;padding:12px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line)">
+          <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Detalhamento do material</div>
           <div class="fgrid">
             <div class="frow" style="margin-bottom:0">
               <label class="fl">Tipo de material</label>
-              <select class="fi" id="imp-mat-tipo" onchange="impMatTipoChanged()">
-                <option value="">— Selecione —</option>
-              </select>
+              <select class="fi" id="imp-mat-tipo" onchange="impMatTipoChanged()"><option value="">— Selecione —</option></select>
             </div>
             <div class="frow" style="margin-bottom:0">
               <label class="fl">Quantidade</label>
@@ -631,16 +644,40 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
             </div>
           </div>
         </div>
+
+        <!-- Detalhe: Categorias (para comissões, taxas, adiantamentos, etc.) -->
+        <div id="imp-cat-detail" style="display:none;padding:12px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line)">
+          <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Selecione a categoria do gasto</div>
+          <div class="fgrid">
+            <div class="frow" style="margin-bottom:0">
+              <label class="fl">Categoria</label>
+              <select class="fi" id="imp-cat" onchange="impCatChanged()" style="display:block">
+                <!-- populado pelo JS -->
+              </select>
+            </div>
+            <div class="frow" style="margin-bottom:0">
+              <label class="fl">Subcategoria / detalhe</label>
+              <select class="fi" id="imp-sub" style="display:block">
+                <!-- populado pelo JS -->
+              </select>
+            </div>
+          </div>
+          <p style="font-size:11.5px;color:var(--muted);margin-top:8px">Ex: <b>Outros → Comissões</b> para comissão de imóvel | <b>Taxa de administração → Parcelas</b> | <b>Documentos do Imóvel → Matrícula</b></p>
+        </div>
+
         <input type="hidden" id="imp-custo-val" value="">
+        <input type="hidden" id="imp-tipo" value="OBRA">
       </div>
 
       <!-- 2.5. Referência do pagamento -->
       <div class="imp-sec">
         <div class="imp-sec-hd">Referência do Pagamento</div>
         <div>
-          <label class="fl">Do que se trata este pagamento?</label>
-          <input class="fi" id="imp-ref" placeholder="Ex.: Medições de construção — julho 2026, Pisos modulares da quadra, Taxa de habite-se, Adiantamento de material...">
-          <p style="font-size:11.5px;color:var(--muted);margin:5px 0 0">Descreva o que está sendo pago com clareza — este campo aparece na planilha da obra.</p>
+          <label class="fl">Do que se trata este pagamento? <span style="color:var(--muted);font-weight:400">(obrigatório — aparece na planilha)</span></label>
+          <textarea class="fi" id="imp-ref" rows="2" style="height:auto;resize:vertical;min-height:60px;font-size:14px;line-height:1.6" placeholder="Descreva o que está sendo pago. Ex:
+• Comissão pelo terreno da obra — Davelino Imóveis
+• Medições de construção — julho 2026
+• Sinal do material hidráulico — pagamento antecipado"></textarea>
         </div>
       </div>
 
@@ -783,7 +820,13 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
   <div class="mhead"><h2 id="pag-title">Lançar pagamento</h2><button class="x" onclick="closePagModal()">×</button></div>
   <div class="mbody">
     <div class="fgrid"><div class="frow"><label class="fl">Fornecedor / Beneficiário</label><input class="fi" id="pm-ben" placeholder="Nome da empresa ou pessoa"></div><div class="frow"><label class="fl">Valor (R$)</label><input class="fi num" id="pm-val" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div></div>
-    <div class="frow"><label class="fl">Referência — do que se trata este pagamento?</label><input class="fi" id="pm-ref" placeholder="Ex.: Medições de construção julho, Pisos modulares quadra, Taxa de habite-se..." style="font-size:14px"></div>
+    <div class="frow">
+      <label class="fl">Referência — do que se trata este pagamento? <span style="color:var(--muted);font-weight:400">(aparece na planilha)</span></label>
+      <textarea class="fi" id="pm-ref" rows="2" style="height:auto;resize:vertical;min-height:60px;font-size:14px;line-height:1.6" placeholder="Descreva o que está sendo pago. Ex:
+• Comissão pelo terreno — Davelino Imóveis
+• Medições de construção — julho 2026
+• Taxa de habite-se e DARM"></textarea>
+    </div>
     <div class="fgrid"><div class="frow"><label class="fl">Vencimento / Data do pagamento</label><input class="fi" id="pm-venc" type="date"></div><div class="frow"><label class="fl">Documento fiscal</label><select class="fi" id="pm-nf" onchange="pmNfChange()"><option>Sem nota</option><option>NF-e</option><option>NFS-e</option><option value="Adiantamento">Adiantamento</option><option>Recibo</option><option>Guia</option></select></div></div>
     <div class="frow" id="pm-nfnum-row" style="display:none"><label class="fl">Nº do documento fiscal</label><input class="fi mono" id="pm-nfnum" placeholder="NF-e nº 12345 ou NFS-e nº 67890"></div>
     <div class="fgrid"><div class="frow"><label class="fl">Pago por</label><select class="fi" id="pm-pag"></select></div><div class="frow"><label class="fl">Status</label><select class="fi" id="pm-st"><option>PAGO</option><option>PENDENTE</option><option>Cancelado</option></select></div></div>
@@ -3241,23 +3284,44 @@ function showAdiantamento(){
   const tag=document.getElementById('imp-tag');
   tag.textContent='💸 Adiantamento — preencha os dados do pagamento';
   tag.style.cssText='display:inline-flex;gap:6px;align-items:center;font-size:11.5px;color:var(--warn);background:var(--warn-bg);padding:4px 12px;border-radius:30px';
+  // Pré-seleciona categoria Outros > Adiantamentos
+  setTimeout(()=>{impSetCusto('outros');const cat=document.getElementById('imp-cat');if(cat){cat.value='outros';impCatChanged();const sub=document.getElementById('imp-sub');if(sub)sub.value='2';}},50);
 }
 
 /* ===== FORMULÁRIO DE CUSTO — CLASSIFICAÇÃO ===== */
+function impCatChanged(){
+  const cat=catById(document.getElementById('imp-cat')?.value||'outros');
+  const sub=document.getElementById('imp-sub');
+  if(sub)sub.innerHTML=cat.subs.map((s,i)=>`<option value="${i}">${s}</option>`).join('');
+}
+
 function impSetCusto(tipo){
   document.getElementById('imp-custo-val').value=tipo;
+  const CUSTO_COLORS={'material':'var(--info)','servico':'var(--ok)','equipamento':'var(--warn)','outros':'var(--accent)'};
+  const btnMap={'material':'imp-custo-mat','servico':'imp-custo-svc','equipamento':'imp-custo-eqp','outros':'imp-custo-out'};
   // Visual dos botões
-  const btns={'material':'imp-custo-mat','servico':'imp-custo-svc','equipamento':'imp-custo-eqp','':'imp-custo-out'};
-  Object.entries(btns).forEach(([t,id])=>{
+  Object.entries(btnMap).forEach(([t,id])=>{
     const el=document.getElementById(id);if(!el)return;
     const active=t===tipo;
-    el.style.background=active?(CUSTO_COLOR[tipo]||'var(--accent)'):'';
+    const col=CUSTO_COLORS[t]||'var(--accent)';
+    el.style.background=active?col:'';
     el.style.color=active?'#fff':'';
-    el.style.borderColor=active?(CUSTO_COLOR[tipo]||'var(--accent)'):'';
+    el.style.borderColor=active?col:'';
   });
-  // Mostrar detalhes de material
+  // Painéis de detalhe
   const matDetail=document.getElementById('imp-mat-detail');
+  const catDetail=document.getElementById('imp-cat-detail');
   if(matDetail)matDetail.style.display=tipo==='material'?'block':'none';
+  if(catDetail)catDetail.style.display=tipo==='outros'?'block':'none';
+  // Preenche dropdown de categorias quando exibido
+  if(tipo==='outros'){
+    const catEl=document.getElementById('imp-cat');
+    if(catEl&&CATS.length){
+      catEl.innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+      impCatChanged();
+    }
+  }
+  // Preenche tipos de material
   if(tipo==='material'&&!document.getElementById('imp-mat-tipo').innerHTML.includes('<option value="concreto">')){
     document.getElementById('imp-mat-tipo').innerHTML='<option value="">— Selecione o tipo —</option>'+MATERIAL_TIPOS.map(m=>`<option value="${m.id}">${m.nome}</option>`).join('');
   }
@@ -3317,6 +3381,8 @@ function showSemNota(){
   const tag=document.getElementById('imp-tag');
   tag.textContent='🚫 Pagamento sem nota fiscal — preencha os dados';
   tag.style.cssText='display:inline-flex;gap:6px;align-items:center;font-size:11.5px;color:var(--muted);background:var(--surface-2);padding:4px 12px;border-radius:30px;border:1px solid var(--line)';
+  // Mostra categorias por padrão (comissão, taxa, etc.)
+  setTimeout(()=>{impSetCusto('outros');},50);
 }
 
 function showManualEntry(){
@@ -4012,8 +4078,11 @@ async function confirmImport(){
   const val=parseCurrency(document.getElementById("imp-val-input").value);
   const date=document.getElementById("imp-date").value;
   const chave=document.getElementById("imp-chave").value.trim();
-  const cat=document.getElementById("imp-cat").value;
-  const sub=+document.getElementById("imp-sub").value;
+  // cat/sub: lê dos selects (visíveis quando modo 'categorizar', ou default)
+  const _catEl=document.getElementById('imp-cat');
+  const _subEl=document.getElementById('imp-sub');
+  const cat=(_catEl&&_catEl.value)||'outros';
+  const sub=_subEl?+_subEl.value||0:0;
   const pagn=document.getElementById("imp-pag").value;
   const tipo=document.getElementById("imp-tipo").value;
   const st=document.getElementById("imp-st").value;
