@@ -2588,6 +2588,7 @@ async function deleteObra(id,e){
 
 async function persistUnidades(){
   try{
+    if(unidades.length)await db.from('unidades').upsert(unidades.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obra_id:u.obraId||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||''})));
   }catch(e){console.error('persistUnidades:',e);}
 }
 
@@ -3002,7 +3003,7 @@ async function persist(obraId){
     if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:o.pago||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,aditivos_contrato:o.aditivos_contrato||[]})));
     for(const o of ts){
       await db.from('pagamentos').delete().eq('obra_id',o.id);
-      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:p.nfNum||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||''})));
+      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:p.nfNum||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null})));
       await db.from('aportes').delete().eq('obra_id',o.id);
       if(o.aportes.length)await db.from('aportes').insert(o.aportes.map(a=>({obra_id:o.id,inv:a.inv||'',v:a.v||0,d:a.d||''})));
       await db.from('contratos').delete().eq('obra_id',o.id);
@@ -3017,6 +3018,11 @@ async function persistGlobal(){
   try{
     if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs})));
   }catch(e){console.error('persistGlobal:',e);}
+}
+async function persistCats(){
+  try{
+    if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs})));
+  }catch(e){console.error('persistCats:',e);}
 }
 async function loadFromDB(){
   try{
@@ -3040,13 +3046,13 @@ async function loadFromDB(){
       investimento_disponivel:+o.investimento_disponivel||0,
       aditivos_contrato:Array.isArray(o.aditivos_contrato)?o.aditivos_contrato:[],
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
-      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null,contratoSeq:p.contrato_seq||null,tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||''})),
+      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null,contratoSeq:p.contrato_seq||null,tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:Array.isArray(p.parcelas)?p.parcelas:[],itens:Array.isArray(p.itens_pag)?p.itens_pag:[]})),
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
       contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null}))
     }));
     nextObraId=obras.reduce((m,o)=>Math.max(m,o.id),0)+1;
     if(catR.data&&catR.data.length){CATS=catR.data.map(c=>({id:c.id,nome:c.nome,subs:Array.isArray(c.subs)?c.subs:(c.subs||['Geral'])}));catSeq=Math.max(catSeq,...CATS.filter(c=>c.id.startsWith('cat_')).map(c=>parseInt(c.id.replace('cat_',''))||0))+1;}else{CATS=[...DEFAULT_CATS];}
-    if(uniR.data&&uniR.data.length){unidades=uniR.data.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obraId:u.obra_id||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||'',docs:{}}));uniSeq=unidades.reduce((m,u)=>Math.max(m,parseInt(u.id.replace('u',''))||0),15)+1;}
+    if(uniR.error){console.error('loadFromDB unidades error:',uniR.error);}else if(uniR.data&&uniR.data.length){unidades=uniR.data.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obraId:u.obra_id||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||'',docs:{}}));uniSeq=unidades.reduce((m,u)=>Math.max(m,parseInt(u.id.replace('u',''))||0),1)+1;}
     if(cnpjR.data)cnpjR.data.forEach(r=>{CNPJS[r.nome]=r.cnpj;if(r.cnpj)FORN_DATA[r.cnpj.replace(/\D/g,'')]={nome:r.nome,email:r.email||'',telefone:r.telefone||'',municipio:r.municipio||'',uf:r.uf||'',atividade:r.atividade||'',porte:r.porte||'',endereco:r.endereco||''};});
     const{data:ciR}=await db.from('capex_itens').select('*').order('id',{ascending:false});
     capexItens=ciR||[];
