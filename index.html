@@ -1236,12 +1236,12 @@ function setEsfFiltro(m){esfFiltroMarca=m;renderEsfera();}
 function renderChart(o){const map={};o.pag.filter(p=>p.st==="PAGO"&&p.venc&&p.venc.length>=7).forEach(p=>{const k=p.venc.slice(0,7);map[k]=(map[k]||0)+p.v;});const keys=Object.keys(map).sort().slice(-18);if(!keys.length)return'';const maxV=Math.max(...keys.map(k=>map[k]));const H=90;const fmtM=n=>n>=1000000?(n/1000000).toFixed(1)+'M':n>=1000?Math.round(n/1000)+'k':Math.round(n);const bars=keys.map(k=>{const v=map[k];const h=Math.max(3,Math.round(v/maxV*H));const lbl=k.slice(5)+'/'+k.slice(2,4);return '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:34px">'+'<span style="font-size:9px;color:var(--muted);font-family:\'Spline Sans Mono\',monospace;white-space:nowrap">'+fmtM(v)+'</span>'+'<div style="width:26px;background:var(--info);border-radius:3px 3px 0 0;height:'+h+'px;cursor:default;transition:background .15s" title="'+lbl+': '+fmt(v)+'" onmouseenter="this.style.background=\'var(--accent)\'" onmouseleave="this.style.background=\'var(--info)\'"></div>'+'<span style="font-size:9px;color:var(--soft)">'+lbl+'</span></div>';}).join('');return'<div style="overflow-x:auto"><div style="display:flex;align-items:flex-end;gap:4px;padding:4px 0 0">'+bars+'</div></div>';}
 
 /* EXPORT CSV */
-function exportCSV(){if(!cur)return;let rows=cur.pag.map((p,i)=>({p,i}));if(pagFiltro==="pagos")rows=rows.filter(r=>r.p.st==="PAGO");else if(pagFiltro==="atraso")rows=rows.filter(r=>isAtraso(r.p));else if(pagFiltro==="pend")rows=rows.filter(r=>r.p.st==="PENDENTE");if(pagDe)rows=rows.filter(r=>!r.p.venc||r.p.venc>=pagDe);if(pagAte)rows=rows.filter(r=>!r.p.venc||r.p.venc<=pagAte);const q=pagBusca.trim().toLowerCase();if(q)rows=rows.filter(r=>((r.p.ben||"")+" "+(r.p.ref||"")).toLowerCase().indexOf(q)>=0);const h=["Beneficiário","Referência","Categoria","Subcategoria","Pagante","Valor","Vencimento","Status","Doc fiscal"];const esc=v=>'"'+String(v||"").replace(/"/g,'""')+'"';const csv=[h.map(esc).join(",")].concat(rows.map(({p})=>{const cat=catById(p.cat);return[p.ben,p.ref,cat.nome,cat.subs[p.sub]||"",p.pagn,p.v,p.venc,p.st,p.nfTipo||""].map(esc).join(",");})).join("\n");const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(cur.nome.replace(/[^a-zA-Z0-9\-]/g,"-")+"-pagamentos.csv");a.click();URL.revokeObjectURL(a.href);toast("CSV exportado ("+rows.length+" linhas).");}
+function exportCSV(){if(!cur)return;let rows=cur.pag.map((p,i)=>({p,i}));if(pagFiltro==="pagos")rows=rows.filter(r=>r.p.st==="PAGO");else if(pagFiltro==="atraso")rows=rows.filter(r=>isAtraso(r.p));else if(pagFiltro==="pend")rows=rows.filter(r=>r.p.st==="PENDENTE");if(pagDe)rows=rows.filter(r=>!r.p.venc||r.p.venc>=pagDe);if(pagAte)rows=rows.filter(r=>!r.p.venc||r.p.venc<=pagAte);const q=pagBusca.trim().toLowerCase();if(q)rows=rows.filter(r=>((r.p.ben||"")+" "+(r.p.ref||"")).toLowerCase().indexOf(q)>=0);const h=["Beneficiário","Referência","Nº da NF","Tipo de custo","Contrato","Forma pgto","Categoria","Subcategoria","Pagante","Valor","Vencimento","Status","Doc fiscal"];const esc=v=>'"'+String(v||"").replace(/"/g,'""')+'"';const csv=[h.map(esc).join(",")].concat(rows.map(({p})=>{const cat=catById(p.cat);const contrNome=p.contratoSeq?cur.contratos.find(c=>c.seq===p.contratoSeq)?.nome_contr||"":"";return[p.ben,p.ref,p.nfNum||"",p.tipoCusto||"",contrNome,p.pagForma||"A_VISTA",cat.nome,cat.subs[p.sub]||"",p.pagn,p.v,p.venc,p.st,p.nfTipo||""].map(esc).join(",");})).join("\n");const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(cur.nome.replace(/[^a-zA-Z0-9\-]/g,"-")+"-pagamentos.csv");a.click();URL.revokeObjectURL(a.href);toast("CSV exportado ("+rows.length+" linhas).");}
 
 /* CRUD CONTRATOS */
 let contrEditIdx=null;
 let _contrSeqNext=1;
-function _contrSeqFor(obra){return obra.contratos.reduce((m,c)=>Math.max(m,c.seq||0),0)+1;}
+function _contrSeqFor(obra){const maxSeq=obra.contratos.reduce((m,c)=>Math.max(m,c.seq||0),0);return Math.max(maxSeq,0)+1;}
 function _fillContrSelect(elId,cur,val){const el=document.getElementById(elId);if(!el)return;el.innerHTML='<option value="">Sem vínculo de contrato</option>'+(cur?.contratos||[]).filter(c=>c.seq).map(c=>`<option value="${c.seq}">${c.nome_contr||c.forn||'Contrato'}${c.forn?' · '+c.forn.slice(0,25):''}</option>`).join('');if(val)el.value=val;}
 
 // Popula o select de fornecedores com todos os cadastrados
@@ -1354,7 +1354,7 @@ function openContrModal(idx){
   setTimeout(()=>g("cm-nome-contr").focus(),80);
 }
 function closeContrModal(){document.getElementById("contr-overlay").classList.remove("show");contrEditIdx=null;}
-function saveContr(){
+function saveContr(){if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}
   const g=v=>document.getElementById(v);
   const nomeContr=g("cm-nome-contr").value.trim();
   if(!nomeContr){toast("Dê um nome ao contrato.");return;}
@@ -1396,7 +1396,7 @@ function saveContr(){
   persist(cur.id);closeContrModal();renderObra();showTab("contr");
   toast(contrEditIdx!==null?"Contrato atualizado.":"Contrato criado com sucesso.");
 }
-function deleteContr(idx){const c=cur.contratos[idx];askConfirm('Excluir contrato com "'+c.forn+'"? Esta ação não pode ser desfeita.',()=>{cur.contratos.splice(idx,1);persist(cur.id);renderObra();showTab("contr");toast("Contrato excluído.");});}
+function deleteContr(idx){const c=cur.contratos[idx];const msg=`Excluir o contrato "${c.nome_contr||c.forn}"? Os pagamentos vinculados a ele perderão o vínculo. Esta ação não pode ser desfeita.`;askConfirm(msg,()=>{const seq=c.seq;cur.pag.forEach(p=>{if(p.contratoSeq===seq)p.contratoSeq=null;});cur.contratos.splice(idx,1);persist(cur.id);renderObra();showTab("contr");toast("Contrato excluído e vínculos liberados.");});}
 
 /* CRUD APORTES */
 let aporteEditIdx=null;
@@ -1428,7 +1428,7 @@ const contratadoTotal=o=>o.contratado+aditivosTotal(o);
 // Saldo do contrato: quanto falta pagar à construtora
 const saldoContr=o=>contratadoTotal(o)-o.pago;
 // Saldo do investimento: cada pagamento debita do teto disponível
-const saldoInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-o.pago:o.aportado-o.pago;
+const saldoInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-(o.pago||0):(o.aportado||0)-(o.pago||0);
 // Margem: diferença entre investimento disponível e o total contratado (para outros gastos além da construtora)
 const margemInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-contratadoTotal(o):null;
 const execObra=o=>contratadoTotal(o)?Math.round(o.pago/contratadoTotal(o)*100):0;
@@ -2211,7 +2211,7 @@ function setPagDe(v){pagDe=v;pagPage=0;renderPag();}
 function setPagAte(v){pagAte=v;pagPage=0;renderPag();}
 function setPagPage(p){pagPage=p;renderPag();}
 function setPagBusca(v){pagBusca=v;pagPage=0;renderPag();}
-function marcarPagoLista(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;o.pag[i].st='PAGO';o.pago+=o.pag[i].v;persist(oid);renderObra();updateNavBadge();toast('✓ Pagamento marcado como pago.');}
+function marcarPagoLista(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==='PAGO'){toast('Pagamento já estava marcado como pago.');return;}o.pag[i].st='PAGO';o.pago+=o.pag[i].v;persist(oid);renderObra();updateNavBadge();toast('✓ Pagamento marcado como pago.');}
 
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 function _monthLabel(k){if(k==='sem-data')return'Sem data definida';const[y,m]=k.split('-');return`${MESES[+m-1]} ${y}`;}
@@ -2326,7 +2326,7 @@ function renderCobranca(){const atr=allAtrasos(),pend=allPendentes();const futur
   if(!pend.length)html=`<div class="card"><p class="empty">Nenhum pagamento pendente. Tudo em dia! 🎉</p></div>`;
   document.getElementById("cobr-body").innerHTML=html;
 }
-function marcarPago(oid,i){const o=obras.find(x=>x.id===oid);o.pag[i].st="PAGO";o.pago+=o.pag[i].v;persist(oid);renderCobranca();updateNavBadge();toast("Pagamento marcado como pago.");}
+function marcarPago(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==="PAGO"){toast("Pagamento já estava marcado como pago.");return;}o.pag[i].st="PAGO";o.pago+=o.pag[i].v;persist(oid);renderCobranca();updateNavBadge();toast("Pagamento marcado como pago.");}
 let confirmCb=null;
 function askConfirm(msg,cb){document.getElementById("confirm-msg").textContent=msg;confirmCb=cb;document.getElementById("confirm-overlay").classList.add("show");}
 function closeConfirm(){document.getElementById("confirm-overlay").classList.remove("show");confirmCb=null;}
@@ -2555,6 +2555,7 @@ function deleteAditivo(idx){
 }
 function setObraStatus(id,st){const o=obras.find(x=>x.id===id);if(!o)return;o.status=st;persist(id);const cv=document.querySelector('.view.active')?.id?.replace('view-','');if(cv==='esfera')renderEsfera();else if(cv==='geral')renderGeral();if(cur&&cur.id===id)renderObra();toast("Status: "+st);}
 async function deleteObra(id,e){
+  if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}
   if(e)e.stopPropagation();
   const o=obras.find(x=>x.id===id);
   if(!o)return;
@@ -2779,15 +2780,16 @@ let pagEditIdx=null;
 function pmSubs(){const c=catById(document.getElementById("pm-cat").value);document.getElementById("pm-sub").innerHTML=c.subs.map((s,i)=>`<option value="${i}">${s}</option>`).join("");}
 function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(typeof idx==="number")?idx:null;const g=v=>document.getElementById(v);
   g("pm-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
-  g("pm-pag").innerHTML=Array.from(new Set([...cur.aportes.map(a=>a.inv),...FONTES])).map(f=>`<option>${f}</option>`).join("");
+  const _invNomes=investidores.map(i=>i.nome);
+  g("pm-pag").innerHTML=Array.from(new Set([...cur.aportes.map(a=>a.inv),..._invNomes,...FONTES])).map(f=>`<option>${f}</option>`).join("");
   _fillContrSelect("pm-contrato",cur,'');
   if(pagEditIdx!==null){const p=cur.pag[pagEditIdx];g("pag-title").textContent="Editar pagamento";g("pm-ben").value=p.ben;setCurrencyValue("pm-val",p.v);g("pm-ref").value=p.ref||'';if(g("pm-nfnum"))g("pm-nfnum").value=p.nfNum||'';g("pm-cat").value=p.cat||CATS[0].id;pmSubs();g("pm-sub").value=p.sub||0;g("pm-pag").value=p.pagn;g("pm-st").value=p.st;g("pm-venc").value=p.venc||"";g("pm-nf").value=p.nfTipo||"Sem nota";pmNfChange();if(g("pm-contrato"))g("pm-contrato").value=p.contratoSeq||'';}
   else{g("pag-title").textContent="Lançar pagamento";["pm-ben","pm-val","pm-ref","pm-venc"].forEach(x=>g(x).value="");if(g("pm-nfnum"))g("pm-nfnum").value="";g("pm-cat").value=CATS[0].id;pmSubs();g("pm-st").value="PENDENTE";g("pm-nf").value="Sem nota";pmNfChange();if(g("pm-contrato"))g("pm-contrato").value='';}
   g("pag-overlay").classList.add("show");}
 function closePagModal(){document.getElementById("pag-overlay").classList.remove("show");}
 function pmNfChange(){const t=document.getElementById('pm-nf')?.value||'';const r=document.getElementById('pm-nfnum-row');if(r)r.style.display=(t&&t!=='Sem nota'&&t!=='Adiantamento')?'':'none';}
-function savePag(){const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const cSeq=document.getElementById("pm-contrato")?.value||'';const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:+g("pm-sub")||0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null};
-  if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];const wasPago=old.st==="PAGO";const willPago=obj.st==="PAGO";cur.pago+=(willPago?obj.v:0)-(wasPago?old.v:0);cur.pag[pagEditIdx]={...old,...obj};}
+function savePag(){if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const cSeq=document.getElementById("pm-contrato")?.value||'';const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:+g("pm-sub")||0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null};
+  if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];const wasPago=(old.st||'')==="PAGO";const willPago=obj.st==="PAGO";cur.pago+=(willPago?obj.v:0)-(wasPago?(old.v||0):0);cur.pag[pagEditIdx]={...old,...obj};}
   else{if(obj.st==="PAGO")cur.pago+=obj.v;cur.pag.push({...obj,comp:""});}
   persist(cur.id);closePagModal();renderObra();renderPainel();updateNavBadge();toast(pagEditIdx!==null?"Pagamento atualizado":"Pagamento lançado");}
 function anexarComp(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getElementById("comp-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="comp-input";inp.style.display="none";document.body.appendChild(inp);}
@@ -2892,6 +2894,7 @@ function renderEscolas(){
 }
 
 async function deleteEscola(id){
+  if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}
   const u=unidades.find(x=>x.id===id);if(!u)return;
   const hasDocs=Object.values(u.docs||{}).some(a=>a.length>0);
   const msg=hasDocs
@@ -2901,7 +2904,9 @@ async function deleteEscola(id){
     const{error}=await db.from('unidades').delete().eq('id',id);
     if(error){toast('Erro ao excluir: '+error.message);return;}
     unidades=unidades.filter(x=>x.id!==id);
-    renderEscolas();renderDocs();populateEscolasSelect();
+    // Se escola deletada tinha obra vinculada e obra está aberta, força re-render
+if(cur){const _u=unidades.find(u=>u.id===id);if(_u&&_u.obraId===cur.id){renderObra();}}
+renderEscolas();renderDocs();populateEscolasSelect();
     toast('Escola excluída.');
   });
 }
@@ -3019,11 +3024,7 @@ async function persist(obraId){
     if(cl.length)await db.from('fornecedores_cnpj').upsert(cl);
   }catch(e){console.error('persist:',e);}
 }
-async function persistGlobal(){
-  try{
-    if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs})));
-  }catch(e){console.error('persistGlobal:',e);}
-}
+async function persistGlobal(){await persistCats();}
 async function persistCats(){
   try{
     if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs})));
