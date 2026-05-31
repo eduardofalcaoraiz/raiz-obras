@@ -496,9 +496,20 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <!-- ADMINISTRAÇÃO -->
     <section id="view-admin" class="view">
-      <div class="phead"><div><div class="eyebrow">Controle de acesso</div><h1>Administração</h1><p>Gerencie os usuários que solicitaram acesso à plataforma.</p></div></div>
+      <div class="phead"><div><div class="eyebrow">Controle de acesso</div><h1>Administração</h1><p>Gerencie usuários e categorias de gasto da plataforma.</p></div></div>
       <div class="card"><h2>Usuários</h2><div class="sub">Aprove ou revogue o acesso de cada cadastro.</div>
         <div class="tablewrap" id="admin-users"></div></div>
+      <!-- Gestão de Categorias de Gasto -->
+      <div class="card" style="margin-top:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+          <div>
+            <h2 style="font-size:19px;margin-bottom:3px">Categorias de Gasto</h2>
+            <div class="sub">Gerencie as categorias que aparecem na classificação de pagamentos das obras.</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openCatModal()"><span class="ic">＋</span> Nova categoria</button>
+        </div>
+        <div id="admin-cats"></div>
+      </div>
     </section>
 
     <!-- INVESTIDORES EXTERNOS -->
@@ -650,19 +661,18 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
           <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Selecione a categoria do gasto</div>
           <div class="fgrid">
             <div class="frow" style="margin-bottom:0">
-              <label class="fl">Categoria</label>
-              <select class="fi" id="imp-cat" onchange="impCatChanged()" style="display:block">
-                <!-- populado pelo JS -->
-              </select>
+              <label class="fl" style="display:flex;justify-content:space-between;align-items:center">
+                <span>Categoria</span>
+                <button type="button" onclick="openCatModalFromForm()" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">＋ Nova categoria</button>
+              </label>
+              <select class="fi" id="imp-cat" onchange="impCatChanged()" style="display:block"><!-- populado pelo JS --></select>
             </div>
             <div class="frow" style="margin-bottom:0">
               <label class="fl">Subcategoria / detalhe</label>
-              <select class="fi" id="imp-sub" style="display:block">
-                <!-- populado pelo JS -->
-              </select>
+              <select class="fi" id="imp-sub" style="display:block"><!-- populado pelo JS --></select>
             </div>
           </div>
-          <p style="font-size:11.5px;color:var(--muted);margin-top:8px">Ex: <b>Outros → Comissões</b> para comissão de imóvel | <b>Taxa de administração → Parcelas</b> | <b>Documentos do Imóvel → Matrícula</b></p>
+          <p style="font-size:11.5px;color:var(--muted);margin-top:8px">Ex: <b>Outros → Comissões</b> para comissão de imóvel · <b>Taxa de administração</b> · <b>Legalização → Alvará</b></p>
         </div>
 
         <input type="hidden" id="imp-custo-val" value="">
@@ -923,10 +933,23 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
   </div>
 </div></div>
 
-<div class="overlay" id="cat-overlay"><div class="modal" style="max-width:440px">
+<div class="overlay" id="cat-overlay"><div class="modal" style="max-width:500px">
   <div class="mhead"><h2 id="cat-title">Nova categoria</h2><button class="x" onclick="closeCatModal()">×</button></div>
-  <div class="mbody"><div class="frow"><label class="fl">Nome da categoria</label><input class="fi" id="cat-input" onkeydown="if(event.key==='Enter')saveCatModal()"></div>
-    <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn btn-ghost" onclick="closeCatModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCatModal()"><span class="ic">✓</span> Salvar</button></div></div>
+  <div class="mbody">
+    <div class="frow">
+      <label class="fl">Nome da categoria</label>
+      <input class="fi" id="cat-input" placeholder="Ex.: Comissões de Terreno, Honorários Jurídicos, Taxas…" onkeydown="if(event.key==='Enter')saveCatModal()">
+    </div>
+    <div class="frow" style="margin-bottom:0">
+      <label class="fl">Subcategorias <span style="font-weight:400;color:var(--muted)">(opcional — separe por vírgula)</span></label>
+      <input class="fi" id="cat-subs-input" placeholder="Ex.: Imóvel, Intermediação, Outros — ou deixe vazio">
+      <p style="font-size:11.5px;color:var(--muted);margin:5px 0 0">Se não preencher, será criada a subcategoria "Geral" automaticamente.</p>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeCatModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCatModal()"><span class="ic">✓</span> Criar categoria</button>
+    </div>
+  </div>
 </div></div>
 
 <div class="overlay" id="doc-overlay"><div class="modal">
@@ -3127,9 +3150,62 @@ async function saveUni(){
 
 /* ===== categorias ===== */
 let catEditId=null;
-function openCatModal(id){catEditId=id||null;const inp=document.getElementById("cat-input");if(catEditId){const c=catById(catEditId);document.getElementById("cat-title").textContent="Editar categoria";inp.value=c.nome;}else{document.getElementById("cat-title").textContent="Nova categoria";inp.value="";}document.getElementById("cat-overlay").classList.add("show");setTimeout(()=>inp.focus(),60);}
-function closeCatModal(){document.getElementById("cat-overlay").classList.remove("show");catEditId=null;}
-function saveCatModal(){const nm=document.getElementById("cat-input").value.trim();if(!nm){toast("Dê um nome.");return;}const dup=CATS.find(c=>c.nome.toLowerCase()===nm.toLowerCase()&&c.id!==catEditId);if(dup){toast("Já existe categoria com esse nome.");return;}const wasEdit=!!catEditId;if(catEditId){catById(catEditId).nome=nm;}else{CATS.push({id:"cat_"+(catSeq++),nome:nm,subs:["Geral"]});}persistGlobal();closeCatModal();if(curUni)renderUni();toast(wasEdit?"Categoria renomeada":"Categoria criada");}
+function openCatModal(id){
+  catEditId=id||null;
+  const inp=document.getElementById("cat-input");
+  const subsInp=document.getElementById("cat-subs-input");
+  if(catEditId){
+    const c=catById(catEditId);
+    document.getElementById("cat-title").textContent="Editar categoria";
+    inp.value=c.nome;
+    if(subsInp)subsInp.value=(c.subs||[]).filter(s=>s!=='Geral').join(', ');
+  }else{
+    document.getElementById("cat-title").textContent="Nova categoria";
+    inp.value="";
+    if(subsInp)subsInp.value="";
+  }
+  document.getElementById("cat-overlay").classList.add("show");
+  setTimeout(()=>inp.focus(),60);
+}
+function closeCatModal(){document.getElementById("cat-overlay").classList.remove("show");catEditId=null;_catModalFromForm=false;}
+function saveCatModal(){
+  const nm=document.getElementById("cat-input").value.trim();
+  if(!nm){toast("Dê um nome.");return;}
+  const dup=CATS.find(c=>c.nome.toLowerCase()===nm.toLowerCase()&&c.id!==catEditId);
+  if(dup){toast("Já existe categoria com esse nome.");return;}
+  // Parse subcategorias da input (separadas por vírgula)
+  const subsRaw=(document.getElementById("cat-subs-input")?.value||'').trim();
+  const subs=subsRaw?subsRaw.split(',').map(s=>s.trim()).filter(Boolean):['Geral'];
+  const wasEdit=!!catEditId;
+  let newId=null;
+  if(catEditId){
+    const c=catById(catEditId);
+    c.nome=nm;c.subs=subs;
+  }else{
+    newId="cat_"+(catSeq++);
+    CATS.push({id:newId,nome:nm,subs});
+  }
+  persistGlobal();
+  closeCatModal();
+  if(curUni)renderUni();
+  // Se aberto a partir do formulário de pagamento, seleciona automaticamente
+  if(_catModalFromForm&&newId){
+    const catEl=document.getElementById("imp-cat");
+    if(catEl&&document.getElementById("imp-cat-detail")?.style.display!=="none"){
+      catEl.innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
+      catEl.value=newId;
+      impCatChanged();
+      toast(`Categoria "${nm}" criada e selecionada.`);
+      return;
+    }
+  }
+  // Atualiza gestão de categorias se estiver aberta
+  if(document.querySelector('#view-admin .active')||document.getElementById('admin-cats'))renderAdminCats();
+  toast(wasEdit?`Categoria "${nm}" atualizada.`:`Categoria "${nm}" criada.`);
+}
+
+let _catModalFromForm=false;
+function openCatModalFromForm(){_catModalFromForm=true;openCatModal();}
 
 /* ===== anexos (na unidade) ===== */
 let anexAlvo=null,pendingDocs=[];
@@ -4143,6 +4219,45 @@ async function renderAdmin(){
     </td>
   </tr>`).join(''):'';
   document.getElementById('admin-users').innerHTML=`<table><thead><tr><th>Nome</th><th>E-mail</th><th>Função</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="5"><p class="empty">Nenhum usuário cadastrado ainda.</p></td></tr>'}</tbody></table>`;
+  renderAdminCats();
+}
+
+function renderAdminCats(){
+  const el=document.getElementById('admin-cats');
+  if(!el)return;
+  const defaultIds=['proj','legal','demo','mat','mo','equip','cant','topog','sond','imovel','arts','locacao','taxa','outros'];
+  const custom=CATS.filter(c=>!defaultIds.includes(c.id));
+  const defaults=CATS.filter(c=>defaultIds.includes(c.id));
+  const catRow=(c,isDef)=>`<tr>
+    <td style="font-weight:500">${c.nome}</td>
+    <td style="font-size:13px;color:var(--muted)">${(c.subs||[]).join(' · ')}</td>
+    <td><span class="badge ${isDef?'b-neutral':'b-ok'}" style="font-size:11px">${isDef?'Padrão':'Personalizada'}</span></td>
+    <td style="white-space:nowrap;display:flex;gap:6px">
+      <button class="btn btn-ghost btn-sm" onclick="openCatModal('${c.id}')">✎ Editar</button>
+      ${!isDef?`<button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)88;font-size:12px" onclick="deleteCat('${c.id}')">Excluir</button>`:''}
+    </td>
+  </tr>`;
+  el.innerHTML=`
+    ${custom.length>0?`<div style="margin-bottom:12px">
+      <div style="font-size:11.5px;font-weight:700;color:var(--ok);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">✦ Suas categorias personalizadas</div>
+      <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${custom.map(c=>catRow(c,false)).join('')}</tbody></table></div>
+    </div>`:'<p style="font-size:13px;color:var(--muted);margin-bottom:12px">Você ainda não criou categorias personalizadas. Clique em "+ Nova categoria" para começar.</p>'}
+    <details style="margin-top:4px">
+      <summary style="font-size:13px;color:var(--muted);cursor:pointer;user-select:none">Ver ${defaults.length} categorias padrão do sistema</summary>
+      <div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${defaults.map(c=>catRow(c,true)).join('')}</tbody></table></div>
+    </details>`;
+}
+
+function deleteCat(id){
+  const c=catById(id);
+  const inUse=obras.some(o=>o.pag.some(p=>p.cat===id));
+  if(inUse){toast(`A categoria "${c.nome}" está em uso em pagamentos — não pode ser excluída.`);return;}
+  askConfirm(`Excluir a categoria "${c.nome}"?`,()=>{
+    CATS=CATS.filter(x=>x.id!==id);
+    persistGlobal();
+    renderAdminCats();
+    toast(`Categoria "${c.nome}" excluída.`);
+  });
 }
 async function setUserRole(id,role){await db.from('user_profiles').update({role}).eq('id',id);toast('Função atualizada.');}
 async function aprovarUser(id){await db.from('user_profiles').update({aprovado:true}).eq('id',id);renderAdmin();toast('Usuário aprovado.');}
