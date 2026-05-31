@@ -1012,10 +1012,10 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 </div></div>
 
 <div class="overlay" id="apor-overlay"><div class="modal" style="max-width:440px">
-  <div class="mhead"><h2 id="apor-title">Novo aporte</h2><button class="x" onclick="closeAporteModal()">×</button></div>
+  <div class="mhead"><h2 id="apor-title">Registrar depósito recebido</h2><button class="x" onclick="closeAporteModal()">×</button></div>
   <div class="mbody">
     <div class="fgrid"><div class="frow"><label class="fl">Investidor / fonte</label><select class="fi" id="am-inv"></select></div><div class="frow"><label class="fl">Valor (R$)</label><input class="fi num" id="am-v" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div></div>
-    <div class="frow"><label class="fl">Data / período</label><input class="fi" id="am-d" placeholder="ex.: 05/2026 ou 2026-05-10"></div>
+    <div class="frow"><label class="fl">Data do depósito</label><input class="fi" id="am-d" type="date"></div>
     <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn btn-ghost" onclick="closeAporteModal()">Cancelar</button><button class="btn btn-primary" onclick="saveAporte()"><span class="ic">✓</span> Salvar</button></div>
   </div>
 </div></div>
@@ -1400,6 +1400,35 @@ function deleteContr(idx){const c=cur.contratos[idx];const msg=`Excluir o contra
 
 /* CRUD APORTES */
 let aporteEditIdx=null;
+/* ===== APORTES — ANÁLISE FINANCEIRA AUTOMÁTICA ===== */
+function calcInvestStats(o){
+  const stats={};
+
+  // Capital recebido (depósitos registrados)
+  (o.aportes||[]).forEach(a=>{
+    if(!stats[a.inv])stats[a.inv]={nome:a.inv,aportado:0,utilizado:0,pendente:0,pagamentos:[]};
+    stats[a.inv].aportado+=a.v;
+  });
+
+  // Capital utilizado (pagamentos feitos em nome de cada investidor)
+  (o.pag||[]).forEach(p=>{
+    if(!p.pagn||p.pagn==='—')return;
+    if(!stats[p.pagn])stats[p.pagn]={nome:p.pagn,aportado:0,utilizado:0,pendente:0,pagamentos:[]};
+    if(p.st==='PAGO')stats[p.pagn].utilizado+=p.v;
+    else if(p.st==='PENDENTE'||p.st==='ATRASADO')stats[p.pagn].pendente+=p.v;
+    stats[p.pagn].pagamentos.push(p);
+  });
+
+  return Object.values(stats).sort((a,b)=>(b.aportado||b.utilizado)-(a.aportado||a.utilizado));
+}
+
+// Retorna saldo disponível de um investidor/fonte nesta obra
+function getInvestSaldo(o, nome){
+  const s=calcInvestStats(o).find(x=>x.nome===nome);
+  return s?s.aportado-s.utilizado:null;
+}
+
+
 function openAporteModal(idx){
   aporteEditIdx=(typeof idx==="number")?idx:null;
   const g=v=>document.getElementById(v);
@@ -1407,14 +1436,27 @@ function openAporteModal(idx){
   g("am-inv").innerHTML=invNomes.map(f=>'<option>'+f+'</option>').join("");
   if(aporteEditIdx!==null){
     const a=cur.aportes[aporteEditIdx];
-    g("apor-title").textContent="Editar aporte";
+    g("apor-title").textContent="Editar depósito";
     g("am-inv").value=a.inv;
     setCurrencyValue("am-v",a.v);
     g("am-d").value=a.d||"";
   }else{
-    g("apor-title").textContent="Novo aporte";
+    g("apor-title").textContent="Registrar depósito recebido";
     g("am-v").value="";g("am-d").value="";
   }
+  // Mostra saldo atual do investidor selecionado
+  const _amInvEl=g("am-inv");
+  const _showAporteSaldo=()=>{
+    const inv=_amInvEl.value;
+    let info=document.getElementById("am-inv-info");
+    if(!info){info=document.createElement("p");info.id="am-inv-info";info.style.cssText="font-size:12px;color:var(--muted);margin:5px 0 0";_amInvEl.after(info);}
+    if(!inv||!cur){info.textContent='';return;}
+    const s=getInvestSaldo(cur,inv);
+    if(s===null){info.textContent='Sem depósitos ou pagamentos anteriores nesta obra.';return;}
+    info.innerHTML=s>=0?`Saldo atual: <b style="color:var(--ok)">${fmt(s)} disponíveis</b>`:`<b style="color:var(--danger)">Atenção: ${inv} já está com déficit de ${fmt(-s)}</b>`;
+  };
+  _amInvEl.onchange=_showAporteSaldo;
+  setTimeout(_showAporteSaldo,50);
   g("apor-overlay").classList.add("show");
   setTimeout(()=>g("am-v").focus(),60);
 }
@@ -2128,8 +2170,84 @@ function renderObra(){const o=cur,pct=execObra(o);
       <button class="btn btn-primary btn-sm" onclick="openContrModal()"><span class="ic">＋</span> Novo contrato</button>
     </div>
     ${contrCards}`;
-  const porInv={};o.aportes.forEach(a=>porInv[a.inv]=(porInv[a.inv]||0)+a.v);
-  document.getElementById("pane-aportes").innerHTML=`<div class="invgrid">${Object.entries(porInv).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="invc"><div class="nm">${k}</div><div class="v">${fmt(v)}</div><div class="pc">${Math.round(v/o.aportado*100)}% do aporte</div></div>`).join("")}</div><div style="display:flex;justify-content:flex-end;margin:12px 0 8px"><button class="btn btn-primary btn-sm" onclick="openAporteModal()"><span class="ic">＋</span> Novo aporte</button></div><div class="tablewrap"><table><thead><tr><th>Investidor</th><th style="text-align:right">Valor</th><th>Data</th><th></th></tr></thead><tbody>${o.aportes.length?o.aportes.map((a,ai)=>`<tr><td style="font-weight:500">${a.inv}</td><td class="n">${fmt(a.v)}</td><td>${a.d||'—'}</td><td style="white-space:nowrap"><button class="iconbtn" title="Editar" onclick="openAporteModal(${ai})">✎</button><button class="iconbtn" title="Excluir" onclick="deleteAporte(${ai})">🗑</button></td></tr>`).join(""):'<tr><td colspan="4"><p class="empty">Nenhum aporte registrado.</p></td></tr>'}</tbody></table></div>`;
+  // Dashboard automático de aportes x gastos por investidor
+  const _invStats=calcInvestStats(o);
+  const _totalAport=_invStats.reduce((a,s)=>a+s.aportado,0);
+  const _totalUtil=_invStats.reduce((a,s)=>a+s.utilizado,0);
+  const _totalPend=_invStats.reduce((a,s)=>a+s.pendente,0);
+
+  // Cards de investidor com cruzamento automático
+  const _invCards=_invStats.length?_invStats.map(s=>{
+    const saldo=s.aportado-s.utilizado;
+    const pct=s.aportado>0?Math.min((s.utilizado/s.aportado)*100,999):0;
+    const pctPend=s.aportado>0?Math.min(((s.utilizado+s.pendente)/s.aportado)*100,999):0;
+    const isDeficit=saldo<0;
+    const isCritical=!isDeficit&&s.aportado>0&&pct>90;
+    const isOk=!isDeficit&&pct<=70;
+    const cor=isDeficit?'var(--danger)':isCritical?'var(--warn)':'var(--ok)';
+    const bgCor=isDeficit?'var(--danger-bg)':isCritical?'var(--warn-bg)':'var(--ok-bg)';
+    const temAporte=s.aportado>0;
+    const futuroDef=!isDeficit&&s.pendente>0&&(s.utilizado+s.pendente)>s.aportado;
+    return`<div class="card" style="margin-bottom:14px;border-left:4px solid ${cor}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            <span style="font-weight:700;font-size:16px">${s.nome}</span>
+            ${isDeficit?`<span style="font-size:10.5px;font-weight:700;color:var(--danger);background:var(--danger-bg);padding:2px 8px;border-radius:10px">❌ DÉFICIT</span>`:''}
+            ${isCritical?`<span style="font-size:10.5px;font-weight:700;color:var(--warn);background:var(--warn-bg);padding:2px 8px;border-radius:10px">⚠ Saldo crítico</span>`:''}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin-bottom:12px;font-size:13px">
+            ${temAporte?`<div><span style="color:var(--muted)">Capital recebido</span><br><b>${fmt(s.aportado)}</b></div>`:'<div style="color:var(--muted);font-style:italic;font-size:12px">Sem depósito registrado<br>(somente pagamentos)</div>'}
+            <div><span style="color:var(--muted)">Já utilizado</span><br><b style="color:var(--accent)">${fmt(s.utilizado)}</b></div>
+            <div><span style="color:var(--muted)">Saldo disponível</span><br><b style="color:${cor}">${fmt(saldo)}</b></div>
+            ${s.pendente>0?`<div><span style="color:var(--muted)">Comprometido (pendente)</span><br><b style="color:var(--warn)">${fmt(s.pendente)}</b></div>`:''}
+          </div>
+          ${temAporte?`<div style="margin-bottom:6px">
+            <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:4px">
+              <span>Execução</span><span>${pct.toFixed(1)}% utilizado</span>
+            </div>
+            <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(pct,100)}%;background:${cor};border-radius:4px;transition:width .5s"></div>
+            </div>
+            ${s.pendente>0?`<div style="height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:3px">
+              <div style="height:100%;width:${Math.min(pctPend,100)}%;background:var(--warn);border-radius:2px;opacity:.5"></div>
+            </div><div style="font-size:11px;color:var(--muted);margin-top:2px">+ ${pctPend.toFixed(0)}% com pendentes incluídos</div>`:''}
+          </div>`:''}
+          ${futuroDef?`<div style="font-size:12px;color:var(--warn);background:var(--warn-bg);padding:6px 10px;border-radius:6px;margin-top:4px">⚠ Incluindo pendentes, haverá déficit de ${fmt(s.utilizado+s.pendente-s.aportado)}</div>`:''}
+          ${isDeficit&&s.aportado===0?`<div style="font-size:12px;color:var(--muted);margin-top:4px;font-style:italic">Pagamentos foram feitos em nome de ${s.nome} mas nenhum aporte foi registrado para esta fonte.</div>`:''}
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:11px;color:var(--muted)">Pagamentos</div>
+          <div style="font-size:20px;font-weight:800;font-family:'Spline Sans Mono',monospace">${s.pagamentos.length}</div>
+          ${temAporte?`<button class="btn btn-ghost btn-sm" style="font-size:11px;margin-top:6px" onclick="setPagFiltro('todos');showTab('pag');setTimeout(()=>setPagBusca('${s.nome}'),100)" title="Ver pagamentos deste investidor">Ver pagamentos →</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join(''):`<div class="card"><p class="empty">Nenhum investidor ou fonte registrada ainda.<br><span style="font-size:13px">Registre um depósito ou lance pagamentos informando quem pagou.</span></p></div>`;
+
+  // Totais do painel
+  const _painelTotal=_invStats.length?`<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:13px">
+    <span style="font-weight:700;font-size:14px">Resumo geral</span>
+    <span>Recebido: <b>${fmt(_totalAport)}</b></span>
+    <span>Utilizado: <b style="color:var(--accent)">${fmt(_totalUtil)}</b></span>
+    ${_totalPend>0?`<span>Pendente: <b style="color:var(--warn)">${fmt(_totalPend)}</b></span>`:''}
+    <span style="margin-left:auto">Saldo: <b style="color:${_totalAport-_totalUtil<0?'var(--danger)':'var(--ok)'}">${fmt(_totalAport-_totalUtil)}</b></span>
+  </div>`:'';
+
+  document.getElementById("pane-aportes").innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <div>
+        <h3 style="font-size:17px;font-family:'Fraunces',serif;margin-bottom:2px">Análise por Investidor / Fonte</h3>
+        <div style="font-size:13px;color:var(--muted)">Cruzamento automático entre depósitos recebidos e pagamentos realizados.</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openAporteModal()"><span class="ic">＋</span> Registrar depósito</button>
+    </div>
+    ${_painelTotal}
+    ${_invCards}
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line)">
+      <h3 style="font-size:15px;font-family:'Fraunces',serif;margin-bottom:10px">Histórico de depósitos recebidos</h3>
+      <div class="tablewrap"><table><thead><tr><th>Investidor / Fonte</th><th style="text-align:right">Valor depositado</th><th>Data do depósito</th><th></th></tr></thead><tbody>${o.aportes.length?o.aportes.map((a,ai)=>`<tr><td style="font-weight:500">${a.inv}</td><td class="n">${fmt(a.v)}</td><td style="color:var(--muted)">${a.d?fmtD(a.d.length<=7?a.d+'-01':a.d):'—'}</td><td style="white-space:nowrap"><button class="iconbtn" title="Editar" onclick="openAporteModal(${ai})">✎</button><button class="iconbtn" title="Excluir" onclick="deleteAporte(${ai})" style="color:var(--danger)">🗑</button></td></tr>`).join(""):'<tr><td colspan="4"><p class="empty">Nenhum depósito registrado ainda.</p></td></tr>'}</tbody></table></div>
+    </div>`;
 }
 function renderMatServ(){
   const o=cur;
@@ -2782,6 +2900,7 @@ function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(
   g("pm-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
   const _invNomes=investidores.map(i=>i.nome);
   g("pm-pag").innerHTML=Array.from(new Set([...cur.aportes.map(a=>a.inv),..._invNomes,...FONTES])).map(f=>`<option>${f}</option>`).join("");
+  g("pm-pag").onchange=function(){let info=document.getElementById("pm-pag-saldo");if(!info){info=document.createElement("p");info.id="pm-pag-saldo";info.style.cssText="font-size:12px;margin:5px 0 0";this.after(info);}if(!cur)return;const s=getInvestSaldo(cur,this.value);if(s===null){info.textContent='';return;}info.innerHTML=s>=0?`<span style="color:var(--ok)">Saldo disponível: ${fmt(s)}</span>`:`<span style="color:var(--danger)">⚠ Déficit atual de ${fmt(-s)}</span>`;}
   _fillContrSelect("pm-contrato",cur,'');
   if(pagEditIdx!==null){const p=cur.pag[pagEditIdx];g("pag-title").textContent="Editar pagamento";g("pm-ben").value=p.ben;setCurrencyValue("pm-val",p.v);g("pm-ref").value=p.ref||'';if(g("pm-nfnum"))g("pm-nfnum").value=p.nfNum||'';g("pm-cat").value=p.cat||CATS[0].id;pmSubs();g("pm-sub").value=p.sub||0;g("pm-pag").value=p.pagn;g("pm-st").value=p.st;g("pm-venc").value=p.venc||"";g("pm-nf").value=p.nfTipo||"Sem nota";pmNfChange();if(g("pm-contrato"))g("pm-contrato").value=p.contratoSeq||'';}
   else{g("pag-title").textContent="Lançar pagamento";["pm-ben","pm-val","pm-ref","pm-venc"].forEach(x=>g(x).value="");if(g("pm-nfnum"))g("pm-nfnum").value="";g("pm-cat").value=CATS[0].id;pmSubs();g("pm-st").value="PENDENTE";g("pm-nf").value="Sem nota";pmNfChange();if(g("pm-contrato"))g("pm-contrato").value='';}
@@ -3092,6 +3211,15 @@ function openImport(){
   document.getElementById("imp-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
   const pagadores=['Raiz Educação',...unidades.map(u=>u.nome),...investidores.map(i=>i.nome)];
   document.getElementById("imp-pag").innerHTML=pagadores.map(f=>`<option>${f}</option>`).join('');
+  // Indicador de saldo ao selecionar pagante
+  document.getElementById("imp-pag").onchange=function(){
+    let info=document.getElementById("imp-pag-saldo");
+    if(!info){info=document.createElement("p");info.id="imp-pag-saldo";info.style.cssText="font-size:12px;margin:5px 0 0";this.after(info);}
+    if(!cur)return;
+    const s=getInvestSaldo(cur,this.value);
+    if(s===null){info.textContent='';return;}
+    info.innerHTML=s>=0?`<span style="color:var(--ok)">Saldo disponível: ${fmt(s)}</span>`:`<span style="color:var(--danger)">⚠ Déficit atual de ${fmt(-s)}</span>`;
+  };
   fillSubs();
   document.getElementById("overlay").classList.add("show");
 }
