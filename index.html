@@ -2258,7 +2258,7 @@ const SUPA_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 
 const db=supabase.createClient(SUPA_URL,SUPA_ANON);
 
-const FONTES=["WMJ","RIO ZHEN","CUBO","CONSÓRCIO","QI","Raiz Educação"];
+// FONTES removido — pagantes são escolas e investidores cadastrados na plataforma
 
 /* URLs das logos reais no GitHub */
 
@@ -2643,8 +2643,6 @@ function _buildPagadores(obraAtual, valorAtual){
   unidades.forEach(u=>{if(u.nome)nomes.add(u.nome);});
   // Investidores cadastrados
   investidores.forEach(i=>{if(i.nome)nomes.add(i.nome);});
-  // FONTES fixas (retrocompatibilidade)
-  FONTES.forEach(f=>nomes.add(f));
   // Aportes já lançados nesta obra (histórico)
   if(obraAtual)(obraAtual.aportes||[]).forEach(a=>{if(a.inv)nomes.add(a.inv);});
   // Garante que o valor atual (se existir) sempre aparece
@@ -3085,7 +3083,7 @@ function openAporteModal(idx){
 
   const g=v=>document.getElementById(v);
 
-  const invNomes=[...new Set([...investidores.map(i=>i.nome),...cur.aportes.map(a=>a.inv),...FONTES])];
+  const invNomes=[...new Set([...unidades.map(u=>u.nome),...investidores.map(i=>i.nome),...cur.aportes.map(a=>a.inv)])];
 
   g("am-inv").innerHTML=invNomes.map(f=>'<option>'+f+'</option>').join("");
 
@@ -5681,7 +5679,7 @@ function omAddInv(){
 
   div.style.cssText='display:flex;gap:8px;align-items:center;margin-top:8px';
 
-  const invNomes=[...new Set([...investidores.map(i=>i.nome),...FONTES])];
+  const invNomes=[...new Set([...unidades.map(u=>u.nome),...investidores.map(i=>i.nome)])];
 
   const opts=invNomes.map(f=>`<option value="${f}">${f}</option>`).join('');
 
@@ -5743,7 +5741,7 @@ function openObraModal(id){
 
     if(modelo==='ADMINISTRACAO'&&o.taxa&&o.taxa.total>0)setCurrencyValue('om-taxa',o.taxa.total);
 
-    if(o.aportes&&o.aportes.length){omToggleInv('sim');o.aportes.forEach(a=>{omInvSeq++;const div=document.createElement('div');div.id='om-inv-'+omInvSeq;div.style.cssText='display:flex;gap:8px;align-items:center;margin-top:8px';div.innerHTML=`<select class="fi" id="om-inv-who-${omInvSeq}" style="flex:1">${FONTES.map(f=>`<option value="${f}"${f===a.inv?' selected':''}>${f}</option>`).join('')}</select><input class="fi num" id="om-inv-val-${omInvSeq}" type="number" min="0" placeholder="Valor (R$)" value="${a.v}" style="flex:1"><button class="iconbtn" type="button" title="Remover" onclick="document.getElementById('om-inv-${omInvSeq}').remove()">✕</button>`;g('om-inv-list').appendChild(div);});}
+    if(o.aportes&&o.aportes.length){omToggleInv('sim');o.aportes.forEach(a=>{omInvSeq++;const div=document.createElement('div');div.id='om-inv-'+omInvSeq;div.style.cssText='display:flex;gap:8px;align-items:center;margin-top:8px';div.innerHTML=`<select class="fi" id="om-inv-who-${omInvSeq}" style="flex:1">${[...new Set([...unidades.map(u=>u.nome),...investidores.map(i=>i.nome)])].map(f=>`<option value="${f}"${f===a.inv?' selected':''}>${f}</option>`).join('')}</select><input class="fi num" id="om-inv-val-${omInvSeq}" type="number" min="0" placeholder="Valor (R$)" value="${a.v}" style="flex:1"><button class="iconbtn" type="button" title="Remover" onclick="document.getElementById('om-inv-${omInvSeq}').remove()">✕</button>`;g('om-inv-list').appendChild(div);});}
 
   } else {g("obra-title").textContent="Nova obra";}
 
