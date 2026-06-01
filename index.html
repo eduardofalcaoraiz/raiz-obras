@@ -3057,9 +3057,9 @@ function calcInvestStats(o){
 
     if(!stats[p.pagn])stats[p.pagn]={nome:p.pagn,aportado:0,utilizado:0,pendente:0,pagamentos:[]};
 
-    if(p.st==='PAGO')stats[p.pagn].utilizado+=p.v;
+    if(p.st==='PAGO'&&(p.escopoFin||'obra')==='obra')stats[p.pagn].utilizado+=p.v;
 
-    else if(p.st==='PENDENTE'||p.st==='ATRASADO')stats[p.pagn].pendente+=p.v;
+    else if((p.st==='PENDENTE'||p.st==='ATRASADO')&&(p.escopoFin||'obra')==='obra')stats[p.pagn].pendente+=p.v;
 
     stats[p.pagn].pagamentos.push(p);
 
@@ -3176,6 +3176,8 @@ const saldoInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-(o.pago|
 const margemInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-contratadoTotal(o):null;
 
 const execObra=o=>contratadoTotal(o)?Math.round(o.pago/contratadoTotal(o)*100):0;
+// Pagamentos 'extra' (escola paga do próprio caixa — não debitam investimento)
+const pagoExtra=o=>(o.pag||[]).filter(p=>p.st==='PAGO'&&p.escopoFin==='extra').reduce((a,p)=>a+p.v,0);
 
 function isAtraso(p){return p.st==="PENDENTE"&&p.venc&&new Date(p.venc)<HOJE;}
 
@@ -4342,6 +4344,7 @@ function renderObra(){const o=cur,pct=execObra(o);
   const _margem=margemInv(o);             // investimento − contratado (folga para outros gastos)
 
   const _temInv=o.investimento_disponivel>0;
+  const _pagoExtra=pagoExtra(o); // gastos fora do investimento (escola paga do próprio caixa)
 
   const _execPct=execObra(o);
 
@@ -4361,7 +4364,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
    <div class="kpi">
 
-     <div class="lab">Já pago (debitado do investimento)</div>
+     <div class="lab">Investimento utilizado</div>
 
      <div class="val acc">${fmt(o.pago)}</div>
 
@@ -4393,9 +4396,9 @@ function renderObra(){const o=cur,pct=execObra(o);
 
    <div class="kpi"><div class="lab">Aportado</div><div class="val">${fmt(o.aportado)}</div></div>
 
-   <div class="kpi"><div class="lab">Pago</div><div class="val acc">${fmt(o.pago)}</div><div class="sub">${_execPct}% executado</div></div>
-
-   <div class="kpi"><div class="lab">Saldo (aportado − pago)</div><div class="val ${_saldoInv<0?'dg':'ok'}">${fmt(_saldoInv)}</div></div>`}`;
+   <div class="kpi"><div class="lab">Pago (do investimento)</div><div class="val acc">${fmt(o.pago)}</div><div class="sub">${_execPct}% executado</div></div>
+   ${_pagoExtra>0?`<div class="kpi"><div class="lab">Gastos da escola</div><div class="val" style="color:var(--warn)">${fmt(_pagoExtra)}</div><div class="sub">fora do investimento</div></div>`:''}
+   <div class="kpi"><div class="lab">Saldo do investimento</div><div class="val ${_saldoInv<0?'dg':'ok'}">${fmt(_saldoInv)}</div><div class="sub">${_saldoInv<0?'investimento esgotado':'disponível para gastar'}</div></div>`}`;
 
   const bar=document.getElementById("o-bar");bar.className=barClass(pct);bar.style.width=Math.min(pct,100)+"%";
 
@@ -4405,7 +4408,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   const cats=CATS.filter(c=>gastoCat(o,c.id)>0).sort((a,b)=>gastoCat(o,b.id)-gastoCat(o,a.id)).map(c=>{const g=gastoCat(o,c.id),p=Math.round(g/tot*100);return `<div class="catbar"><span class="nm">${c.nome}</span><div class="bar"><i style="width:${p}%"></i></div><span class="vv">${fmt(g)} · ${p}%</span></div>`;}).join("");
 
-  const f=porFonte(o);const fH=Object.keys(f).length?`<div class="invgrid">${Object.entries(f).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="invc"><div class="nm">${k}</div><div class="v">${fmt(v)}</div><div class="pc">${Math.round(v/o.pago*100)}% do total pago</div></div>`).join("")}</div>${_temInv?`<p style="font-size:12.5px;color:var(--muted);margin-top:10px">Cada fonte acima debitou do investimento de ${fmt(o.investimento_disponivel)}, reduzindo o saldo.</p>`:''}`:""
+  const f=porFonte(o);const fH=Object.keys(f).length?`<div class="invgrid">${Object.entries(f).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="invc"><div class="nm">${k}</div><div class="v">${fmt(v)}</div><div class="pc">${o.pago>0?Math.round(v/o.pago*100):0}% do investimento</div></div>`).join("")}</div>${_temInv?`<p style="font-size:12.5px;color:var(--muted);margin-top:10px">Cada fonte acima contribuiu com o investimento de ${fmt(o.investimento_disponivel)}${_pagoExtra>0?`. Gastos fora do investimento: ${fmt(_pagoExtra)}.`:'.'}</p>`:''}`:""
 
   const chartH=renderChart(o);
 
@@ -4954,7 +4957,7 @@ function setPagPage(p){pagPage=p;renderPag();}
 
 function setPagBusca(v){pagBusca=v;pagPage=0;renderPag();}
 
-function marcarPagoLista(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==='PAGO'){toast('Pagamento já estava marcado como pago.');return;}const hoje=new Date().toISOString().slice(0,10);const dt=prompt('Data do pagamento (AAAA-MM-DD):',hoje)||hoje;o.pag[i].st='PAGO';o.pag[i].pagaEm=dt;o.pago+=o.pag[i].v;persist(oid);renderObra();updateNavBadge();toast('✓ Pago em '+dt.split('-').reverse().join('/'));}
+function marcarPagoLista(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==='PAGO'){toast('Pagamento já estava marcado como pago.');return;}const hoje=new Date().toISOString().slice(0,10);const dt=prompt('Data do pagamento (AAAA-MM-DD):',hoje)||hoje;o.pag[i].st='PAGO';o.pag[i].pagaEm=dt;if(o.pag[i].escopoFin!=='extra')o.pago+=o.pag[i].v;persist(oid);renderObra();updateNavBadge();toast('✓ Pago em '+dt.split('-').reverse().join('/'));}
 
 
 
@@ -5152,7 +5155,7 @@ function renderCobranca(){const atr=allAtrasos(),pend=allPendentes();const futur
 
 }
 
-function marcarPago(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==="PAGO"){toast("Pagamento já estava marcado como pago.");return;}const hoje=new Date().toISOString().slice(0,10);const dt=prompt("Data do pagamento (AAAA-MM-DD):",hoje)||hoje;o.pag[i].st="PAGO";o.pag[i].pagaEm=dt;o.pago+=o.pag[i].v;persist(oid);renderCobranca();updateNavBadge();toast("✓ Pago em "+dt.split("-").reverse().join("/"));}
+function marcarPago(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==="PAGO"){toast("Pagamento já estava marcado como pago.");return;}const hoje=new Date().toISOString().slice(0,10);const dt=prompt("Data do pagamento (AAAA-MM-DD):",hoje)||hoje;o.pag[i].st="PAGO";o.pag[i].pagaEm=dt;if(o.pag[i].escopoFin!=="extra")o.pago+=o.pag[i].v;persist(oid);renderCobranca();updateNavBadge();toast("✓ Pago em "+dt.split("-").reverse().join("/"));}
 
 let confirmCb=null;
 
@@ -5160,7 +5163,7 @@ function askConfirm(msg,cb){document.getElementById("confirm-msg").textContent=m
 
 function closeConfirm(){document.getElementById("confirm-overlay").classList.remove("show");confirmCb=null;}
 
-function deletePagment(oid,i){const o=obras.find(x=>x.id===oid);const p=o.pag[i];askConfirm(`Excluir o lançamento "${p.ben} · ${fmt(p.v)}"? Esta ação não pode ser desfeita.`,()=>{if(p.st==="PAGO")o.pago-=p.v;o.pag.splice(i,1);persist(oid);if(cur&&cur.id===oid)renderObra();renderPainel();renderCobranca();updateNavBadge();toast("Lançamento excluído.");});}
+function deletePagment(oid,i){const o=obras.find(x=>x.id===oid);const p=o.pag[i];askConfirm(`Excluir o lançamento "${p.ben} · ${fmt(p.v)}"? Esta ação não pode ser desfeita.`,()=>{if(p.st==="PAGO"&&(p.escopoFin||'obra')==='obra')o.pago-=p.v;o.pag.splice(i,1);persist(oid);if(cur&&cur.id===oid)renderObra();renderPainel();renderCobranca();updateNavBadge();toast("Lançamento excluído.");});}
 
 
 
@@ -6339,7 +6342,7 @@ function savePag(){if(currentProfile?.role==='leitor'){toast('Sem permissão: vo
   const tipoCusto=['material','servico','equipamento'].includes(_existTipo)?_existTipo:'outros';
   const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=(document.getElementById("pm-pago-em")?.value||"").trim();const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),emissao,pagaEm,nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin};
 
-  if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];const wasPago=(old.st||'')==="PAGO";const willPago=obj.st==="PAGO";cur.pago+=(willPago?obj.v:0)-(wasPago?(old.v||0):0);cur.pag[pagEditIdx]={...old,...obj};}
+  if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];const wasPago=(old.st||'')==="PAGO";const willPago=obj.st==="PAGO";const oldEscopo=(old.escopoFin||'obra');const newEscopo=escopoFin||'obra';cur.pago+=(willPago&&newEscopo==='obra'?obj.v:0)-(wasPago&&oldEscopo==='obra'?(old.v||0):0);cur.pag[pagEditIdx]={...old,...obj};}
 
   else{if(obj.st==="PAGO")cur.pago+=obj.v;cur.pag.push({...obj,comp:""});}
 
@@ -7099,7 +7102,7 @@ async function persist(obraId){
 
     const ts=obraId!=null?obras.filter(o=>o.id===obraId):obras;
 
-    if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:o.pago||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,aditivos_contrato:o.aditivos_contrato||[]})));
+    if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:(o.pag||[]).filter(p=>p.st==='PAGO'&&(p.escopoFin||'obra')==='obra').reduce((a,p)=>a+p.v,0)||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,aditivos_contrato:o.aditivos_contrato||[]})));
 
     for(const o of ts){
 
