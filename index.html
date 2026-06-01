@@ -2639,10 +2639,12 @@ function _contrSeqFor(obra){const maxSeq=obra.contratos.reduce((m,c)=>Math.max(m
 // Lista unificada de pagantes — usada em todos os modais de pagamento
 function _buildPagadores(obraAtual, valorAtual){
   const nomes=new Set();
-  // Fontes fixas do sistema
-  FONTES.forEach(f=>nomes.add(f));
+  // Unidades/escolas (incluindo Raiz Educação)
+  unidades.forEach(u=>{if(u.nome)nomes.add(u.nome);});
   // Investidores cadastrados
   investidores.forEach(i=>{if(i.nome)nomes.add(i.nome);});
+  // FONTES fixas (retrocompatibilidade)
+  FONTES.forEach(f=>nomes.add(f));
   // Aportes já lançados nesta obra (histórico)
   if(obraAtual)(obraAtual.aportes||[]).forEach(a=>{if(a.inv)nomes.add(a.inv);});
   // Garante que o valor atual (se existir) sempre aparece
