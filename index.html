@@ -1238,7 +1238,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
           <div class="frow"><label class="fl">Nº do documento</label><input class="fi mono" id="imp-doc" placeholder="NF-e nº 12345"></div>
 
-          <div class="frow"><label class="fl">Data de emissão</label><input class="fi" id="imp-date" type="date"></div>
+          <div class="frow"><label class="fl">Data de emissão da nota</label><input class="fi" id="imp-date" type="date"></div>
+          <div class="frow"><label class="fl">Previsão de pagamento <span style="font-weight:400;color:var(--muted)">(vencimento)</span></label><input class="fi" id="imp-venc" type="date"></div>
 
           <div class="full"><label class="fl">Chave de acesso — 44 dígitos</label><input class="fi mono" id="imp-chave" style="font-size:11px;letter-spacing:.4px" placeholder="44 dígitos numéricos" oninput="impChaveChanged(this.value)"></div>
 
@@ -1705,11 +1706,18 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     </div>
 
-    <div class="fgrid"><div class="frow"><label class="fl">Vencimento / Data do pagamento</label><input class="fi" id="pm-venc" type="date"></div><div class="frow"><label class="fl">Documento fiscal</label><select class="fi" id="pm-nf" onchange="pmNfChange()"><option>Sem nota</option><option>NF-e</option><option>NFS-e</option><option value="Adiantamento">Adiantamento</option><option>Recibo</option><option>Guia</option></select></div></div>
+    <div class="fgrid">
+      <div class="frow"><label class="fl">Documento fiscal</label><select class="fi" id="pm-nf" onchange="pmNfChange()"><option>Sem nota</option><option>NF-e</option><option>NFS-e</option><option value="Adiantamento">Adiantamento</option><option>Recibo</option><option>Guia</option></select></div>
+      <div class="frow" id="pm-emissao-row" style="display:none"><label class="fl">Data de emissão da nota</label><input class="fi" id="pm-emissao" type="date"></div>
+    </div>
+    <div class="fgrid">
+      <div class="frow"><label class="fl">Previsão de pagamento <span style="font-weight:400;color:var(--muted)">(vencimento)</span></label><input class="fi" id="pm-venc" type="date"></div>
+      <div class="frow" id="pm-pago-em-row" style="display:none"><label class="fl">Data efetiva do pagamento</label><input class="fi" id="pm-pago-em" type="date"></div>
+    </div>
 
     <div class="frow" id="pm-nfnum-row" style="display:none"><label class="fl">Nº do documento fiscal</label><input class="fi mono" id="pm-nfnum" placeholder="NF-e nº 12345 ou NFS-e nº 67890"></div>
 
-    <div class="fgrid"><div class="frow"><label class="fl">Pago por</label><select class="fi" id="pm-pag"></select></div><div class="frow"><label class="fl">Status</label><select class="fi" id="pm-st"><option>PAGO</option><option>PENDENTE</option><option>Cancelado</option></select></div></div>
+    <div class="fgrid"><div class="frow"><label class="fl">Pago por</label><select class="fi" id="pm-pag"></select></div><div class="frow"><label class="fl">Status</label><select class="fi" id="pm-st" onchange="pmStChange()"><option>PAGO</option><option>PENDENTE</option><option>Cancelado</option></select></div></div>
 
     <div style="padding:12px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line);margin-bottom:4px">
       <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Classificação do gasto</div>
@@ -4913,7 +4921,7 @@ function setPagPage(p){pagPage=p;renderPag();}
 
 function setPagBusca(v){pagBusca=v;pagPage=0;renderPag();}
 
-function marcarPagoLista(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==='PAGO'){toast('Pagamento já estava marcado como pago.');return;}o.pag[i].st='PAGO';o.pago+=o.pag[i].v;persist(oid);renderObra();updateNavBadge();toast('✓ Pagamento marcado como pago.');}
+function marcarPagoLista(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==='PAGO'){toast('Pagamento já estava marcado como pago.');return;}const hoje=new Date().toISOString().slice(0,10);const dt=prompt('Data do pagamento (AAAA-MM-DD):',hoje)||hoje;o.pag[i].st='PAGO';o.pag[i].pagaEm=dt;o.pago+=o.pag[i].v;persist(oid);renderObra();updateNavBadge();toast('✓ Pago em '+dt.split('-').reverse().join('/'));}
 
 
 
@@ -5007,7 +5015,9 @@ function renderPag(){const o=cur;let rows=o.pag.map((p,i)=>({p,i}));
 
           <div class="pag-meta" style="padding-left:30px">
 
-            <span>📅 ${fmtD(p.venc)}</span>
+            ${p.emissao?`<span title="Emissão da nota" style="color:var(--muted)">🗒 ${fmtD(p.emissao)}</span>`:''}
+            ${p.venc?`<span title="Previsão de pagamento">📅 ${fmtD(p.venc)}</span>`:''}
+            ${p.pagaEm&&p.st==='PAGO'?`<span title="Pago em" style="color:var(--ok);font-weight:600">✓ ${fmtD(p.pagaEm)}</span>`:''}
 
             ${p.pagn&&p.pagn!=='—'?`<span class="badge b-neutral" style="font-size:10.5px">👤 ${p.pagn}</span>`:''}
 
@@ -5143,7 +5153,7 @@ function renderCobranca(){const atr=allAtrasos(),pend=allPendentes();const futur
 
 }
 
-function marcarPago(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==="PAGO"){toast("Pagamento já estava marcado como pago.");return;}o.pag[i].st="PAGO";o.pago+=o.pag[i].v;persist(oid);renderCobranca();updateNavBadge();toast("Pagamento marcado como pago.");}
+function marcarPago(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==="PAGO"){toast("Pagamento já estava marcado como pago.");return;}const hoje=new Date().toISOString().slice(0,10);const dt=prompt("Data do pagamento (AAAA-MM-DD):",hoje)||hoje;o.pag[i].st="PAGO";o.pag[i].pagaEm=dt;o.pago+=o.pag[i].v;persist(oid);renderCobranca();updateNavBadge();toast("✓ Pago em "+dt.split("-").reverse().join("/"));}
 
 let confirmCb=null;
 
@@ -6294,21 +6304,33 @@ function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(
 
   _fillContrSelect("pm-contrato",cur,'');
 
-  if(pagEditIdx!==null){const p=cur.pag[pagEditIdx];g("pag-title").textContent="Editar pagamento";g("pm-ben").value=p.ben;setCurrencyValue("pm-val",p.v);g("pm-ref").value=p.ref||'';if(g("pm-nfnum"))g("pm-nfnum").value=p.nfNum||'';g("pm-cat").value=p.cat||CATS[0].id;g("pm-pag").value=p.pagn;g("pm-st").value=p.st;g("pm-venc").value=p.venc||"";g("pm-nf").value=p.nfTipo||"Sem nota";pmNfChange();if(g("pm-contrato"))g("pm-contrato").value=p.contratoSeq||'';}
+  if(pagEditIdx!==null){const p=cur.pag[pagEditIdx];g("pag-title").textContent="Editar pagamento";g("pm-ben").value=p.ben;setCurrencyValue("pm-val",p.v);g("pm-ref").value=p.ref||'';if(g("pm-nfnum"))g("pm-nfnum").value=p.nfNum||'';g("pm-cat").value=p.cat||CATS[0].id;g("pm-pag").value=p.pagn;g("pm-st").value=p.st;g("pm-venc").value=p.venc||"";if(g("pm-emissao"))g("pm-emissao").value=p.emissao||"";if(g("pm-pago-em"))g("pm-pago-em").value=p.pagaEm||"";g("pm-nf").value=p.nfTipo||"Sem nota";pmNfChange();pmStChange();if(g("pm-contrato"))g("pm-contrato").value=p.contratoSeq||'';}
 
-  else{g("pag-title").textContent="Lançar pagamento";["pm-ben","pm-val","pm-ref","pm-venc"].forEach(x=>g(x).value="");if(g("pm-nfnum"))g("pm-nfnum").value="";g("pm-cat").value=CATS[0].id;g("pm-st").value="PENDENTE";g("pm-nf").value="Sem nota";pmNfChange();if(g("pm-contrato"))g("pm-contrato").value='';}
+  else{g("pag-title").textContent="Lançar pagamento";["pm-ben","pm-val","pm-ref","pm-venc","pm-emissao","pm-pago-em"].forEach(x=>{const el=g(x);if(el)el.value="";});if(g("pm-nfnum"))g("pm-nfnum").value="";g("pm-cat").value=CATS[0].id;g("pm-st").value="PENDENTE";g("pm-nf").value="Sem nota";pmNfChange();pmStChange();if(g("pm-contrato"))g("pm-contrato").value='';}
 
   g("pag-overlay").classList.add("show");}
 
 function closePagModal(){document.getElementById("pag-overlay").classList.remove("show");}
 
-function pmNfChange(){const t=document.getElementById('pm-nf')?.value||'';const r=document.getElementById('pm-nfnum-row');if(r)r.style.display=(t&&t!=='Sem nota'&&t!=='Adiantamento')?'':'none';}
+function pmNfChange(){
+  const t=document.getElementById('pm-nf')?.value||'';
+  const r=document.getElementById('pm-nfnum-row');
+  if(r)r.style.display=(t&&t!=='Sem nota'&&t!=='Adiantamento')?'':'none';
+  const er=document.getElementById('pm-emissao-row');
+  if(er)er.style.display=(t&&t!=='Sem nota')?'':'none';
+}
+function pmStChange(){
+  const st=document.getElementById('pm-st')?.value||'';
+  const pr=document.getElementById('pm-pago-em-row');
+  if(pr)pr.style.display=(st==='PAGO')?'':'none';
+  if(st==='PAGO'){const pe=document.getElementById('pm-pago-em');if(pe&&!pe.value)pe.value=new Date().toISOString().slice(0,10);}
+}
 
 function savePag(){if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const cSeq=document.getElementById("pm-contrato")?.value||'';
   // Preserva tipoCusto existente se for mat/svc/eqp; senão marca como 'outros' (categorizado)
   const _existTipo=pagEditIdx!==null?(cur.pag[pagEditIdx].tipoCusto||''):'';
   const tipoCusto=['material','servico','equipamento'].includes(_existTipo)?_existTipo:'outros';
-  const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null,tipoCusto};
+  const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=(document.getElementById("pm-pago-em")?.value||"").trim();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),emissao,pagaEm,nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null,tipoCusto};
 
   if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];const wasPago=(old.st||'')==="PAGO";const willPago=obj.st==="PAGO";cur.pago+=(willPago?obj.v:0)-(wasPago?(old.v||0):0);cur.pag[pagEditIdx]={...old,...obj};}
 
@@ -7076,7 +7098,7 @@ async function persist(obraId){
 
       await db.from('pagamentos').delete().eq('obra_id',o.id);
 
-      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:p.nfNum||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null})));
+      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:p.nfNum||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',emissao:p.emissao||'',paga_em:p.pagaEm||'',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null})));
 
       await db.from('aportes').delete().eq('obra_id',o.id);
 
@@ -7152,7 +7174,7 @@ async function loadFromDB(){
 
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
 
-      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null,contratoSeq:p.contrato_seq||null,tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:Array.isArray(p.parcelas)?p.parcelas:[],itens:Array.isArray(p.itens_pag)?p.itens_pag:[]})),
+      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null,contratoSeq:p.contrato_seq||null,emissao:p.emissao||'',pagaEm:p.paga_em||'',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:Array.isArray(p.parcelas)?p.parcelas:[],itens:Array.isArray(p.itens_pag)?p.itens_pag:[]})),
 
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
 
@@ -8941,7 +8963,7 @@ async function confirmImport(){
 
   if(!val){toast("Informe o valor.");return;}
 
-  const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:date,nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade};
+  const impVenc=(document.getElementById("imp-venc")?.value||"").trim();const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:impVenc||date,emissao:date,pagaEm:(st==="PAGO"?(impVenc||date):""),nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade};
 
   if(chave)p.chave=chave;
 
