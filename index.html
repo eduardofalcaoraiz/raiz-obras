@@ -2588,8 +2588,20 @@ function renderUni(){const u=curUni;document.getElementById("u-crumb").innerHTML
   const dlOf=(arr,cid)=>arr.length?arr.map((d,idx)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><button onclick="viewUniDoc('${cid}',${idx})" style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink);background:none;border:0;font-weight:500;min-width:0;text-align:left;padding:0;cursor:pointer"><span style="color:var(--accent)">📄</span> <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.name}</span></button><span style="display:flex;gap:6px;flex:none"><button class="btn btn-sm" onclick="viewUniDoc('${cid}',${idx})">Ver</button><button class="btn btn-sm" onclick="downloadDoc('${cid}',${idx})">Baixar</button><button class="iconbtn" title="Excluir" onclick="deleteDoc('${cid}',${idx})">🗑</button></span></div>`).join(""):'<div style="font-size:13px;color:var(--soft);padding:5px 0">Nenhum documento.</div>';
   document.getElementById("uni-cats").innerHTML=CATS.map(c=>{const docs=u.docs[c.id]||[];return `<div class="card" style="padding:16px 20px;margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:8px;font-weight:500">${c.nome}${docs.length?` <span class="badge b-neutral" style="font-size:10px">${docs.length}</span>`:''}<button class="iconbtn" title="Editar nome" onclick="openCatModal('${c.id}')">✎</button></div><button class="btn btn-sm" onclick="anexarCat('${c.id}')"><span class="ic">📎</span> Anexar aqui</button></div><div style="margin-top:8px">${dlOf(docs,c.id)}</div></div>`;}).join("");
 }
-async function viewUniDoc(cid,idx){const d=(curUni.docs[cid]||[])[idx];if(!d)return;if(d.storagePath&&!d.dataUrl){d._signedUrl=getDocUrl('documentos',d.storagePath);}viewFile(d);}
-async function downloadDoc(cid,idx){const d=(curUni.docs[cid]||[])[idx];if(!d)return;const url=d.dataUrl||getDocUrl('documentos',d.storagePath);if(!url){toast("Arquivo não encontrado.");return;}const a=document.createElement('a');a.href=url;a.download=d.name;a.click();}
+async function viewUniDoc(cid,idx){
+  const d=(curUni.docs[cid]||[])[idx];
+  if(!d)return;
+  // Garante que o bucket correto é usado para documentos de escolas
+  if(!d.bucket&&d.storagePath)d.bucket='documentos';
+  viewFile(d);
+}
+async function downloadDoc(cid,idx){
+  const d=(curUni.docs[cid]||[])[idx];
+  if(!d)return;
+  const url=d.dataUrl||getDocUrl('documentos',d.storagePath);
+  if(!url){toast("Arquivo não encontrado.");return;}
+  const a=document.createElement('a');a.href=url;a.download=d.name;a.click();
+}
 async function deleteDoc(cid,idx){const d=(curUni.docs[cid]||[])[idx];if(!d)return;askConfirm(`Excluir "${d.name}"? Esta ação não pode ser desfeita.`,async()=>{if(d.storagePath)await db.storage.from('documentos').remove([d.storagePath]);if(d.dbId)await db.from('documentos_unidade').delete().eq('id',d.dbId);(curUni.docs[cid]||[]).splice(idx,1);renderUni();toast("Documento excluído.");});}
 
 /* FORNECEDORES */
@@ -3321,7 +3333,97 @@ function inferType(path){
   if(/\.pdf$/i.test(path))return'application/pdf';
   return'application/octet-stream';
 }
-async function viewFile(d){if(!d)return;let url=d.dataUrl;if(!url&&d.storagePath){const bucket=d.bucket||'pagamentos';url=getDocUrl(bucket,d.storagePath);}if(!url&&d._signedUrl){url=d._signedUrl;}document.getElementById("viewer-name").textContent=d.name;const dl=document.getElementById("viewer-download");dl.href=url||"#";dl.setAttribute("download",d.name);const body=document.getElementById("viewer-body");body.innerHTML='<div style="padding:50px;text-align:center;color:var(--muted)">Carregando…</div>';document.getElementById("viewer-overlay").classList.add("show");const t=d.type||"";if(!url){body.innerHTML='<div style="padding:54px 30px;text-align:center;color:var(--muted)"><div style="font-size:42px;margin-bottom:12px">📄</div><p>Arquivo não disponível.</p></div>';return;}if(t.indexOf("image/")===0)body.innerHTML=`<img src="${url}" style="max-width:100%;max-height:78vh;display:block;margin:0 auto;border-radius:8px">`;else if(t.indexOf("pdf")>=0){let src=url;try{const b=await(await fetch(url)).blob();src=URL.createObjectURL(b);}catch(e){}body.innerHTML=`<iframe src="${src}" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff"></iframe>`;}else body.innerHTML=`<div style="padding:54px 30px;text-align:center;color:var(--muted)"><div style="font-size:42px;margin-bottom:12px">📄</div><p>Pré-visualização não disponível. Use Baixar.</p></div>`;}
+async function viewFile(d){
+  if(!d)return;
+  // Resolve URL — prioridade: dataUrl > storage path (com bucket correto) > _signedUrl
+  let url=d.dataUrl;
+  if(!url&&d.storagePath){
+    const bucket=d.bucket||'pagamentos';
+    url=getDocUrl(bucket,d.storagePath);
+  }
+  if(!url&&d._signedUrl)url=d._signedUrl;
+
+  // Configura o viewer
+  document.getElementById("viewer-name").textContent=d.name||'Documento';
+  const dl=document.getElementById("viewer-download");
+  if(dl){dl.href=url||"#";dl.setAttribute("download",d.name||'arquivo');}
+  const body=document.getElementById("viewer-body");
+  body.innerHTML='<div style="padding:60px;text-align:center;color:var(--muted)"><div class="spin" style="margin:0 auto 16px"></div><p>Carregando…</p></div>';
+  document.getElementById("viewer-overlay").classList.add("show");
+
+  if(!url){
+    body.innerHTML='<div style="padding:54px 30px;text-align:center;color:var(--muted)"><div style="font-size:48px;margin-bottom:14px">📄</div><p>Arquivo não disponível ou URL inválida.</p></div>';
+    return;
+  }
+
+  // Detecta tipo pelo nome e pelo campo type
+  const name=(d.name||'').toLowerCase();
+  const type=(d.type||'').toLowerCase();
+  const ext=name.split('.').pop()||'';
+
+  const isImage=type.startsWith('image/')||['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','avif'].includes(ext);
+  const isPdf=type.includes('pdf')||ext==='pdf';
+  const isVideo=type.startsWith('video/')||['mp4','webm','mov','avi','mkv'].includes(ext);
+  const isAudio=type.startsWith('audio/')||['mp3','wav','ogg','m4a','aac'].includes(ext);
+  const isText=type.startsWith('text/')||['txt','csv','md','json','xml','html','htm','log','ini','yaml','yml'].includes(ext);
+  const isOffice=['doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp'].includes(ext);
+
+  if(isImage){
+    body.innerHTML=`<div style="padding:10px;text-align:center;background:#f5f5f5;min-height:60vh;display:flex;align-items:center;justify-content:center">
+      <img src="${url}" style="max-width:100%;max-height:80vh;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.15)" onerror="this.parentElement.innerHTML='<p style=color:var(--muted)>Não foi possível carregar a imagem.</p>'">
+    </div>`;
+
+  }else if(isPdf){
+    // PDF: embed direto — bucket público não precisa de fetch
+    body.innerHTML=`<iframe src="${url}" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff"
+      onerror="this.outerHTML='<div style=padding:40px;text-align:center;color:var(--muted)>Não foi possível carregar o PDF. <a href=${url} target=_blank>Abrir em nova aba</a></div>'">
+    </iframe>`;
+
+  }else if(isVideo){
+    body.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;background:#000;border-radius:8px;overflow:hidden;min-height:300px">
+      <video controls style="max-width:100%;max-height:75vh;border-radius:8px" onerror="this.outerHTML='<p style=color:white;padding:20px>Vídeo não suportado pelo navegador.</p>'">
+        <source src="${url}"><p style="color:white;padding:20px">Formato de vídeo não suportado.</p>
+      </video>
+    </div>`;
+
+  }else if(isAudio){
+    body.innerHTML=`<div style="padding:40px;display:flex;flex-direction:column;align-items:center;gap:20px">
+      <div style="font-size:56px">🎵</div>
+      <p style="font-weight:500;font-size:15px">${d.name}</p>
+      <audio controls style="width:100%;max-width:500px">
+        <source src="${url}"><p style="color:var(--muted)">Formato de áudio não suportado.</p>
+      </audio>
+    </div>`;
+
+  }else if(isText){
+    body.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted)">Carregando conteúdo…</div>';
+    try{
+      const resp=await fetch(url);
+      const text=await resp.text();
+      const escaped=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      body.innerHTML=`<pre style="padding:20px;font-family:'Spline Sans Mono',monospace;font-size:13px;line-height:1.6;overflow:auto;height:75vh;margin:0;white-space:pre-wrap;word-break:break-word">${escaped}</pre>`;
+    }catch(e){
+      body.innerHTML=`<div style="padding:40px;text-align:center;color:var(--muted)"><p>Não foi possível carregar o arquivo de texto.</p><a href="${url}" target="_blank" class="btn btn-sm" style="margin-top:12px">Abrir em nova aba</a></div>`;
+    }
+
+  }else if(isOffice){
+    // Documentos Office: usar Google Docs Viewer
+    const gUrl='https://docs.google.com/viewer?url='+encodeURIComponent(url)+'&embedded=true';
+    body.innerHTML=`<div style="text-align:center;padding:12px 0 8px;color:var(--muted);font-size:12.5px;margin-bottom:4px">Visualizando via Google Docs Viewer</div>
+      <iframe src="${gUrl}" style="width:100%;height:75vh;border:0;border-radius:8px;background:#fff"></iframe>`;
+
+  }else{
+    // Tipo desconhecido — oferecer download
+    const icon={'zip':'🗜️','rar':'🗜️','7z':'🗜️','tar':'🗜️','gz':'🗜️'}[ext]||'📄';
+    body.innerHTML=`<div style="padding:54px 30px;text-align:center;color:var(--muted)">
+      <div style="font-size:56px;margin-bottom:16px">${icon}</div>
+      <p style="font-size:15px;font-weight:500;color:var(--ink);margin-bottom:8px">${d.name}</p>
+      <p style="margin-bottom:20px">Este tipo de arquivo (${ext.toUpperCase()||'desconhecido'}) não pode ser visualizado no navegador.</p>
+      <a href="${url}" download="${d.name}" class="btn btn-primary">⬇ Baixar arquivo</a>
+      <a href="${url}" target="_blank" class="btn btn-ghost" style="margin-left:10px">Abrir em nova aba</a>
+    </div>`;
+  }
+}
 function closeViewer(){document.getElementById("viewer-overlay").classList.remove("show");document.getElementById("viewer-body").innerHTML="";}
 async function persist(obraId){
   try{
