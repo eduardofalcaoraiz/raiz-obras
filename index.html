@@ -4348,57 +4348,89 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   const _execPct=execObra(o);
 
+  // Painel financeiro redesenhado
+  const _invStats=calcInvestStats(o);
+  const _invList=Object.values(_invStats).filter(s=>s.aportado>0||s.utilizado>0);
+  const _usadoPct=o.investimento_disponivel>0?Math.min(Math.round(o.pago/o.investimento_disponivel*100),100):0;
+  const _barColor=_usadoPct>=100?'var(--danger)':_usadoPct>80?'var(--warn)':'var(--ok)';
+
+  // Painel 1 — Investimento
+  const _painelInv=`<div class="card" style="padding:20px 22px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div><div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">💰 Investimento da Obra</div>
+        <div style="font-size:26px;font-weight:800">${fmt(o.investimento_disponivel||o.aportado)}</div>
+        <div style="font-size:12.5px;color:var(--muted);margin-top:2px">${o.investimento_disponivel>0?'teto aprovado':'total aportado'}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;color:var(--muted)">Saldo disponível</div>
+        <div style="font-size:22px;font-weight:800;color:${_saldoInv<0?'var(--danger)':_saldoInv<(o.investimento_disponivel||o.aportado)*0.1?'var(--warn)':'var(--ok)'}">${fmt(_saldoInv)}</div>
+        <div style="font-size:11.5px;color:${_saldoInv<0?'var(--danger)':'var(--muted)'}">${_saldoInv<0?'investimento esgotado':_usadoPct+'% utilizado'}</div>
+      </div>
+    </div>
+    <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:10px">
+      <div style="height:100%;width:${_usadoPct}%;background:${_barColor};border-radius:4px;transition:width .5s"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:${_invList.length?'14px':'0'}">
+      <div style="background:var(--surface-2);border-radius:var(--r);padding:10px 12px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:3px">Utilizado</div>
+        <div style="font-size:17px;font-weight:800;color:var(--accent)">${fmt(o.pago)}</div>
+      </div>
+      ${_pagoExtra>0?`<div style="background:var(--warn)0d;border:1px solid var(--warn)33;border-radius:var(--r);padding:10px 12px">
+        <div style="font-size:11px;color:var(--warn);text-transform:uppercase;font-weight:700;margin-bottom:3px">Escola (próprio caixa)</div>
+        <div style="font-size:17px;font-weight:800;color:var(--warn)">${fmt(_pagoExtra)}</div>
+      </div>`:`<div style="background:var(--surface-2);border-radius:var(--r);padding:10px 12px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:3px">Total aportado</div>
+        <div style="font-size:17px;font-weight:800">${fmt(o.aportado)}</div>
+      </div>`}
+    </div>
+    ${_invList.length?`<div style="border-top:1px solid var(--line);padding-top:12px">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:8px">Investidores / Fontes</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${_invList.sort((a,b)=>b.aportado-a.aportado).map(s=>`<div style="display:flex;align-items:center;gap:10px">
+          <span style="flex:1;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.nome}</span>
+          <span style="font-size:12px;color:var(--muted)">aportou ${fmt(s.aportado)}</span>
+          <span style="font-size:12px;font-weight:700;color:${s.saldo<0?'var(--danger)':s.saldo<s.aportado*0.1?'var(--warn)':'var(--ok)'}">saldo ${fmt(s.saldo)}</span>
+        </div>`).join('')}
+      </div>
+    </div>`:''}
+  </div>`;
+
+  // Painel 2 — Execução contratual
+  const _painelContr=`<div class="card" style="padding:20px 22px">
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">📋 Execução Contratual</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:3px">Contratado${_aditTot>0?' + adit.':''}</div>
+        <div style="font-size:22px;font-weight:800">${fmt(_contrTot)}</div>
+        ${_aditTot>0?`<div style="font-size:11.5px;color:var(--muted)">${fmt(o.contratado)} + ${fmt(_aditTot)} aditivos</div>`:''}
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:3px">Executado</div>
+        <div style="font-size:22px;font-weight:800;color:var(--accent)">${fmt(o.pago)}</div>
+        <div style="font-size:11.5px;color:var(--muted)">${_execPct}% do contrato</div>
+      </div>
+    </div>
+    <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:10px">
+      <div style="height:100%;width:${Math.min(_execPct,100)}%;background:${_execPct>=100?'var(--danger)':_execPct>80?'var(--warn)':'var(--info)'};border-radius:4px;transition:width .5s"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:13px">
+      <span style="color:var(--muted)">A pagar ao contratado</span>
+      <span style="font-weight:700;color:${_saldoContr<0?'var(--danger)':_saldoContr<_contrTot*0.1?'var(--warn)':'var(--ink)'}">${_saldoContr<0?'<span style="color:var(--danger)">estourou '+fmt(-_saldoContr)+'</span>':fmt(_saldoContr)}</span>
+    </div>
+    ${o.contratos.length?`<div style="border-top:1px solid var(--line);padding-top:12px;margin-top:12px">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:8px">Contratos (${o.contratos.length})</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        ${o.contratos.slice(0,4).map(c=>{const vTot=valorContrTotal(c);const pR=o.pag.filter(p=>p.st==='PAGO'&&p.contratoSeq===c.seq).reduce((a,p)=>a+p.v,0);const pct2=vTot?Math.min(Math.round(pR/vTot*100),100):0;return`<div><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:2px"><span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${c.nome_contr||c.forn}</span><span>${fmt(vTot)}</span></div><div style="height:4px;background:var(--line);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct2}%;background:var(--info);border-radius:2px"></div></div></div>`;}).join('')}
+        ${o.contratos.length>4?`<div style="font-size:12px;color:var(--muted);text-align:center">… e mais ${o.contratos.length-4}</div>`:''}
+      </div>
+    </div>`:''}
+  </div>`;
+
   document.getElementById("o-kpis").innerHTML=`
-
-   ${_temInv?`
-
-   <div class="kpi">
-
-     <div class="lab">Investimento disponível</div>
-
-     <div class="val">${fmt(o.investimento_disponivel)}</div>
-
-     ${_margem!==null?`<div class="sub" style="color:${_margem<0?'var(--danger)':'var(--soft)'}">${_margem>=0?fmt(_margem)+' acima do contrato':'contrato excede investimento por '+fmt(-_margem)}</div>`:''}
-
-   </div>
-
-   <div class="kpi">
-
-     <div class="lab">Investimento utilizado</div>
-
-     <div class="val acc">${fmt(o.pago)}</div>
-
-     <div class="sub">${_execPct}% do contratado · falta ${_saldoContr<0?`<span style="color:var(--danger)">estourou ${fmt(-_saldoContr)}</span>`:fmt(_saldoContr)}</div>
-
-   </div>
-
-   <div class="kpi">
-
-     <div class="lab">Saldo do investimento</div>
-
-     <div class="val ${_saldoInv<0?'dg':'ok'}">${fmt(_saldoInv)}</div>
-
-     <div class="sub">${_saldoInv<0?'<span style="color:var(--danger)">investimento esgotado</span>':'ainda disponível para gastar'}</div>
-
-   </div>
-
-   <div class="kpi">
-
-     <div class="lab">Contratado${_aditTot>0?' + aditivos':''}</div>
-
-     <div class="val">${fmt(_contrTot)}</div>
-
-     ${_aditTot>0?`<div class="sub">${fmt(o.contratado)} base + ${fmt(_aditTot)} aditivos</div>`:''}
-
-   </div>`:`
-
-   <div class="kpi"><div class="lab">Contratado${_aditTot>0?' + aditivos':''}</div><div class="val">${fmt(_contrTot)}</div>${_aditTot>0?`<div class="sub">${fmt(o.contratado)} + ${fmt(_aditTot)}</div>`:''}</div>
-
-   <div class="kpi"><div class="lab">Aportado</div><div class="val">${fmt(o.aportado)}</div></div>
-
-   <div class="kpi"><div class="lab">Pago (do investimento)</div><div class="val acc">${fmt(o.pago)}</div><div class="sub">${_execPct}% executado</div></div>
-   ${_pagoExtra>0?`<div class="kpi"><div class="lab">Gastos da escola</div><div class="val" style="color:var(--warn)">${fmt(_pagoExtra)}</div><div class="sub">fora do investimento</div></div>`:''}
-   <div class="kpi"><div class="lab">Saldo do investimento</div><div class="val ${_saldoInv<0?'dg':'ok'}">${fmt(_saldoInv)}</div><div class="sub">${_saldoInv<0?'investimento esgotado':'disponível para gastar'}</div></div>`}`;
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:0">
+      ${_painelInv}
+      ${_painelContr}
+    </div>`;
 
   const bar=document.getElementById("o-bar");bar.className=barClass(pct);bar.style.width=Math.min(pct,100)+"%";
 
