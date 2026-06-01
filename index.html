@@ -1872,6 +1872,21 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 </div></div>
 
+<!-- MODAL ADITIVO DE CONTRATO INDIVIDUAL -->
+<div class="overlay" id="adit-contr-overlay"><div class="modal" style="max-width:480px">
+  <div class="mhead"><h2 id="ac-title">Aditivo ao Contrato</h2><button class="x" onclick="closeAditContrModal()">×</button></div>
+  <div class="mbody">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px" id="ac-contr-nome"></p>
+    <div class="frow"><label class="fl">Valor do aditivo (R$) <span style="font-weight:400;color:var(--muted)">— negativo para redução de escopo</span></label><input class="fi num" id="ac-valor" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div>
+    <div class="frow"><label class="fl">Descrição / Motivo</label><textarea class="fi" id="ac-motivo" rows="3" style="height:auto;resize:vertical" placeholder="Ex.: Ampliação de escopo — inclusão de cobertura metálica…"></textarea></div>
+    <div class="frow" style="margin-bottom:0"><label class="fl">Data do aditivo</label><input class="fi" id="ac-data" type="date"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
+      <button class="btn btn-ghost" onclick="closeAditContrModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAditContr()"><span class="ic">✓</span> Salvar aditivo</button>
+    </div>
+  </div>
+</div></div>
+
 
 
 <div class="overlay" id="uni-overlay"><div class="modal" style="max-width:500px">
@@ -2958,7 +2973,7 @@ async function saveContr(){
     parcelas_contr:obj.parcelas_contr,medicao_freq:null,
     contrato_doc_path:obj.contrato_doc_path,data_fim_tipo:obj.data_fim_tipo,
     data_fim_gatilho:obj.data_fim_gatilho,medicao_desc:obj.medicao_desc,
-    medicao_freq_texto:obj.medicao_freq_texto};
+    medicao_freq_texto:obj.medicao_freq_texto,aditivos:obj.aditivos||[]};
   if(contrEditIdx!==null){
     // Edição: UPDATE direto por obra_id+seq
     obj.seq=cur.contratos[contrEditIdx].seq;
@@ -4431,7 +4446,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   o.pag.filter(p=>p.st==='PAGO'&&p.contratoSeq).forEach(p=>{pagoPorContr[p.contratoSeq]=(pagoPorContr[p.contratoSeq]||0)+p.v;});
 
-  const totalContratado=o.contratos.reduce((a,c)=>a+c.v,0);
+  const totalContratado=o.contratos.reduce((a,c)=>a+valorContrTotal(c),0);
 
   const totalPagoContr=Object.values(pagoPorContr).reduce((a,v)=>a+v,0);
 
@@ -4440,10 +4455,11 @@ function renderObra(){const o=cur,pct=execObra(o);
   const contrCards=o.contratos.length?o.contratos.map((c,ci)=>{
 
     const pagReal=pagoPorContr[c.seq]||0;
-
-    const pct=c.v?Math.min(Math.round(pagReal/c.v*100),100):0;
-
-    const falta=c.v-pagReal;
+    const vTotal=valorContrTotal(c);
+    const pct=vTotal?Math.min(Math.round(pagReal/vTotal*100),100):0;
+    const falta=vTotal-pagReal;
+    const _aditsTot=aditContrTotal(c);
+    const _adits=c.aditivos||[];
 
     const sc=STATUS_COLOR[c.status_contr]||'var(--muted)';
 
@@ -4493,9 +4509,9 @@ function renderObra(){const o=cur,pct=execObra(o);
 
         <div style="text-align:right;flex-shrink:0">
 
-          <div style="font-size:11px;color:var(--muted)">Valor contratado</div>
-
+          <div style="font-size:11px;color:var(--muted)">${_aditsTot?'Valor base':'Valor contratado'}</div>
           <div style="font-size:22px;font-weight:800;font-family:'Spline Sans Mono',monospace">${fmt(c.v)}</div>
+          ${_aditsTot?`<div style="font-size:11.5px;color:var(--warn);font-weight:600;margin-top:2px">＋${fmt(_aditsTot)} aditivos</div><div style="font-size:13px;font-weight:800;color:var(--ink);border-top:1px solid var(--line);margin-top:4px;padding-top:4px">= ${fmt(vTotal)}</div>`:''}
 
         </div>
 
@@ -4529,7 +4545,11 @@ function renderObra(){const o=cur,pct=execObra(o);
 
       </div>
 
+      ${_adits.length?`<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12.5px;font-weight:600">Aditivos (${_adits.length})</span><span style="font-size:12px;color:var(--muted)">${_aditsTot>=0?'＋':''}${fmt(_aditsTot)} no total</span></div><div style="display:flex;flex-direction:column;gap:4px">${_adits.map((a,di)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 10px;background:var(--surface-2);border-radius:var(--r);border-left:3px solid ${a.valor>=0?'var(--warn)':'var(--danger)'}"><div style="flex:1;min-width:0"><span style="font-size:12.5px;font-weight:600;color:${a.valor>=0?'var(--warn)':'var(--danger)'}">${a.valor>=0?'＋':''}${fmt(a.valor)}</span>${a.data?`<span style="font-size:11px;color:var(--muted);margin-left:8px">${fmtD(a.data)}</span>`:''}<div style="font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.motivo||'Sem descrição'}</div></div><div style="display:flex;gap:4px;flex-shrink:0"><button class="iconbtn" title="Editar" onclick="openAditContrModal(${ci},${di})">✎</button><button class="iconbtn" title="Excluir" style="color:var(--danger)" onclick="deleteAditContr(${ci},${di})">🗑</button></div></div>`).join('')}</div></div>`:''}
+
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+
+        <button class="btn btn-sm btn-primary" onclick="openAditContrModal(${ci})"><span class="ic">＋</span> Aditivo</button>
 
         <button class="btn btn-ghost btn-sm" onclick="openContrModal(${ci})">✎ Editar</button>
 
@@ -5716,6 +5736,53 @@ function openAditivoModal(idx){
 }
 
 function closeAditivoModal(){document.getElementById('aditivo-overlay').classList.remove('show');}
+
+/* ── ADITIVOS POR CONTRATO ── */
+let _acContrIdx=null,_acAditIdx=null;
+const aditContrTotal=c=>(c.aditivos||[]).reduce((s,a)=>s+(+a.valor||0),0);
+const valorContrTotal=c=>(+c.v||0)+aditContrTotal(c);
+
+function openAditContrModal(ci,di){
+  _acContrIdx=ci;_acAditIdx=(di!=null?di:null);
+  const c=cur.contratos[ci];
+  document.getElementById('ac-contr-nome').textContent=c.nome_contr||c.forn||'Contrato';
+  document.getElementById('ac-title').textContent=_acAditIdx!=null?'Editar aditivo':'Novo aditivo ao contrato';
+  document.getElementById('ac-motivo').value='';
+  document.getElementById('ac-data').value=new Date().toISOString().slice(0,10);
+  document.getElementById('ac-valor').value='';
+  if(_acAditIdx!=null){
+    const a=c.aditivos[_acAditIdx];
+    setCurrencyValue('ac-valor',a.valor);
+    document.getElementById('ac-motivo').value=a.motivo||'';
+    document.getElementById('ac-data').value=a.data||'';
+  }
+  document.getElementById('adit-contr-overlay').classList.add('show');
+}
+function closeAditContrModal(){document.getElementById('adit-contr-overlay').classList.remove('show');}
+async function saveAditContr(){
+  const valor=parseCurrency(document.getElementById('ac-valor').value);
+  if(!valor&&valor!==0){toast('Informe o valor do aditivo.');return;}
+  const motivo=document.getElementById('ac-motivo').value.trim();
+  const data=document.getElementById('ac-data').value;
+  const c=cur.contratos[_acContrIdx];
+  if(!c.aditivos)c.aditivos=[];
+  if(_acAditIdx!=null){c.aditivos[_acAditIdx]={valor,motivo,data};}
+  else{c.aditivos.push({valor,motivo,data});}
+  const{error}=await db.from('contratos').update({aditivos:c.aditivos}).eq('obra_id',cur.id).eq('seq',c.seq);
+  if(error){toast('Erro ao salvar aditivo: '+error.message);console.error(error);return;}
+  closeAditContrModal();renderObra();showTab('contr');
+  toast('Aditivo de '+fmt(valor)+' registrado.');
+}
+async function deleteAditContr(ci,di){
+  const c=cur.contratos[ci];
+  askConfirm('Excluir este aditivo?',async()=>{
+    c.aditivos.splice(di,1);
+    const{error}=await db.from('contratos').update({aditivos:c.aditivos}).eq('obra_id',cur.id).eq('seq',c.seq);
+    if(error)console.error('deleteAditContr:',error);
+    renderObra();showTab('contr');toast('Aditivo removido.');
+  });
+}
+/* ── FIM ADITIVOS POR CONTRATO ── */
 
 function saveAditivo(){
 
@@ -7063,7 +7130,7 @@ async function loadFromDB(){
 
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
 
-      contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||''}))
+      contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||'',aditivos:Array.isArray(c.aditivos)?c.aditivos:[]}))
 
     }));
 
