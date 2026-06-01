@@ -2826,7 +2826,7 @@ function cmBuildParcelas(){
     +'</tr></thead><tbody>'
     +rows.map(r=>'<tr class="parc-row" data-n="'+r.n+'">'
       +'<td style="padding:7px 10px;font-weight:600;white-space:nowrap">'+r.n+'ª</td>'
-      +'<td style="padding:5px 10px"><input class="fi num parc-v" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" value="'+r.v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'" style="padding:5px 8px;font-size:13px;font-weight:700;font-family:'Spline Sans Mono',monospace"></td>'
+      +'<td style="padding:5px 10px"><input class="fi num parc-v" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" value="'+r.v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'" style="padding:5px 8px;font-size:13px;font-weight:700;font-family:monospace"></td>'
       +'<td style="padding:5px 10px">'+vF(r)+'</td>'
       +'</tr>').join('')
     +'</tbody></table></div>';
