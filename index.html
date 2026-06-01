@@ -4734,36 +4734,34 @@ function renderMatServ(){
 
   const totalPago=pagsPagos.reduce((a,p)=>a+p.v,0)||1;
 
-  const grouped={material:[],servico:[],equipamento:[],outro:[]};
-
-  pagsPagos.forEach(p=>{
-
-    const tc=getTipoCusto(p);
-
-    if(tc==='material')grouped.material.push(p);
-
-    else if(tc==='servico')grouped.servico.push(p);
-
-    else if(tc==='equipamento')grouped.equipamento.push(p);
-
-    else if(tc==='outros')grouped.outro.push(p);
-
-    // sem tipoCusto → vai para semClass (aguardando classificação)
-
-  });
-
   const sumV=arr=>arr.reduce((a,p)=>a+p.v,0);
 
-  const tMat=sumV(grouped.material),tSvc=sumV(grouped.servico),tEqp=sumV(grouped.equipamento),tOut=sumV(grouped.outro);
+  // Agrupamento inteligente: tipo explícito > categoria customizada > não classificado
+  const gMat=[],gSvc=[],gEqp=[],gSem=[];
+  const gCat={}; // cid -> {cat, pags[], total}
 
-  // Agrupa pagamentos 'outros' por categoria
-  const catGroups={};
-  grouped.outro.forEach(p=>{
-    const cid=p.cat||'outros';
-    if(!catGroups[cid])catGroups[cid]={cat:catById(cid),pags:[],total:0};
-    catGroups[cid].pags.push(p);catGroups[cid].total+=p.v;
+  pagsPagos.forEach(p=>{
+    const tc=getTipoCusto(p); // material / servico / equipamento / ''
+    if(tc==='material'){gMat.push(p);return;}
+    if(tc==='servico'){gSvc.push(p);return;}
+    if(tc==='equipamento'){gEqp.push(p);return;}
+    // Tem categoria customizada? → card próprio
+    if(p.cat&&p.cat!=='outros'){
+      if(!gCat[p.cat])gCat[p.cat]={cat:catById(p.cat),pags:[],total:0};
+      gCat[p.cat].pags.push(p);gCat[p.cat].total+=p.v;
+      return;
+    }
+    // Sem tipo e sem categoria → aguardando classificação
+    gSem.push(p);
   });
-  const catGroupsArr=Object.values(catGroups).sort((a,b)=>b.total-a.total);
+
+  const catArr=Object.values(gCat).sort((a,b)=>b.total-a.total);
+  const tMat=sumV(gMat),tSvc=sumV(gSvc),tEqp=sumV(gEqp);
+  const tCatTotal=catArr.reduce((a,g)=>a+g.total,0);
+
+  // Para compat com código abaixo que usa grouped.material etc
+  const grouped={material:gMat,servico:gSvc,equipamento:gEqp};
+  const semClass=gSem;
 
   // Inventário de materiais por tipo
 
@@ -4803,7 +4801,7 @@ function renderMatServ(){
 
   const svcArr=Object.values(svcInv).sort((a,b)=>b.valor-a.valor);
 
-  const semClass=o.pag.filter(p=>p.st==='PAGO'&&!getTipoCusto(p)&&p.tipoCusto!=='outros');
+  // semClass já definido no agrupamento acima (gSem)
 
   const barFn=(v,tot,cor)=>`<div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:10px;background:var(--line);border-radius:5px;overflow:hidden"><div style="height:100%;width:${tot>0?Math.min(v/tot*100,100).toFixed(1):0}%;background:${cor};border-radius:5px"></div></div><span style="font-size:12px;color:var(--muted);min-width:40px;text-align:right">${tot>0?(v/tot*100).toFixed(1):0}%</span></div>`;
 
@@ -4811,13 +4809,10 @@ function renderMatServ(){
 
   <div class="kpis" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:20px">
 
-    <div class="kpi"><div class="lab">🧱 Materiais</div><div class="val" style="color:var(--info)">${fmt(tMat)}</div><div class="sub">${totalPago>0?(tMat/totalPago*100).toFixed(1):0}% do total</div></div>
-
-    <div class="kpi"><div class="lab">🔧 Serviços</div><div class="val" style="color:var(--ok)">${fmt(tSvc)}</div><div class="sub">${totalPago>0?(tSvc/totalPago*100).toFixed(1):0}% do total</div></div>
-
+    ${tMat>0?`<div class="kpi"><div class="lab">🧱 Materiais</div><div class="val" style="color:var(--info)">${fmt(tMat)}</div><div class="sub">${totalPago>0?(tMat/totalPago*100).toFixed(1):0}% do total</div></div>`:''}
+    ${tSvc>0?`<div class="kpi"><div class="lab">🔧 Serviços</div><div class="val" style="color:var(--ok)">${fmt(tSvc)}</div><div class="sub">${totalPago>0?(tSvc/totalPago*100).toFixed(1):0}% do total</div></div>`:''}
     ${tEqp>0?`<div class="kpi"><div class="lab">🏗 Equipamentos</div><div class="val" style="color:var(--warn)">${fmt(tEqp)}</div><div class="sub">${(tEqp/totalPago*100).toFixed(1)}%</div></div>`:''}
-
-    ${tOut>0?`<div class="kpi"><div class="lab">🏷 Categorizado</div><div class="val" style="color:var(--accent)">${fmt(tOut)}</div><div class="sub">${grouped.outro.length} pgto${grouped.outro.length!==1?'s':''} · ${catGroupsArr.length} categoria${catGroupsArr.length!==1?'s':''}</div></div>`:''}
+    ${catArr.map(cg=>`<div class="kpi"><div class="lab">🏷 ${cg.cat.nome}</div><div class="val" style="color:var(--accent)">${fmt(cg.total)}</div><div class="sub">${totalPago>0?(cg.total/totalPago*100).toFixed(1):0}% · ${cg.pags.length} pgto${cg.pags.length!==1?'s':''}</div></div>`).join('')}
     ${semClass.length>0?`<div class="kpi"><div class="lab">⬜ Não classificado</div><div class="val" style="color:var(--muted)">${fmt(sumV(semClass))}</div><div class="sub">${semClass.length} pgto${semClass.length!==1?'s':''}</div></div>`:''}
 
   </div>
@@ -4829,15 +4824,12 @@ function renderMatServ(){
     <div style="display:grid;gap:14px">
 
       ${tMat>0?`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">🧱 Materiais</span><span style="font-weight:700;color:var(--info)">${fmt(tMat)}</span></div>${barFn(tMat,totalPago,'var(--info)')}</div>`:''}
-
       ${tSvc>0?`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">🔧 Serviços</span><span style="font-weight:700;color:var(--ok)">${fmt(tSvc)}</span></div>${barFn(tSvc,totalPago,'var(--ok)')}</div>`:''}
-
       ${tEqp>0?`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">🏗 Equipamentos</span><span style="font-weight:700;color:var(--warn)">${fmt(tEqp)}</span></div>${barFn(tEqp,totalPago,'var(--warn)')}</div>`:''}
-
+      ${catArr.map(cg=>`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">🏷 ${cg.cat.nome}</span><span style="font-weight:700;color:var(--accent)">${fmt(cg.total)}</span></div>${barFn(cg.total,totalPago,'var(--accent)')}</div>`).join('')}
+      ${semClass.length>0?`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;color:var(--muted)">⬜ Não classificado</span><span style="color:var(--muted)">${fmt(sumV(semClass))}</span></div>${barFn(sumV(semClass),totalPago,'var(--line)')}</div>`:''}
     </div>
-
-    ${tMat>0&&tSvc>0?`<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)">Razão Material/Serviço: <b>${tSvc>0?(tMat/tSvc).toFixed(2):'—'}</b> — para cada R$ 1 em serviço, R$ ${tSvc>0?(tMat/tSvc).toFixed(2):'—'} em material.</div>`:''}
-
+    ${tMat>0&&tSvc>0?`<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)">Razão Material/Serviço: <b>${(tMat/tSvc).toFixed(2)}</b> — para cada R$ 1 em serviço, R$ ${(tMat/tSvc).toFixed(2)} em material.</div>`:''}
   </div>
 
   ${matInvArr.length>0?`<div class="card" style="margin-bottom:16px">
@@ -4862,12 +4854,27 @@ function renderMatServ(){
 
   </div>`:''}
 
-  ${catGroupsArr.map(cg=>`<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent)">
+  ${catArr.map(cg=>`<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent)">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-      <div><h2 style="font-size:17px;margin-bottom:2px">🏷 ${cg.cat.nome}</h2><div class="sub">${cg.pags.length} pagamento${cg.pags.length!==1?'s':''} · ${tOut>0?(cg.total/tOut*100).toFixed(1):0}% dos categorizados</div></div>
-      <div style="font-size:22px;font-weight:800;font-family:'Spline Sans Mono',monospace">${fmt(cg.total)}</div>
+      <div>
+        <h2 style="font-size:17px;margin-bottom:2px">🏷 ${cg.cat.nome}</h2>
+        <div class="sub">${cg.pags.length} pagamento${cg.pags.length!==1?'s':''} · ${totalPago>0?(cg.total/totalPago*100).toFixed(1):0}% do total gasto</div>
+      </div>
+      <div style="font-size:22px;font-weight:800;font-family:'Spline Sans Mono',monospace;color:var(--accent)">${fmt(cg.total)}</div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:5px">${cg.pags.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--surface-2);border-radius:var(--r);gap:10px"><div style="flex:1;min-width:0"><span style="font-weight:600;font-size:13.5px">${p.ben}</span>${p.ref?`<span style="color:var(--muted);font-size:12px;margin-left:6px">· ${p.ref.slice(0,50)}</span>`:''}</div><div style="display:flex;align-items:center;gap:10px;flex-shrink:0"><span style="font-weight:700">${fmt(p.v)}</span><button class="btn btn-ghost btn-sm" onclick="openPagModal(${o.pag.indexOf(p)})">✎</button></div></div>`).join('')}</div>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      ${cg.pags.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface-2);border-radius:var(--r);gap:10px">
+        <div style="flex:1;min-width:0">
+          <span style="font-weight:600;font-size:13.5px">${p.ben}</span>
+          ${p.ref?`<span style="color:var(--muted);font-size:12px;margin-left:6px">· ${p.ref.slice(0,60)}</span>`:''}
+          ${p.venc?`<span style="color:var(--soft);font-size:11.5px;margin-left:6px">${fmtD(p.venc)}</span>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <span style="font-weight:700">${fmt(p.v)}</span>
+          <button class="btn btn-ghost btn-sm" style="padding:3px 8px" onclick="openPagModal(${o.pag.indexOf(p)})">✎</button>
+        </div>
+      </div>`).join('')}
+    </div>
   </div>`).join('')}
 
   ${semClass.length>0?`<div class="card" style="border-left:4px solid var(--warn)">
