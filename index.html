@@ -4349,8 +4349,8 @@ function renderObra(){const o=cur,pct=execObra(o);
   const _execPct=execObra(o);
 
   // Painel financeiro redesenhado
-  const _invStats=calcInvestStats(o);
-  const _invList=Object.values(_invStats).filter(s=>s.aportado>0||s.utilizado>0);
+  const _invStatsKpi=calcInvestStats(o);
+  const _invList=_invStatsKpi.filter(function(s){return s.aportado>0||s.utilizado>0;});
   const _usadoPct=o.investimento_disponivel>0?Math.min(Math.round(o.pago/o.investimento_disponivel*100),100):0;
   const _barColor=_usadoPct>=100?'var(--danger)':_usadoPct>80?'var(--warn)':'var(--ok)';
 
