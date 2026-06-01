@@ -2599,9 +2599,7 @@ function renderUni(){const u=curUni;document.getElementById("u-crumb").innerHTML
   document.getElementById("uni-cats").innerHTML=(catsToShow.length?catsToShow:CATS).map(c=>{
     const docs=u.docs[c.id]||[];
     const isDefault=DEFAULT_CAT_IDS.includes(c.id);
-    const deleteBtn=isDefault&&docs.length===0
-      ?'' // padrão vazia: não exibe botão de excluir
-      :`<button class="iconbtn" title="Excluir esta pasta" style="color:var(--danger)" onclick="deleteCatFromUnit('${c.id}')">🗑</button>`;
+    const deleteBtn=`<button class="iconbtn" title="Excluir esta pasta" style="color:var(--danger)" onclick="deleteCatFromUnit('${c.id}')">🗑</button>`;
     return `<div class="card" style="padding:16px 20px;margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
         <div style="display:flex;align-items:center;gap:8px;font-weight:500">
@@ -2627,7 +2625,7 @@ function renderUniAllCats(){
   el.innerHTML=CATS.map(c=>{
     const docs=u.docs[c.id]||[];
     const isDefault=DEFAULT_CAT_IDS.includes(c.id);
-    const deleteBtn=isDefault&&docs.length===0?'':`<button class="iconbtn" title="Excluir esta pasta" style="color:var(--danger)" onclick="deleteCatFromUnit('${c.id}')">🗑</button>`;
+    const deleteBtn=`<button class="iconbtn" title="Excluir esta pasta" style="color:var(--danger)" onclick="deleteCatFromUnit('${c.id}')">🗑</button>`;
     return `<div class="card" style="padding:16px 20px;margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:8px;font-weight:500">📁 ${c.nome}${docs.length?` <span class="badge b-neutral" style="font-size:10px">${docs.length}</span>`:''}<button class="iconbtn" title="Renomear" onclick="openCatModal('${c.id}')">✎</button>${deleteBtn}</div><button class="btn btn-sm" onclick="anexarCat('${c.id}')"><span class="ic">📎</span> Anexar</button></div><div style="margin-top:8px">${dlOf(docs,c.id)}</div></div>`;
   }).join('');
 }
