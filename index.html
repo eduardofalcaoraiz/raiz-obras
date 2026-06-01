@@ -9025,7 +9025,7 @@ let currentUser=null,currentProfile=null;
 
 function lSwitch(panel){['login','cad','pend'].forEach(p=>document.getElementById('lf-'+p).style.display='none');document.getElementById('lf-'+panel).style.display='block';}
 
-async function doLogin(){const email=document.getElementById('l-email').value.trim(),senha=document.getElementById('l-senha').value;const errEl=document.getElementById('l-err');errEl.style.display='none';if(!email||!senha){errEl.textContent='Preencha e-mail e senha.';errEl.style.display='block';return;}try{const{data,error}=await db.auth.signInWithPassword({email,password:senha});if(error){errEl.textContent='E-mail ou senha incorretos: '+error.message;errEl.style.display='block';return;}await onLogin(data.user);}catch(e){errEl.textContent='Erro inesperado: '+e.message;errEl.style.display='block';console.error('doLogin error:',e);}}
+async function doLogin(){const email=document.getElementById('l-email').value.trim(),senha=document.getElementById('l-senha').value;const errEl=document.getElementById('l-err');errEl.style.display='none';if(!email||!senha){errEl.textContent='Preencha e-mail e senha.';errEl.style.display='block';return;}const{data,error}=await db.auth.signInWithPassword({email,password:senha});if(error){errEl.textContent='E-mail ou senha incorretos.';errEl.style.display='block';return;}await onLogin(data.user);}
 
 async function doCadastro(){
 
