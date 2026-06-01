@@ -4746,13 +4746,24 @@ function renderMatServ(){
 
     else if(tc==='equipamento')grouped.equipamento.push(p);
 
-    else grouped.outro.push(p);
+    else if(tc==='outros')grouped.outro.push(p);
+
+    // sem tipoCusto → vai para semClass (aguardando classificação)
 
   });
 
   const sumV=arr=>arr.reduce((a,p)=>a+p.v,0);
 
   const tMat=sumV(grouped.material),tSvc=sumV(grouped.servico),tEqp=sumV(grouped.equipamento),tOut=sumV(grouped.outro);
+
+  // Agrupa pagamentos 'outros' por categoria
+  const catGroups={};
+  grouped.outro.forEach(p=>{
+    const cid=p.cat||'outros';
+    if(!catGroups[cid])catGroups[cid]={cat:catById(cid),pags:[],total:0};
+    catGroups[cid].pags.push(p);catGroups[cid].total+=p.v;
+  });
+  const catGroupsArr=Object.values(catGroups).sort((a,b)=>b.total-a.total);
 
   // Inventário de materiais por tipo
 
@@ -4792,7 +4803,7 @@ function renderMatServ(){
 
   const svcArr=Object.values(svcInv).sort((a,b)=>b.valor-a.valor);
 
-  const semClass=o.pag.filter(p=>p.st==='PAGO'&&!getTipoCusto(p));
+  const semClass=o.pag.filter(p=>p.st==='PAGO'&&!getTipoCusto(p)&&p.tipoCusto!=='outros');
 
   const barFn=(v,tot,cor)=>`<div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:10px;background:var(--line);border-radius:5px;overflow:hidden"><div style="height:100%;width:${tot>0?Math.min(v/tot*100,100).toFixed(1):0}%;background:${cor};border-radius:5px"></div></div><span style="font-size:12px;color:var(--muted);min-width:40px;text-align:right">${tot>0?(v/tot*100).toFixed(1):0}%</span></div>`;
 
@@ -4806,7 +4817,8 @@ function renderMatServ(){
 
     ${tEqp>0?`<div class="kpi"><div class="lab">🏗 Equipamentos</div><div class="val" style="color:var(--warn)">${fmt(tEqp)}</div><div class="sub">${(tEqp/totalPago*100).toFixed(1)}%</div></div>`:''}
 
-    ${tOut>0?`<div class="kpi"><div class="lab">⬜ Não classificado</div><div class="val" style="color:var(--muted)">${fmt(tOut)}</div><div class="sub">${semClass.length} pgto${semClass.length!==1?'s':''}</div></div>`:''}
+    ${tOut>0?`<div class="kpi"><div class="lab">🏷 Categorizado</div><div class="val" style="color:var(--accent)">${fmt(tOut)}</div><div class="sub">${grouped.outro.length} pgto${grouped.outro.length!==1?'s':''} · ${catGroupsArr.length} categoria${catGroupsArr.length!==1?'s':''}</div></div>`:''}
+    ${semClass.length>0?`<div class="kpi"><div class="lab">⬜ Não classificado</div><div class="val" style="color:var(--muted)">${fmt(sumV(semClass))}</div><div class="sub">${semClass.length} pgto${semClass.length!==1?'s':''}</div></div>`:''}
 
   </div>
 
@@ -4849,6 +4861,14 @@ function renderMatServ(){
     <div class="tablewrap"><table><thead><tr><th>Fornecedor / Prestador</th><th style="text-align:right">Valor pago</th><th>Participação</th><th style="text-align:right">Pagamentos</th></tr></thead><tbody>${svcArr.map(s=>`<tr><td style="font-weight:500">${s.nome}</td><td class="n" style="font-weight:600">${fmt(s.valor)}</td><td><div style="display:flex;align-items:center;gap:6px"><div style="width:80px;height:5px;background:var(--line);border-radius:3px;overflow:hidden"><div style="height:100%;width:${tSvc>0?Math.min(s.valor/tSvc*100,100).toFixed(1):0}%;background:var(--ok);border-radius:3px"></div></div><span style="font-size:12px;color:var(--muted)">${tSvc>0?(s.valor/tSvc*100).toFixed(1):0}%</span></div></td><td class="n">${s.n}</td></tr>`).join('')}</tbody></table></div>
 
   </div>`:''}
+
+  ${catGroupsArr.map(cg=>`<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent)">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div><h2 style="font-size:17px;margin-bottom:2px">🏷 ${cg.cat.nome}</h2><div class="sub">${cg.pags.length} pagamento${cg.pags.length!==1?'s':''} · ${tOut>0?(cg.total/tOut*100).toFixed(1):0}% dos categorizados</div></div>
+      <div style="font-size:22px;font-weight:800;font-family:'Spline Sans Mono',monospace">${fmt(cg.total)}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px">${cg.pags.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--surface-2);border-radius:var(--r);gap:10px"><div style="flex:1;min-width:0"><span style="font-weight:600;font-size:13.5px">${p.ben}</span>${p.ref?`<span style="color:var(--muted);font-size:12px;margin-left:6px">· ${p.ref.slice(0,50)}</span>`:''}</div><div style="display:flex;align-items:center;gap:10px;flex-shrink:0"><span style="font-weight:700">${fmt(p.v)}</span><button class="btn btn-ghost btn-sm" onclick="openPagModal(${o.pag.indexOf(p)})">✎</button></div></div>`).join('')}</div>
+  </div>`).join('')}
 
   ${semClass.length>0?`<div class="card" style="border-left:4px solid var(--warn)">
 
@@ -6277,7 +6297,11 @@ function closePagModal(){document.getElementById("pag-overlay").classList.remove
 
 function pmNfChange(){const t=document.getElementById('pm-nf')?.value||'';const r=document.getElementById('pm-nfnum-row');if(r)r.style.display=(t&&t!=='Sem nota'&&t!=='Adiantamento')?'':'none';}
 
-function savePag(){if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const cSeq=document.getElementById("pm-contrato")?.value||'';const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null};
+function savePag(){if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const cSeq=document.getElementById("pm-contrato")?.value||'';
+  // Preserva tipoCusto existente se for mat/svc/eqp; senão marca como 'outros' (categorizado)
+  const _existTipo=pagEditIdx!==null?(cur.pag[pagEditIdx].tipoCusto||''):'';
+  const tipoCusto=['material','servico','equipamento'].includes(_existTipo)?_existTipo:'outros';
+  const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null,tipoCusto};
 
   if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];const wasPago=(old.st||'')==="PAGO";const willPago=obj.st==="PAGO";cur.pago+=(willPago?obj.v:0)-(wasPago?(old.v||0):0);cur.pag[pagEditIdx]={...old,...obj};}
 
