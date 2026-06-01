@@ -1372,17 +1372,11 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
             </div>
 
-            <div class="frow" style="margin-bottom:0">
 
-              <label class="fl">Subcategoria / detalhe</label>
-
-              <select class="fi" id="imp-sub" style="display:block"><!-- populado pelo JS --></select>
-
-            </div>
 
           </div>
 
-          <p style="font-size:11.5px;color:var(--muted);margin-top:8px">Ex: <b>Outros → Comissões</b> para comissão de imóvel · <b>Taxa de administração</b> · <b>Legalização → Alvará</b></p>
+          <p style="font-size:11.5px;color:var(--muted);margin-top:8px">Ex: <b>Comissões</b> · <b>Taxa de administração</b> · <b>Legalização</b> · <b>Adiantamento</b></p>
 
         </div>
 
@@ -1544,7 +1538,6 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <select id="imp-cat" style="display:none"></select>
 
-      <select id="imp-sub" style="display:none"></select>
 
       <select id="imp-tipo" style="display:none"><option value="OBRA">OBRA</option></select>
 
@@ -1726,12 +1719,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
             <span>Categoria</span>
             <button type="button" onclick="openCatModalFromPm()" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">＋ Nova categoria</button>
           </label>
-          <select class="fi" id="pm-cat" onchange="pmSubs()"></select>
+          <select class="fi" id="pm-cat"></select>
         </div>
-        <div class="frow" style="margin-bottom:0">
-          <label class="fl">Subcategoria / detalhe</label>
-          <select class="fi" id="pm-sub"></select>
-        </div>
+
       </div>
     </div>
 
@@ -1943,30 +1933,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
   <div class="mbody">
 
-    <div class="frow">
-
-      <label class="fl">Nome da categoria</label>
-
-      <input class="fi" id="cat-input" placeholder="Ex.: Comissões de Terreno, Honorários Jurídicos, Taxas…" onkeydown="if(event.key==='Enter')saveCatModal()">
-
-    </div>
-
     <div class="frow" style="margin-bottom:0">
-
-      <label class="fl">Subcategorias <span style="font-weight:400;color:var(--muted)">(opcional — separe por vírgula)</span></label>
-
-      <input class="fi" id="cat-subs-input" placeholder="Ex.: Imóvel, Intermediação, Outros — ou deixe vazio">
-
-      <p style="font-size:11.5px;color:var(--muted);margin:5px 0 0">Se não preencher, será criada a subcategoria "Geral" automaticamente.</p>
-
+      <label class="fl">Nome da categoria</label>
+      <input class="fi" id="cat-input" placeholder="Ex.: Comissões, Honorários Jurídicos, Taxas, Legalização…" onkeydown="if(event.key==='Enter')saveCatModal()">
     </div>
-
-    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
       <button class="btn btn-ghost" onclick="closeCatModal()">Cancelar</button>
-
-      <button class="btn btn-primary" onclick="saveCatModal()"><span class="ic">✓</span> Criar categoria</button>
-
+      <button class="btn btn-primary" id="cat-save-btn" onclick="saveCatModal()"><span class="ic">✓</span> Criar categoria</button>
     </div>
 
   </div>
@@ -2643,7 +2616,7 @@ function renderChart(o){const map={};o.pag.filter(p=>p.st==="PAGO"&&p.venc&&p.ve
 
 /* EXPORT CSV */
 
-function exportCSV(){if(!cur)return;let rows=cur.pag.map((p,i)=>({p,i}));if(pagFiltro==="pagos")rows=rows.filter(r=>r.p.st==="PAGO");else if(pagFiltro==="atraso")rows=rows.filter(r=>isAtraso(r.p));else if(pagFiltro==="pend")rows=rows.filter(r=>r.p.st==="PENDENTE");if(pagDe)rows=rows.filter(r=>!r.p.venc||r.p.venc>=pagDe);if(pagAte)rows=rows.filter(r=>!r.p.venc||r.p.venc<=pagAte);const q=pagBusca.trim().toLowerCase();if(q)rows=rows.filter(r=>((r.p.ben||"")+" "+(r.p.ref||"")).toLowerCase().indexOf(q)>=0);const h=["Beneficiário","Referência","Nº da NF","Tipo de custo","Contrato","Forma pgto","Categoria","Subcategoria","Pagante","Valor","Vencimento","Status","Doc fiscal"];const esc=v=>'"'+String(v||"").replace(/"/g,'""')+'"';const csv=[h.map(esc).join(",")].concat(rows.map(({p})=>{const cat=catById(p.cat);const contrNome=p.contratoSeq?cur.contratos.find(c=>c.seq===p.contratoSeq)?.nome_contr||"":"";return[p.ben,p.ref,p.nfNum||"",p.tipoCusto||"",contrNome,p.pagForma||"A_VISTA",cat.nome,cat.subs[p.sub]||"",p.pagn,p.v,p.venc,p.st,p.nfTipo||""].map(esc).join(",");})).join("\n");const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(cur.nome.replace(/[^a-zA-Z0-9\-]/g,"-")+"-pagamentos.csv");a.click();URL.revokeObjectURL(a.href);toast("CSV exportado ("+rows.length+" linhas).");}
+function exportCSV(){if(!cur)return;let rows=cur.pag.map((p,i)=>({p,i}));if(pagFiltro==="pagos")rows=rows.filter(r=>r.p.st==="PAGO");else if(pagFiltro==="atraso")rows=rows.filter(r=>isAtraso(r.p));else if(pagFiltro==="pend")rows=rows.filter(r=>r.p.st==="PENDENTE");if(pagDe)rows=rows.filter(r=>!r.p.venc||r.p.venc>=pagDe);if(pagAte)rows=rows.filter(r=>!r.p.venc||r.p.venc<=pagAte);const q=pagBusca.trim().toLowerCase();if(q)rows=rows.filter(r=>((r.p.ben||"")+" "+(r.p.ref||"")).toLowerCase().indexOf(q)>=0);const h=["Beneficiário","Referência","Nº da NF","Tipo de custo","Contrato","Forma pgto","Categoria","Subcategoria","Pagante","Valor","Vencimento","Status","Doc fiscal"];const esc=v=>'"'+String(v||"").replace(/"/g,'""')+'"';const csv=[h.map(esc).join(",")].concat(rows.map(({p})=>{const cat=catById(p.cat);const contrNome=p.contratoSeq?cur.contratos.find(c=>c.seq===p.contratoSeq)?.nome_contr||"":"";return[p.ben,p.ref,p.nfNum||"",p.tipoCusto||"",contrNome,p.pagForma||"A_VISTA",cat.nome,"",p.pagn,p.v,p.venc,p.st,p.nfTipo||""].map(esc).join(",");})).join("\n");const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(cur.nome.replace(/[^a-zA-Z0-9\-]/g,"-")+"-pagamentos.csv");a.click();URL.revokeObjectURL(a.href);toast("CSV exportado ("+rows.length+" linhas).");}
 
 
 
@@ -6280,7 +6253,7 @@ function saveObra(){
 
 let pagEditIdx=null;
 
-function pmSubs(){const c=catById(document.getElementById("pm-cat").value);document.getElementById("pm-sub").innerHTML=c.subs.map((s,i)=>`<option value="${i}">${s}</option>`).join("");}
+function pmSubs(){}
 
 function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(typeof idx==="number")?idx:null;const g=v=>document.getElementById(v);
 
@@ -6294,9 +6267,9 @@ function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(
 
   _fillContrSelect("pm-contrato",cur,'');
 
-  if(pagEditIdx!==null){const p=cur.pag[pagEditIdx];g("pag-title").textContent="Editar pagamento";g("pm-ben").value=p.ben;setCurrencyValue("pm-val",p.v);g("pm-ref").value=p.ref||'';if(g("pm-nfnum"))g("pm-nfnum").value=p.nfNum||'';g("pm-cat").value=p.cat||CATS[0].id;pmSubs();g("pm-sub").value=p.sub||0;g("pm-pag").value=p.pagn;g("pm-st").value=p.st;g("pm-venc").value=p.venc||"";g("pm-nf").value=p.nfTipo||"Sem nota";pmNfChange();if(g("pm-contrato"))g("pm-contrato").value=p.contratoSeq||'';}
+  if(pagEditIdx!==null){const p=cur.pag[pagEditIdx];g("pag-title").textContent="Editar pagamento";g("pm-ben").value=p.ben;setCurrencyValue("pm-val",p.v);g("pm-ref").value=p.ref||'';if(g("pm-nfnum"))g("pm-nfnum").value=p.nfNum||'';g("pm-cat").value=p.cat||CATS[0].id;g("pm-pag").value=p.pagn;g("pm-st").value=p.st;g("pm-venc").value=p.venc||"";g("pm-nf").value=p.nfTipo||"Sem nota";pmNfChange();if(g("pm-contrato"))g("pm-contrato").value=p.contratoSeq||'';}
 
-  else{g("pag-title").textContent="Lançar pagamento";["pm-ben","pm-val","pm-ref","pm-venc"].forEach(x=>g(x).value="");if(g("pm-nfnum"))g("pm-nfnum").value="";g("pm-cat").value=CATS[0].id;pmSubs();g("pm-st").value="PENDENTE";g("pm-nf").value="Sem nota";pmNfChange();if(g("pm-contrato"))g("pm-contrato").value='';}
+  else{g("pag-title").textContent="Lançar pagamento";["pm-ben","pm-val","pm-ref","pm-venc"].forEach(x=>g(x).value="");if(g("pm-nfnum"))g("pm-nfnum").value="";g("pm-cat").value=CATS[0].id;g("pm-st").value="PENDENTE";g("pm-nf").value="Sem nota";pmNfChange();if(g("pm-contrato"))g("pm-contrato").value='';}
 
   g("pag-overlay").classList.add("show");}
 
@@ -6304,7 +6277,7 @@ function closePagModal(){document.getElementById("pag-overlay").classList.remove
 
 function pmNfChange(){const t=document.getElementById('pm-nf')?.value||'';const r=document.getElementById('pm-nfnum-row');if(r)r.style.display=(t&&t!=='Sem nota'&&t!=='Adiantamento')?'':'none';}
 
-function savePag(){if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const cSeq=document.getElementById("pm-contrato")?.value||'';const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:+g("pm-sub")||0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null};
+function savePag(){if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const cSeq=document.getElementById("pm-contrato")?.value||'';const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null};
 
   if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];const wasPago=(old.st||'')==="PAGO";const willPago=obj.st==="PAGO";cur.pago+=(willPago?obj.v:0)-(wasPago?(old.v||0):0);cur.pag[pagEditIdx]={...old,...obj};}
 
@@ -6692,25 +6665,21 @@ function openCatModal(id){
 
   const inp=document.getElementById("cat-input");
 
-  const subsInp=document.getElementById("cat-subs-input");
-
   if(catEditId){
 
     const c=catById(catEditId);
 
     document.getElementById("cat-title").textContent="Editar categoria";
+    const sb=document.getElementById("cat-save-btn");if(sb)sb.innerHTML='<span class="ic">✓</span> Salvar alterações';
 
     inp.value=c.nome;
-
-    if(subsInp)subsInp.value=(c.subs||[]).filter(s=>s!=='Geral').join(', ');
 
   }else{
 
     document.getElementById("cat-title").textContent="Nova categoria";
+    const sb2=document.getElementById("cat-save-btn");if(sb2)sb2.innerHTML='<span class="ic">✓</span> Criar categoria';
 
     inp.value="";
-
-    if(subsInp)subsInp.value="";
 
   }
 
@@ -6732,11 +6701,7 @@ function saveCatModal(){
 
   if(dup){toast("Já existe categoria com esse nome.");return;}
 
-  // Parse subcategorias da input (separadas por vírgula)
-
-  const subsRaw=(document.getElementById("cat-subs-input")?.value||'').trim();
-
-  const subs=subsRaw?subsRaw.split(',').map(s=>s.trim()).filter(Boolean):['Geral'];
+  const subs=['Geral'];
 
   const wasEdit=!!catEditId;
 
@@ -7288,7 +7253,7 @@ function closeImport(){document.getElementById("overlay").classList.remove("show
 
 
 
-function fillSubs(){const c=catById(document.getElementById("imp-cat").value);document.getElementById("imp-sub").innerHTML=c.subs.map((s,i)=>`<option value="${i}">${s}</option>`).join("");}
+function fillSubs(){}
 
 
 
@@ -7322,7 +7287,7 @@ function showAdiantamento(){
 
   // Pré-seleciona categoria Outros > Adiantamentos
 
-  setTimeout(()=>{impSetCusto('outros');const cat=document.getElementById('imp-cat');if(cat){cat.value='outros';impCatChanged();const sub=document.getElementById('imp-sub');if(sub)sub.value='2';}},50);
+  setTimeout(()=>{impSetCusto('outros');const cat=document.getElementById('imp-cat');if(cat){cat.value='outros';impCatChanged();}},50);
 
 }
 
@@ -7334,7 +7299,6 @@ function impCatChanged(){
 
   const cat=catById(document.getElementById('imp-cat')?.value||'outros');
 
-  const sub=document.getElementById('imp-sub');
 
   if(sub)sub.innerHTML=cat.subs.map((s,i)=>`<option value="${i}">${s}</option>`).join('');
 
@@ -8912,11 +8876,11 @@ async function confirmImport(){
 
   const _catEl=document.getElementById('imp-cat');
 
-  const _subEl=document.getElementById('imp-sub');
+  
 
   const cat=(_catEl&&_catEl.value)||'outros';
 
-  const sub=_subEl?+_subEl.value||0:0;
+  const sub=0;
 
   const pagn=document.getElementById("imp-pag").value;
 
