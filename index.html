@@ -2735,17 +2735,17 @@ function cmSetPlano(plano){
 function cmToggleFim(tipo){
   const d=document.getElementById('cm-fim');
   const t=document.getElementById('cm-fim-gatilho');
-  const db=document.getElementById('cm-fim-data-btn');
-  const tb=document.getElementById('cm-fim-gatilho-btn');
+  const dbBtn=document.getElementById('cm-fim-data-btn');
+  const tbBtn=document.getElementById('cm-fim-gatilho-btn');
   if(!d||!t)return;
   if(tipo==='data'){
     d.style.display='';t.style.display='none';
-    if(db){db.style.background='var(--accent)';db.style.color='white';}
-    if(tb){tb.style.background='';tb.style.color='';}
+    if(dbBtn){dbBtn.style.background='var(--accent)';dbBtn.style.color='white';}
+    if(tbBtn){tbBtn.style.background='';tbBtn.style.color='';}
   }else{
     d.style.display='none';t.style.display='';
-    if(db){db.style.background='';db.style.color='';}
-    if(tb){tb.style.background='var(--accent)';tb.style.color='white';}
+    if(dbBtn){dbBtn.style.background='';dbBtn.style.color='';}
+    if(tbBtn){tbBtn.style.background='var(--accent)';tbBtn.style.color='white';}
   }
 }
 function cmCnpjInput(){
