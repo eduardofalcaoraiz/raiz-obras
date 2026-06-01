@@ -3303,14 +3303,26 @@ async function loadFromDB(){
   }catch(e){console.error('loadFromDB:',e);}
 }
 const LSKEY="raiz_obras_v5";
-function _legacy_persist(){try{const uniDocs={};unidades.forEach(u=>{if(Object.keys(u.docs).length)uniDocs[u.id]=u.docs;});const obraState={};obras.forEach(o=>{obraState[o.id]={pago:o.pago,pag:o.pag,contratado:o.contratado,aportado:o.aportado,nome:o.nome,marca:o.marca,constr:o.constr,status:o.status,taxa:o.taxa,contratos:o.contratos,aportes:o.aportes};});localStorage.setItem(LSKEY,JSON.stringify({cats:CATS,uniDocs,uniExtra:unidades.filter(u=>String(u.id).indexOf("u")===0&&!["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15"].includes(u.id)),catSeq,uniSeq,obraState,nextObraId,obrasExtra:obras.filter(o=>o.id>=5)}));}catch(e){}}
-function load(){try{const raw=localStorage.getItem(LSKEY);if(!raw)return;const s=JSON.parse(raw);if(s.catSeq>catSeq)catSeq=s.catSeq;if(s.uniSeq>uniSeq)uniSeq=s.uniSeq;if(s.nextObraId>nextObraId)nextObraId=s.nextObraId;
-  if(s.cats)s.cats.forEach(sc=>{const ex=CATS.find(x=>x.id===sc.id);if(ex){ex.nome=sc.nome;if(sc.subs)ex.subs=sc.subs;}else CATS.push(sc);});
-  if(s.obrasExtra)s.obrasExtra.forEach(oe=>{if(!obras.find(o=>o.id===oe.id))obras.push(oe);});
-  if(s.obraState)Object.entries(s.obraState).forEach(([id,st])=>{const o=obras.find(x=>String(x.id)===String(id));if(o)Object.assign(o,st);});
-  if(s.uniExtra)s.uniExtra.forEach(ue=>{if(!unidades.find(u=>u.id===ue.id))unidades.push(ue);});
-  if(s.uniDocs)Object.entries(s.uniDocs).forEach(([id,docs])=>{const u=unidades.find(x=>x.id===id);if(u)u.docs=docs;});
-}catch(e){}}
+function _legacy_persist(){/* deprecated - dados salvos no Supabase */}
+function load(){
+  // LEGACY: lê apenas contadores do localStorage, NUNCA dados de unidades/obras
+  // (dados de unidades e obras vêm exclusivamente do Supabase)
+  try{
+    const raw=localStorage.getItem(LSKEY);
+    if(!raw)return;
+    const s=JSON.parse(raw);
+    if(s.catSeq>catSeq)catSeq=s.catSeq;
+    if(s.uniSeq>uniSeq)uniSeq=s.uniSeq;
+    if(s.nextObraId>nextObraId)nextObraId=s.nextObraId;
+    // NÃO restaura uniExtra, obrasExtra, obraState — esses dados vêm do banco
+    // NÃO restaura cats — categorias vêm do banco via loadFromDB()
+    // Limpa localStorage antigo para não acumular dados obsoletos
+    if(s.uniExtra||s.obrasExtra||s.obraState){
+      localStorage.removeItem(LSKEY);
+      console.log('raiz_obras: localStorage legado limpo (dados migrados para Supabase)');
+    }
+  }catch(e){}
+}
 
 let tT;function toast(m){const t=document.getElementById("toast");document.getElementById("toast-txt").textContent=m;t.classList.add("show");clearTimeout(tT);tT=setTimeout(()=>t.classList.remove("show"),2600);}
 
@@ -4438,7 +4450,9 @@ async function deleteInvestidor(id){
   toast('Investidor removido.');
 }
 
-async function onLogin(user){currentUser=user;const{data:profile}=await db.from('user_profiles').select('*').eq('id',user.id).single();if(!profile||!profile.aprovado){document.getElementById('login-screen').style.display='flex';lSwitch('pend');return;}currentProfile=profile;document.getElementById('login-screen').style.display='none';document.getElementById('app').style.display='flex';document.getElementById('foot-user-name').textContent=profile.nome||user.email;if(profile.role==='admin')document.getElementById('nav-admin').style.display='flex';const lo=document.getElementById('lo');lo.style.display='flex';await loadFromDB();await loadInvestidores();lo.style.display='none';obras.forEach(o=>o.pag.forEach(p=>{if(p.nfTipo===undefined)p.nfTipo=p.comp?"NF-e":"Sem nota";}));renderGeral();updateNavBadge();populateEscolasSelect();}
+async function onLogin(user){
+  // Limpa dados legados do localStorage (dados agora no Supabase)
+  try{const old=localStorage.getItem(LSKEY);if(old){const s=JSON.parse(old);if(s.uniExtra||s.obrasExtra||s.obraState){localStorage.removeItem(LSKEY);}}}catch(e){}currentUser=user;const{data:profile}=await db.from('user_profiles').select('*').eq('id',user.id).single();if(!profile||!profile.aprovado){document.getElementById('login-screen').style.display='flex';lSwitch('pend');return;}currentProfile=profile;document.getElementById('login-screen').style.display='none';document.getElementById('app').style.display='flex';document.getElementById('foot-user-name').textContent=profile.nome||user.email;if(profile.role==='admin')document.getElementById('nav-admin').style.display='flex';const lo=document.getElementById('lo');lo.style.display='flex';await loadFromDB();await loadInvestidores();lo.style.display='none';obras.forEach(o=>o.pag.forEach(p=>{if(p.nfTipo===undefined)p.nfTipo=p.comp?"NF-e":"Sem nota";}));renderGeral();updateNavBadge();populateEscolasSelect();}
 (async()=>{const{data:{session}}=await db.auth.getSession();if(session){await onLogin(session.user);}else{document.getElementById('login-screen').style.display='flex';}})();
 </script>
 </body>
