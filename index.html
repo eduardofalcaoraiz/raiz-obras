@@ -4348,54 +4348,95 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   const _execPct=execObra(o);
 
-  // KPIs — usando classes nativas do sistema (.kpis .kpi)
+  // Pré-calcular dados dos investidores
   const _invStatsKpi=calcInvestStats(o);
   const _invList=_invStatsKpi.filter(function(s){return s.aportado>0||s.utilizado>0;});
-  const _saldoInvColor=_saldoInv<0?'dg':_saldoInv<(o.investimento_disponivel||o.aportado)*0.1?'warn':'ok';
+  const _totalAportadoKpi=_invList.reduce(function(a,s){return a+s.aportado;},0);
 
-  // Linha 1: KPIs do investimento
-  let _kpiHtml='<div class="kpis">';
-  if(_temInv){
-    _kpiHtml+='<div class="kpi"><div class="lab">Investimento disponível</div><div class="val">'+fmt(o.investimento_disponivel)+'</div>'
-      +(_margem!==null?'<div class="sub" style="color:'+(_margem<0?'var(--danger)':'var(--soft)')+'">'+(_margem>=0?fmt(_margem)+' acima do contrato':'contrato excede por '+fmt(-_margem))+'</div>':'')
+  // ── CARD 1: Contrato com a construtora ───────────────────────────
+  let _cardConstr='';
+  if(_contrTot>0||o.constr){
+    const _execBar=Math.min(_execPct,100);
+    const _execColor=_execPct>=100?'var(--danger)':_execPct>80?'var(--warn)':'var(--info)';
+    const _saldoCStr=_saldoContr<0?'<span style="color:var(--danger)">Estourou '+fmt(-_saldoContr)+'</span>':fmt(_saldoContr);
+    _cardConstr='<div class="card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">'
+      +'<div><h2 style="font-size:16px;margin-bottom:2px">Contrato da Obra</h2>'
+      +(o.constr?'<div class="sub">'+o.constr+'</div>':'')+'</div>'
+      +'<div style="text-align:right"><div class="lab">Total contratado</div>'
+      +'<div style="font-size:22px;font-weight:800">'+fmt(_contrTot)+'</div>'
+      +(_aditTot>0?'<div class="sub">'+fmt(o.contratado)+' base + '+fmt(_aditTot)+' em aditivos</div>':'')
+      +'</div></div>'
+      +'<div class="invgrid">'
+      +'<div class="invc"><div class="nm">Base contratada</div><div class="v">'+fmt(o.contratado)+'</div></div>'
+      +(_aditTot>0?'<div class="invc"><div class="nm">Aditivos</div><div class="v warn">+'+fmt(_aditTot)+'</div></div>':'')
+      +'<div class="invc"><div class="nm">Executado</div><div class="v acc">'+fmt(o.pago)+'</div><div class="pc">'+_execPct+'%</div></div>'
+      +'<div class="invc"><div class="nm">A pagar</div><div class="v" style="color:'+(_saldoContr<0?'var(--danger)':_saldoContr<_contrTot*0.15?'var(--warn)':'inherit')+'">'+(_saldoContr<0?'Estourou '+fmt(-_saldoContr):fmt(_saldoContr))+'</div></div>'
+      +'</div>'
+      +'<div style="margin-top:12px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Execução</span><span>'+_execPct+'%</span></div>'
+      +'<div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden">'
+      +'<div style="height:100%;width:'+_execBar+'%;background:'+_execColor+';border-radius:4px;transition:width .5s"></div></div></div>'
       +'</div>';
-    _kpiHtml+='<div class="kpi"><div class="lab">Utilizado do investimento</div><div class="val acc">'+fmt(o.pago)+'</div>'
-      +'<div class="sub">'+_execPct+'% do contrato</div></div>';
-    _kpiHtml+='<div class="kpi"><div class="lab">Saldo do investimento</div><div class="val '+_saldoInvColor+'">'+fmt(_saldoInv)+'</div>'
-      +'<div class="sub">'+(_saldoInv<0?'<span style="color:var(--danger)">esgotado</span>':'ainda disponível')+'</div></div>';
-  }else{
-    _kpiHtml+='<div class="kpi"><div class="lab">Aportado</div><div class="val">'+fmt(o.aportado)+'</div></div>';
-    _kpiHtml+='<div class="kpi"><div class="lab">Pago</div><div class="val acc">'+fmt(o.pago)+'</div>'
-      +'<div class="sub">'+_execPct+'% do contrato</div></div>';
-    _kpiHtml+='<div class="kpi"><div class="lab">Saldo</div><div class="val '+_saldoInvColor+'">'+fmt(_saldoInv)+'</div></div>';
   }
-  _kpiHtml+='<div class="kpi"><div class="lab">Contratado'+(_aditTot>0?' + aditivos':'')+'</div><div class="val">'+fmt(_contrTot)+'</div>'
-    +(_aditTot>0?'<div class="sub">'+fmt(o.contratado)+' + '+fmt(_aditTot)+' aditivos</div>':'')+'</div>';
-  _kpiHtml+='<div class="kpi"><div class="lab">A pagar ao contratado</div><div class="val '+(_saldoContr<0?'dg':_saldoContr<_contrTot*0.1?'warn':'')+'">'+fmt(Math.max(_saldoContr,0))+'</div>'
-    +(_saldoContr<0?'<div class="sub" style="color:var(--danger)">estourou '+fmt(-_saldoContr)+'</div>':'')+'</div>';
+
+  // ── CARD 2: Investimento total (todos os investidores) ───────────
+  let _cardInv='';
+  const _invBase=o.investimento_disponivel||o.aportado||_totalAportadoKpi;
+  if(_invBase>0){
+    _cardInv='<div class="card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">'
+      +'<div><h2 style="font-size:16px;margin-bottom:2px">Investimento Total</h2>'
+      +'<div class="sub">Capital disponibilizado para a obra</div></div>'
+      +'<div style="text-align:right"><div class="lab">'+(o.investimento_disponivel>0?'Teto aprovado':'Total aportado')+'</div>'
+      +'<div style="font-size:22px;font-weight:800">'+fmt(_invBase)+'</div></div></div>';
+    if(_invList.length>0){
+      _cardInv+='<div class="invgrid">';
+      _invList.slice().sort(function(a,b){return b.aportado-a.aportado;}).forEach(function(s){
+        const saldo=s.aportado-s.utilizado;
+        _cardInv+='<div class="invc"><div class="nm">'+s.nome+'</div>'
+          +'<div class="v">'+fmt(s.aportado)+'</div>'
+          +'<div class="pc">'+(_totalAportadoKpi>0?Math.round(s.aportado/_totalAportadoKpi*100):0)+'% do total</div></div>';
+      });
+      _cardInv+='</div>';
+    }else{
+      _cardInv+='<div class="kpis"><div class="kpi"><div class="lab">Aportado</div><div class="v">'+fmt(o.aportado)+'</div></div></div>';
+    }
+    _cardInv+='</div>';
+  }
+
+  // ── CARD 3: Saldo do investimento ────────────────────────────────
+  const _saldoClass=_saldoInv<0?'dg':_saldoInv<_invBase*0.1?'warn':'ok';
+  const _saldoLabel=_saldoInv<0?'Investimento esgotado':_saldoInv<_invBase*0.1?'Saldo crítico — menos de 10%':'Disponível para gastar';
+  const _usadoPct2=_invBase>0?Math.min(Math.round(o.pago/_invBase*100),100):0;
+  const _saldoBarColor=_usadoPct2>=100?'var(--danger)':_usadoPct2>80?'var(--warn)':'var(--ok)';
+  let _cardSaldo='<div class="card">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">'
+    +'<div><h2 style="font-size:16px;margin-bottom:2px">Saldo do Investimento</h2>'
+    +'<div class="sub">'+_saldoLabel+'</div></div>'
+    +'<div style="text-align:right"><div style="font-size:30px;font-weight:900;color:var(--'+_saldoClass+')">'+fmt(_saldoInv)+'</div></div></div>'
+    +'<div class="invgrid">'
+    +'<div class="invc"><div class="nm">Investimento</div><div class="v">'+fmt(_invBase)+'</div></div>'
+    +'<div class="invc"><div class="nm">Utilizado</div><div class="v acc">'+fmt(o.pago)+'</div><div class="pc">'+_usadoPct2+'%</div></div>'
+    +'<div class="invc"><div class="nm">Saldo</div><div class="v '+_saldoClass+'">'+fmt(_saldoInv)+'</div></div>'
+    +'</div>'
+    +'<div style="margin-top:12px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Uso do investimento</span><span>'+_usadoPct2+'%</span></div>'
+    +'<div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden">'
+    +'<div style="height:100%;width:'+_usadoPct2+'%;background:'+_saldoBarColor+';border-radius:4px;transition:width .5s"></div></div></div>'
+    +'</div>';
+
+  // ── CARD 4: Gastos da escola (só se houver) ───────────────────────
+  let _cardEscola='';
   if(_pagoExtra>0){
-    _kpiHtml+='<div class="kpi"><div class="lab">Gastos da escola</div><div class="val warn">'+fmt(_pagoExtra)+'</div>'
-      +'<div class="sub">fora do investimento</div></div>';
-  }
-  _kpiHtml+='</div>';
-
-  // Card de investidores (só aparece se houver)
-  let _invCard='';
-  if(_invList.length>0){
-    _invCard='<div class="card" style="margin-top:0"><h2 style="font-size:15px;margin-bottom:4px">Investidores / Fontes</h2>'
-      +'<div class="sub" style="margin-bottom:12px">Contribuição e saldo disponível por investidor</div>'
-      +'<div class="invgrid">';
-    _invList.slice().sort(function(a,b){return b.aportado-a.aportado;}).forEach(function(s){
-      const saldo=s.aportado-s.utilizado;
-      const sc=saldo<0?'dg':saldo<s.aportado*0.1?'warn':'ok';
-      _invCard+='<div class="invc"><div class="nm">'+s.nome+'</div>'
-        +'<div class="v">'+fmt(s.aportado)+'</div>'
-        +'<div class="pc" style="color:var(--'+sc+')">saldo '+fmt(saldo)+'</div></div>';
-    });
-    _invCard+='</div></div>';
+    _cardEscola='<div class="card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">'
+      +'<div><h2 style="font-size:16px;margin-bottom:2px">Gastos da Escola</h2>'
+      +'<div class="sub">Valores pagos com caixa próprio da escola — fora do investimento</div></div>'
+      +'<div style="text-align:right"><div style="font-size:28px;font-weight:900;color:var(--warn)">'+fmt(_pagoExtra)+'</div>'
+      +'<div class="sub">não impacta o saldo do investimento</div></div>'
+      +'</div></div>';
   }
 
-  document.getElementById("o-kpis").innerHTML=_kpiHtml+_invCard;
+  document.getElementById("o-kpis").innerHTML=_cardConstr+_cardInv+_cardSaldo+_cardEscola;
 
   const bar=document.getElementById("o-bar");bar.className=barClass(pct);bar.style.width=Math.min(pct,100)+"%";
 
