@@ -6979,7 +6979,7 @@ async function persist(obraId){
 
       await db.from('contratos').delete().eq('obra_id',o.id);
 
-      if(o.contratos.length)await db.from('contratos').insert(o.contratos.map(c=>({obra_id:o.id,forn:c.forn||'',escopo:c.escopo||'',v:c.v||0,pago:c.pago||0,seq:c.seq||0,numero:c.nome_contr||c.numero||'',nome_contr:c.nome_contr||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:c.parcelas_contr||[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||'')));
+      if(o.contratos.length)await db.from('contratos').insert(o.contratos.map(c=>({obra_id:o.id,forn:c.forn||'',escopo:c.escopo||'',v:c.v||0,pago:c.pago||0,seq:c.seq||0,numero:c.nome_contr||c.numero||'',nome_contr:c.nome_contr||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:c.parcelas_contr||[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||''})));
 
     }
 
@@ -7053,7 +7053,7 @@ async function loadFromDB(){
 
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
 
-      contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||''))
+      contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||''}))
 
     }));
 
