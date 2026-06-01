@@ -2234,7 +2234,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 <script>
 
-const fmt=n=>"R$ "+Math.round(n).toLocaleString("pt-BR");
+const fmt=n=>"R$ "+(+n||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 
 const HOJE=new Date();
 
