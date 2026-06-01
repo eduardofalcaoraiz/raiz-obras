@@ -3039,20 +3039,20 @@ function renderEscolas(){
     const bc=brandColor(marca);const bl=brandLight(marca);
     const emb=brandEmblem(marca);
     html+=`<div class="esc-section">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid ${bc}22">
-        <div style="height:38px;min-width:62px;border-radius:8px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;border:2px solid ${bc}30;padding:4px 8px">${emb}</div>
-        <span style="font-size:17px;font-weight:700;color:${bc};font-family:'Fraunces',serif">${marca}</span>
-        <span style="font-size:13px;color:var(--muted);margin-left:4px">${list.length} unidade${list.length!==1?'s':''}</span>
+      <div class="brand-section-header" style="background:${bc}">
+        <div class="bsh-logo">${(()=>{const _lu=getBrandLogoUrl(marca);return _lu?`<img src="${_lu}" style="height:38px;width:auto;max-width:64px;object-fit:contain" alt="${marca}">`:`${emb}`;})()}</div>
+        <div class="bsh-info"><div class="bsh-name">${marca}</div><div class="bsh-sub">${list.length} unidade${list.length!==1?'s':''}</div></div>
+        <div class="bsh-fade"></div>
       </div>
-
-      <div class="esc-grid">`;
+      <div class="uni-grid">`;
     list.forEach(u=>{
       const obraVinc=u.obraId?obras.find(o=>o.id===u.obraId):null;
       const totalPago=obraVinc?obraVinc.pago:0;
       const pct=obraVinc&&obraVinc.contratado>0?Math.min((obraVinc.pago/obraVinc.contratado*100),100).toFixed(0):null;
-      html+=`<div class="esc-card" style="border-left:4px solid ${bc}">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><span style="display:inline-flex;background:white;border-radius:5px;padding:1px 3px;overflow:hidden;height:18px;width:28px;align-items:center;flex-shrink:0;border:1px solid ${bc}22">${brandLogoImg(marca,'height:15px;width:24px;object-fit:contain')}</span><div class="esc-card-nome" style="margin-bottom:0">${u.nome}</div></div>
+      html+=`<div class="uni-card">
+        <div class="uc-bar" style="background:${bc}"></div>
+        <div class="uc-body">
+          <div class="uc-head"><span class="uc-logo">${brandLogoImg(marca,'height:15px;width:26px;object-fit:contain')}</span><div class="uc-nome">${u.nome}</div></div>
           <span class="badge ${u.tipo==='Em obra'?'b-info':u.tipo==='Inativa'?'b-neutral':'b-ok'}" style="font-size:11px">${u.tipo||'Em operação'}</span>
           ${u.cnpj?`<div style="font-size:12px;color:var(--muted);margin-top:5px">CNPJ: <span class="num">${u.cnpj}</span></div>`:''}
           ${u.endereco?`<div style="font-size:12px;color:var(--muted);margin-top:3px">📍 ${u.endereco}</div>`:''}
@@ -3065,7 +3065,8 @@ function renderEscolas(){
             <div style="font-size:10.5px;color:var(--muted);margin-top:2px;text-align:right">${pct}% executado</div>`:''}
           </div>`:''}
         </div>
-        <div class="esc-card-acts">
+          </div>
+        <div class="uc-acts">
           ${obraVinc?`<button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:12px;color:var(--accent)" title="Ver obra" onclick="openObra(${obraVinc.id})">🏗</button>`:''}
           <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:13px" title="Editar" onclick="openUniModal('${u.id}')">✎</button>
           <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:13px;color:var(--danger)" title="Excluir" onclick="deleteEscola('${u.id}')">✕</button>
