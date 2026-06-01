@@ -3193,6 +3193,39 @@ async function saveUni(){
   toast(uniEditId?"Escola atualizada":"Escola criada");
 }
 
+/* ===== excluir escola ===== */
+async function deleteEscola(id){
+  if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}
+  const u=unidades.find(x=>x.id===id);
+  if(!u)return;
+  const hasDocs=Object.values(u.docs||{}).some(arr=>arr.length>0);
+  const msg=hasDocs
+    ?`Excluir "${u.nome}"? Esta escola tem documentos anexados que também serão removidos. Esta ação não pode ser desfeita.`
+    :`Excluir "${u.nome}"? Esta ação não pode ser desfeita.`;
+  askConfirm(msg,async()=>{
+    // Remove documentos do storage se houver
+    if(hasDocs){
+      for(const arr of Object.values(u.docs||{})){
+        for(const d of arr){
+          if(d.storagePath)await db.storage.from('documentos').remove([d.storagePath]).catch(()=>{});
+          if(d.dbId)await db.from('documentos_unidade').delete().eq('id',d.dbId).catch(()=>{});
+        }
+      }
+    }
+    const{error}=await db.from('unidades').delete().eq('id',id);
+    if(error){toast('Erro ao excluir: '+error.message);return;}
+    // Desvincular obra se tiver
+    if(u.obraId){const ob=obras.find(o=>o.id===u.obraId);if(ob){/* obra continua, escola é que sumiu */}}
+    // Sync obra aberta
+    if(cur){const _eu=unidades.find(u2=>u2.id===id);if(_eu&&_eu.obraId===cur.id)renderObra();}
+    unidades=unidades.filter(x=>x.id!==id);
+    renderEscolas();
+    renderDocs();
+    updateNavBadge();
+    toast(`"${u.nome}" excluída com sucesso.`);
+  });
+}
+
 /* ===== categorias ===== */
 let catEditId=null;
 function openCatModal(id){
