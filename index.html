@@ -4930,6 +4930,9 @@ function renderMatServ(){
 
 
 function setPagFiltro(f){pagFiltro=f;pagPage=0;renderPag();}
+function drillPag(escopo){pagEscopo=escopo;pagExpanded=new Set();pagBusca="";renderPag();}
+function backPag(){pagEscopo=null;pagExpanded=new Set();renderPag();}
+function togglePagRow(i){pagExpanded.has(i)?pagExpanded.delete(i):pagExpanded.add(i);renderPag();}
 
 function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfDoc.name.slice(0,14)+"…":p.nfDoc.name;nf=`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${nm} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:10.5px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${p.nota?("NF "+p.nota):(p.nfTipo||"NF")}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
 
@@ -4938,6 +4941,8 @@ function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfD
   return `<div style="display:flex;flex-direction:column;gap:3px;font-size:11.5px;min-width:155px"><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">NF</b> ${nf}</span><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Pgto</b> ${comp}</span></div>`;}
 
 let pagBusca="",pagDe="",pagAte="",pagPage=0;
+let pagEscopo=null; // null=resumo | 'obra' | 'extra'
+let pagExpanded=new Set(); // indices expandidos
 
 const PAGE_SIZE=30;
 
@@ -4960,133 +4965,161 @@ function _monthLabel(k){if(k==='sem-data')return'Sem data definida';const[y,m]=k
 
 
 function renderPag(){const o=cur;
-  // Filtragem base (filtros e busca)
-  let allRows=o.pag.map((p,i)=>({p,i}));
-  if(pagFiltro==="pagos")allRows=allRows.filter(r=>r.p.st==="PAGO");
-  else if(pagFiltro==="atraso")allRows=allRows.filter(r=>isAtraso(r.p));
-  else if(pagFiltro==="pend")allRows=allRows.filter(r=>r.p.st!=="PAGO");
-  if(pagDe)allRows=allRows.filter(r=>!r.p.venc||r.p.venc>=pagDe);
-  if(pagAte)allRows=allRows.filter(r=>!r.p.venc||r.p.venc<=pagAte);
-  const q=pagBusca.trim().toLowerCase();
-  if(q)allRows=allRows.filter(r=>((r.p.ben||"")+" "+(r.p.ref||"")+" "+(r.p.nfNum||"")).toLowerCase().includes(q));
-
-  const rowsObra=allRows.filter(r=>!r.p.escopoFin||r.p.escopoFin==="obra");
-  const rowsExtra=allRows.filter(r=>r.p.escopoFin==="extra");
-
-  const fb=(f,l)=>`<button class="chip ${pagFiltro===f?'active':''}" onclick="setPagFiltro('${f}')">${l}</button>`;
   const sumPago=rows=>rows.filter(r=>r.p.st==='PAGO').reduce((a,r)=>a+r.p.v,0);
   const sumPend=rows=>rows.filter(r=>r.p.st!=='PAGO').reduce((a,r)=>a+r.p.v,0);
+  const allPag=o.pag.map((p,i)=>({p,i}));
+  const allObra=allPag.filter(r=>!r.p.escopoFin||r.p.escopoFin==='obra');
+  const allExtra=allPag.filter(r=>r.p.escopoFin==='extra');
 
-  const rowFn=({p,i})=>{
-    const atr=isAtraso(p);
-    const nfNum=p.nfNum||'';
-    const nfBadge=p.nfTipo==='Adiantamento'?`<span class="badge b-warn" style="font-size:10px">💸 Adiant.</span>`:p.nfTipo==='Sem nota'?`<span style="font-size:11px;color:var(--soft)">sem NF</span>`:p.nfTipo?`<span class="badge b-doc" style="font-size:10px">${p.nfTipo}</span>`:'';
-    const nfFile=p.nfDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">📄 ver NF</button>`:p.nfTipo==='Adiantamento'?`<button class="linkbtn" onclick="anexarNF(${o.id},${i})">📎 anexar NF</button>`:p.nfTipo&&p.nfTipo!=='Sem nota'?`<button class="linkbtn" onclick="anexarNF(${o.id},${i})">📎 anexar</button>`:'';
-    const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾 comp</button>`:`<button class="linkbtn" style="color:var(--muted)" onclick="anexarComp(${o.id},${i})">+ comp</button>`;
-    const tc=getTipoCusto(p);
-    const custoTag=tc?`<span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;background:${CUSTO_BG[tc]};color:${CUSTO_COLOR[tc]};border:1px solid ${CUSTO_COLOR[tc]}33">${CUSTO_LABEL[tc]}</span>`:'';
-    const cVinc=p.contratoSeq?o.contratos.find(c=>c.seq===p.contratoSeq):null;
-    const contrTag=cVinc?`<span style="font-size:10px;background:var(--info-bg);color:var(--info);padding:2px 8px;border-radius:10px;border:1px solid var(--info)33">📋 ${cVinc.forn.slice(0,22)}${cVinc.numero?' Nº'+cVinc.numero:''}</span>`:'';
-    const markBtn=(p.st==='PENDENTE'||atr)?`<button onclick="marcarPagoLista(${o.id},${i})" style="background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok);border-radius:8px;font-size:11px;padding:3px 9px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap;opacity:.85">✓ Marcar pago</button>`:'';
-    const adiantWarn=p.nfTipo==='Adiantamento'&&!p.nfDoc?`<span style="font-size:10px;color:var(--warn);background:var(--warn-bg);padding:2px 7px;border-radius:10px">⚠ NF aguardada</span>`:'';
-    const obsIcon=p.obs?`<span style="color:var(--info);cursor:help;font-size:13px" title="${(p.obs||'').replace(/"/g,'&quot;')}">💬</span>`:'';
-    return`<div class="pag-row ${atr?'pag-atraso':p.st==='PENDENTE'?'pag-pend':''}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:${p.ref?'4px':'0'}">
-            <span style="font-size:11px;color:var(--muted);font-family:'Spline Sans Mono',monospace">#${i+1}</span>
-            <span style="font-weight:700;font-size:15px">${p.ben}</span>
-            ${obsIcon}${stPag(p)}
-            ${atr?`<span class="flag">${diasAtraso(p)}d em atraso</span>`:''}
-            ${adiantWarn}
+  // ── NÍVEL 1: Dois cards de resumo clicáveis ──────────────────────
+  if(!pagEscopo){
+    const summaryCard=(rows,allRows,titulo,icon,escopo,accentColor)=>{
+      const tp=sumPago(allRows),tpe=sumPend(allRows),natr=allRows.filter(r=>isAtraso(r.p)).length;
+      return`<div class="card" onclick="drillPag('${escopo}')" style="cursor:pointer;border-top:4px solid ${accentColor};transition:box-shadow .15s;padding:22px 24px" onmouseenter="this.style.boxShadow='0 6px 24px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+          <div>
+            <div style="font-size:22px;font-weight:800;color:${accentColor};margin-bottom:2px">${icon} ${titulo}</div>
+            <div style="font-size:13px;color:var(--muted)">${allRows.length} lançamento${allRows.length!==1?'s':''}</div>
           </div>
-          ${p.ref?`<div style="font-size:13px;color:var(--ink);margin-bottom:6px;padding-left:30px">${p.ref}</div>`:''}
-          <div class="pag-meta" style="padding-left:30px">
-            ${p.emissao?`<span title="Emissão" style="color:var(--muted)">🗒 ${fmtD(p.emissao)}</span>`:''}
-            ${p.venc?`<span title="Previsão de pagamento">📅 ${fmtD(p.venc)}</span>`:''}
-            ${p.pagaEm&&p.st==='PAGO'?`<span title="Pago em" style="color:var(--ok);font-weight:600">✓ ${fmtD(p.pagaEm)}</span>`:''}
-            ${p.pagn&&p.pagn!=='—'?`<span class="badge b-neutral" style="font-size:10.5px">👤 ${p.pagn}</span>`:''}
-            ${nfNum?`<span style="font-family:'Spline Sans Mono',monospace;font-size:11px;background:var(--surface-2);padding:2px 7px;border-radius:5px;border:1px solid var(--line);color:var(--muted)">${nfNum}</span>`:''}
-            ${custoTag}${contrTag}${nfBadge}${nfFile}${comp}${markBtn}
-            <button class="iconbtn" title="Editar" onclick="openPagModal(${i})">✎</button>
-            <button class="iconbtn" title="Excluir" onclick="deletePagment(${o.id},${i})" style="color:var(--danger)">🗑</button>
+          <span style="font-size:22px;opacity:.25">${icon}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(${natr?3:2},1fr);gap:12px;margin-bottom:18px">
+          <div style="background:var(--ok-bg);border-radius:var(--r);padding:12px"><div style="font-size:10.5px;color:var(--ok);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:4px">Pago</div><div style="font-size:18px;font-weight:800;color:var(--ok)">${fmt(tp)}</div></div>
+          <div style="background:${tpe>0?'var(--warn-bg)':'var(--surface-2)'};border-radius:var(--r);padding:12px"><div style="font-size:10.5px;color:${tpe>0?'var(--warn)':'var(--muted)'};text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:4px">Pendente</div><div style="font-size:18px;font-weight:800;color:${tpe>0?'var(--warn)':'var(--muted)'}">${fmt(tpe)}</div></div>
+          ${natr?`<div style="background:var(--danger)10;border-radius:var(--r);padding:12px"><div style="font-size:10.5px;color:var(--danger);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:4px">Em atraso</div><div style="font-size:18px;font-weight:800;color:var(--danger)">${natr} pgto${natr!==1?'s':''}</div></div>`:''}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-top:14px;border-top:1px solid var(--line)">
+          <span style="font-size:13.5px;color:${accentColor};font-weight:600">Ver lançamentos →</span>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();drillPag('${escopo}');setTimeout(()=>openPagModal(),100)" style="font-size:12px;padding:5px 12px">＋ Lançar aqui</button>
+        </div>
+      </div>`;
+    };
+    document.getElementById("pane-pag").innerHTML=`
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+        <button class="btn btn-primary btn-sm" onclick="openPagModal()"><span class="ic">＋</span> Novo lançamento</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px">
+        ${summaryCard(allObra,allObra,'Dentro da Obra','🏗','obra','var(--accent)')}
+        ${summaryCard(allExtra,allExtra,'Fora da Obra','📤','extra','var(--warn)')}
+      </div>`;
+    return;
+  }
+
+  // ── NÍVEL 2: Lista detalhada da seção selecionada ─────────────────
+  const isObra=pagEscopo==='obra';
+  const accentColor=isObra?'var(--accent)':'var(--warn)';
+  const icon=isObra?'🏗':'📤';
+  const titulo=isObra?'Dentro da Obra':'Fora da Obra';
+
+  // Aplicar filtros e busca
+  let rows=(isObra?allObra:allExtra);
+  if(pagFiltro==="pagos")rows=rows.filter(r=>r.p.st==="PAGO");
+  else if(pagFiltro==="atraso")rows=rows.filter(r=>isAtraso(r.p));
+  else if(pagFiltro==="pend")rows=rows.filter(r=>r.p.st!=="PAGO");
+  if(pagDe)rows=rows.filter(r=>!r.p.venc||r.p.venc>=pagDe);
+  if(pagAte)rows=rows.filter(r=>!r.p.venc||r.p.venc<=pagAte);
+  const q=pagBusca.trim().toLowerCase();
+  if(q)rows=rows.filter(r=>((r.p.ben||"")+" "+(r.p.ref||"")+" "+(r.p.nfNum||"")).toLowerCase().includes(q));
+
+  const fb=(f,l)=>`<button class="chip ${pagFiltro===f?'active':''}" onclick="setPagFiltro('${f}')">${l}</button>`;
+  const tp=sumPago(rows),tpe=sumPend(rows);
+
+  // Row expansível
+  const expandableRow=({p,i})=>{
+    const atr=isAtraso(p);
+    const exp=pagExpanded.has(i);
+    const stColor=atr?'var(--danger)':p.st==='PAGO'?'var(--ok)':'var(--warn)';
+    const stLabel=atr?`⚠ ${diasAtraso(p)}d em atraso`:p.st==='PAGO'?'✓ Pago':'⏳ Pendente';
+    const cat=catById(p.cat);
+    const cVinc=p.contratoSeq?o.contratos.find(c=>c.seq===p.contratoSeq):null;
+    const tc=getTipoCusto(p);
+    const markBtn=(p.st==='PENDENTE'||atr)?`<button onclick="event.stopPropagation();marcarPagoLista(${o.id},${i})" class="btn btn-sm" style="background:var(--ok-bg);color:var(--ok);border-color:var(--ok);font-size:12px">✓ Marcar pago</button>`:'';
+
+    const detalhes=exp?`
+      <div style="padding:16px 20px 16px 48px;background:var(--surface-2);border-top:1px solid var(--line)">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px 24px;margin-bottom:16px">
+          ${p.ref?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Referência / Descrição</div><div style="font-size:13.5px">${p.ref}</div></div>`:''}
+          ${p.emissao?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Emissão da nota</div><div style="font-size:13.5px">🗒 ${fmtD(p.emissao)}</div></div>`:''}
+          ${p.venc?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Previsão de pagamento</div><div style="font-size:13.5px">📅 ${fmtD(p.venc)}</div></div>`:''}
+          ${p.pagaEm&&p.st==='PAGO'?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Pago em</div><div style="font-size:13.5px;color:var(--ok);font-weight:600">✓ ${fmtD(p.pagaEm)}</div></div>`:''}
+          ${p.pagn?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Pago por</div><div style="font-size:13.5px">👤 ${p.pagn}</div></div>`:''}
+          ${cat&&cat.nome!=='(removida)'?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Categoria</div><div style="font-size:13.5px">🏷 ${cat.nome}</div></div>`:''}
+          ${tc?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Tipo de custo</div><div style="font-size:13px"><span style="padding:2px 8px;border-radius:10px;font-weight:600;background:${CUSTO_BG[tc]};color:${CUSTO_COLOR[tc]};border:1px solid ${CUSTO_COLOR[tc]}33">${CUSTO_LABEL[tc]}</span></div></div>`:''}
+          ${cVinc?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Contrato vinculado</div><div style="font-size:13px;color:var(--info)">📋 ${cVinc.nome_contr||cVinc.forn}</div></div>`:''}
+          ${p.nfTipo?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Documento fiscal</div><div style="font-size:13.5px">${p.nfTipo}${p.nfNum?' · Nº '+p.nfNum:''}</div></div>`:''}
+          ${p.obs?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Observações</div><div style="font-size:13px;color:var(--ink)">${p.obs}</div></div>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)">
+          ${p.nfDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">📄 Ver NF</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarNF(${o.id},${i})">📎 Anexar NF</button>`}
+          ${p.compDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾 Ver comprovante</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarComp(${o.id},${i})">🧾 Anexar comprovante</button>`}
+          ${markBtn}
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openPagModal(${i})">✎ Editar</button>
+            <button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)99" onclick="event.stopPropagation();deletePagment(${o.id},${i})">Excluir</button>
+          </div>
+        </div>
+      </div>`:'' ;
+
+    return`<div style="border-bottom:1px solid var(--line)">
+      <div onclick="togglePagRow(${i})" style="display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;${atr?'background:var(--danger)06;':''}transition:background .1s" onmouseenter="this.style.background=this.style.background||'var(--surface-2)'" onmouseleave="this.style.background=${atr?"'var(--danger)06'":"''"} ">
+        <span style="font-size:12px;color:var(--muted);transition:transform .2s;display:inline-block;transform:rotate(${exp?90:0}deg)">▶</span>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-weight:700;font-size:15px">${p.ben}</span>
+            <span style="font-size:11.5px;font-weight:600;color:${stColor};background:${stColor}14;padding:2px 8px;border-radius:12px;border:1px solid ${stColor}33">${stLabel}</span>
+            ${p.nfTipo&&p.nfTipo!=='Sem nota'?`<span style="font-size:11px;color:var(--muted)">${p.nfTipo}</span>`:''}
+          </div>
+          <div style="font-size:12.5px;color:var(--muted);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap">
+            ${p.venc?`<span>📅 ${fmtD(p.venc)}</span>`:''}
+            ${p.pagn&&p.pagn!=='—'?`<span>👤 ${p.pagn}</span>`:''}
+            ${cat&&cat.nome!=='(removida)'&&cat.nome!=='outros'?`<span>🏷 ${cat.nome}</span>`:''}
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="font-size:20px;font-weight:800;font-family:'Spline Sans Mono',monospace;white-space:nowrap">${fmt(p.v)}</div>
         </div>
       </div>
+      ${detalhes}
     </div>`;
   };
 
-  // Row compacta para uso nos cards lado a lado
-  const compactRow=({p,i})=>{
-    const atr=isAtraso(p);
-    const nfFile=p.nfDoc?`<button class="linkbtn" style="font-size:11px" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">📄</button>`:p.nfTipo&&p.nfTipo!=='Sem nota'&&p.nfTipo!=='Adiantamento'?`<button class="linkbtn" style="font-size:11px;color:var(--muted)" onclick="anexarNF(${o.id},${i})">📎</button>`:'';
-    const comp=p.compDoc?`<button class="linkbtn" style="font-size:11px" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾</button>`:`<button class="linkbtn" style="font-size:11px;color:var(--line-2)" onclick="anexarComp(${o.id},${i})">+🧾</button>`;
-    const markBtn=(p.st==='PENDENTE'||atr)?`<button onclick="marcarPagoLista(${o.id},${i})" style="background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok);border-radius:6px;font-size:10.5px;padding:2px 7px;cursor:pointer;font-weight:600;white-space:nowrap">✓</button>`:'';
-    const stColor=atr?'var(--danger)':p.st==='PAGO'?'var(--ok)':'var(--warn)';
-    const stIcon=atr?'⚠':p.st==='PAGO'?'✓':'⏳';
-    const cVinc=p.contratoSeq?o.contratos.find(c=>c.seq===p.contratoSeq):null;
-    return`<div style="padding:9px 12px;border-bottom:1px solid var(--line);${atr?'background:var(--danger)08;':''}">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:3px">
-        <span style="font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${p.ben}</span>
-        <span style="font-weight:800;font-size:14px;font-family:'Spline Sans Mono',monospace;white-space:nowrap;color:${stColor}">${fmt(p.v)}</span>
-      </div>
-      ${p.ref?`<div style="font-size:12px;color:var(--muted);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.ref}</div>`:''}
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <span style="font-size:11px;color:${stColor};font-weight:600">${stIcon} ${p.st==='PAGO'&&p.pagaEm?fmtD(p.pagaEm):p.venc?fmtD(p.venc):'—'}</span>
-        ${p.pagn&&p.pagn!=='—'?`<span style="font-size:10.5px;color:var(--muted)">· ${p.pagn}</span>`:''}
-        ${cVinc?`<span style="font-size:10px;color:var(--info)">📋 ${cVinc.nome_contr?.slice(0,18)||cVinc.forn?.slice(0,18)}</span>`:''}
-        <span style="margin-left:auto;display:flex;gap:3px;align-items:center">${nfFile}${comp}${markBtn}<button class="iconbtn" style="font-size:12px" title="Editar" onclick="openPagModal(${i})">✎</button><button class="iconbtn" style="font-size:12px;color:var(--danger)" title="Excluir" onclick="deletePagment(${o.id},${i})">🗑</button></span>
-      </div>
-    </div>`;
-  };
+  const byM={};rows.forEach(r=>{const k=r.p.venc?r.p.venc.slice(0,7):'sem-data';if(!byM[k])byM[k]=[];byM[k].push(r);});
+  const months=Object.keys(byM).sort((a,b)=>a==='sem-data'?1:b==='sem-data'?-1:b.localeCompare(a));
 
-  const buildCard=(rows,titulo,icon,accentColor)=>{
-    const tp=sumPago(rows),tpe=sumPend(rows),natr=rows.filter(r=>isAtraso(r.p)).length;
-    const byM={};rows.forEach(r=>{const k=r.p.venc?r.p.venc.slice(0,7):'sem-data';if(!byM[k])byM[k]=[];byM[k].push(r);});
-    const months=Object.keys(byM).sort((a,b)=>a==='sem-data'?1:b==='sem-data'?-1:b.localeCompare(a));
-    const bodyHtml=rows.length===0
-      ?`<div style="padding:32px 16px;text-align:center;color:var(--muted);font-size:13px">${icon} Nenhum pagamento${pagFiltro!=='todos'?' com este filtro':''}</div>`
-      :months.map(k=>{
-          const mr=byM[k];const mt=mr.reduce((a,r)=>a+r.p.v,0);
-          return`<div><div style="padding:7px 12px;background:var(--surface-2);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">${k==='sem-data'?'Sem data':_monthLabel(k)}</span><span style="font-size:11.5px;font-weight:700">${fmt(mt)}</span></div>${mr.map(r=>compactRow(r)).join('')}</div>`;
-        }).join('');
-    return`<div class="card" style="border-top:3px solid ${accentColor};padding:0;overflow:hidden;display:flex;flex-direction:column">
-      <div style="padding:14px 16px;border-bottom:1px solid var(--line);background:${accentColor}08">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-size:15px;font-weight:700">${icon} ${titulo}</span>
-          <span style="font-size:12px;color:var(--muted)">${rows.length} lançamento${rows.length!==1?'s':''}</span>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr${natr?' 1fr':''}">
-          <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Pago</div><div style="font-size:18px;font-weight:800;color:var(--ok)">${fmt(tp)}</div></div>
-          <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Pendente</div><div style="font-size:18px;font-weight:800;color:${tpe>0?'var(--warn)':'var(--muted)'}">${fmt(tpe)}</div></div>
-          ${natr?`<div><div style="font-size:10px;color:var(--danger);text-transform:uppercase;letter-spacing:.4px">Em atraso</div><div style="font-size:18px;font-weight:800;color:var(--danger)">${natr}</div></div>`:''}
-        </div>
-      </div>
-      <div style="overflow-y:auto;max-height:65vh;flex:1">${bodyHtml}</div>
-    </div>`;
-  };
+  const listHtml=rows.length===0
+    ?`<div style="padding:40px;text-align:center;color:var(--muted)"><div style="font-size:40px;margin-bottom:10px">${icon}</div><p>Nenhum lançamento${pagFiltro!=='todos'?' com este filtro':''}</p></div>`
+    :months.map(k=>{
+        const mr=byM[k];const mt=mr.reduce((a,r)=>a+r.p.v,0);
+        return`<div>
+          <div style="padding:8px 20px;background:var(--surface-2);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1">
+            <span style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">${k==='sem-data'?'Sem data definida':_monthLabel(k)}</span>
+            <span style="font-size:13px;font-weight:700">${fmt(mt)}</span>
+          </div>
+          ${mr.map(r=>expandableRow(r)).join('')}
+        </div>`;
+      }).join('');
 
   document.getElementById("pane-pag").innerHTML=`
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-    ${fb("todos","Todos")} ${fb("pagos","✓ Pagos")} ${fb("pend","⏳ Pendentes")} ${fb("atraso","⚠ Atraso")}
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+    <button class="btn btn-ghost btn-sm" onclick="backPag()" style="font-size:13px">← Voltar</button>
+    <span style="font-size:17px;font-weight:700;color:${accentColor}">${icon} ${titulo}</span>
+    <div style="display:flex;gap:6px;align-items:center;margin-left:8px">
+      ${tp>0?`<span style="font-size:13px;font-weight:700;color:var(--ok)">Pago: ${fmt(tp)}</span>`:''}
+      ${tpe>0?`<span style="font-size:13px;font-weight:700;color:var(--warn)">Pendente: ${fmt(tpe)}</span>`:''}
+    </div>
     <div style="flex:1"></div>
-    <input class="fi" id="pag-busca" style="flex:1;min-width:140px;max-width:240px;padding:7px 11px;font-size:13px" placeholder="Buscar…" value="${pagBusca.replace(/"/g,'&quot;')}" oninput="setPagBusca(this.value)">
-    <input class="fi" type="date" style="width:122px;padding:6px 10px;font-size:12.5px" value="${pagDe}" onchange="setPagDe(this.value)">
-    <input class="fi" type="date" style="width:122px;padding:6px 10px;font-size:12.5px" value="${pagAte}" onchange="setPagAte(this.value)">
+    <input class="fi" id="pag-busca" style="flex:1;min-width:140px;max-width:220px;padding:7px 11px;font-size:13px" placeholder="Buscar…" value="${pagBusca.replace(/"/g,'&quot;')}" oninput="setPagBusca(this.value)">
     <button class="btn btn-sm" onclick="exportCSV()">↓ CSV</button>
     <button class="btn btn-primary btn-sm" onclick="openPagModal()"><span class="ic">＋</span> Lançar</button>
   </div>
-
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;align-items:start">
-    ${buildCard(rowsObra,'Dentro da Obra','🏗','var(--accent)')}
-    ${buildCard(rowsExtra,'Fora da Obra','📤','var(--warn)')}
-  </div>`;
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+    ${fb("todos","Todos")} ${fb("pagos","✓ Pagos")} ${fb("pend","⏳ Pendentes")} ${fb("atraso","⚠ Atraso")}
+    <input class="fi" type="date" style="width:120px;padding:5px 9px;font-size:12.5px;margin-left:auto" value="${pagDe}" onchange="setPagDe(this.value)" title="De">
+    <input class="fi" type="date" style="width:120px;padding:5px 9px;font-size:12.5px" value="${pagAte}" onchange="setPagAte(this.value)" title="Até">
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">${listHtml}</div>`;
 
   if(pagBusca){const sb=document.getElementById("pag-busca");if(sb){const e=sb.value.length;sb.focus();sb.setSelectionRange(e,e);}}
-
 }
 
 
