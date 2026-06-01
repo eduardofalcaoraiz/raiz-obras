@@ -2586,76 +2586,40 @@ function renderDocs(){
 async function openUni(id){curUni=unidades.find(u=>u.id===id);curUni.docs={};const{data}=await db.from('documentos_unidade').select('*').eq('unidade_id',id);if(data)data.forEach(d=>{(curUni.docs[d.cat_id]=curUni.docs[d.cat_id]||[]).push({dbId:d.id,name:d.name,dataUrl:d.data_url||null,storagePath:d.storage_path||null,type:d.type});});renderUni();go("uni");}
 function renderUni(){const u=curUni;document.getElementById("u-crumb").innerHTML=`<span style="display:inline-flex;align-items:center;gap:7px;background:${brandLight(u.marca)};border:1.5px solid ${brandColor(u.marca)}44;border-radius:20px;padding:3px 10px 3px 4px"><span style="display:inline-flex;background:white;border-radius:5px;overflow:hidden;height:20px;width:32px;align-items:center;flex-shrink:0;border:1px solid ${brandColor(u.marca)}22">${brandLogoImg(u.marca,'height:16px;width:28px;object-fit:contain')}</span><span style="font-size:12px;font-weight:600;color:${brandColor(u.marca)}">${u.marca}</span></span>`;document.getElementById("u-nome").textContent=u.nome;const _uobra=u.obraId?obras.find(x=>x.id===u.obraId):null;document.getElementById("u-meta").innerHTML=`<span class="badge ${u.tipo==='Em obra'?'b-info':'b-ok'}">${u.tipo||'Em operação'}</span>${_uobra?` <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="openObra(${_uobra.id})">↗ ${_uobra.nome}</button>`:""}`;
   const dlOf=(arr,cid)=>arr.length?arr.map((d,idx)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><button onclick="viewUniDoc('${cid}',${idx})" style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink);background:none;border:0;font-weight:500;min-width:0;text-align:left;padding:0;cursor:pointer"><span style="color:var(--accent)">📄</span> <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.name}</span></button><span style="display:flex;gap:6px;flex:none"><button class="btn btn-sm" onclick="viewUniDoc('${cid}',${idx})">Ver</button><button class="btn btn-sm" onclick="downloadDoc('${cid}',${idx})">Baixar</button><button class="iconbtn" title="Excluir" onclick="deleteDoc('${cid}',${idx})">🗑</button></span></div>`).join(""):'<div style="font-size:13px;color:var(--soft);padding:5px 0">Nenhum documento.</div>';
-  // Categorias padrão do sistema (não excluíveis globalmente)
-  const DEFAULT_CAT_IDS=['proj','legal','demo','mat','mo','equip','cant','topog','sond','imovel','arts','locacao','taxa','outros'];
-  // Mostra: categorias com documentos + categorias personalizadas (sempre) + padrão vazia só se tiver sido usada
+  // Só mostra categorias com documentos nesta unidade OU personalizadas (criadas pelo usuário)
+  // Sem pastas padrão — cada unidade é organizada pelo Eduardo no dia a dia
   const catsToShow=CATS.filter(c=>{
-    const docs=u.docs[c.id]||[];
-    if(docs.length>0)return true; // sempre mostra se tem docs
-    if(!DEFAULT_CAT_IDS.includes(c.id))return true; // personalizada: sempre mostra
-    return false; // padrão vazia: oculta
+    const hasDocs=(u.docs[c.id]||[]).length>0;
+    const isCustom=c.id.startsWith('cat_');
+    return hasDocs||isCustom;
   });
-  const emptyDefaultCount=CATS.filter(c=>DEFAULT_CAT_IDS.includes(c.id)&&!(u.docs[c.id]||[]).length).length;
-  document.getElementById("uni-cats").innerHTML=(catsToShow.length?catsToShow:CATS).map(c=>{
+  const emptyMsg=catsToShow.length===0
+    ?'<div style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">📂</div><p style="font-size:14px;margin-bottom:6px">Nenhuma pasta criada ainda.</p><p style="font-size:13px">Crie uma pasta clicando em <b>＋ Criar categoria</b> no topo desta página.</p></div>'
+    :'';
+  document.getElementById("uni-cats").innerHTML=emptyMsg+catsToShow.map(c=>{
     const docs=u.docs[c.id]||[];
-    const isDefault=DEFAULT_CAT_IDS.includes(c.id);
-    const deleteBtn=`<button class="iconbtn" title="Excluir esta pasta" style="color:var(--danger)" onclick="deleteCatFromUnit('${c.id}')">🗑</button>`;
-    return `<div class="card" style="padding:16px 20px;margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-        <div style="display:flex;align-items:center;gap:8px;font-weight:500">
-          📁 ${c.nome}
-          ${docs.length?`<span class="badge b-neutral" style="font-size:10px">${docs.length}</span>`:''}
-          <button class="iconbtn" title="Renomear" onclick="openCatModal('${c.id}')">✎</button>
-          ${deleteBtn}
-        </div>
-        <button class="btn btn-sm" onclick="anexarCat('${c.id}')"><span class="ic">📎</span> Anexar</button>
-      </div>
-      <div style="margin-top:8px">${dlOf(docs,c.id)}</div>
-    </div>`;
-  }).join("")+(emptyDefaultCount>0&&catsToShow.length>0?`<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:4px">${emptyDefaultCount} pasta${emptyDefaultCount!==1?'s':''} padrão vazia${emptyDefaultCount!==1?'s':''} oculta${emptyDefaultCount!==1?'s':''}. <button class="linkbtn" onclick="renderUniAllCats()">Mostrar todas</button></p>`:'');
+    return `<div class="card" style="padding:16px 20px;margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:8px;font-weight:500">📁 ${c.nome}${docs.length?` <span class="badge b-neutral" style="font-size:10px">${docs.length}</span>`:''}<button class="iconbtn" title="Renomear" onclick="openCatModal('${c.id}')">✎</button><button class="iconbtn" title="Excluir esta pasta" style="color:var(--danger)" onclick="deleteCatFromUnit('${c.id}')">🗑</button></div><button class="btn btn-sm" onclick="anexarCat('${c.id}')"><span class="ic">📎</span> Anexar</button></div><div style="margin-top:8px">${dlOf(docs,c.id)}</div></div>`;
+  }).join("");
 }
-// Mostra todas as pastas incluindo padrão vazia
-function renderUniAllCats(){
-  // Temporariamente mostra tudo — simples re-render com flag
-  const el=document.getElementById('uni-cats');
-  if(!el)return;
-  const u=curUni;
-  const dlOf=(arr,cid)=>arr.length?arr.map((d,idx)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><button onclick="viewUniDoc('${cid}',${idx})" style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink);background:none;border:0;font-weight:500;min-width:0;text-align:left;padding:0;cursor:pointer"><span style="color:var(--accent)">📄</span> <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.name}</span></button><span style="display:flex;gap:6px;flex:none"><button class="btn btn-sm" onclick="viewUniDoc('${cid}',${idx})">Ver</button><button class="btn btn-sm" onclick="downloadDoc('${cid}',${idx})">Baixar</button><button class="iconbtn" title="Excluir" onclick="deleteDoc('${cid}',${idx})">🗑</button></span></div>`).join(''):'<div style="font-size:13px;color:var(--soft);padding:5px 0">Nenhum documento.</div>';
-  const DEFAULT_CAT_IDS=['proj','legal','demo','mat','mo','equip','cant','topog','sond','imovel','arts','locacao','taxa','outros'];
-  el.innerHTML=CATS.map(c=>{
-    const docs=u.docs[c.id]||[];
-    const isDefault=DEFAULT_CAT_IDS.includes(c.id);
-    const deleteBtn=`<button class="iconbtn" title="Excluir esta pasta" style="color:var(--danger)" onclick="deleteCatFromUnit('${c.id}')">🗑</button>`;
-    return `<div class="card" style="padding:16px 20px;margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:8px;font-weight:500">📁 ${c.nome}${docs.length?` <span class="badge b-neutral" style="font-size:10px">${docs.length}</span>`:''}<button class="iconbtn" title="Renomear" onclick="openCatModal('${c.id}')">✎</button>${deleteBtn}</div><button class="btn btn-sm" onclick="anexarCat('${c.id}')"><span class="ic">📎</span> Anexar</button></div><div style="margin-top:8px">${dlOf(docs,c.id)}</div></div>`;
-  }).join('');
-}
+
 
 // Exclui uma pasta/categoria desta unidade (e remove documentos)
 async function deleteCatFromUnit(cid){
   if(!curUni)return;
   const c=CATS.find(x=>x.id===cid);
   const docs=curUni.docs[cid]||[];
-  const DEFAULT_CAT_IDS=['proj','legal','demo','mat','mo','equip','cant','topog','sond','imovel','arts','locacao','taxa','outros'];
-  const isDefault=DEFAULT_CAT_IDS.includes(cid);
   const msg=docs.length>0
-    ?`Excluir a pasta "${c?.nome||cid}" e seus ${docs.length} documento${docs.length!==1?'s':''}? Esta ação não pode ser desfeita.`
-    :`Excluir a pasta "${c?.nome||cid}"?${isDefault?'\n\nAtenção: esta é uma pasta padrão do sistema que será removida da lista de categorias.':''}`;
+    ?`Excluir a pasta "${c?.nome||cid}" e seus ${docs.length} documento${docs.length!==1?'s':''}? Os arquivos serão removidos permanentemente.`
+    :`Excluir a pasta "${c?.nome||cid}"?`;
   askConfirm(msg,async()=>{
-    // Remove documentos do storage e do banco
     for(const d of docs){
       if(d.storagePath)await db.storage.from('documentos').remove([d.storagePath]).catch(()=>{});
       if(d.dbId)await db.from('documentos_unidade').delete().eq('id',d.dbId).catch(()=>{});
     }
-    // Limpa docs desta categoria na memória
     delete curUni.docs[cid];
-    // Se for categoria personalizada (cat_X), remove globalmente
-    if(!isDefault){
-      CATS=CATS.filter(x=>x.id!==cid);
-      await persistCats();
-      toast(`Pasta "${c?.nome||cid}" excluída.`);
-    }else{
-      toast(`Documentos da pasta "${c?.nome||cid}" removidos.`);
-    }
+    CATS=CATS.filter(x=>x.id!==cid);
+    await persistCats();
+    toast(`Pasta "${c?.nome||cid}" excluída.`);
     renderUni();
   });
 }
