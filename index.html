@@ -5019,39 +5019,70 @@ function renderPag(){const o=cur;
     </div>`;
   };
 
-  const buildSection=(rows,titulo,icon,accentColor)=>{
-    if(rows.length===0)return`<div style="padding:20px;text-align:center;color:var(--muted);font-size:13.5px;background:var(--surface-2);border-radius:var(--r);border:1px dashed var(--line)">${icon} Nenhum pagamento <b>${titulo}</b> ${pagFiltro!=="todos"?'com este filtro':''}</div>`;
-    const tp=sumPago(rows),tpe=sumPend(rows);
-    const byM={};rows.forEach(r=>{const k=r.p.venc?r.p.venc.slice(0,7):'sem-data';if(!byM[k])byM[k]=[];byM[k].push(r);});
-    const months=Object.keys(byM).sort((a,b)=>a==='sem-data'?1:b==='sem-data'?-1:b.localeCompare(a));
-    return`<div style="border:1.5px solid ${accentColor}33;border-radius:var(--r);overflow:hidden">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:${accentColor}0d;border-bottom:1px solid ${accentColor}22;flex-wrap:wrap;gap:10px">
-        <div style="font-size:16px;font-weight:700">${icon} ${titulo}</div>
-        <div style="display:flex;gap:16px;font-size:13px">
-          ${tp>0?`<span style="color:var(--ok);font-weight:700">Pago: ${fmt(tp)}</span>`:''}
-          ${tpe>0?`<span style="color:var(--warn);font-weight:700">Pendente: ${fmt(tpe)}</span>`:''}
-        </div>
+  // Row compacta para uso nos cards lado a lado
+  const compactRow=({p,i})=>{
+    const atr=isAtraso(p);
+    const nfFile=p.nfDoc?`<button class="linkbtn" style="font-size:11px" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">📄</button>`:p.nfTipo&&p.nfTipo!=='Sem nota'&&p.nfTipo!=='Adiantamento'?`<button class="linkbtn" style="font-size:11px;color:var(--muted)" onclick="anexarNF(${o.id},${i})">📎</button>`:'';
+    const comp=p.compDoc?`<button class="linkbtn" style="font-size:11px" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾</button>`:`<button class="linkbtn" style="font-size:11px;color:var(--line-2)" onclick="anexarComp(${o.id},${i})">+🧾</button>`;
+    const markBtn=(p.st==='PENDENTE'||atr)?`<button onclick="marcarPagoLista(${o.id},${i})" style="background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok);border-radius:6px;font-size:10.5px;padding:2px 7px;cursor:pointer;font-weight:600;white-space:nowrap">✓</button>`:'';
+    const stColor=atr?'var(--danger)':p.st==='PAGO'?'var(--ok)':'var(--warn)';
+    const stIcon=atr?'⚠':p.st==='PAGO'?'✓':'⏳';
+    const cVinc=p.contratoSeq?o.contratos.find(c=>c.seq===p.contratoSeq):null;
+    return`<div style="padding:9px 12px;border-bottom:1px solid var(--line);${atr?'background:var(--danger)08;':''}">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:3px">
+        <span style="font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${p.ben}</span>
+        <span style="font-weight:800;font-size:14px;font-family:'Spline Sans Mono',monospace;white-space:nowrap;color:${stColor}">${fmt(p.v)}</span>
       </div>
-      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:0">
-        ${months.map(k=>{const mr=byM[k];const mt=mr.reduce((a,r)=>a+r.p.v,0);return`<div style="margin-bottom:18px"><div style="font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;justify-content:space-between"><span>${k==='sem-data'?'Sem data':k.slice(5)+'/'+k.slice(2,4)}</span><span>${fmt(mt)}</span></div><div style="display:flex;flex-direction:column;gap:2px">${mr.map(r=>rowFn(r)).join('')}</div></div>`;}).join('')}
+      ${p.ref?`<div style="font-size:12px;color:var(--muted);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.ref}</div>`:''}
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="font-size:11px;color:${stColor};font-weight:600">${stIcon} ${p.st==='PAGO'&&p.pagaEm?fmtD(p.pagaEm):p.venc?fmtD(p.venc):'—'}</span>
+        ${p.pagn&&p.pagn!=='—'?`<span style="font-size:10.5px;color:var(--muted)">· ${p.pagn}</span>`:''}
+        ${cVinc?`<span style="font-size:10px;color:var(--info)">📋 ${cVinc.nome_contr?.slice(0,18)||cVinc.forn?.slice(0,18)}</span>`:''}
+        <span style="margin-left:auto;display:flex;gap:3px;align-items:center">${nfFile}${comp}${markBtn}<button class="iconbtn" style="font-size:12px" title="Editar" onclick="openPagModal(${i})">✎</button><button class="iconbtn" style="font-size:12px;color:var(--danger)" title="Excluir" onclick="deletePagment(${o.id},${i})">🗑</button></span>
       </div>
     </div>`;
   };
 
+  const buildCard=(rows,titulo,icon,accentColor)=>{
+    const tp=sumPago(rows),tpe=sumPend(rows),natr=rows.filter(r=>isAtraso(r.p)).length;
+    const byM={};rows.forEach(r=>{const k=r.p.venc?r.p.venc.slice(0,7):'sem-data';if(!byM[k])byM[k]=[];byM[k].push(r);});
+    const months=Object.keys(byM).sort((a,b)=>a==='sem-data'?1:b==='sem-data'?-1:b.localeCompare(a));
+    const bodyHtml=rows.length===0
+      ?`<div style="padding:32px 16px;text-align:center;color:var(--muted);font-size:13px">${icon} Nenhum pagamento${pagFiltro!=='todos'?' com este filtro':''}</div>`
+      :months.map(k=>{
+          const mr=byM[k];const mt=mr.reduce((a,r)=>a+r.p.v,0);
+          return`<div><div style="padding:7px 12px;background:var(--surface-2);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">${k==='sem-data'?'Sem data':_monthLabel(k)}</span><span style="font-size:11.5px;font-weight:700">${fmt(mt)}</span></div>${mr.map(r=>compactRow(r)).join('')}</div>`;
+        }).join('');
+    return`<div class="card" style="border-top:3px solid ${accentColor};padding:0;overflow:hidden;display:flex;flex-direction:column">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);background:${accentColor}08">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:15px;font-weight:700">${icon} ${titulo}</span>
+          <span style="font-size:12px;color:var(--muted)">${rows.length} lançamento${rows.length!==1?'s':''}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr${natr?' 1fr':''}">
+          <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Pago</div><div style="font-size:18px;font-weight:800;color:var(--ok)">${fmt(tp)}</div></div>
+          <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Pendente</div><div style="font-size:18px;font-weight:800;color:${tpe>0?'var(--warn)':'var(--muted)'}">${fmt(tpe)}</div></div>
+          ${natr?`<div><div style="font-size:10px;color:var(--danger);text-transform:uppercase;letter-spacing:.4px">Em atraso</div><div style="font-size:18px;font-weight:800;color:var(--danger)">${natr}</div></div>`:''}
+        </div>
+      </div>
+      <div style="overflow-y:auto;max-height:65vh;flex:1">${bodyHtml}</div>
+    </div>`;
+  };
+
   document.getElementById("pane-pag").innerHTML=`
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-    ${fb("todos","Todos")} ${fb("pagos","Pagos")} ${fb("pend","Pendentes")} ${fb("atraso","Em atraso")}
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+    ${fb("todos","Todos")} ${fb("pagos","✓ Pagos")} ${fb("pend","⏳ Pendentes")} ${fb("atraso","⚠ Atraso")}
     <div style="flex:1"></div>
-    <input class="fi" id="pag-busca" style="flex:1;min-width:160px;max-width:260px;padding:8px 12px;font-size:13px" placeholder="Buscar…" value="${pagBusca.replace(/"/g,'&quot;')}" oninput="setPagBusca(this.value)">
-    <input class="fi" type="date" style="width:128px;padding:7px 10px;font-size:13px" value="${pagDe}" onchange="setPagDe(this.value)">
-    <input class="fi" type="date" style="width:128px;padding:7px 10px;font-size:13px" value="${pagAte}" onchange="setPagAte(this.value)">
-    <button class="btn btn-sm" onclick="exportCSV()" title="Exportar CSV">↓ CSV</button>
-    <button class="btn btn-primary btn-sm" onclick="openPagModal()"><span class="ic">＋</span> Pagamento</button>
+    <input class="fi" id="pag-busca" style="flex:1;min-width:140px;max-width:240px;padding:7px 11px;font-size:13px" placeholder="Buscar…" value="${pagBusca.replace(/"/g,'&quot;')}" oninput="setPagBusca(this.value)">
+    <input class="fi" type="date" style="width:122px;padding:6px 10px;font-size:12.5px" value="${pagDe}" onchange="setPagDe(this.value)">
+    <input class="fi" type="date" style="width:122px;padding:6px 10px;font-size:12.5px" value="${pagAte}" onchange="setPagAte(this.value)">
+    <button class="btn btn-sm" onclick="exportCSV()">↓ CSV</button>
+    <button class="btn btn-primary btn-sm" onclick="openPagModal()"><span class="ic">＋</span> Lançar</button>
   </div>
 
-  <div style="display:flex;flex-direction:column;gap:20px">
-    ${buildSection(rowsObra,'Pagamentos da Obra','🏗','var(--accent)')}
-    ${buildSection(rowsExtra,'Pagamentos Fora da Obra','📤','var(--warn)')}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;align-items:start">
+    ${buildCard(rowsObra,'Dentro da Obra','🏗','var(--accent)')}
+    ${buildCard(rowsExtra,'Fora da Obra','📤','var(--warn)')}
   </div>`;
 
   if(pagBusca){const sb=document.getElementById("pag-busca");if(sb){const e=sb.value.length;sb.focus();sb.setSelectionRange(e,e);}}
