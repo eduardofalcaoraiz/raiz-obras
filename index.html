@@ -2967,7 +2967,7 @@ function saveContr(){if(currentProfile?.role==='leitor'){toast('Sem permissão: 
 }
 
 
-function deleteContr(idx){const c=cur.contratos[idx];const msg=`Excluir o contrato "${c.nome_contr||c.forn}"? Os pagamentos vinculados a ele perderão o vínculo. Esta ação não pode ser desfeita.`;askConfirm(msg,()=>{const seq=c.seq;cur.pag.forEach(p=>{if(p.contratoSeq===seq)p.contratoSeq=null;});cur.contratos.splice(idx,1);persist(cur.id);renderObra();showTab("contr");toast("Contrato excluído e vínculos liberados.");});}
+function deleteContr(idx){const c=cur.contratos[idx];const msg=`Excluir o contrato "${c.nome_contr||c.forn}"? Os pagamentos vinculados a ele perderão o vínculo. Esta ação não pode ser desfeita.`;askConfirm(msg,async()=>{const seq=c.seq;cur.pag.forEach(p=>{if(p.contratoSeq===seq)p.contratoSeq=null;});cur.contratos.splice(idx,1);await db.from('contratos').delete().eq('obra_id',cur.id).eq('seq',seq);persist(cur.id);renderObra();showTab("contr");toast("Contrato excluído e vínculos liberados.");});}
 
 
 
@@ -6977,9 +6977,7 @@ async function persist(obraId){
 
       if(o.aportes.length)await db.from('aportes').insert(o.aportes.map(a=>({obra_id:o.id,inv:a.inv||'',v:a.v||0,d:a.d||''})));
 
-      await db.from('contratos').delete().eq('obra_id',o.id);
-
-      if(o.contratos.length)await db.from('contratos').insert(o.contratos.map(c=>({obra_id:o.id,forn:c.forn||'',escopo:c.escopo||'',v:c.v||0,pago:c.pago||0,seq:c.seq||0,numero:c.nome_contr||c.numero||'',nome_contr:c.nome_contr||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:c.parcelas_contr||[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||''})));
+      if(o.contratos.length){await db.from('contratos').delete().eq('obra_id',o.id);await db.from('contratos').insert(o.contratos.map(c=>({obra_id:o.id,forn:c.forn||'',escopo:c.escopo||'',v:c.v||0,pago:c.pago||0,seq:c.seq||0,numero:c.nome_contr||c.numero||'',nome_contr:c.nome_contr||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:c.parcelas_contr||[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||''}))).catch(e=>console.error('persist contratos:',e));}
 
     }
 
