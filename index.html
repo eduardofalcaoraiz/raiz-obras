@@ -2636,6 +2636,24 @@ let _contrSeqNext=1;
 
 function _contrSeqFor(obra){const maxSeq=obra.contratos.reduce((m,c)=>Math.max(m,c.seq||0),0);return Math.max(maxSeq,0)+1;}
 
+// Lista unificada de pagantes — usada em todos os modais de pagamento
+function _buildPagadores(obraAtual, valorAtual){
+  const nomes=new Set();
+  // Fontes fixas do sistema
+  FONTES.forEach(f=>nomes.add(f));
+  // Investidores cadastrados
+  investidores.forEach(i=>{if(i.nome)nomes.add(i.nome);});
+  // Aportes já lançados nesta obra (histórico)
+  if(obraAtual)(obraAtual.aportes||[]).forEach(a=>{if(a.inv)nomes.add(a.inv);});
+  // Garante que o valor atual (se existir) sempre aparece
+  if(valorAtual&&valorAtual.trim())nomes.add(valorAtual.trim());
+  return Array.from(nomes).sort();
+}
+function _fillPagSelect(elId, obraAtual, valorSelecionado){
+  const el=document.getElementById(elId);if(!el)return;
+  const lista=_buildPagadores(obraAtual, valorSelecionado);
+  el.innerHTML=lista.map(f=>`<option ${f===valorSelecionado?'selected':''}>${f}</option>`).join('');
+}
 function _fillContrSelect(elId,cur,val){const el=document.getElementById(elId);if(!el)return;el.innerHTML='<option value="">Sem vínculo de contrato</option>'+(cur?.contratos||[]).filter(c=>c.seq).map(c=>`<option value="${c.seq}">${c.nome_contr||c.forn||'Contrato'}${c.forn?' · '+c.forn.slice(0,25):''}</option>`).join('');if(val)el.value=val;}
 
 
@@ -5944,7 +5962,7 @@ function openCsvImport(){
 
   document.getElementById('csv-file').value='';
 
-  document.getElementById('csv-pagante').innerHTML=Array.from(new Set([...(cur.aportes||[]).map(a=>a.inv),...FONTES])).map(f=>`<option>${f}</option>`).join('');
+  _fillPagSelect('csv-pagante', cur, '');
 
   document.getElementById('csv-overlay').classList.add('show');
 
@@ -6296,9 +6314,8 @@ function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(
 
   g("pm-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
 
-  const _invNomes=investidores.map(i=>i.nome);
-
-  g("pm-pag").innerHTML=Array.from(new Set([...cur.aportes.map(a=>a.inv),..._invNomes,...FONTES])).map(f=>`<option>${f}</option>`).join("");
+  const _pagEditVal=pagEditIdx!==null?(cur.pag[pagEditIdx]?.pagn||''):'';
+  _fillPagSelect("pm-pag", cur, _pagEditVal);
 
   g("pm-pag").onchange=function(){let info=document.getElementById("pm-pag-saldo");if(!info){info=document.createElement("p");info.id="pm-pag-saldo";info.style.cssText="font-size:12px;margin:5px 0 0";this.after(info);}if(!cur)return;const s=getInvestSaldo(cur,this.value);if(s===null){info.textContent='';return;}info.innerHTML=s>=0?`<span style="color:var(--ok)">Saldo disponível: ${fmt(s)}</span>`:`<span style="color:var(--danger)">⚠ Déficit atual de ${fmt(-s)}</span>`;}
 
@@ -7274,9 +7291,7 @@ function openImport(){
 
   document.getElementById("imp-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
 
-  const pagadores=['Raiz Educação',...unidades.map(u=>u.nome),...investidores.map(i=>i.nome)];
-
-  document.getElementById("imp-pag").innerHTML=pagadores.map(f=>`<option>${f}</option>`).join('');
+  _fillPagSelect("imp-pag", cur, '');
 
   // Indicador de saldo ao selecionar pagante
 
