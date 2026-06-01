@@ -1723,7 +1723,7 @@ function renderEsfera(){
   const list=obras.filter(o=>(o.esfera||'nova')===curEsfera);
   const tc=list.reduce((a,o)=>a+o.contratado,0),ta=list.reduce((a,o)=>a+o.aportado,0),tp=list.reduce((a,o)=>a+o.pago,0);
   document.getElementById('esf-kpis').innerHTML=`<div class="kpi"><div class="lab">Obras ativas</div><div class="val">${list.filter(o=>o.status==='Em andamento').length}<span style="font-size:14px;color:var(--soft)"> / ${list.length}</span></div></div><div class="kpi"><div class="lab">Total contratado</div><div class="val">${fmt(tc)}</div></div><div class="kpi"><div class="lab">Total aportado</div><div class="val">${fmt(ta)}</div></div><div class="kpi"><div class="lab">Total pago</div><div class="val acc">${fmt(tp)}</div></div>`;
-  const atr=allAtrasos().filter(x=>(x.o.esfera||'nova')===curEsfera);const estouro=list.filter(o=>saldoContr(o)<0);
+  const atr=allAtrasos().filter(x=>(x.o.esfera||'nova')===curEsfera);const estouro=list.filter(o=>contratadoTotal(o)>0&&saldoContr(o)<0);
   let al='';if(atr.length)al+=`<div class="alert alert-danger"><span class="ic">▲</span><div><b>${atr.length} pagamento(s) em atraso</b> somando ${fmt(atr.reduce((a,x)=>a+x.p.v,0))}. <a href="#" onclick="go('cobranca');return false" style="color:inherit;font-weight:600">Ir para Cobrança →</a></div></div>`;if(estouro.length)al+=`<div class="alert alert-warn"><span class="ic">●</span><div><b>${estouro.length} obra(s) acima do contratado:</b> ${estouro.map(o=>o.nome.split(' —')[0].split(' (')[0]+' ('+fmt(-saldoContr(o))+')').join(' · ')}.</div></div>`;
   document.getElementById('esf-alert').innerHTML=al;
   const marcas=['Todas',...Array.from(new Set(list.flatMap(o=>o.marca.split(' + '))))];
@@ -2182,10 +2182,25 @@ function renderObra(){const o=cur,pct=execObra(o);
   const contratoH=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><div><h2>Contrato da Obra</h2><div class="sub">Modelo: <b>${_modeloLabel}</b> · Construtora: <b>${_constrLabel}</b></div></div><button class="btn btn-sm btn-primary" onclick="openAditivoModal()"><span class="ic">＋</span> Aditivo</button></div><div class="invgrid" style="margin-top:12px"><div class="invc"><div class="nm">Valor contratado</div><div class="v">${fmt(o.contratado)}</div></div>${_adits.length?`<div class="invc"><div class="nm">Aditivos (${_adits.length})</div><div class="v" style="color:var(--warn)">${fmt(aditivosTotal(o))}</div></div><div class="invc"><div class="nm">Total com aditivos</div><div class="v">${fmt(contratadoTotal(o))}</div></div>`:''}</div>${_aditsH}</div>`;
   const atr=o.pag.filter(isAtraso);
   let al="";
-  if(saldoContr(o)<0)al+=`<div class="alert alert-danger"><span class="ic">▲</span><div>Pagamentos ultrapassaram o valor contratado em <b>${fmt(-saldoContr(o))}</b>.</div></div>`;
-  if(_temInv&&_saldoInv<0)al+=`<div class="alert alert-danger"><span class="ic">💸</span><div>Investimento esgotado — pagamentos já superam o teto disponível em <b>${fmt(-_saldoInv)}</b>.</div></div>`;
-  if(_temInv&&_saldoInv>=0&&_saldoInv<_contrTot*0.1)al+=`<div class="alert alert-warn"><span class="ic">⚠</span><div>Saldo do investimento baixo — restam apenas <b>${fmt(_saldoInv)}</b> (${Math.round(_saldoInv/o.investimento_disponivel*100)}% do total).</div></div>`;
-  if(atr.length)al+=`<div class="alert alert-danger"><span class="ic">◉</span><div><b>${atr.length} pagamento(s) em atraso</b> nesta obra. Veja na aba Pagamentos.</div></div>`;
+  const _temContr=contratadoTotal(o)>0;
+
+  // Pagamentos em atraso (sempre relevante)
+  if(atr.length)al+=`<div class="alert alert-danger"><span class="ic">◉</span><div><b>${atr.length} pagamento${atr.length!==1?'s':''} em atraso</b> nesta obra. Acesse a aba Pagamentos.</div></div>`;
+
+  // Contrato estourado — só se existe valor contratado
+  if(_temContr&&_saldoContr<0)al+=`<div class="alert alert-danger"><span class="ic">▲</span><div>Pagamentos ultrapassaram o valor contratado em <b>${fmt(-_saldoContr)}</b>.</div></div>`;
+
+  // Contrato perto do limite (últimos 15%) — só se tem contrato e ainda não estourou
+  if(_temContr&&_saldoContr>=0&&_saldoContr<contratadoTotal(o)*0.15&&o.pago>0)al+=`<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam apenas <b>${fmt(_saldoContr)}</b> (${_execPct}% executado).</div></div>`;
+
+  // Investimento esgotado — só se investimento foi definido
+  if(_temInv&&_saldoInv<0)al+=`<div class="alert alert-danger"><span class="ic">💸</span><div>Investimento esgotado — pagamentos superam o teto disponível em <b>${fmt(-_saldoInv)}</b>.</div></div>`;
+
+  // Saldo do investimento baixo (<10%) — só se definido e não esgotado
+  if(_temInv&&_saldoInv>=0&&o.investimento_disponivel>0&&_saldoInv<o.investimento_disponivel*0.1)al+=`<div class="alert alert-warn"><span class="ic">⚠</span><div>Saldo do investimento baixo — restam <b>${fmt(_saldoInv)}</b> (${Math.round(_saldoInv/o.investimento_disponivel*100)}% do total).</div></div>`;
+
+  // Obra com pagamentos mas sem contrato definido (lembrete)
+  if(!_temContr&&o.pago>0)al+=`<div class="alert alert-warn"><span class="ic">ℹ</span><div>Esta obra tem <b>${fmt(o.pago)} em pagamentos</b> mas nenhum valor contratado definido. Considere registrar o contrato na aba Contratos.</div></div>`;
   document.getElementById("pane-resumo").innerHTML=`${al?`<div class="card"><h2>Alertas</h2><div class="sub">O que merece atenção.</div>${al}</div>`:""}${contratoH}${taxaH}<div class="card"><h2>Evolução mensal de gastos</h2><div class="sub">Total pago por mês (apenas lançamentos com data).</div>${chartH||'<p class="empty">Sem datas de pagamento cadastradas.</p>'}</div><div class="card"><h2>Gasto por categoria</h2><div class="sub">Distribuição do que já foi pago.</div>${cats||'<p class="empty">Sem pagamentos.</p>'}</div><div class="card"><h2>Quem pagou</h2><div class="sub">Consolidado por fonte de recurso.</div>${fH||'<p class="empty">Sem pagamentos.</p>'}</div>`;
   renderPag();renderMatServ();
   // Calcula quanto foi pago por contrato via pagamentos vinculados
