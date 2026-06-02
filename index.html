@@ -374,11 +374,16 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 :root{--brand-cur:var(--accent);--brand-cur-light:var(--surface)}
 
-/* Cor de marca injetada dinamicamente por JS */
+/* Cor de marca injetada dinamicamente por JS — substitui accent em toda a obra */
 
-#view-obra .tabbtn.active{border-bottom-color:var(--brand-cur)}
-
+#view-obra .tabbtn.active{border-bottom-color:var(--brand-cur);color:var(--brand-cur)}
 #view-obra .o-bar>i{background:var(--brand-cur)}
+#view-obra .kpi .val.acc{color:var(--brand-cur)}
+#view-obra .btn.btn-primary{background:var(--brand-cur);border-color:var(--brand-cur)}
+#view-obra .btn.btn-primary:hover{opacity:.88}
+#view-obra .phead .eyebrow{color:var(--brand-cur)}
+#view-obra .linkbtn{color:var(--brand-cur)}
+#view-obra .crumb-nav a{color:var(--brand-cur)}
 
 .brand-header-strip{height:4px;border-radius:2px;background:var(--brand-cur);margin-bottom:22px;opacity:.8}
 
@@ -5466,11 +5471,11 @@ function renderPag(){const o=cur;
       _nfInteg='<span style="display:inline-flex;align-items:center;font-size:11px;color:var(--soft);background:var(--surface-2);padding:2px 9px;border-radius:20px;border:1px solid var(--line);font-style:italic">Sem nota</span>';
     }
     // Chips de metadados (sem NF — ela vai integrada acima)
-    var _rowCat=(cat&&cat.nome&&cat.nome!=='(removida)'&&cat.nome!=='outros')?'<span style="font-size:11px;background:var(--accent)12;color:var(--accent);padding:2px 8px;border-radius:8px;font-weight:600">'+cat.nome+'</span>':'';
-    var _tkBadge=p.ticketRaiz?('<span style="font-size:11px;background:#EDE7F6;color:#512DA8;padding:2px 8px;border-radius:8px;font-weight:700;border:1px solid #B39DDB">'+p.ticketRaiz+'</span>'):'';
+    var _rowCat=(cat&&cat.nome&&cat.nome!=='(removida)'&&cat.nome!=='outros')?'<span style="font-size:11px;background:var(--brand-cur-light);color:var(--brand-cur);padding:2px 8px;border-radius:20px;font-weight:600;border:1px solid var(--brand-cur)30">'+cat.nome+'</span>':'';
+    var _tkBadge=p.ticketRaiz?('<span style="font-size:11px;background:var(--brand-cur-light);color:var(--brand-cur);padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid var(--brand-cur)40">'+p.ticketRaiz+'</span>'):'';
     var _constrTag=p.construtora_seq&&o.construtoras&&o.construtoras.length>=2?(function(){
       var _c=o.construtoras.find(function(x){return x.seq===p.construtora_seq;});
-      return _c?'<span style="font-size:11px;background:var(--surface-2);color:var(--muted);padding:2px 8px;border-radius:8px;border:1px solid var(--line)">&#127959; '+_c.nome+'</span>':'';
+      return _c?'<span style="font-size:11px;background:var(--brand-cur-light);color:var(--brand-cur);padding:2px 8px;border-radius:20px;border:1px solid var(--brand-cur)30;font-weight:500">&#127959; '+_c.nome+'</span>':'';
     }()):'';
     var _pagante=p.pagn&&p.pagn!=='—'?('<span style="font-size:11px;color:var(--muted)">&#128100; '+p.pagn+'</span>'):'';
     // ── Botões do bloco direito: Comp + Editar + Excluir ─────────────────────
