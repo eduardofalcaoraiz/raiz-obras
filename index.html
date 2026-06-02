@@ -997,7 +997,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <div class="phead"><div><div class="eyebrow" id="u-crumb"></div><h1 id="u-nome"></h1><p id="u-meta"></p></div>
 
-        <div class="acts"><button class="btn btn-sm" onclick="openCatModal()"><span class="ic">＋</span> Criar categoria</button>
+        <div class="acts"><button class="btn btn-sm" onclick="openCatModal(undefined,'pasta')"><span class="ic">＋</span> Criar pasta</button>
 
           <button class="btn btn-primary btn-sm" onclick="anexarIA()"><span class="ic">↑</span> Anexar documentos</button></div></div>
 
@@ -1053,7 +1053,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
           </div>
 
-          <button class="btn btn-primary btn-sm" onclick="openCatModal()"><span class="ic">＋</span> Nova categoria</button>
+          <button class="btn btn-primary btn-sm" onclick="openCatModal(undefined,'pagamento')"><span class="ic">＋</span> Nova categoria</button>
 
         </div>
 
@@ -5651,19 +5651,16 @@ function renderUni(){const u=curUni;document.getElementById("u-crumb").innerHTML
 
   // Sem pastas padrão — cada unidade é organizada pelo Eduardo no dia a dia
 
+  // Pastas de documentos: APENAS tipo='pasta' OU que já tenham documentos (backward compat)
   const catsToShow=CATS.filter(c=>{
-
     const hasDocs=(u.docs[c.id]||[]).length>0;
-
-    const isCustom=c.id.startsWith('cat_');
-
-    return hasDocs||isCustom;
-
+    const isPasta=c.tipo==='pasta';
+    return isPasta||hasDocs; // mostra pastas criadas como 'pasta' + retrocompat com docs existentes
   });
 
   const emptyMsg=catsToShow.length===0
 
-    ?'<div style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">📂</div><p style="font-size:14px;margin-bottom:6px">Nenhuma pasta criada ainda.</p><p style="font-size:13px">Crie uma pasta clicando em <b>＋ Criar categoria</b> no topo desta página.</p></div>'
+    ?'<div style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">📂</div><p style="font-size:14px;margin-bottom:6px">Nenhuma pasta criada ainda.</p><p style="font-size:13px">Crie uma pasta clicando em <b>＋ Criar pasta</b> no topo desta página.</p></div>'
 
     :'';
 
@@ -6712,7 +6709,7 @@ function pmSubs(){}
 
 function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(typeof idx==="number")?idx:null;const g=v=>document.getElementById(v);
 
-  g("pm-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
+  g("pm-cat").innerHTML=CATS.filter(function(c){return c.tipo!=='pasta';}).map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
 
   const _pagEditVal=pagEditIdx!==null?(cur.pag[pagEditIdx]?.pagn||''):'';
   _fillPagSelect("pm-pag", cur, _pagEditVal);
@@ -7149,7 +7146,8 @@ async function deleteEscola(id){
 
 let catEditId=null;
 
-function openCatModal(id){
+function openCatModal(id,tipo){
+  _catTipo=tipo||'pagamento';
 
   catEditId=id||null;
 
@@ -7173,13 +7171,22 @@ function openCatModal(id){
 
   }
 
+  // Adaptar labels do modal conforme tipo
+  var _catSaveBtn2=document.getElementById("cat-save-btn");
+  var _catTitle2=document.getElementById("cat-title");
+  if(_catTipo==='pasta'){
+    if(_catSaveBtn2&&!catEditId)_catSaveBtn2.innerHTML='<span class="ic">✓</span> Criar pasta';
+    if(_catTitle2&&!catEditId)_catTitle2.textContent='Nova pasta de documentos';
+    var _catInp2=document.getElementById("cat-input");
+    if(_catInp2)_catInp2.placeholder='Ex.: Contratos, Projetos, Laudos, AVCB…';
+  }
   document.getElementById("cat-overlay").classList.add("show");
 
   setTimeout(()=>inp.focus(),60);
 
 }
 
-function closeCatModal(){document.getElementById("cat-overlay").classList.remove("show");catEditId=null;_catModalFromForm=false;_catModalFromPm=false;}
+function closeCatModal(){document.getElementById("cat-overlay").classList.remove("show");catEditId=null;_catModalFromForm=false;_catModalFromPm=false;_catTipo='pagamento';}
 
 function saveCatModal(){
 
@@ -7207,7 +7214,7 @@ function saveCatModal(){
 
     newId="cat_"+(catSeq++);
 
-    CATS.push({id:newId,nome:nm,subs});
+    CATS.push({id:newId,nome:nm,subs,tipo:_catTipo||'pagamento'});
 
   }
 
@@ -7264,9 +7271,10 @@ function saveCatModal(){
 
 let _catModalFromForm=false;
 let _catModalFromPm=false;
+let _catTipo='pagamento'; // contexto: 'pagamento' ou 'pasta'
 
-function openCatModalFromForm(){_catModalFromForm=true;openCatModal();}
-function openCatModalFromPm(){_catModalFromPm=true;openCatModal();}
+function openCatModalFromForm(){_catModalFromForm=true;openCatModal(undefined,'pagamento');}
+function openCatModalFromPm(){_catModalFromPm=true;openCatModal(undefined,'pagamento');}
 
 
 
@@ -7288,7 +7296,7 @@ function onCatSelect(i,val){if(val==="__new__")pendingDocs[i].newCat=true;else{p
 
 function closeDocModal(){document.getElementById("doc-overlay").classList.remove("show");pendingDocs=[];}
 
-async function confirmDocs(){for(const p of pendingDocs)if(p.newCat&&!(p.newCatName||"").trim()){toast("Dê nome à nova categoria.");return;}const map={};pendingDocs.forEach(p=>{if(p.newCat){const nm=p.newCatName.trim(),k=nm.toLowerCase();let id=map[k];if(!id){const ex=CATS.find(c=>c.nome.toLowerCase()===k);id=ex?ex.id:"cat_"+(catSeq++);if(!ex)CATS.push({id,nome:nm,subs:["Geral"]});map[k]=id;}p.cat=id;}});const inserts=[];for(const p of pendingDocs){const path=`${curUni.id}/${Date.now()}_${p.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const{error}=await db.storage.from('documentos').upload(path,p.file);if(error){toast("Erro ao enviar: "+p.name);continue;}(curUni.docs[p.cat]=curUni.docs[p.cat]||[]).push({name:p.name,storagePath:path,type:p.file.type});inserts.push({unidade_id:curUni.id,cat_id:p.cat,name:p.name,type:p.file.type,storage_path:path});}if(inserts.length){const{data:rows}=await db.from('documentos_unidade').insert(inserts).select('id,storage_path');if(rows)rows.forEach(r=>{for(const arr of Object.values(curUni.docs)){const item=arr.find(d=>d.storagePath===r.storage_path);if(item){item.dbId=r.id;break;}}});}if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs})));const n=pendingDocs.length;document.getElementById("doc-overlay").classList.remove("show");pendingDocs=[];renderUni();toast(n>1?n+" documentos anexados":"Documento anexado");}
+async function confirmDocs(){for(const p of pendingDocs)if(p.newCat&&!(p.newCatName||"").trim()){toast("Dê nome à nova categoria.");return;}const map={};pendingDocs.forEach(p=>{if(p.newCat){const nm=p.newCatName.trim(),k=nm.toLowerCase();let id=map[k];if(!id){const ex=CATS.find(c=>c.nome.toLowerCase()===k);id=ex?ex.id:"cat_"+(catSeq++);if(!ex)CATS.push({id,nome:nm,subs:["Geral"],tipo:'pasta'});map[k]=id;}p.cat=id;}});const inserts=[];for(const p of pendingDocs){const path=`${curUni.id}/${Date.now()}_${p.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const{error}=await db.storage.from('documentos').upload(path,p.file);if(error){toast("Erro ao enviar: "+p.name);continue;}(curUni.docs[p.cat]=curUni.docs[p.cat]||[]).push({name:p.name,storagePath:path,type:p.file.type});inserts.push({unidade_id:curUni.id,cat_id:p.cat,name:p.name,type:p.file.type,storage_path:path});}if(inserts.length){const{data:rows}=await db.from('documentos_unidade').insert(inserts).select('id,storage_path');if(rows)rows.forEach(r=>{for(const arr of Object.values(curUni.docs)){const item=arr.find(d=>d.storagePath===r.storage_path);if(item){item.dbId=r.id;break;}}});}if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'})));const n=pendingDocs.length;document.getElementById("doc-overlay").classList.remove("show");pendingDocs=[];renderUni();toast(n>1?n+" documentos anexados":"Documento anexado");}
 
 
 
@@ -7548,7 +7556,7 @@ async function persist(obraId){
 
     }
 
-    if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs})));
+    if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'})));
 
     const cl=Object.entries(CNPJS).map(([n,c])=>({nome:n,cnpj:c}));
 
@@ -7564,7 +7572,7 @@ async function persistCats(){
 
   try{
 
-    if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs})));
+    if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'})));
 
   }catch(e){console.error('persistCats:',e);}
 
@@ -7626,7 +7634,7 @@ async function loadFromDB(){
 
     nextObraId=obras.reduce((m,o)=>Math.max(m,o.id),0)+1;
 
-    if(catR.data&&catR.data.length){CATS=catR.data.map(c=>({id:c.id,nome:c.nome,subs:Array.isArray(c.subs)?c.subs:(c.subs||['Geral'])}));catSeq=Math.max(catSeq,...CATS.filter(c=>c.id.startsWith('cat_')).map(c=>parseInt(c.id.replace('cat_',''))||0))+1;}else{CATS=[...DEFAULT_CATS];}
+    if(catR.data&&catR.data.length){CATS=catR.data.map(c=>({id:c.id,nome:c.nome,subs:Array.isArray(c.subs)?c.subs:(c.subs||['Geral']),tipo:c.tipo||'pagamento'}));catSeq=Math.max(catSeq,...CATS.filter(c=>c.id.startsWith('cat_')).map(c=>parseInt(c.id.replace('cat_',''))||0))+1;}else{CATS=[...DEFAULT_CATS];}
 
     if(uniR.error){console.error('loadFromDB unidades error:',uniR.error);}else if(uniR.data&&uniR.data.length){unidades=uniR.data.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obraId:u.obra_id||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||'',docs:{}}));uniSeq=unidades.reduce((m,u)=>Math.max(m,parseInt(u.id.replace('u',''))||0),1)+1;}
 
@@ -7714,7 +7722,7 @@ function openImport(){
 
   _fillContrSelect("imp-contrato",cur,'');
 
-  document.getElementById("imp-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
+  document.getElementById("imp-cat").innerHTML=CATS.filter(function(c){return c.tipo!=='pasta';}).map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
 
   _fillPagSelect("imp-pag", cur, '');
 
