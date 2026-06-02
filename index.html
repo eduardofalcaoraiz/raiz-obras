@@ -4440,7 +4440,7 @@ function renderObra(){const o=cur,pct=execObra(o);
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px">'
       +_cell('Contratado',fmt(o.contratado),'','')
       +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Aditivos</div><div style="font-size:13.5px;font-weight:700;color:'+(_aditTot>0?'var(--warn)':'var(--soft)')+'">'+(_aditTot>0?'+'+fmt(_aditTot):'—')+'</div></div>'
-      +_cell('Executado',fmt(o.pago+_pagoExtra),'var(--accent)',_execPct+'%')
+      +_cell('Executado',fmt(o.pago+_pagoExtra),'var(--brand-cur)',_execPct+'%')
       +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">A pagar</div><div style="font-size:13.5px;font-weight:700;color:'+_aPagarColor+'">'+(_saldoContr<0?'–'+fmt(-_saldoContr):fmt(_saldoContr))+'</div></div>'
       +'</div>'
       +_bar5(Math.min(_execPct,100),_execColor)
@@ -4454,7 +4454,7 @@ function renderObra(){const o=cur,pct=execObra(o);
   if(_totalRestante>0){
     _cardConstr+='<div style="font-size:11.5px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--line);display:flex;gap:12px">'
       +'<span>Saldo a pagar: <b>'+fmt(_totalRestante)+'</b></span>'
-      +'<span style="color:var(--accent)">Externo: '+fmt(_comprometidoInv)+'</span>'
+      +'<span style="color:var(--brand-cur)">Externo: '+fmt(_comprometidoInv)+'</span>'
       +(_comprometidoEscola>0?'<span style="color:var(--warn)">Escola: '+fmt(_comprometidoEscola)+'</span>':'')
       +'</div>';
   }
@@ -4485,7 +4485,7 @@ function renderObra(){const o=cur,pct=execObra(o);
       +(_invRows?'<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-bottom:4px;padding-bottom:3px;border-bottom:1px solid var(--line)"><span>Investidor</span><span>%</span><span>Aportado</span><span style="min-width:80px;text-align:right">Saldo</span></div>'+_invRows+'</div>':'')
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px">'
       +_cell('Investido',fmt(_invBase),'','')
-      +_cell('Pago',fmt(o.pago),'var(--accent)',_usadoPct2+'%')
+      +_cell('Pago',fmt(o.pago),'var(--brand-cur)',_usadoPct2+'%')
       +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Comprometido</div><div style="font-size:13.5px;font-weight:700;color:var(--warn)">'+fmt(_comprometidoInv)+'</div><div style="font-size:11px;color:var(--soft)">obrig. contratos</div></div>'
       +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Saldo livre</div><div style="font-size:13.5px;font-weight:700;color:'+_saldoColor+'">'+fmt(_saldoLivre)+'</div></div>'
       +'</div>'
@@ -4610,7 +4610,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   const totalPagoContr=Object.values(pagoPorContr).reduce((a,v)=>a+v,0);
 
-  const STATUS_COLOR={'Ativo':'var(--ok)','Concluído':'var(--accent)','Suspenso':'var(--warn)','Rescindido':'var(--danger)','Em negociação':'var(--info)'};
+  const STATUS_COLOR={'Ativo':'var(--ok)','Concluído':'var(--brand-cur)','Suspenso':'var(--warn)','Rescindido':'var(--danger)','Em negociação':'var(--info)'};
 
   const contrCards=o.contratos.length?o.contratos.map((c,ci)=>{
 
@@ -4688,7 +4688,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
         <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:6px">
 
-          <div style="height:100%;width:${pct}%;background:${pct>=100?'var(--ok)':pct>70?'var(--accent)':'var(--info)'};border-radius:4px;transition:width .5s"></div>
+          <div style="height:100%;width:${pct}%;background:${pct>=100?'var(--ok)':pct>70?'var(--brand-cur)':'var(--info)'};border-radius:4px;transition:width .5s"></div>
 
         </div>
 
@@ -4792,7 +4792,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
             ${temAporte?`<div><span style="color:var(--muted)">Capital recebido</span><br><b>${fmt(s.aportado)}</b></div>`:'<div style="color:var(--muted);font-style:italic;font-size:12px">Sem depósito registrado<br>(somente pagamentos)</div>'}
 
-            <div><span style="color:var(--muted)">Já utilizado</span><br><b style="color:var(--accent)">${fmt(s.utilizado)}</b></div>
+            <div><span style="color:var(--muted)">Já utilizado</span><br><b style="color:var(--brand-cur)">${fmt(s.utilizado)}</b></div>
 
             <div><span style="color:var(--muted)">Saldo disponível</span><br><b style="color:${cor}">${fmt(saldo)}</b></div>
 
@@ -4854,7 +4854,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
     <span>Recebido: <b>${fmt(_totalAport)}</b></span>
 
-    <span>Utilizado: <b style="color:var(--accent)">${fmt(_totalUtil)}</b></span>
+    <span>Utilizado: <b style="color:var(--brand-cur)">${fmt(_totalUtil)}</b></span>
 
     ${_totalPend>0?`<span>Pendente: <b style="color:var(--warn)">${fmt(_totalPend)}</b></span>`:''}
 
@@ -4886,12 +4886,12 @@ function renderMatServ(){
   var barFn=function(v,tot,cor){return '<div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:10px;background:var(--line);border-radius:5px;overflow:hidden"><div style="height:100%;width:'+(tot>0?Math.min(v/tot*100,100).toFixed(1):0)+'%;background:'+cor+';border-radius:5px"></div></div><span style="font-size:12px;color:var(--muted);min-width:40px;text-align:right">'+(tot>0?(v/tot*100).toFixed(1):0)+'%</span></div>';};
 
   var kpisHtml='<div class="kpis" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:20px">';
-  catArr.forEach(function(cg){kpisHtml+='<div class="kpi"><div class="lab">'+cg.cat.nome+'</div><div class="val" style="color:var(--accent)">'+fmt(cg.total)+'</div><div class="sub">'+(totalPago>0?(cg.total/totalPago*100).toFixed(1):0)+'% do total</div></div>';});
+  catArr.forEach(function(cg){kpisHtml+='<div class="kpi"><div class="lab">'+cg.cat.nome+'</div><div class="val" style="color:var(--brand-cur)">'+fmt(cg.total)+'</div><div class="sub">'+(totalPago>0?(cg.total/totalPago*100).toFixed(1):0)+'% do total</div></div>';});
   if(tSem>0)kpisHtml+='<div class="kpi"><div class="lab">Sem categoria</div><div class="val" style="color:var(--muted)">'+fmt(tSem)+'</div><div class="sub">'+semCat.length+' pagamento'+(semCat.length!==1?'s':'')+'</div></div>';
   kpisHtml+='</div>';
 
   var distHtml='<div class="card" style="margin-bottom:16px"><h2 style="font-size:17px;margin-bottom:14px">Distribuicao por Categoria</h2><div style="display:grid;gap:14px">';
-  catArr.forEach(function(cg){distHtml+='<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">'+cg.cat.nome+'</span><span style="font-weight:700;color:var(--accent)">'+fmt(cg.total)+'</span></div>'+barFn(cg.total,totalPago,'var(--accent)')+'</div>';});
+  catArr.forEach(function(cg){distHtml+='<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">'+cg.cat.nome+'</span><span style="font-weight:700;color:var(--accent)">'+fmt(cg.total)+'</span></div>'+barFn(cg.total,totalPago,'var(--brand-cur)')+'</div>';});
   if(tSem>0)distHtml+='<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;color:var(--muted)">Sem categoria</span><span style="color:var(--muted)">'+fmt(tSem)+'</span></div>'+barFn(tSem,totalPago,'var(--line)')+'</div>';
   distHtml+='</div></div>';
 
@@ -5006,7 +5006,7 @@ function renderDashboard(){
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:6px">'
       +'<div style="padding:7px 8px"><div style="font-size:10px;color:var(--muted)">Contratado</div><div style="font-size:12.5px;font-weight:700">'+fmt(o.contratado)+'</div></div>'
       +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Aditivos</div><div style="font-size:12.5px;font-weight:700;color:'+(_at>0?'var(--warn)':'var(--soft)')+'">'+(_at>0?'+'+fmt(_at):'—')+'</div></div>'
-      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Executado</div><div style="font-size:12.5px;font-weight:700;color:var(--accent)">'+fmt(o.pago+_pe)+'</div><div style="font-size:10px;color:var(--muted)">'+_ep+'%</div></div>'
+      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Executado</div><div style="font-size:12.5px;font-weight:700;color:var(--brand-cur)">'+fmt(o.pago+_pe)+'</div><div style="font-size:10px;color:var(--muted)">'+_ep+'%</div></div>'
       +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">A pagar</div><div style="font-size:12.5px;font-weight:700;color:'+_apc+'">'+(_sc<0?'–'+fmt(-_sc):fmt(_sc))+'</div></div>'
       +'</div>'
       +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:3px"><div style="height:100%;width:'+_eb+'%;background:'+_ec+';border-radius:3px;transition:width .5s"></div></div>'
@@ -5052,7 +5052,7 @@ function renderDashboard(){
       +'<button class="btn btn-primary btn-sm" style="font-size:11.5px" onclick="openAporteModal()"><span class="ic">＋</span> Aporte</button></div>'
       // Grid financeiro
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px">'
-      +'<div style="padding:7px 9px"><div style="font-size:10px;color:var(--muted);margin-bottom:1px">Pago</div><div style="font-size:13px;font-weight:700;color:var(--accent)">'+fmt(o.pago)+'</div></div>'
+      +'<div style="padding:7px 9px"><div style="font-size:10px;color:var(--muted);margin-bottom:1px">Pago</div><div style="font-size:13px;font-weight:700;color:var(--brand-cur)">'+fmt(o.pago)+'</div></div>'
       +'<div style="padding:7px 9px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted);margin-bottom:1px">Comprometido</div><div style="font-size:13px;font-weight:700;color:var(--warn)">'+fmt(_compr)+'</div></div>'
       +'<div style="padding:7px 9px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted);margin-bottom:1px">Saldo livre</div><div style="font-size:13px;font-weight:700;color:'+_sClr+'">'+fmt(_livre)+'</div></div>'
       +'<div style="padding:7px 9px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted);margin-bottom:1px">% utilizado</div><div style="font-size:13px;font-weight:700;color:'+_usoClr+'">'+_uso+'%</div></div>'
@@ -5210,10 +5210,10 @@ function renderDashboard(){
       +'<span style="font-size:13px;font-weight:600">'+x.cat.nome+'</span>'
       +'<div style="display:flex;gap:10px;align-items:baseline">'
       +'<span style="font-size:11.5px;color:var(--muted)">'+pct+'%</span>'
-      +'<span style="font-size:14px;font-weight:700;font-family:"Space Grotesk",sans-serif;color:var(--accent)">'+fmt(x.v)+'</span>'
+      +'<span style="font-size:14px;font-weight:700;font-family:"Space Grotesk",sans-serif;color:var(--brand-cur)">'+fmt(x.v)+'</span>'
       +'</div></div>'
       +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden">'
-      +'<div style="height:100%;width:'+pct+'%;background:var(--accent);border-radius:3px;transition:width .5s"></div></div>'
+      +'<div style="height:100%;width:'+pct+'%;background:var(--brand-cur);border-radius:3px;transition:width .5s"></div></div>'
       +'</div>';
   }).join('');
 
@@ -5262,7 +5262,7 @@ function renderDashboard(){
     // KPI strip dos aportes
     var apKpi='<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line);margin-bottom:14px;font-size:13px">';
     apKpi+='<span>Recebido: <b>'+fmt(totAp_)+'</b></span>';
-    apKpi+='<span>Utilizado: <b style="color:var(--accent)">'+fmt(totUt_)+'</b></span>';
+    apKpi+='<span>Utilizado: <b style="color:var(--brand-cur)">'+fmt(totUt_)+'</b></span>';
     if(totPend_>0)apKpi+='<span>Pendente: <b style="color:var(--warn)">'+fmt(totPend_)+'</b></span>';
     apKpi+='<span style="margin-left:auto">Saldo: <b style="color:'+(saldoAp_<0?'var(--danger)':'var(--ok)')+'">'+fmt(saldoAp_)+'</b></span>';
     apKpi+='</div>';
@@ -5276,7 +5276,7 @@ function renderDashboard(){
         +'<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center;margin-bottom:5px">'
         +'<span style="font-size:13.5px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.nome+'</span>'
         +'<span style="font-size:12px;color:var(--muted);white-space:nowrap">Aportou <b>'+fmt(s.aportado)+'</b></span>'
-        +'<span style="font-size:12px;color:var(--muted);white-space:nowrap">Usou <b style="color:var(--accent)">'+fmt(s.utilizado)+'</b></span>'
+        +'<span style="font-size:12px;color:var(--muted);white-space:nowrap">Usou <b style="color:var(--brand-cur)">'+fmt(s.utilizado)+'</b></span>'
         +'<span style="font-size:13px;font-weight:700;color:'+sColor+';white-space:nowrap">Saldo '+fmt(saldo_)+'</span>'
         +'</div>'
         +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden">'
@@ -5356,7 +5356,7 @@ function renderPag(){const o=cur;
       <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px">
-        ${summaryCard(allObra,allObra,'Dentro da Obra','🏗','obra','var(--accent)')}
+        ${summaryCard(allObra,allObra,'Dentro da Obra','🏗','obra','var(--brand-cur)')}
         ${summaryCard(allExtra,allExtra,'Fora da Obra','📤','extra','var(--warn)')}
       </div>`;
     return;
@@ -5364,7 +5364,7 @@ function renderPag(){const o=cur;
 
   // ── NÍVEL 2: Lista detalhada da seção selecionada ─────────────────
   const isObra=pagEscopo==='obra';
-  const accentColor=isObra?'var(--accent)':'var(--warn)';
+  const accentColor=isObra?'var(--brand-cur)':'var(--warn)';
   const icon=isObra?'🏗':'📤';
   const titulo=isObra?'Dentro da Obra':'Fora da Obra';
 
