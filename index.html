@@ -5379,7 +5379,7 @@ function renderPag(){const o=cur;
   if(pagNfTipo)rows=rows.filter(r=>(r.p.nfTipo||"")==pagNfTipo);
   if(pagContrato)rows=rows.filter(r=>String(r.p.contratoSeq||"")==pagContrato);
   if(pagMes==='sem-data')rows=rows.filter(r=>!r.p.venc&&!r.p.emissao&&!r.p.pagaEm);
-  else if(pagMes){rows=rows.filter(r=>{var d=r.p.venc||r.p.emissao||r.p.pagaEm;return d&&d.slice(0,7)===pagMes;});}
+  else if(pagMes){rows=rows.filter(r=>{var d=r.p.pagaEm||r.p.venc||r.p.emissao;return d&&d.slice(0,7)===pagMes;});}
 
   // Coletar opções únicas para os dropdowns (da lista SEM filtros avançados)
   const baseRows=(isObra?allObra:allExtra).filter(r=>{
@@ -5399,7 +5399,7 @@ function renderPag(){const o=cur;
   const optContr=uniq(baseRows.map(r=>r.p.contratoSeq?String(r.p.contratoSeq):null));
   // Meses disponíveis (baseRows)
   const optMes=[...new Set(baseRows.map(function(r){
-    var d=r.p.venc||r.p.emissao||r.p.pagaEm;return d?d.slice(0,7):null;
+    var d=r.p.pagaEm||r.p.venc||r.p.emissao;return d?d.slice(0,7):null;
   }).filter(Boolean))].sort();
   const hasSemData=baseRows.some(function(r){return !r.p.venc&&!r.p.emissao&&!r.p.pagaEm;});
   // Contar filtros ativos
@@ -5493,8 +5493,8 @@ function renderPag(){const o=cur;
 
   // Ordenar cronologicamente (mais antigo primeiro — ordem de lançamento)
   rows=rows.slice().sort(function(a,b){
-    var da=a.p.venc||a.p.emissao||a.p.pagaEm||'9999';
-    var db=b.p.venc||b.p.emissao||b.p.pagaEm||'9999';
+    var da=a.p.pagaEm||a.p.venc||a.p.emissao||'9999';
+    var db=b.p.pagaEm||b.p.venc||b.p.emissao||'9999';
     return da.localeCompare(db);
   });
 
