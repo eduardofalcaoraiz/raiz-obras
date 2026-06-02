@@ -5471,12 +5471,12 @@ function renderPag(){const o=cur;
     // ── Montar card collapsed: 3 blocos compactos ────────────────────────────
     var _infoChips=[_rowCat,_nfNum,_tkBadge,_constrTag,_pagante].filter(function(x){return x;}).join('');
     var _collapsedHtml='<div onclick="togglePagRow('+i+')" style="padding:12px 14px;cursor:pointer;border-left:4px solid '+stColor+';'+_rowBg+'transition:background .12s" onmouseenter="this.style.background=\'var(--surface-2)\'" onmouseleave="this.style.background=\'\'">'
-      +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:0 14px;align-items:start">'
+      +'<div style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr;gap:0 14px;align-items:start">'
       // ── Bloco esquerdo: nome + chips ──────────────────────────────────────
-      +'<div style="width:'+_leftColW+'">'
+      +'<div style="min-width:0">'
       +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'
       +'<span style="font-size:9px;color:var(--muted);transition:transform .2s;display:inline-block;transform:rotate('+(exp?90:0)+'deg);flex-shrink:0">&#9658;</span>'
-      +'<span style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap">'+p.ben+'</span>'
+      +'<span style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.ben+'</span>'
       +'</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:3px 4px;padding-left:15px">'+_infoChips+'</div>'
       +'</div>'
@@ -5506,8 +5506,6 @@ function renderPag(){const o=cur;
     return da.localeCompare(db);
   });
 
-  // Largura fixa do bloco esquerdo = maior nome de fornecedor da lista
-  var _leftColW=Math.max(120,Math.min(280,Math.round(rows.reduce(function(m,r){return(r.p.ben||'').length>m?(r.p.ben||'').length:m;},0)*7.6)))+'px';
   const listHtml=rows.length===0
     ?`<div style="padding:40px;text-align:center;color:var(--muted)"><div style="font-size:40px;margin-bottom:10px">${icon}</div><p>Nenhum lançamento${pagFiltro!=='todos'||pagMes?' com este filtro':''}</p></div>`
     :rows.map(r=>expandableRow(r)).join('');
