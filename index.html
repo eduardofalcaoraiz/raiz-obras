@@ -5062,7 +5062,7 @@ function renderPag(){const o=cur;
       +'<span style="font-weight:800;font-size:15px;font-family:DM Mono,monospace;white-space:nowrap;color:'+stColor+';flex-shrink:0">'+fmt(p.v)+'</span>'
       +'</div>'
       // Linha 2: referência (se houver)
-      +(p.ref?'<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px">'+p.ref.slice(0,90)+'</div>':'')
+      +(p.ref?'<div style="font-size:12px;color:var(--muted);line-height:1.45;margin-bottom:4px;white-space:pre-line">'+p.ref+'</div>':'')
       // Linha 3: metadados + botões
       +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
       +_rowStatus+_rowCat+_dataPag+_nfNum
