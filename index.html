@@ -49,8 +49,10 @@ button{font-family:inherit;cursor:pointer}
 
 .app{display:flex;min-height:100vh}
 
-.side{width:250px;flex:none;background:var(--ink);color:var(--cream);padding:24px 16px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
+.side{width:250px;flex:none;background:var(--ink);color:var(--cream);padding:24px 16px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh;overflow:hidden}
 
+.side-art-layer{position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.side>.brand,.side>nav,.side>.foot,.side>#nav,.side>*:not(.side-art-layer){position:relative;z-index:1}
 .brand{display:flex;align-items:center;gap:11px;padding:0 8px 20px;border-bottom:1px solid rgba(237,231,218,.12);margin-bottom:12px}
 
 .brand .mk{width:36px;height:36px;border-radius:9px;background:white;display:grid;place-items:center;padding:4px;overflow:hidden}
@@ -762,6 +764,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
   <div class="side-backdrop" id="side-backdrop" onclick="closeSidebar()"></div>
 
   <aside class="side">
+    <div class="side-art-layer" id="side-art-layer"></div>
 
     <div class="brand"><div class="mk"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png" style="width:100%;height:100%;object-fit:contain" alt="Raiz Educação"></div><div><b>Raiz Educação</b><span>Gestão de obras &amp; documentos</span></div></div>
 
@@ -3299,6 +3302,63 @@ function _makePageArt(colors,w,h,marcas){
 
 
 
+function _makeSideArt(colors,w,h){
+  if(!colors||!colors.length)colors=['#F08700'];
+  var rand=_prng(colors.join('').length*99+h);
+  var svg='';
+
+  function vRibbonPts(centerX,phase,amp1,amp2){
+    var n=18,pts=[];
+    for(var i=0;i<=n;i++){
+      var t=i/n;
+      pts.push([
+        centerX+Math.sin(t*Math.PI*2.2+phase)*amp1+Math.sin(t*Math.PI*5.1+phase*1.3)*amp2,
+        t*(h+60)-30
+      ]);
+    }
+    return pts;
+  }
+
+  function vPath(pts,dx){
+    var d='M'+(pts[0][0]+dx).toFixed(1)+','+pts[0][1].toFixed(1);
+    for(var i=1;i<pts.length;i++){
+      var my=((pts[i-1][1]+pts[i][1])/2).toFixed(1);
+      d+=' Q'+(pts[i-1][0]+dx).toFixed(1)+','+my+' '+(pts[i][0]+dx).toFixed(1)+','+pts[i][1].toFixed(1);
+    }
+    return d;
+  }
+
+  var nc=colors.length;
+  colors.forEach(function(col,ci){
+    var centerX=w*(0.25+ci*(0.5/(nc>1?nc-1:1)));
+    var phase=rand()*Math.PI*2+ci*1.9;
+    var amp1=w*(0.22+rand()*0.10);
+    var amp2=w*(0.08+rand()*0.05);
+    var basePts=vRibbonPts(centerX,phase,amp1,amp2);
+    var NL=32, halfBand=w*(0.22+rand()*0.06);
+    for(var li=0;li<NL;li++){
+      var t=li/(NL-1), dc=Math.abs(t-0.5)*2;
+      var dx=(t-0.5)*2*halfBand;
+      var sw=dc<0.2?(2.2-dc*4):dc<0.5?(1.4-dc*1.6):(0.7-dc*0.5); if(sw<0.3)sw=0.3;
+      var op=dc<0.2?(0.55-dc*1.2):dc<0.45?(0.42-dc*0.7):(0.22-dc*0.18); if(op<0.05)op=0.05;
+      svg+='<path d="'+vPath(basePts,dx)+'" stroke="'+col+'" stroke-width="'+sw.toFixed(2)+'" fill="none" opacity="'+op.toFixed(3)+'"/>';
+    }
+    svg+='<path d="'+vPath(basePts,0)+'" stroke="'+col+'" stroke-width="2.8" fill="none" opacity="0.60"/>';
+    svg+='<path d="'+vPath(basePts,-halfBand*0.10)+'" stroke="rgba(255,255,255,0.20)" stroke-width="0.9" fill="none"/>';
+  });
+
+  return'<svg width="100%" height="100%" viewBox="0 0 '+w+' '+h+'" xmlns="http://www.w3.org/2000/svg" style="position:absolute;inset:0;width:100%;height:100%">'+svg+'</svg>';
+}
+
+function updateSideArt(marcas){
+  var el=document.getElementById('side-art-layer');
+  if(!el)return;
+  var cols=(marcas||['RAIZ']).map(function(m){return brandColor(m);}).filter(function(c){return c&&!c.startsWith('var(');});
+  if(!cols.length)cols=['#F08708'];
+  var w=250, h=Math.max(window.innerHeight,900);
+  el.innerHTML=_makeSideArt(cols,w,h);
+}
+
 function updatePageArt(elId,marcas){
 
   const el=document.getElementById(elId);
@@ -4251,7 +4311,7 @@ function openObra(id){
 
   renderObra();showTab('resumo');go("obra");
 
-  setTimeout(()=>updatePageArt('o-page-art',[(cur?.marca||'').split(' + ')[0],...((cur?.marca||'').split(' + ').slice(1))]),100);
+  setTimeout(()=>{var _ms=(cur&&cur.marca?cur.marca:'RAIZ').split(' + ');updateSideArt(_ms);updatePageArt('o-page-art',[_ms[0]].concat(_ms.slice(1)));},100);
 
 }
 
@@ -9534,7 +9594,7 @@ async function onLogin(user){
 
   // Limpa dados legados do localStorage (dados agora no Supabase)
 
-  try{const old=localStorage.getItem(LSKEY);if(old){const s=JSON.parse(old);if(s.uniExtra||s.obrasExtra||s.obraState){localStorage.removeItem(LSKEY);}}}catch(e){}currentUser=user;const{data:profile}=await db.from('user_profiles').select('*').eq('id',user.id).single();if(!profile||!profile.aprovado){document.getElementById('login-screen').style.display='flex';lSwitch('pend');return;}currentProfile=profile;document.getElementById('login-screen').style.display='none';document.getElementById('app').style.display='flex';document.getElementById('foot-user-name').textContent=profile.nome||user.email;if(profile.role==='admin')document.getElementById('nav-admin').style.display='flex';const lo=document.getElementById('lo');lo.style.display='flex';await loadFromDB();await loadInvestidores();lo.style.display='none';obras.forEach(o=>o.pag.forEach(p=>{if(p.nfTipo===undefined)p.nfTipo=p.comp?"NF-e":"Sem nota";}));renderGeral();updateNavBadge();populateEscolasSelect();}
+  try{const old=localStorage.getItem(LSKEY);if(old){const s=JSON.parse(old);if(s.uniExtra||s.obrasExtra||s.obraState){localStorage.removeItem(LSKEY);}}}catch(e){}currentUser=user;const{data:profile}=await db.from('user_profiles').select('*').eq('id',user.id).single();if(!profile||!profile.aprovado){document.getElementById('login-screen').style.display='flex';lSwitch('pend');return;}currentProfile=profile;document.getElementById('login-screen').style.display='none';document.getElementById('app').style.display='flex';document.getElementById('foot-user-name').textContent=profile.nome||user.email;if(profile.role==='admin')document.getElementById('nav-admin').style.display='flex';const lo=document.getElementById('lo');lo.style.display='flex';await loadFromDB();await loadInvestidores();lo.style.display='none';obras.forEach(o=>o.pag.forEach(p=>{if(p.nfTipo===undefined)p.nfTipo=p.comp?"NF-e":"Sem nota";}));renderGeral();updateNavBadge();populateEscolasSelect();updateSideArt(["RAIZ"]);}
 
 (async()=>{const{data:{session}}=await db.auth.getSession();if(session){await onLogin(session.user);}else{document.getElementById('login-screen').style.display='flex';}})();
 
