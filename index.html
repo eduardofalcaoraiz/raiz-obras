@@ -1277,121 +1277,31 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 
 
-      <!-- 2.4. Classificação do custo -->
+      <!-- 2.4. Categoria do gasto -->
 
       <div class="imp-sec">
 
-        <div class="imp-sec-hd">Classificação do Gasto</div>
-
-        <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">Classifique o tipo de gasto para alimentar os relatórios financeiros da obra.</p>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="imp-custo-btns">
-
-          <button type="button" id="imp-custo-mat" onclick="impSetCusto('material')" class="btn" style="flex-direction:column;height:auto;padding:12px 10px;gap:3px;text-align:center;font-size:13px">
-
-            <span style="font-size:18px;line-height:1">🧱</span><span style="font-weight:600">Material</span><span style="font-size:10.5px;color:var(--muted)">concreto, aço, pisos...</span>
-
-          </button>
-
-          <button type="button" id="imp-custo-svc" onclick="impSetCusto('servico')" class="btn" style="flex-direction:column;height:auto;padding:12px 10px;gap:3px;text-align:center;font-size:13px">
-
-            <span style="font-size:18px;line-height:1">🔧</span><span style="font-weight:600">Serviço</span><span style="font-size:10.5px;color:var(--muted)">projetos, mão de obra...</span>
-
-          </button>
-
-          <button type="button" id="imp-custo-eqp" onclick="impSetCusto('equipamento')" class="btn" style="flex-direction:column;height:auto;padding:12px 10px;gap:3px;text-align:center;font-size:13px">
-
-            <span style="font-size:18px;line-height:1">🏗</span><span style="font-weight:600">Equipamento</span><span style="font-size:10.5px;color:var(--muted)">aluguel, compra...</span>
-
-          </button>
-
-          <button type="button" id="imp-custo-out" onclick="impSetCusto('outros')" class="btn" style="flex-direction:column;height:auto;padding:12px 10px;gap:3px;text-align:center;font-size:13px">
-
-            <span style="font-size:18px;line-height:1">📋</span><span style="font-weight:600">Categorizar</span><span style="font-size:10.5px;color:var(--muted)">comissões, taxas, adiant...</span>
-
-          </button>
-
+        <div class="imp-sec-hd" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Categoria do Gasto</span>
+          <button type="button" onclick="openCatModalFromForm()" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">＋ Nova categoria</button>
         </div>
 
+        <select class="fi" id="imp-cat" onchange="impCatChanged()" style="display:block"><!-- populado pelo JS --></select>
 
+        <p style="font-size:11.5px;color:var(--muted);margin-top:8px">Ex: <b>Comissões</b> · <b>Taxa de administração</b> · <b>Legalização</b> · <b>Material</b> · <b>Mão de obra</b></p>
 
-        <!-- Detalhe: Material -->
-
-        <div id="imp-mat-detail" style="display:none;padding:12px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line)">
-
+        <!-- Detalhe de material (visível se categoria de material) -->
+        <div id="imp-mat-detail" style="display:none;margin-top:12px;padding:12px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line)">
           <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Detalhamento do material</div>
-
-          <div class="fgrid">
-
-            <div class="frow" style="margin-bottom:0">
-
-              <label class="fl">Tipo de material</label>
-
-              <select class="fi" id="imp-mat-tipo" onchange="impMatTipoChanged()"><option value="">— Selecione —</option></select>
-
-            </div>
-
-            <div class="frow" style="margin-bottom:0">
-
-              <label class="fl">Quantidade</label>
-
-              <div style="display:flex;gap:6px">
-
-                <input class="fi num" id="imp-mat-qtd" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0" style="flex:1">
-
-                <select class="fi" id="imp-mat-un" style="width:90px;flex-shrink:0"><option>un</option></select>
-
-              </div>
-
-            </div>
-
-          </div>
-
+          <div class="fgrid"><div class="frow" style="margin-bottom:0"><label class="fl">Tipo de material</label><select class="fi" id="imp-mat-tipo" style="display:block"><option value="">— Tipo —</option></select></div><div class="frow" style="margin-bottom:0"><label class="fl">Quantidade</label><input class="fi num" id="imp-mat-qtd" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0" style="flex:1"><select class="fi" id="imp-mat-un" style="max-width:90px"><option>un</option><option>m²</option><option>m³</option><option>m</option><option>kg</option><option>t</option><option>L</option><option>sc</option><option>cx</option></select></div></div>
         </div>
-
-
-
-        <!-- Detalhe: Categorias (para comissões, taxas, adiantamentos, etc.) -->
-
-        <div id="imp-cat-detail" style="display:none;padding:12px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line)">
-
-          <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Selecione a categoria do gasto</div>
-
-          <div class="fgrid">
-
-            <div class="frow" style="margin-bottom:0">
-
-              <label class="fl" style="display:flex;justify-content:space-between;align-items:center">
-
-                <span>Categoria</span>
-
-                <button type="button" onclick="openCatModalFromForm()" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">＋ Nova categoria</button>
-
-              </label>
-
-              <select class="fi" id="imp-cat" onchange="impCatChanged()" style="display:block"><!-- populado pelo JS --></select>
-
-            </div>
-
-
-
-          </div>
-
-          <p style="font-size:11.5px;color:var(--muted);margin-top:8px">Ex: <b>Comissões</b> · <b>Taxa de administração</b> · <b>Legalização</b> · <b>Adiantamento</b></p>
-
-        </div>
-
-
 
         <input type="hidden" id="imp-custo-val" value="">
-
         <input type="hidden" id="imp-tipo" value="OBRA">
 
       </div>
 
-
-
-      <!-- 2.5. Referência do pagamento -->
+            <!-- 2.5. Referência do pagamento -->
 
       <div class="imp-sec">
 
@@ -4929,171 +4839,97 @@ function renderObra(){const o=cur,pct=execObra(o);
 }
 
 function renderMatServ(){
-
   const o=cur;
-
   const pagsPagos=o.pag.filter(p=>p.st==='PAGO');
+  const totalPago=pagsPagos.reduce(function(a,p){return a+p.v;},0)||1;
+  const sumV=function(arr){return arr.reduce(function(a,p){return a+p.v;},0);};
 
-  const totalPago=pagsPagos.reduce((a,p)=>a+p.v,0)||1;
-
-  const sumV=arr=>arr.reduce((a,p)=>a+p.v,0);
-
-  // Agrupamento inteligente: tipo explícito > categoria customizada > não classificado
-  const gMat=[],gSvc=[],gEqp=[],gSem=[];
-  const gCat={}; // cid -> {cat, pags[], total}
-
-  pagsPagos.forEach(p=>{
-    const tc=getTipoCusto(p); // material / servico / equipamento / ''
-    if(tc==='material'){gMat.push(p);return;}
-    if(tc==='servico'){gSvc.push(p);return;}
-    if(tc==='equipamento'){gEqp.push(p);return;}
-    // Tem categoria customizada? → card próprio
-    if(p.cat&&p.cat!=='outros'){
-      if(!gCat[p.cat])gCat[p.cat]={cat:catById(p.cat),pags:[],total:0};
-      gCat[p.cat].pags.push(p);gCat[p.cat].total+=p.v;
-      return;
+  // Agrupar por CATEGORIA do usuário (p.cat)
+  const catGroups={};
+  const semCat=[];
+  pagsPagos.forEach(function(p){
+    const cid=p.cat||'outros';
+    if(cid&&cid!=='outros'){
+      if(!catGroups[cid])catGroups[cid]={cat:catById(cid),pags:[],total:0};
+      catGroups[cid].pags.push(p);
+      catGroups[cid].total+=p.v;
+    }else{
+      semCat.push(p);
     }
-    // Sem tipo e sem categoria → aguardando classificação
-    gSem.push(p);
   });
+  const catArr=Object.values(catGroups).sort(function(a,b){return b.total-a.total;});
+  const tCat=catArr.reduce(function(a,g){return a+g.total;},0);
+  const tSem=sumV(semCat);
+  const barFn=function(v,tot,cor){return '<div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:10px;background:var(--line);border-radius:5px;overflow:hidden"><div style="height:100%;width:'+( tot>0?Math.min(v/tot*100,100).toFixed(1):0)+'%;background:'+cor+';border-radius:5px"></div></div><span style="font-size:12px;color:var(--muted);min-width:40px;text-align:right">'+(tot>0?(v/tot*100).toFixed(1):0)+'%</span></div>';};
 
-  const catArr=Object.values(gCat).sort((a,b)=>b.total-a.total);
-  const tMat=sumV(gMat),tSvc=sumV(gSvc),tEqp=sumV(gEqp);
-  const tCatTotal=catArr.reduce((a,g)=>a+g.total,0);
-
-  // Para compat com código abaixo que usa grouped.material etc
-  const grouped={material:gMat,servico:gSvc,equipamento:gEqp};
-  const semClass=gSem;
-
-  // Inventário de materiais por tipo
-
-  const matInv={};
-
-  grouped.material.forEach(p=>{
-
-    const ti=p.matTipo||'outros';
-
-    if(!matInv[ti])matInv[ti]={tipo:ti,nome:(MATERIAL_TIPOS.find(m=>m.id===ti)||{nome:'Outros materiais'}).nome,valor:0,qtd:0,unidade:p.matUnidade||'',compras:0,fornecedores:new Set()};
-
-    matInv[ti].valor+=p.v;matInv[ti].compras++;
-
-    if(p.matQtd)matInv[ti].qtd+=p.matQtd;
-
-    if(p.matUnidade&&!matInv[ti].unidade)matInv[ti].unidade=p.matUnidade;
-
-    matInv[ti].fornecedores.add(p.ben);
-
+  // KPIs
+  var kpisHtml='<div class="kpis" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:20px">';
+  catArr.forEach(function(cg){
+    kpisHtml+='<div class="kpi"><div class="lab">'+cg.cat.nome+'</div><div class="val" style="color:var(--accent)">'+fmt(cg.total)+'</div><div class="sub">'+(totalPago>0?(cg.total/totalPago*100).toFixed(1):0)+'% do total</div></div>';
   });
+  if(tSem>0){
+    kpisHtml+='<div class="kpi"><div class="lab">⬜ Sem categoria</div><div class="val" style="color:var(--muted)">'+fmt(tSem)+'</div><div class="sub">'+semCat.length+' pagamento'+(semCat.length!==1?'s':'')+'</div></div>';
+  }
+  kpisHtml+='</div>';
 
-  const matInvArr=Object.values(matInv).sort((a,b)=>b.valor-a.valor);
-
-  // Inventário de serviços por fornecedor
-
-  const svcInv={};
-
-  grouped.servico.forEach(p=>{
-
-    const k=p.ben;
-
-    if(!svcInv[k])svcInv[k]={nome:k,valor:0,n:0};
-
-    svcInv[k].valor+=p.v;svcInv[k].n++;
-
+  // Card de distribuição
+  var distHtml='<div class="card" style="margin-bottom:16px"><h2 style="font-size:17px;margin-bottom:14px">Distribuição por Categoria</h2><div style="display:grid;gap:14px">';
+  catArr.forEach(function(cg){
+    distHtml+='<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">'+cg.cat.nome+'</span><span style="font-weight:700;color:var(--accent)">'+fmt(cg.total)+'</span></div>'+barFn(cg.total,totalPago,'var(--accent)')+'</div>';
   });
+  if(tSem>0){
+    distHtml+='<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;color:var(--muted)">Sem categoria</span><span style="color:var(--muted)">'+fmt(tSem)+'</span></div>'+barFn(tSem,totalPago,'var(--line)')+'</div>';
+  }
+  distHtml+='</div></div>';
 
-  const svcArr=Object.values(svcInv).sort((a,b)=>b.valor-a.valor);
+  // Cards por categoria
+  var catCardsHtml=catArr.map(function(cg){
+    var rows=cg.pags.map(function(p){
+      var atr=isAtraso(p);
+      var stColor=atr?'var(--danger)':p.st==='PAGO'?'var(--ok)':'var(--warn)';
+      var dt=p.pagaEm&&p.st==='PAGO'?fmtD(p.pagaEm):(p.venc?fmtD(p.venc):'—');
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line);gap:12px">'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-weight:600;font-size:13.5px;text-transform:uppercase;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.ben+'</div>'
+        +(p.ref?'<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.ref.slice(0,60)+'</div>':'')
+        +'<div style="font-size:11.5px;color:'+stColor+';margin-top:1px">'+(p.st==='PAGO'?'✓ Pago':'⏳ Pendente')+(dt?' · '+dt:'')+'</div>'
+        +'</div>'
+        +'<div style="font-weight:800;font-size:15px;font-family:'DM Mono',monospace;white-space:nowrap;color:'+stColor+'">'+fmt(p.v)+'</div>'
+        +'</div>';
+    }).join('');
+    return '<div class="card" style="margin-bottom:16px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+      +'<div><h2 style="font-size:17px;margin-bottom:2px">'+cg.cat.nome+'</h2>'
+      +'<div class="sub">'+cg.pags.length+' pagamento'+(cg.pags.length!==1?'s':'')+' · '+(totalPago>0?(cg.total/totalPago*100).toFixed(1):0)+'% do total pago</div></div>'
+      +'<div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace;color:var(--accent)">'+fmt(cg.total)+'</div>'
+      +'</div>'+rows+'</div>';
+  }).join('');
 
-  // semClass já definido no agrupamento acima (gSem)
+  // Card sem categoria (aguardando classificação)
+  var semCatHtml=semCat.length>0
+    ?('<div class="card" style="border-left:4px solid var(--warn);margin-bottom:16px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+      +'<div><h2 style="font-size:17px;margin-bottom:2px">⚠ Sem categoria</h2>'
+      +'<div class="sub">'+semCat.length+' pagamento'+(semCat.length!==1?'s sem':'sem')+' categoria definida</div></div>'
+      +'<div style="font-size:18px;font-weight:800;color:var(--muted)">'+fmt(tSem)+'</div></div>'
+      +'<div style="display:flex;flex-direction:column;gap:6px">'
+      +semCat.slice(0,5).map(function(p){
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface-2);border-radius:var(--r);gap:10px">'
+          +'<div style="flex:1;min-width:0"><span style="font-weight:600;text-transform:uppercase;letter-spacing:.03em">'+p.ben+'</span>'
+          +(p.ref?'<span style="color:var(--muted);font-size:12.5px;margin-left:6px">· '+p.ref.slice(0,40)+'</span>':'')+'</div>'
+          +'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0"><span style="font-weight:700">'+fmt(p.v)+'</span>'
+          +'<button class="btn btn-sm" onclick="openPagModal('+o.pag.indexOf(p)+')">Categorizar ✎</button></div></div>';
+      }).join('')
+      +(semCat.length>5?'<p style="font-size:13px;color:var(--muted);text-align:center;margin-top:4px">… e mais '+(semCat.length-5)+'</p>':'')
+      +'</div></div>')
+    :'';
 
-  const barFn=(v,tot,cor)=>`<div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:10px;background:var(--line);border-radius:5px;overflow:hidden"><div style="height:100%;width:${tot>0?Math.min(v/tot*100,100).toFixed(1):0}%;background:${cor};border-radius:5px"></div></div><span style="font-size:12px;color:var(--muted);min-width:40px;text-align:right">${tot>0?(v/tot*100).toFixed(1):0}%</span></div>`;
+  var emptyHtml=pagsPagos.length===0
+    ?'<div class="card"><p class="empty">Nenhum pagamento pago registrado ainda.</p></div>'
+    :'';
 
-  document.getElementById('pane-custos').innerHTML=`
-
-  <div class="kpis" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:20px">
-
-    ${tMat>0?`<div class="kpi"><div class="lab">🧱 Materiais</div><div class="val" style="color:var(--info)">${fmt(tMat)}</div><div class="sub">${totalPago>0?(tMat/totalPago*100).toFixed(1):0}% do total</div></div>`:''}
-    ${tSvc>0?`<div class="kpi"><div class="lab">🔧 Serviços</div><div class="val" style="color:var(--ok)">${fmt(tSvc)}</div><div class="sub">${totalPago>0?(tSvc/totalPago*100).toFixed(1):0}% do total</div></div>`:''}
-    ${tEqp>0?`<div class="kpi"><div class="lab">🏗 Equipamentos</div><div class="val" style="color:var(--warn)">${fmt(tEqp)}</div><div class="sub">${(tEqp/totalPago*100).toFixed(1)}%</div></div>`:''}
-    ${catArr.map(cg=>`<div class="kpi"><div class="lab">🏷 ${cg.cat.nome}</div><div class="val" style="color:var(--accent)">${fmt(cg.total)}</div><div class="sub">${totalPago>0?(cg.total/totalPago*100).toFixed(1):0}% · ${cg.pags.length} pgto${cg.pags.length!==1?'s':''}</div></div>`).join('')}
-    ${semClass.length>0?`<div class="kpi"><div class="lab">⬜ Não classificado</div><div class="val" style="color:var(--muted)">${fmt(sumV(semClass))}</div><div class="sub">${semClass.length} pgto${semClass.length!==1?'s':''}</div></div>`:''}
-
-  </div>
-
-  <div class="card" style="margin-bottom:16px">
-
-    <h2 style="font-size:17px;margin-bottom:14px">Distribuição de Custos</h2>
-
-    <div style="display:grid;gap:14px">
-
-      ${tMat>0?`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">🧱 Materiais</span><span style="font-weight:700;color:var(--info)">${fmt(tMat)}</span></div>${barFn(tMat,totalPago,'var(--info)')}</div>`:''}
-      ${tSvc>0?`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">🔧 Serviços</span><span style="font-weight:700;color:var(--ok)">${fmt(tSvc)}</span></div>${barFn(tSvc,totalPago,'var(--ok)')}</div>`:''}
-      ${tEqp>0?`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">🏗 Equipamentos</span><span style="font-weight:700;color:var(--warn)">${fmt(tEqp)}</span></div>${barFn(tEqp,totalPago,'var(--warn)')}</div>`:''}
-      ${catArr.map(cg=>`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">🏷 ${cg.cat.nome}</span><span style="font-weight:700;color:var(--accent)">${fmt(cg.total)}</span></div>${barFn(cg.total,totalPago,'var(--accent)')}</div>`).join('')}
-      ${semClass.length>0?`<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;color:var(--muted)">⬜ Não classificado</span><span style="color:var(--muted)">${fmt(sumV(semClass))}</span></div>${barFn(sumV(semClass),totalPago,'var(--line)')}</div>`:''}
-    </div>
-    ${tMat>0&&tSvc>0?`<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)">Razão Material/Serviço: <b>${(tMat/tSvc).toFixed(2)}</b> — para cada R$ 1 em serviço, R$ ${(tMat/tSvc).toFixed(2)} em material.</div>`:''}
-  </div>
-
-  ${matInvArr.length>0?`<div class="card" style="margin-bottom:16px">
-
-    <h2 style="font-size:17px;margin-bottom:4px">Inventário de Materiais</h2>
-
-    <div class="sub" style="margin-bottom:14px">Quantidades e valores acumulados por tipo — baseado nos pagamentos lançados.</div>
-
-    <div class="tablewrap"><table><thead><tr><th>Tipo de material</th><th style="text-align:right">Qtd total</th><th>Un</th><th style="text-align:right">Valor total</th><th style="text-align:right">Preço médio/un</th><th style="text-align:right">Compras</th><th>Fornecedores</th></tr></thead><tbody>${matInvArr.map(m=>`<tr><td style="font-weight:600">${m.nome}</td><td class="n">${m.qtd>0?m.qtd.toLocaleString('pt-BR',{maximumFractionDigits:3}):'—'}</td><td style="color:var(--muted)">${m.unidade||'—'}</td><td class="n" style="font-weight:700">${fmt(m.valor)}</td><td class="n" style="color:var(--muted);font-size:12px">${m.qtd>0?fmt(m.valor/m.qtd):fmt(m.valor/m.compras)}</td><td class="n">${m.compras}</td><td style="font-size:12px;color:var(--muted)">${[...m.fornecedores].slice(0,2).join(', ')}${m.fornecedores.size>2?' +'+( m.fornecedores.size-2):''}</td></tr>`).join('')}</tbody></table></div>
-
-    ${matInvArr.some(m=>!m.qtd)?`<p style="font-size:12px;color:var(--soft);margin-top:8px;font-style:italic">💡 Dica: edite os pagamentos de material e preencha a quantidade para análise completa de inventário.</p>`:''}
-
-  </div>`:''}
-
-  ${svcArr.length>0?`<div class="card" style="margin-bottom:16px">
-
-    <h2 style="font-size:17px;margin-bottom:4px">Serviços Contratados</h2>
-
-    <div class="sub" style="margin-bottom:14px">Prestadores de serviço e participação no custo total de serviços.</div>
-
-    <div class="tablewrap"><table><thead><tr><th>Fornecedor / Prestador</th><th style="text-align:right">Valor pago</th><th>Participação</th><th style="text-align:right">Pagamentos</th></tr></thead><tbody>${svcArr.map(s=>`<tr><td style="font-weight:500">${s.nome}</td><td class="n" style="font-weight:600">${fmt(s.valor)}</td><td><div style="display:flex;align-items:center;gap:6px"><div style="width:80px;height:5px;background:var(--line);border-radius:3px;overflow:hidden"><div style="height:100%;width:${tSvc>0?Math.min(s.valor/tSvc*100,100).toFixed(1):0}%;background:var(--ok);border-radius:3px"></div></div><span style="font-size:12px;color:var(--muted)">${tSvc>0?(s.valor/tSvc*100).toFixed(1):0}%</span></div></td><td class="n">${s.n}</td></tr>`).join('')}</tbody></table></div>
-
-  </div>`:''}
-
-  ${catArr.map(cg=>`<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent)">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-      <div>
-        <h2 style="font-size:17px;margin-bottom:2px">🏷 ${cg.cat.nome}</h2>
-        <div class="sub">${cg.pags.length} pagamento${cg.pags.length!==1?'s':''} · ${totalPago>0?(cg.total/totalPago*100).toFixed(1):0}% do total gasto</div>
-      </div>
-      <div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace;color:var(--accent)">${fmt(cg.total)}</div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:5px">
-      ${cg.pags.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface-2);border-radius:var(--r);gap:10px">
-        <div style="flex:1;min-width:0">
-          <span style="font-weight:600;font-size:13.5px">${p.ben}</span>
-          ${p.ref?`<span style="color:var(--muted);font-size:12px;margin-left:6px">· ${p.ref.slice(0,60)}</span>`:''}
-          ${p.venc?`<span style="color:var(--soft);font-size:11.5px;margin-left:6px">${fmtD(p.venc)}</span>`:''}
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-          <span style="font-weight:700">${fmt(p.v)}</span>
-          <button class="btn btn-ghost btn-sm" style="padding:3px 8px" onclick="openPagModal(${o.pag.indexOf(p)})">✎</button>
-        </div>
-      </div>`).join('')}
-    </div>
-  </div>`).join('')}
-
-  ${semClass.length>0?`<div class="card" style="border-left:4px solid var(--warn)">
-
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h2 style="font-size:17px;margin-bottom:3px">⚠ Aguardando classificação</h2><div class="sub">${semClass.length} pagamento${semClass.length!==1?'s sem':'sem'} tipo de custo definido.</div></div></div>
-
-    <div style="display:flex;flex-direction:column;gap:7px">${semClass.slice(0,5).map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface-2);border-radius:var(--r);gap:10px"><div style="flex:1;min-width:0"><span style="font-weight:600">${p.ben}</span>${p.ref?` <span style="color:var(--muted);font-size:12.5px">· ${p.ref.slice(0,40)}</span>`:''}</div><div style="display:flex;align-items:center;gap:8px;flex-shrink:0"><span style="font-weight:700">${fmt(p.v)}</span><button class="btn btn-sm" onclick="openPagModal(${o.pag.indexOf(p)})">Classificar ✎</button></div></div>`).join('')}${semClass.length>5?`<p style="font-size:13px;color:var(--muted);text-align:center;margin-top:4px">… e mais ${semClass.length-5}</p>`:''}</div>
-
-  </div>`:''}
-
-  ${pagsPagos.length===0?'<div class="card"><p class="empty">Nenhum pagamento pago registrado ainda. Quando você lançar e quitar pagamentos, a análise de custos aparecerá aqui.</p></div>':''}`;
-
+  document.getElementById('pane-custos').innerHTML=kpisHtml+distHtml+catCardsHtml+semCatHtml+emptyHtml;
 }
-
-
-
-
 
 function setPagFiltro(f){pagFiltro=f;pagPage=0;renderPag();}
 function drillPag(escopo){pagEscopo=escopo;pagExpanded=new Set();pagBusca="";renderPag();}
@@ -5226,22 +5062,19 @@ function renderPag(){const o=cur;
       </div>`:'' ;
 
     return`<div style="border-bottom:1px solid var(--line)">
-      <div onclick="togglePagRow(${i})" style="display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;${atr?'background:var(--danger)06;':''}transition:background .1s" onmouseenter="this.style.background=this.style.background||'var(--surface-2)'" onmouseleave="this.style.background=${atr?"'var(--danger)06'":"''"} ">
-        <span style="font-size:12px;color:var(--muted);transition:transform .2s;display:inline-block;transform:rotate(${exp?90:0}deg)">▶</span>
+      <div onclick="togglePagRow(${i})" style="display:flex;align-items:center;gap:12px;padding:12px 20px;cursor:pointer;${atr?'background:var(--danger)06;':''}transition:background .1s;border-left:3px solid ${exp?'var(--accent)':'transparent'}" onmouseenter="this.style.borderLeftColor='var(--line)'" onmouseleave="this.style.borderLeftColor='${exp?'var(--accent)':'transparent'}'">
+        <span style="font-size:11px;color:var(--muted);transition:transform .2s;display:inline-block;transform:rotate(${exp?90:0}deg);flex-shrink:0">▶</span>
         <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span style="font-weight:700;font-size:15px">${p.ben}</span>
-            <span style="font-size:11.5px;font-weight:600;color:${stColor};background:${stColor}14;padding:2px 8px;border-radius:12px;border:1px solid ${stColor}33">${stLabel}</span>
-            ${p.nfTipo&&p.nfTipo!=='Sem nota'?`<span style="font-size:11px;color:var(--muted)">${p.nfTipo}</span>`:''}
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:3px">
+            <span style="font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${p.ben}</span>
+            <span style="font-weight:800;font-size:16px;font-family:'DM Mono',monospace;white-space:nowrap;color:${stColor};flex-shrink:0">${fmt(p.v)}</span>
           </div>
-          <div style="font-size:12.5px;color:var(--muted);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap">
-            ${p.venc?`<span>📅 ${fmtD(p.venc)}</span>`:''}
-            ${p.pagn&&p.pagn!=='—'?`<span>👤 ${p.pagn}</span>`:''}
-            ${cat&&cat.nome!=='(removida)'&&cat.nome!=='outros'?`<span>🏷 ${cat.nome}</span>`:''}
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:600;color:${stColor};background:${stColor}15;padding:1px 7px;border-radius:10px;border:1px solid ${stColor}30">${stLabel}</span>
+            ${cat&&cat.nome!=='(removida)'&&cat.nome!=='outros'?`<span style="font-size:11px;background:var(--accent)12;color:var(--accent);padding:1px 7px;border-radius:10px;font-weight:600">${cat.nome}</span>`:''}
+            ${p.venc||p.pagaEm?`<span style="font-size:11.5px;color:var(--muted)">📅 ${p.pagaEm&&p.st==='PAGO'?fmtD(p.pagaEm):(p.venc?fmtD(p.venc):'—')}</span>`:''}
+            ${p.pagn&&p.pagn!=='—'?`<span style="font-size:11.5px;color:var(--muted)">· ${p.pagn}</span>`:''}
           </div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace;white-space:nowrap">${fmt(p.v)}</div>
         </div>
       </div>
       ${detalhes}
