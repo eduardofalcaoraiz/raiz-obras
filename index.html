@@ -930,7 +930,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <div class="kpis" id="o-kpis"></div>
 
-      <div class="bar" style="margin-bottom:24px"><i id="o-bar"></i></div>
+      <div id="o-bar-wrap" style="display:none"><div class="bar" style="margin-bottom:24px"><i id="o-bar"></i></div></div>
 
       <div class="tabs">
 
@@ -4480,10 +4480,10 @@ function renderObra(){const o=cur,pct=execObra(o);
   _cardEscola+='</div>';
 
   // Montar grid
+  // Cards integrados ao dashboard
   var _oKpisEl2=document.getElementById("o-kpis");
-  _oKpisEl2.style.display='block';
-  _oKpisEl2.style.marginBottom='20px';
-  _oKpisEl2.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:start">'+_cardConstr+_cardInv+_cardEscola+'</div>';
+  if(_oKpisEl2){_oKpisEl2.style.display='none';_oKpisEl2.innerHTML='';}
+  _dashCardConstr=_cardConstr;_dashCardInv=_cardInv;_dashCardEscola=_cardEscola;
 
   const bar=document.getElementById("o-bar");bar.className=barClass(pct);bar.style.width=Math.min(pct,100)+"%";
 
@@ -4907,7 +4907,8 @@ function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfD
   return `<div style="display:flex;flex-direction:column;gap:3px;font-size:11.5px;min-width:155px"><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">NF</b> ${nf}</span><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Pgto</b> ${comp}</span></div>`;}
 
 let pagBusca="",pagDe="",pagAte="",pagPage=0;
-let pagEscopo=null; // null=resumo | 'obra' | 'extra'
+let pagEscopo=null; // null=resumo
+var _dashCardConstr='', _dashCardInv='', _dashCardEscola=''; // cards do dashboard | 'obra' | 'extra'
 let pagFornecedor="",pagPagante="",pagCategoria="",pagNfTipo="",pagContrato="";
 function setPagFornecedor(v){pagFornecedor=v;pagPage=0;renderPag();}
 function setPagPagante(v){pagPagante=v;pagPage=0;renderPag();}
@@ -4970,6 +4971,20 @@ function renderDashboard(){
   if(contrTot_>0&&saldoContr_>=0&&saldoContr_<contrTot_*0.12&&totalPago_>0)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam apenas <b>'+fmt(saldoContr_)+'</b>.</div></div>';
   if(invBase_>0&&saldoInv_>=0&&saldoInv_<invBase_*0.08)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Saldo do investimento crítico — restam <b>'+fmt(saldoInv_)+'</b>.</div></div>';
   if(projMeses>=0&&projMeses<=3&&velMensal>500)al+='<div class="alert alert-warn"><span class="ic">⏱</span><div>No ritmo atual, o investimento dura <b>'+projLabel+'</b>.</div></div>';
+
+  // ── Cards consolidados (topo do dashboard) ──────────────────────────
+  var sCards='';
+  if(_dashCardConstr||_dashCardInv||_dashCardEscola){
+    sCards='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px">';
+    if(_dashCardConstr)sCards+=_dashCardConstr;
+    if(_dashCardInv)sCards+=_dashCardInv;
+    if(_dashCardEscola)sCards+=_dashCardEscola;
+    sCards+='</div>';
+  }
+  // Barra de execução integrada
+  var execBar_=Math.min(execPct_,100);
+  var execBarColor_=execPct_>=100?'var(--danger)':execPct_>80?'var(--warn)':'var(--ok)';
+  var sExecBar=contrTot_>0?('<div style="margin-bottom:20px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px"><span>Execução geral da obra</span><span>'+execPct_+'%</span></div><div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+execBar_+'%;background:'+execBarColor_+';border-radius:4px;transition:width .5s"></div></div></div>'):'';
 
   // ── Insights de tempo (EXCLUSIVO — não está nos cards consolidados) ────
   var sInsights='';
@@ -5092,6 +5107,8 @@ function renderDashboard(){
 
   // ── Montar dashboard ─────────────────────────────────────────────────
   var html='';
+  html+=sCards;
+  html+=sExecBar;
   if(sInsights)html+=sInsights;
   if(al)html+='<div class="card" style="margin-bottom:16px">'+al+'</div>';
   // Contratos + Urgentes lado a lado
