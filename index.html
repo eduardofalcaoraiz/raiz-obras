@@ -908,20 +908,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
           <button class="btn btn-sm" onclick="openObraModal(cur.id)"><span class="ic">✎</span> Editar</button>
 
-          <div style="position:relative">
-            <button class="btn btn-primary btn-sm" onclick="toggleLancarMenu()" id="btn-lancar-main" style="display:flex;align-items:center;gap:6px"><span class="ic">＋</span> Lançar <span style="font-size:9px;opacity:.7">▼</span></button>
-            <div id="lancar-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:50;min-width:210px;overflow:hidden">
-              <button onclick="openPagModal();closeLancarMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:0;border-bottom:1px solid var(--line);cursor:pointer;font-family:inherit;font-size:13.5px;text-align:left;color:var(--ink)" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background=''">
-                <span style="font-size:17px">✏️</span><div><div style="font-weight:600">Lançamento manual</div><div style="font-size:11.5px;color:var(--muted)">Sem nota ou com dados manuais</div></div>
-              </button>
-              <button onclick="openImport();closeLancarMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:0;border-bottom:1px solid var(--line);cursor:pointer;font-family:inherit;font-size:13.5px;text-align:left;color:var(--ink)" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background=''">
-                <span style="font-size:17px">📄</span><div><div style="font-weight:600">Ler nota fiscal</div><div style="font-size:11.5px;color:var(--muted)">OCR / XML / PDF automático</div></div>
-              </button>
-              <button onclick="openCsvImport();closeLancarMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:0;cursor:pointer;font-family:inherit;font-size:13.5px;text-align:left;color:var(--ink)" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background=''">
-                <span style="font-size:17px">📊</span><div><div style="font-weight:600">Importar planilha</div><div style="font-size:11.5px;color:var(--muted)">CSV com múltiplos pagamentos</div></div>
-              </button>
-            </div>
-          </div>
+          <button class="btn btn-ghost btn-sm" onclick="openCsvImport()" title="Importar múltiplos pagamentos via planilha CSV">📊</button>
+          <button class="btn btn-primary btn-sm" onclick="openPagModal()"><span class="ic">＋</span> Lançar pagamento</button>
 
           <button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)88" onclick="deleteObra(cur?.id)">🗑</button>
 
@@ -1701,24 +1689,29 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
   <div class="mbody">
 
+    <!-- Escopo: primeira decisão, topo do formulário -->
+    <div style="display:flex;gap:0;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--line);margin-bottom:14px">
+      <button type="button" id="pm-escopo-obra-btn" onclick="pmSetEscopo('obra')" style="flex:1;padding:10px 14px;font-size:13px;font-weight:600;border:0;cursor:pointer;background:var(--accent);color:white;transition:.15s">🏗 Dentro da obra</button>
+      <button type="button" id="pm-escopo-extra-btn" onclick="pmSetEscopo('extra')" style="flex:1;padding:10px 14px;font-size:13px;font-weight:600;border:0;cursor:pointer;background:var(--surface);color:var(--muted);transition:.15s">📤 Fora da obra</button>
+    </div>
+    <input type="hidden" id="pm-escopo" value="obra">
+    <p id="pm-escopo-hint" style="font-size:11.5px;color:var(--muted);margin:-10px 0 12px">Dinheiro do investimento da obra.</p>
+
     <div class="fgrid"><div class="frow"><label class="fl">Fornecedor / Beneficiário</label><input class="fi" id="pm-ben" placeholder="Nome da empresa ou pessoa"></div><div class="frow"><label class="fl">Valor (R$)</label><input class="fi num" id="pm-val" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div></div>
 
     <div class="frow">
-
-      <label class="fl">Referência — do que se trata este pagamento? <span style="color:var(--muted);font-weight:400">(aparece na planilha)</span></label>
-
-      <textarea class="fi" id="pm-ref" rows="2" style="height:auto;resize:vertical;min-height:60px;font-size:14px;line-height:1.6" placeholder="Descreva o que está sendo pago. Ex:
-
-• Comissão pelo terreno — Davelino Imóveis
-
-• Medições de construção — julho 2026
-
-• Taxa de habite-se e DARM"></textarea>
-
+      <label class="fl">Referência — do que se trata? <span style="color:var(--muted);font-weight:400">(aparece na planilha)</span></label>
+      <textarea class="fi" id="pm-ref" rows="2" style="height:auto;resize:vertical;min-height:52px;font-size:14px;line-height:1.6" placeholder="Ex: Medições de construção — julho 2026 / Comissão terreno / Taxa habite-se"></textarea>
     </div>
 
     <div class="fgrid">
-      <div class="frow"><label class="fl">Documento fiscal</label><select class="fi" id="pm-nf" onchange="pmNfChange()"><option>Sem nota</option><option>NF-e</option><option>NFS-e</option><option value="Adiantamento">Adiantamento</option><option>Recibo</option><option>Guia</option></select></div>
+      <div class="frow">
+        <label class="fl" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Documento fiscal</span>
+          <button id="pm-ler-nf-btn" type="button" onclick="closePagModal();openImport()" style="display:none;font-size:11.5px;color:var(--accent);font-weight:600;background:none;border:0;cursor:pointer;padding:0">📄 Ler nota automaticamente →</button>
+        </label>
+        <select class="fi" id="pm-nf" onchange="pmNfChange()"><option>Sem nota</option><option>NF-e</option><option>NFS-e</option><option value="Adiantamento">Adiantamento</option><option>Recibo</option><option>Guia</option></select>
+      </div>
       <div class="frow" id="pm-emissao-row" style="display:none"><label class="fl">Data de emissão da nota</label><input class="fi" id="pm-emissao" type="date"></div>
     </div>
     <div class="fgrid">
@@ -1729,16 +1722,6 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
     <div class="frow" id="pm-nfnum-row" style="display:none"><label class="fl">Nº do documento fiscal</label><input class="fi mono" id="pm-nfnum" placeholder="NF-e nº 12345 ou NFS-e nº 67890"></div>
 
     <div class="fgrid"><div class="frow"><label class="fl">Pago por</label><select class="fi" id="pm-pag"></select></div><div class="frow"><label class="fl">Status</label><select class="fi" id="pm-st" onchange="pmStChange()"><option>PAGO</option><option>PENDENTE</option><option>Cancelado</option></select></div></div>
-
-    <div class="frow" style="margin-bottom:0">
-      <label class="fl">Este pagamento é...</label>
-      <div style="display:flex;gap:0;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--line)">
-        <button type="button" id="pm-escopo-obra-btn" onclick="pmSetEscopo('obra')" style="flex:1;padding:10px 14px;font-size:13px;font-weight:600;border:0;cursor:pointer;background:var(--accent);color:white;transition:.15s">🏗 Dentro da obra</button>
-        <button type="button" id="pm-escopo-extra-btn" onclick="pmSetEscopo('extra')" style="flex:1;padding:10px 14px;font-size:13px;font-weight:600;border:0;cursor:pointer;background:var(--surface);color:var(--muted);transition:.15s">📤 Fora da obra</button>
-      </div>
-      <input type="hidden" id="pm-escopo" value="obra">
-      <p id="pm-escopo-hint" style="font-size:11.5px;color:var(--muted);margin-top:5px">Dinheiro do investimento da obra.</p>
-    </div>
 
     <div style="padding:12px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line);margin-bottom:4px">
       <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Classificação do gasto</div>
@@ -6532,6 +6515,9 @@ function pmNfChange(){
   if(r)r.style.display=(t&&t!=='Sem nota'&&t!=='Adiantamento')?'':'none';
   const er=document.getElementById('pm-emissao-row');
   if(er)er.style.display=(t&&t!=='Sem nota')?'':'none';
+  // Mostra botão "Ler nota automaticamente" quando NF-e ou NFS-e
+  const lerBtn=document.getElementById('pm-ler-nf-btn');
+  if(lerBtn)lerBtn.style.display=(t==='NF-e'||t==='NFS-e')?'':'none';
 }
 function pmSetEscopo(v){
   document.getElementById('pm-escopo').value=v;
