@@ -5448,28 +5448,36 @@ function renderPag(){const o=cur;
     var _dataPag=p.pagaEm&&p.st==='PAGO'
       ?('<span style="font-size:11px;font-weight:600;color:var(--ok);background:var(--ok)12;padding:2px 8px;border-radius:8px">&#10003; '+fmtD(p.pagaEm)+'</span>')
       :(p.venc?('<span style="font-size:11px;color:'+(atr?'var(--danger)':'var(--muted)')+'">vcto '+fmtD(p.venc)+'</span>'):'');
-    var _nfNum=p.nfNum?('<span style="font-size:13px;color:#0D47A1;background:#BBDEFB;padding:3px 9px;border-radius:7px;border:1px solid #90CAF9;font-weight:800;letter-spacing:.02em">'+p.nfNum+'</span>'):'';
-    var _rowStatus='<span style="font-size:11px;font-weight:700;color:'+stColor+';background:'+stColor+'15;padding:2px 8px;border-radius:8px;border:1px solid '+stColor+'30">'+stLabel+'</span>';
+    // Número limpo da NF (sem prefixo tipo "NF-e nº" e sem série)
+    var _nfMatch=p.nfNum?p.nfNum.match(/\d{3,}/):'';
+    var _nfClean=_nfMatch?_nfMatch[0]:(p.nfNum||'');
+    // Badge NF integrado com botão (no bloco esquerdo)
+    var _nfBs='font-size:12.5px;font-weight:800;color:var(--info);background:var(--info)15;padding:3px 9px;border-radius:7px;border:1px solid var(--info)40;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;';
+    var _nfInteg='';
+    if(_nfClean&&p.nfDoc){
+      _nfInteg='<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].nfDoc)" style="'+_nfBs+'">'+_nfClean+' &#128196;</button>';
+    }else if(_nfClean){
+      _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_nfBs+'border-style:dashed;" title="Anexar NF">'+_nfClean+' &#128462;</button>';
+    }else if(p.nfTipo&&p.nfTipo!=='Sem nota'){
+      _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="font-size:11px;color:var(--muted);background:var(--surface-2);padding:2px 8px;border-radius:6px;border:1px dashed var(--line);cursor:pointer;font-family:inherit">&#128462; NF</button>';
+    }
+    // Chips de metadados (sem NF — ela vai integrada acima)
     var _rowCat=(cat&&cat.nome&&cat.nome!=='(removida)'&&cat.nome!=='outros')?'<span style="font-size:11px;background:var(--accent)12;color:var(--accent);padding:2px 8px;border-radius:8px;font-weight:600">'+cat.nome+'</span>':'';
-    var _tkBadge=p.ticketRaiz?('<span style="font-size:11px;background:#5C35CC18;color:#5C35CC;padding:2px 8px;border-radius:8px;font-weight:700;border:1px solid #5C35CC30">'+p.ticketRaiz+'</span>'):'';
+    var _tkBadge=p.ticketRaiz?('<span style="font-size:11px;background:#EDE7F6;color:#512DA8;padding:2px 8px;border-radius:8px;font-weight:700;border:1px solid #B39DDB">'+p.ticketRaiz+'</span>'):'';
     var _constrTag=p.construtora_seq&&o.construtoras&&o.construtoras.length>=2?(function(){
       var _c=o.construtoras.find(function(x){return x.seq===p.construtora_seq;});
-      return _c?'<span style="font-size:11px;background:var(--surface-2);color:var(--ink);padding:2px 8px;border-radius:8px;border:1px solid var(--line);font-weight:500">&#127959; '+_c.nome+'</span>':'';
+      return _c?'<span style="font-size:11px;background:var(--surface-2);color:var(--muted);padding:2px 8px;border-radius:8px;border:1px solid var(--line)">&#127959; '+_c.nome+'</span>':'';
     }()):'';
     var _pagante=p.pagn&&p.pagn!=='—'?('<span style="font-size:11px;color:var(--muted)">&#128100; '+p.pagn+'</span>'):'';
-    var _contrChip=cVinc?('<span style="font-size:11px;color:var(--info);background:var(--info)12;padding:2px 8px;border-radius:8px;border:1px solid var(--info)30;font-weight:500">&#128203; '+(cVinc.nome_contr||cVinc.forn)+'</span>'):'';
-    // ── Botões compactos (numa linha) ────────────────────────────────────────
+    // ── Botões do bloco direito: Comp + Editar + Excluir ─────────────────────
     var _bs='display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid;';
-    var _btnNF=p.nfDoc
-      ?('<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].nfDoc)" style="'+_bs+'color:var(--accent);background:var(--accent)10;border-color:var(--accent)40">&#128196; NF</button>')
-      :(p.nfTipo&&p.nfTipo!=='Sem nota'?('<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#128462; NF</button>'):'');
     var _btnComp=p.compDoc
       ?('<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].compDoc)" style="'+_bs+'color:var(--ok);background:var(--ok)10;border-color:var(--ok)40">&#129534; Comp</button>')
       :('<button onclick="event.stopPropagation();anexarComp('+o.id+','+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#128462; Comp</button>');
     var _btnEdit='<button onclick="event.stopPropagation();openPagModal('+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#9998; Editar</button>';
     var _btnDel='<button onclick="event.stopPropagation();deletePagment('+o.id+','+i+')" style="'+_bs+'color:var(--danger);background:var(--danger)08;border-color:var(--danger)30">&#128465; Excluir</button>';
-    // ── Montar card collapsed: 3 blocos compactos ────────────────────────────
-    var _infoChips=[_rowCat,_nfNum,_tkBadge,_constrTag,_pagante].filter(function(x){return x;}).join('');
+    // ── Montar chips do bloco esquerdo ───────────────────────────────────────
+    var _infoChips=[_nfInteg,_rowCat,_tkBadge,_constrTag,_pagante].filter(function(x){return x;}).join('');
     var _collapsedHtml='<div onclick="togglePagRow('+i+')" style="padding:12px 14px;cursor:pointer;border-left:4px solid '+stColor+';'+_rowBg+'transition:background .12s" onmouseenter="this.style.background=\'var(--surface-2)\'" onmouseleave="this.style.background=\'\'">'
       +'<div style="display:grid;grid-template-columns:1.5fr 2.4fr 1.1fr;gap:0 14px;align-items:start">'
       // ── Bloco esquerdo: nome + chips ──────────────────────────────────────
@@ -5495,7 +5503,7 @@ function renderPag(){const o=cur;
           :'<div style="background:#FFF8E1;color:#E65100;border:1px solid #FFE082;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap">&#9203; Desde '+(p.emissao?fmtD(p.emissao):'—')+'</div>'))
       +'<span style="font-weight:800;font-size:17px;font-family:Space Grotesk,sans-serif;white-space:nowrap;color:'+stColor+'">'+fmt(p.v)+'</span>'
       +'</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end">'+(_btnNF||'')+_btnComp+_btnEdit+_btnDel+'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end">'+_btnComp+_btnEdit+_btnDel+'</div>'
       +'</div>'
       +'</div>'
       +'</div>';
