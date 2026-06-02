@@ -1903,9 +1903,22 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
   <div class="mhead"><h2 id="ac-title">Aditivo ao Contrato</h2><button class="x" onclick="closeAditContrModal()">×</button></div>
   <div class="mbody">
     <p style="font-size:13px;color:var(--muted);margin-bottom:14px" id="ac-contr-nome"></p>
-    <div class="frow"><label class="fl">Valor do aditivo (R$) <span style="font-weight:400;color:var(--muted)">— negativo para redução de escopo</span></label><input class="fi num" id="ac-valor" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div>
+    <div class="frow"><label class="fl">Valor do aditivo (R$) <span style="font-weight:400;color:var(--muted)">— negativo para redução de escopo</span></label><input class="fi num" id="ac-valor" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this);acValorChanged()" placeholder="0,00"></div>
     <div class="frow"><label class="fl">Descrição / Motivo</label><textarea class="fi" id="ac-motivo" rows="3" style="height:auto;resize:vertical" placeholder="Ex.: Ampliação de escopo — inclusão de cobertura metálica…"></textarea></div>
-    <div class="frow" style="margin-bottom:0"><label class="fl">Data do aditivo</label><input class="fi" id="ac-data" type="date"></div>
+    <div class="frow"><label class="fl">Data do aditivo</label><input class="fi" id="ac-data" type="date"></div>
+    <div style="background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line);padding:12px;margin-bottom:0">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Quem paga este aditivo?</div>
+      <div class="fgrid">
+        <div class="frow" style="margin-bottom:0">
+          <label class="fl" style="color:var(--accent);font-weight:600">Investimento externo (R$)</label>
+          <input class="fi num" id="ac-val-inv" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this);acValInvChanged()" placeholder="0,00" style="font-weight:700">
+        </div>
+        <div class="frow" style="margin-bottom:0">
+          <label class="fl" style="color:var(--warn);font-weight:600">Caixa da escola (R$)</label>
+          <input class="fi num" id="ac-val-esc" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this);acValEscChanged()" placeholder="0,00" style="font-weight:700">
+        </div>
+      </div>
+    </div>
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
       <button class="btn btn-ghost" onclick="closeAditContrModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="saveAditContr()"><span class="ic">✓</span> Salvar aditivo</button>
@@ -4401,9 +4414,15 @@ function renderObra(){const o=cur,pct=execObra(o);
     var vTot=valorContrTotal(c);
     var pago=_pagoPorContrIdx[c.seq]||0;
     var restante=Math.max(0,vTot-pago);
-    var vInvC=c.valor_investimento!==null&&c.valor_investimento!==undefined?Math.min(+c.valor_investimento,vTot):((c.pct_investimento!==undefined?c.pct_investimento:100)/100*vTot);
-    var vEscC=Math.max(0,vTot-vInvC);
-    var ratioInv=vTot>0?vInvC/vTot:1;
+    // Base: quanto do valor original vem do investimento
+    var baseInv=(c.valor_investimento!==null&&c.valor_investimento!==undefined)?Math.min(+c.valor_investimento,c.v):c.v;
+    // Aditivos: cada um tem seu próprio valor_investimento
+    var aditsInv=(c.aditivos||[]).reduce(function(a,ad){
+      var vAd=Math.abs(ad.valor||0);
+      return a+(ad.valor_investimento!==undefined&&ad.valor_investimento!==null?Math.min(+ad.valor_investimento,vAd):vAd);
+    },0);
+    var totalInvAmount=baseInv+aditsInv;
+    var ratioInv=vTot>0?Math.min(totalInvAmount/vTot,1):1;
     _comprometidoInv+=restante*ratioInv;
     _comprometidoEscola+=restante*(1-ratioInv);
   });
@@ -5918,6 +5937,25 @@ let _acContrIdx=null,_acAditIdx=null;
 const aditContrTotal=c=>(c.aditivos||[]).reduce((s,a)=>s+(+a.valor||0),0);
 const valorContrTotal=c=>(+c.v||0)+aditContrTotal(c);
 
+function acValorChanged(){
+  const v=parseCurrency(document.getElementById('ac-valor')?.value||'0')||0;
+  const inv=parseCurrency(document.getElementById('ac-val-inv')?.value||'0')||0;
+  // Se investimento > novo valor, ajustar
+  if(inv>v){setCurrencyValue('ac-val-inv',v);setCurrencyValue('ac-val-esc',0);}
+  else{setCurrencyValue('ac-val-esc',Math.max(0,v-inv));}
+}
+function acValInvChanged(){
+  const v=parseCurrency(document.getElementById('ac-valor')?.value||'0')||0;
+  const inv=Math.min(parseCurrency(document.getElementById('ac-val-inv')?.value||'0')||0,v);
+  setCurrencyValue('ac-val-inv',inv);
+  setCurrencyValue('ac-val-esc',Math.max(0,v-inv));
+}
+function acValEscChanged(){
+  const v=parseCurrency(document.getElementById('ac-valor')?.value||'0')||0;
+  const esc=Math.min(parseCurrency(document.getElementById('ac-val-esc')?.value||'0')||0,v);
+  setCurrencyValue('ac-val-esc',esc);
+  setCurrencyValue('ac-val-inv',Math.max(0,v-esc));
+}
 function openAditContrModal(ci,di){
   _acContrIdx=ci;_acAditIdx=(di!=null?di:null);
   const c=cur.contratos[ci];
@@ -5926,11 +5964,15 @@ function openAditContrModal(ci,di){
   document.getElementById('ac-motivo').value='';
   document.getElementById('ac-data').value=new Date().toISOString().slice(0,10);
   document.getElementById('ac-valor').value='';
+  setCurrencyValue('ac-val-inv',0);setCurrencyValue('ac-val-esc',0);
   if(_acAditIdx!=null){
     const a=c.aditivos[_acAditIdx];
     setCurrencyValue('ac-valor',a.valor);
     document.getElementById('ac-motivo').value=a.motivo||'';
     document.getElementById('ac-data').value=a.data||'';
+    const vInv=a.valor_investimento!==undefined&&a.valor_investimento!==null?+a.valor_investimento:Math.abs(a.valor||0);
+    setCurrencyValue('ac-val-inv',vInv);
+    setCurrencyValue('ac-val-esc',Math.max(0,Math.abs(a.valor||0)-vInv));
   }
   document.getElementById('adit-contr-overlay').classList.add('show');
 }
@@ -5940,10 +5982,11 @@ async function saveAditContr(){
   if(!valor&&valor!==0){toast('Informe o valor do aditivo.');return;}
   const motivo=document.getElementById('ac-motivo').value.trim();
   const data=document.getElementById('ac-data').value;
+  const vInv=parseCurrency(document.getElementById('ac-val-inv')?.value||'0')||0;
   const c=cur.contratos[_acContrIdx];
   if(!c.aditivos)c.aditivos=[];
-  if(_acAditIdx!=null){c.aditivos[_acAditIdx]={valor,motivo,data};}
-  else{c.aditivos.push({valor,motivo,data});}
+  if(_acAditIdx!=null){c.aditivos[_acAditIdx]={valor,motivo,data,valor_investimento:vInv};}
+  else{c.aditivos.push({valor,motivo,data,valor_investimento:vInv});}
   const{error}=await db.from('contratos').update({aditivos:c.aditivos}).eq('obra_id',cur.id).eq('seq',c.seq);
   if(error){toast('Erro ao salvar aditivo: '+error.message);console.error(error);return;}
   closeAditContrModal();renderObra();showTab('contr');
