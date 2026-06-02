@@ -5448,18 +5448,18 @@ function renderPag(){const o=cur;
     var _dataPag=p.pagaEm&&p.st==='PAGO'
       ?('<span style="font-size:11px;font-weight:600;color:var(--ok);background:var(--ok)12;padding:2px 8px;border-radius:8px">&#10003; '+fmtD(p.pagaEm)+'</span>')
       :(p.venc?('<span style="font-size:11px;color:'+(atr?'var(--danger)':'var(--muted)')+'">vcto '+fmtD(p.venc)+'</span>'):'');
-    // Número limpo da NF (sem prefixo tipo "NF-e nº" e sem série)
-    var _nfMatch=p.nfNum?p.nfNum.match(/\d{3,}/):'';
-    var _nfClean=_nfMatch?_nfMatch[0]:(p.nfNum||'');
-    // Badge NF integrado com botão (no bloco esquerdo)
-    var _nfBs='font-size:12.5px;font-weight:800;color:var(--info);background:var(--info)15;padding:3px 9px;border-radius:7px;border:1px solid var(--info)40;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;';
+    // Número limpo da NF (só dígitos, sem "NF-e nº", sem "série X")
+    var _nfMatch=p.nfNum?p.nfNum.match(/\d+/):'';
+    var _nfClean=_nfMatch?_nfMatch[0]:'';
+    // Botão NF integrado — "NF 152", claramente clicável
+    var _nfBs='display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:4px 11px;border-radius:7px;cursor:pointer;font-family:inherit;border:1.5px solid var(--info);color:var(--info);background:var(--info)12;';
     var _nfInteg='';
     if(_nfClean&&p.nfDoc){
-      _nfInteg='<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].nfDoc)" style="'+_nfBs+'">'+_nfClean+' &#128196;</button>';
+      _nfInteg='<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].nfDoc)" style="'+_nfBs+'">&#128196; NF '+_nfClean+'</button>';
     }else if(_nfClean){
-      _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_nfBs+'border-style:dashed;" title="Anexar NF">'+_nfClean+' &#128462;</button>';
+      _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_nfBs+'border-style:dashed;" title="Clique para anexar a NF">&#128462; NF '+_nfClean+'</button>';
     }else if(p.nfTipo&&p.nfTipo!=='Sem nota'){
-      _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="font-size:11px;color:var(--muted);background:var(--surface-2);padding:2px 8px;border-radius:6px;border:1px dashed var(--line);cursor:pointer;font-family:inherit">&#128462; NF</button>';
+      _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_nfBs+'border-style:dashed;color:var(--muted);border-color:var(--line);background:var(--surface-2)">&#128462; Anexar NF</button>';
     }
     // Chips de metadados (sem NF — ela vai integrada acima)
     var _rowCat=(cat&&cat.nome&&cat.nome!=='(removida)'&&cat.nome!=='outros')?'<span style="font-size:11px;background:var(--accent)12;color:var(--accent);padding:2px 8px;border-radius:8px;font-weight:600">'+cat.nome+'</span>':'';
