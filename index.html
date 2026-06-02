@@ -4925,8 +4925,8 @@ function renderMatServ(){
 }
 
 function setPagFiltro(f){pagFiltro=f;pagPage=0;renderPag();}
-function drillPag(escopo){pagEscopo=escopo;pagExpanded=new Set();pagBusca="";pagFornecedor="";pagPagante="";pagCategoria="";pagNfTipo="";pagContrato="";renderPag();}
-function backPag(){pagEscopo=null;pagExpanded=new Set();pagFornecedor="";pagPagante="";pagCategoria="";pagNfTipo="";pagContrato="";renderPag();}
+function drillPag(escopo){pagEscopo=escopo;pagExpanded=new Set();pagMes="";pagBusca="";pagFornecedor="";pagPagante="";pagCategoria="";pagNfTipo="";pagContrato="";renderPag();}
+function backPag(){pagEscopo=null;pagExpanded=new Set();pagMes="";pagFornecedor="";pagPagante="";pagCategoria="";pagNfTipo="";pagContrato="";renderPag();}
 function togglePagRow(i){pagExpanded.has(i)?pagExpanded.delete(i):pagExpanded.add(i);renderPag();}
 
 function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfDoc.name.slice(0,14)+"…":p.nfDoc.name;nf=`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${nm} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:10.5px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${p.nota?("NF "+p.nota):(p.nfTipo||"NF")}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
@@ -4937,13 +4937,14 @@ function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfD
 
 let pagBusca="",pagDe="",pagAte="",pagPage=0;
 let pagEscopo=null; // null=resumo | 'obra' | 'extra'
-let pagFornecedor="",pagPagante="",pagCategoria="",pagNfTipo="",pagContrato="";
+let pagFornecedor="",pagPagante="",pagCategoria="",pagNfTipo="",pagContrato="",pagMes="";
 function setPagFornecedor(v){pagFornecedor=v;pagPage=0;renderPag();}
 function setPagPagante(v){pagPagante=v;pagPage=0;renderPag();}
 function setPagCategoria(v){pagCategoria=v;pagPage=0;renderPag();}
 function setPagNfTipo(v){pagNfTipo=v;pagPage=0;renderPag();}
 function setPagContrato(v){pagContrato=v;pagPage=0;renderPag();}
-function limparFiltrosPag(){pagBusca='';pagDe='';pagAte='';pagFornecedor='';pagPagante='';pagCategoria='';pagNfTipo='';pagContrato='';pagFiltro='todos';pagPage=0;renderPag();}
+function setPagMes(v){pagMes=v;pagPage=0;renderPag();}
+function limparFiltrosPag(){pagBusca='';pagDe='';pagAte='';pagMes='';pagFornecedor='';pagPagante='';pagCategoria='';pagNfTipo='';pagContrato='';pagFiltro='todos';pagPage=0;renderPag();}
 let pagExpanded=new Set(); // indices expandidos
 
 const PAGE_SIZE=30;
@@ -5367,6 +5368,8 @@ function renderPag(){const o=cur;
   if(pagCategoria)rows=rows.filter(r=>(r.p.cat||"")==pagCategoria);
   if(pagNfTipo)rows=rows.filter(r=>(r.p.nfTipo||"")==pagNfTipo);
   if(pagContrato)rows=rows.filter(r=>String(r.p.contratoSeq||"")==pagContrato);
+  if(pagMes==='sem-data')rows=rows.filter(r=>!r.p.venc&&!r.p.emissao&&!r.p.pagaEm);
+  else if(pagMes){rows=rows.filter(r=>{var d=r.p.venc||r.p.emissao||r.p.pagaEm;return d&&d.slice(0,7)===pagMes;});}
 
   // Coletar opções únicas para os dropdowns (da lista SEM filtros avançados)
   const baseRows=(isObra?allObra:allExtra).filter(r=>{
@@ -5384,8 +5387,13 @@ function renderPag(){const o=cur;
   const optCat=uniq(baseRows.map(r=>{const c=catById(r.p.cat);return c&&c.nome&&c.nome!=='(removida)'&&c.nome!=='outros'?r.p.cat:null;}));
   const optNf=uniq(baseRows.map(r=>r.p.nfTipo));
   const optContr=uniq(baseRows.map(r=>r.p.contratoSeq?String(r.p.contratoSeq):null));
+  // Meses disponíveis (baseRows)
+  const optMes=[...new Set(baseRows.map(function(r){
+    var d=r.p.venc||r.p.emissao||r.p.pagaEm;return d?d.slice(0,7):null;
+  }).filter(Boolean))].sort();
+  const hasSemData=baseRows.some(function(r){return !r.p.venc&&!r.p.emissao&&!r.p.pagaEm;});
   // Contar filtros ativos
-  const nFiltrosAtivos=[pagFornecedor,pagPagante,pagCategoria,pagNfTipo,pagContrato].filter(Boolean).length;
+  const nFiltrosAtivos=[pagMes,pagFornecedor,pagPagante,pagCategoria,pagNfTipo,pagContrato].filter(Boolean).length;
 
   const fb=(f,l)=>`<button class="chip ${pagFiltro===f?'active':''}" onclick="setPagFiltro('${f}')">${l}</button>`;
   const tp=sumPago(rows),tpe=sumPend(rows);
@@ -5463,21 +5471,16 @@ function renderPag(){const o=cur;
     return'<div style="border-bottom:1px solid var(--line)">'+_collapsedHtml+detalhes+'</div>';
   };
 
-  const byM={};rows.forEach(r=>{const k=r.p.venc?r.p.venc.slice(0,7):'sem-data';if(!byM[k])byM[k]=[];byM[k].push(r);});
-  const months=Object.keys(byM).sort((a,b)=>a==='sem-data'?1:b==='sem-data'?-1:b.localeCompare(a));
+  // Ordenar cronologicamente (mais antigo primeiro — ordem de lançamento)
+  rows=rows.slice().sort(function(a,b){
+    var da=a.p.venc||a.p.emissao||a.p.pagaEm||'9999';
+    var db=b.p.venc||b.p.emissao||b.p.pagaEm||'9999';
+    return da.localeCompare(db);
+  });
 
   const listHtml=rows.length===0
-    ?`<div style="padding:40px;text-align:center;color:var(--muted)"><div style="font-size:40px;margin-bottom:10px">${icon}</div><p>Nenhum lançamento${pagFiltro!=='todos'?' com este filtro':''}</p></div>`
-    :months.map(k=>{
-        const mr=byM[k];const mt=mr.reduce((a,r)=>a+r.p.v,0);
-        return`<div>
-          <div style="padding:8px 20px;background:var(--surface-2);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1">
-            <span style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">${k==='sem-data'?'Sem data definida':_monthLabel(k)}</span>
-            <span style="font-size:13px;font-weight:700">${fmt(mt)}</span>
-          </div>
-          ${mr.map(r=>expandableRow(r)).join('')}
-        </div>`;
-      }).join('');
+    ?`<div style="padding:40px;text-align:center;color:var(--muted)"><div style="font-size:40px;margin-bottom:10px">${icon}</div><p>Nenhum lançamento${pagFiltro!=='todos'||pagMes?' com este filtro':''}</p></div>`
+    :rows.map(r=>expandableRow(r)).join('');
 
   document.getElementById("pane-pag").innerHTML=`
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
@@ -5498,6 +5501,7 @@ function renderPag(){const o=cur;
   </div>
   <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding:10px 12px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line)">
     <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;flex-shrink:0">Filtrar</span>
+    ${optMes.length>1||hasSemData?'<select class="fi" style="flex:1;min-width:115px;max-width:160px;padding:5px 8px;font-size:12.5px" onchange="setPagMes(this.value)"><option value="">Mês / Ano</option>'+optMes.map(m=>'<option value="'+m+'"'+(m===pagMes?' selected':'')+'>'+_monthLabel(m)+'</option>').join('')+(hasSemData?'<option value="sem-data"'+(pagMes==="sem-data"?' selected':'')+'>Sem data</option>':'')+"</select>":''}
     ${optForn.length>1?'<select class="fi" style="flex:1;min-width:130px;max-width:195px;padding:5px 8px;font-size:12.5px" onchange="setPagFornecedor(this.value)"><option value="">Fornecedor</option>'+optForn.map(f=>'<option value="'+f+'"'+(f===pagFornecedor?' selected':'')+'>'+(f.length>26?f.slice(0,26)+'…':f)+'</option>').join('')+'</select>':''}
     ${optPag.length>0?'<select class="fi" style="flex:1;min-width:130px;max-width:175px;padding:5px 8px;font-size:12.5px" onchange="setPagPagante(this.value)"><option value="">Investidor / Pagante</option>'+optPag.map(p=>'<option value="'+p+'"'+(p===pagPagante?' selected':'')+'>'+p+'</option>').join('')+'</select>':''}
     ${optCat.length>1?'<select class="fi" style="flex:1;min-width:105px;max-width:155px;padding:5px 8px;font-size:12.5px" onchange="setPagCategoria(this.value)"><option value="">Categoria</option>'+optCat.map(c=>{const cat=catById(c);return'<option value="'+c+'"'+(c===pagCategoria?' selected':'')+'>'+cat.nome+'</option>';}).join('')+'</select>':''}
