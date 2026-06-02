@@ -4348,36 +4348,129 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   const _execPct=execObra(o);
 
-  // Pré-calcular dados dos investidores
+  // ── Dados base para os cards financeiros ─────────────────────────
   const _invStatsKpi=calcInvestStats(o);
   const _invList=_invStatsKpi.filter(function(s){return s.aportado>0||s.utilizado>0;});
   const _totalAportadoKpi=_invList.reduce(function(a,s){return a+s.aportado;},0);
-
   const _invBase=o.investimento_disponivel||o.aportado||_totalAportadoKpi;
+  const _comprometido=Math.max(0,_saldoContr); // quanto ainda precisa ser pago aos contratos
+  const _saldoLivre=Math.max(0,_saldoInv-_comprometido);  // verdadeiramente livre
   const _usadoPct2=_invBase>0?Math.min(Math.round(o.pago/_invBase*100),100):0;
-  const _saldoClass=_saldoInv<0?'var(--danger)':_saldoInv<_invBase*0.1?'var(--warn)':'var(--ok)';
   const _execColor=_execPct>=100?'var(--danger)':_execPct>80?'var(--warn)':'var(--info)';
-  const _invBarColor=_usadoPct2>=100?'var(--danger)':_usadoPct2>80?'var(--warn)':'var(--ok)';
-  const _H='<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:8px">';
-  const _bar=function(pct,col){return _H+'<div style="height:100%;width:'+Math.min(pct,100)+'%;background:'+col+';border-radius:3px;transition:width .5s"></div></div>';};
+  const _saldoColor=_saldoInv<0?'var(--danger)':_saldoInv<_invBase*0.1?'var(--warn)':'var(--ok)';
+  const _bar5=function(pct,col){return '<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:6px"><div style="height:100%;width:'+Math.min(pct,100)+'%;background:'+col+';border-radius:3px;transition:width .5s"></div></div>';};
+  const _cell=function(label,val,color,sub){return '<div style="padding:8px 10px"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">'+label+'</div><div style="font-size:13.5px;font-weight:700'+(color?';color:'+color:'')+'">'+val+'</div>'+(sub?'<div style="font-size:11px;color:var(--soft)">'+sub+'</div>':'')+'</div>';};
 
-  // CARD 1 — Contrato
+  // ── CARD 1: CONTRATO DA OBRA ────────────────────────────────────────
   let _cardConstr='';
-  if(_contrTot>0||o.constr){
-    _cardConstr='<div class="card" style="padding:14px 16px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
-      +'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Contrato da Obra</div>'
-      +(o.constr?'<div style="font-size:12.5px;color:var(--soft)">'+o.constr+'</div>':'')+'</div>'
-      +'<div style="font-size:18px;font-weight:800">'+fmt(_contrTot)+'</div></div>'
-      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden">'
-      +'<div style="padding:8px 10px;border-right:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Contratado</div><div style="font-size:13.5px;font-weight:700">'+fmt(o.contratado)+'</div></div>'
-      +(_aditTot>0?'<div style="padding:8px 10px;border-right:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Aditivos</div><div style="font-size:13.5px;font-weight:700;color:var(--warn)">+'+fmt(_aditTot)+'</div></div>':'<div style="padding:8px 10px;border-right:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Aditivos</div><div style="font-size:13.5px;color:var(--soft)">—</div></div>')
-      +'<div style="padding:8px 10px;border-right:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Executado</div><div style="font-size:13.5px;font-weight:700;color:var(--accent)">'+fmt(o.pago)+'</div></div>'
-      +'<div style="padding:8px 10px"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">A pagar</div><div style="font-size:13.5px;font-weight:700;color:'+(_saldoContr<0?'var(--danger)':_saldoContr<_contrTot*0.15?'var(--warn)':'inherit')+'">'+(_saldoContr<0?'–'+fmt(-_saldoContr):fmt(_saldoContr))+'</div></div>'
+  const _semContrato=!o.contratado&&!o.constr;
+  if(_semContrato){
+    _cardConstr='<div class="card" style="padding:16px 18px">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Contrato da Obra</div>'
+      +'<div style="text-align:center;padding:16px 0">'
+      +'<div style="font-size:32px;margin-bottom:8px;opacity:.3">📋</div>'
+      +'<div style="font-size:13.5px;color:var(--muted);margin-bottom:14px">Nenhum contrato definido</div>'
+      +'<button class="btn btn-primary btn-sm" onclick="openObraModal(cur.id)">Definir contrato →</button>'
+      +'</div></div>';
+  }else{
+    const _execBar=Math.min(_execPct,100);
+    const _aPagarColor=_saldoContr<0?'var(--danger)':_saldoContr<_contrTot*0.15?'var(--warn)':'inherit';
+    const _aditsObra2=o.aditivos_contrato||[];
+    _cardConstr='<div class="card" style="padding:16px 18px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+      +'<div>'
+      +'<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Contrato da Obra</div>'
+      +(o.constr?'<div style="font-size:13px;color:var(--ink);font-weight:500;margin-top:1px">'+o.constr+'</div>':'')
       +'</div>'
-      +_bar(_execPct,_execColor)
-      +'<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:3px"><span>Execução</span><span>'+_execPct+'%</span></div>'
-      +'</div>';
+      +'<div style="text-align:right">'
+      +'<div style="font-size:16px;font-weight:800">'+fmt(_contrTot)+'</div>'
+      +(_aditTot>0?'<div style="font-size:11px;color:var(--muted)">'+fmt(o.contratado)+' + '+fmt(_aditTot)+' adits</div>':'')
+      +'</div></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px">'
+      +_cell('Contratado',fmt(o.contratado),'','')
+      +_cell('Aditivos',_aditTot>0?'+'+fmt(_aditTot):('—'),_aditTot>0?'var(--warn)':'var(--soft)','')
+      +_cell('Executado',fmt(o.pago),'var(--accent)',_execPct+'%')
+      +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">A pagar</div><div style="font-size:13.5px;font-weight:700;color:'+_aPagarColor+'">'+(_saldoContr<0?'–'+fmt(-_saldoContr):fmt(_saldoContr))+'</div></div>'
+      +'</div>'
+      +_bar5(_execBar,_execColor)
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">'
+      +'<span style="font-size:11px;color:var(--muted)">Execução: '+_execPct+'%</span>'
+      +(_aditsObra2.length>0?'<span style="font-size:11px;color:var(--warn)">'+_aditsObra2.length+' aditivo'+(_aditsObra2.length!==1?'s':'')+'</span>':'')
+      +'<button class="btn btn-ghost btn-sm" style="font-size:11.5px;padding:3px 10px" onclick="openAditivoModal()">＋ Aditivo</button>'
+      +'</div></div>';
+  }
+
+  // ── CARD 2: INVESTIMENTO EXTERNO (unificado) ───────────────────────
+  let _cardInv='';
+  if(_invBase>0||_invList.length>0){
+    let _invRows='';
+    _invList.slice().sort(function(a,b){return b.aportado-a.aportado;}).forEach(function(s){
+      const pct2=_totalAportadoKpi>0?Math.round(s.aportado/_totalAportadoKpi*100):0;
+      const saldo2=s.aportado-s.utilizado;
+      const sc=saldo2<0?'var(--danger)':saldo2<s.aportado*0.1?'var(--warn)':'var(--ok)';
+      _invRows+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)">'
+        +'<span style="flex:1;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.nome+'</span>'
+        +'<span style="font-size:11.5px;color:var(--muted)">'+pct2+'%</span>'
+        +'<span style="font-size:13px;font-weight:700">'+fmt(s.aportado)+'</span>'
+        +'<span style="font-size:12px;font-weight:700;color:'+sc+';min-width:80px;text-align:right">'+fmt(saldo2)+'</span>'
+        +'</div>';
+    });
+    _cardInv='<div class="card" style="padding:16px 18px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+      +'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Investimento Externo</div>'
+      +'<div style="font-size:16px;font-weight:800;margin-top:2px">'+fmt(_invBase)+'</div></div>'
+      +'<button class="btn btn-ghost btn-sm" style="font-size:11.5px;padding:3px 10px" onclick="openAporteModal()">＋ Aporte</button>'
+      +'</div>'
+      +(_invRows?'<div style="margin-bottom:10px;padding-bottom:6px">'
+        +'<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-bottom:4px;padding:0 0 3px;border-bottom:1px solid var(--line)"><span>Investidor</span><span style="margin-left:auto;margin-right:8px">%</span><span style="min-width:80px;text-align:right">Aportado</span><span style="min-width:80px;text-align:right">Saldo</span></div>'
+        +_invRows+'</div>':'')
+      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px">'
+      +_cell('Total investido',fmt(_invBase),'','')
+      +_cell('Pago até agora',fmt(o.pago),'var(--accent)',_usadoPct2+'%')
+      +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Comprometido</div><div style="font-size:13.5px;font-weight:700;color:var(--warn)">'+fmt(_comprometido)+'</div><div style="font-size:11px;color:var(--soft)">obrig. contratos</div></div>'
+      +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Saldo livre</div><div style="font-size:13.5px;font-weight:700;color:'+_saldoColor+'">'+fmt(_saldoLivre)+'</div></div>'
+      +'</div>'
+      +_bar5(_usadoPct2,_usadoPct2>=100?'var(--danger)':_usadoPct2>80?'var(--warn)':'var(--ok)')
+      +'<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted)">'
+      +'<span>Saldo total: <b style="color:'+_saldoColor+'">'+fmt(_saldoInv)+'</b></span>'
+      +'<span>'+_usadoPct2+'% utilizado</span>'
+      +'</div></div>';
+  }
+
+  // ── CARD 3: CAIXA PRÓPRIO DA ESCOLA ───────────────────────────────
+  const _teto=o.teto_escola||0;
+  const _gasto=_pagoExtra;
+  const _saldoEscola=_teto-_gasto;
+  const _escolaPct=_teto>0?Math.min(Math.round(_gasto/_teto*100),100):0;
+  const _escolaColor=_saldoEscola<0?'var(--danger)':_saldoEscola<_teto*0.1?'var(--warn)':'var(--ok)';
+  let _cardEscola='<div class="card" style="padding:16px 18px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+    +'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Caixa Próprio da Escola</div>'
+    +'<div style="font-size:11.5px;color:var(--soft);margin-top:1px">Gastos fora do investimento externo</div></div>'
+    +'<button class="btn btn-ghost btn-sm" style="font-size:11.5px;padding:3px 10px" onclick="editarTetoEscola()">✎ Teto</button>'
+    +'</div>';
+  if(_teto>0){
+    _cardEscola+='<div style="display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px">'
+      +_cell('Teto aprovado',fmt(_teto),'','')
+      +_cell('Total gasto',fmt(_gasto),'var(--warn)','')
+      +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Saldo disponível</div>'
+      +'<div style="font-size:13.5px;font-weight:700;color:'+_escolaColor+'">'+(_saldoEscola<0?'–'+fmt(-_saldoEscola):fmt(_saldoEscola))+'</div></div>'
+      +'</div>'
+      +_bar5(_escolaPct,_escolaColor)
+      +'<div style="font-size:11px;color:var(--muted);margin-top:4px;text-align:right">'+_escolaPct+'% do teto utilizado</div>';
+  }else{
+    _cardEscola+=(_gasto>0
+      ?'<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:13.5px;font-weight:700;color:var(--warn)">'+fmt(_gasto)+' gastos</div><button class="btn btn-sm" onclick="editarTetoEscola()" style="font-size:12px">Definir teto</button></div>'
+      :'<div style="text-align:center;padding:12px 0;color:var(--soft);font-size:13px">Nenhum gasto registrado.<br><button class="linkbtn" onclick="editarTetoEscola()">Definir teto de gastos</button></div>');
+  }
+  _cardEscola+='</div>';
+
+  // Montar grid final
+  const _oKpisEl=document.getElementById("o-kpis");
+  _oKpisEl.style.display='block';
+  _oKpisEl.style.marginBottom='20px';
+  _oKpisEl.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:start">'
+    +_cardConstr+_cardInv+_cardEscola+'</div>';
   }
 
   // CARD 2 — Investimento
@@ -4402,70 +4495,7 @@ function renderObra(){const o=cur,pct=execObra(o);
       +'</div>';
   }
 
-  // CARD 3 — Saldo
-  let _cardSaldo='<div class="card" style="padding:14px 16px">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
-    +'<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Saldo do Investimento</div>'
-    +'<div style="font-size:20px;font-weight:900;color:'+_saldoClass+'">'+fmt(_saldoInv)+'</div></div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden">'
-    +'<div style="padding:8px 10px;border-right:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Investimento</div><div style="font-size:13.5px;font-weight:700">'+fmt(_invBase)+'</div></div>'
-    +'<div style="padding:8px 10px;border-right:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Utilizado</div><div style="font-size:13.5px;font-weight:700;color:var(--accent)">'+fmt(o.pago)+'</div></div>'
-    +'<div style="padding:8px 10px"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Saldo</div><div style="font-size:13.5px;font-weight:700;color:'+_saldoClass+'">'+fmt(_saldoInv)+'</div></div>'
-    +'</div>'
-    +_bar(_usadoPct2,_invBarColor)
-    +'<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:3px"><span>Utilizado do investimento</span><span>'+_usadoPct2+'%</span></div>'
-    +'</div>';
 
-  // CARD 4 — Escola (só se houver)
-  let _cardEscola='';
-  if(_pagoExtra>0){
-    _cardEscola='<div class="card" style="padding:14px 16px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center">'
-      +'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Gastos da Escola</div>'
-      +'<div style="font-size:12px;color:var(--soft);margin-top:2px">Caixa próprio — fora do investimento</div></div>'
-      +'<div style="font-size:20px;font-weight:800;color:var(--warn)">'+fmt(_pagoExtra)+'</div></div>'
-      +'</div>';
-  }
-
-  // CARD Aditivos (só se houver)
-  let _cardAdits='';
-  const _aditsObra=o.aditivos_contrato||[];
-  if(_aditsObra.length>0){
-    const _totalPago=o.pago+_pagoExtra;
-    const _pctInv=_totalPago>0?Math.round(o.pago/_totalPago*100):100;
-    const _pctEscola=_totalPago>0?100-_pctInv:0;
-    let _aditsRows='';
-    _aditsObra.forEach(function(d){
-      _aditsRows+='<tr><td style="font-size:12.5px">'+(d.data?fmtD(d.data):'—')+'</td>'
-        +'<td style="font-size:12.5px">'+(d.motivo||'—')+'</td>'
-        +'<td style="text-align:right;font-weight:600;color:var(--warn);font-size:12.5px">'+fmt(d.valor)+'</td></tr>';
-    });
-    _cardAdits='<div class="card" style="grid-column:1/-1;padding:14px 16px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
-      +'<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Aditivos ('+_aditsObra.length+')</div>'
-      +'<div style="font-size:16px;font-weight:800;color:var(--warn)">'+fmt(_aditTot)+'</div></div>'
-      +'<div style="display:flex;gap:16px;align-items:flex-start">'
-      +'<div class="tablewrap" style="flex:1;margin:0"><table><thead><tr><th>Data</th><th>Motivo</th><th style="text-align:right">Valor</th></tr></thead><tbody>'+_aditsRows+'</tbody></table></div>'
-      +'<div style="flex-shrink:0;min-width:200px;border-left:1px solid var(--line);padding-left:14px">'
-      +'<div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:8px">Origem dos pagamentos</div>'
-      +'<div style="display:flex;flex-direction:column;gap:6px">'
-      +'<div style="display:flex;justify-content:space-between;font-size:12.5px"><span>Investimento</span><span style="font-weight:700;color:var(--ok)">'+fmt(o.pago)+' ('+_pctInv+'%)</span></div>'
-      +(_pagoExtra>0?'<div style="display:flex;justify-content:space-between;font-size:12.5px"><span>Escola</span><span style="font-weight:700;color:var(--warn)">'+fmt(_pagoExtra)+' ('+_pctEscola+'%)</span></div>':'')
-      +'<div style="display:flex;justify-content:space-between;font-size:12.5px;border-top:1px solid var(--line);padding-top:6px;margin-top:2px"><span style="font-weight:600">Total pago</span><span style="font-weight:700">'+fmt(_totalPago)+'</span></div>'
-      +'</div></div></div></div>';
-  }
-
-  // Montar em grid 2 colunas que usa a largura total
-  const _oKpisEl=document.getElementById("o-kpis");
-  _oKpisEl.style.display='block'; // override .kpis grid para usar nosso próprio grid
-  _oKpisEl.style.marginBottom='20px';
-  _oKpisEl.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">'
-    +_cardConstr
-    +_cardInv
-    +(_aditsObra.length>0?_cardAdits:'')
-    +_cardSaldo
-    +(_pagoExtra>0?_cardEscola:'')
-    +'</div>';
 
   const bar=document.getElementById("o-bar");bar.className=barClass(pct);bar.style.width=Math.min(pct,100)+"%";
 
@@ -5807,6 +5837,19 @@ function closeObraModal(){document.getElementById("obra-overlay").classList.remo
 /* ===== ADITIVOS DE CONTRATO ===== */
 
 let _aditEditIdx=null;
+
+async function editarTetoEscola(){
+  if(!cur)return;
+  const atual=cur.teto_escola||0;
+  const raw=prompt('Teto de gastos da escola (R$):\nDeixe em branco para remover o teto.',atual>0?atual.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'');
+  if(raw===null)return;
+  const val=parseCurrency(raw)||0;
+  cur.teto_escola=val;
+  const{error}=await db.from('obras').update({teto_escola:val}).eq('id',cur.id);
+  if(error){toast('Erro ao salvar: '+error.message);return;}
+  renderObra();
+  toast(val>0?'Teto definido: '+fmt(val):'Teto removido.');
+}
 
 function openAditivoModal(idx){
 
@@ -7169,7 +7212,7 @@ async function persist(obraId){
 
     const ts=obraId!=null?obras.filter(o=>o.id===obraId):obras;
 
-    if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:(o.pag||[]).filter(p=>p.st==='PAGO'&&(p.escopoFin||'obra')==='obra').reduce((a,p)=>a+p.v,0)||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,aditivos_contrato:o.aditivos_contrato||[]})));
+    if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:(o.pag||[]).filter(p=>p.st==='PAGO'&&(p.escopoFin||'obra')==='obra').reduce((a,p)=>a+p.v,0)||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,teto_escola:o.teto_escola||0,aditivos_contrato:o.aditivos_contrato||[]})));
 
     for(const o of ts){
 
@@ -7246,6 +7289,8 @@ async function loadFromDB(){
       modelo_contrato:o.modelo_contrato||'GLOBAL',
 
       investimento_disponivel:+o.investimento_disponivel||0,
+
+      teto_escola:+o.teto_escola||0,
 
       aditivos_contrato:Array.isArray(o.aditivos_contrato)?o.aditivos_contrato:[],
 
