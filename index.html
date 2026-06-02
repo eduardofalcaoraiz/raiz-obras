@@ -6056,6 +6056,7 @@ function omToggleInv(v){_omInvAct=v;document.getElementById('om-inv-nao-btn').st
 
 function omToggleConstr(v){_omConstrAct=v;document.getElementById('om-constr-nao-btn').style.cssText=_omBtnStyle(v==='nao').replace('border-left:1px solid var(--line)','');document.getElementById('om-constr-sim-btn').style.cssText=_omBtnStyle(v==='sim');document.getElementById('om-constr-section').style.display=v==='sim'?'block':'none';document.getElementById('om-constr-nao-msg').style.display=v==='nao'?'block':'none';if(v==='sim'){if(_omConstrutoras.length===0)_omConstrutoras=[{seq:1,nome:'',cnpj:'',valor:0}];omRenderConstrutoras();}}
 
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function omRenderConstrutoras(){
   var list=document.getElementById('om-construtoras-list');if(!list)return;
   if(_omConstrutoras.length===0){list.innerHTML='';return;}
