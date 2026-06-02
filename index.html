@@ -4922,8 +4922,8 @@ function renderMatServ(){
 }
 
 function setPagFiltro(f){pagFiltro=f;pagPage=0;renderPag();}
-function drillPag(escopo){pagEscopo=escopo;pagExpanded=new Set();pagBusca="";renderPag();}
-function backPag(){pagEscopo=null;pagExpanded=new Set();renderPag();}
+function drillPag(escopo){pagEscopo=escopo;pagExpanded=new Set();pagBusca="";pagFornecedor="";pagPagante="";pagCategoria="";pagNfTipo="";pagContrato="";renderPag();}
+function backPag(){pagEscopo=null;pagExpanded=new Set();pagFornecedor="";pagPagante="";pagCategoria="";pagNfTipo="";pagContrato="";renderPag();}
 function togglePagRow(i){pagExpanded.has(i)?pagExpanded.delete(i):pagExpanded.add(i);renderPag();}
 
 function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfDoc.name.slice(0,14)+"…":p.nfDoc.name;nf=`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${nm} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:10.5px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${p.nota?("NF "+p.nota):(p.nfTipo||"NF")}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
@@ -4934,6 +4934,13 @@ function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfD
 
 let pagBusca="",pagDe="",pagAte="",pagPage=0;
 let pagEscopo=null; // null=resumo | 'obra' | 'extra'
+let pagFornecedor="",pagPagante="",pagCategoria="",pagNfTipo="",pagContrato="";
+function setPagFornecedor(v){pagFornecedor=v;pagPage=0;renderPag();}
+function setPagPagante(v){pagPagante=v;pagPage=0;renderPag();}
+function setPagCategoria(v){pagCategoria=v;pagPage=0;renderPag();}
+function setPagNfTipo(v){pagNfTipo=v;pagPage=0;renderPag();}
+function setPagContrato(v){pagContrato=v;pagPage=0;renderPag();}
+function limparFiltrosPag(){pagBusca='';pagDe='';pagAte='';pagFornecedor='';pagPagante='';pagCategoria='';pagNfTipo='';pagContrato='';pagFiltro='todos';pagPage=0;renderPag();}
 let pagExpanded=new Set(); // indices expandidos
 
 const PAGE_SIZE=30;
@@ -5011,6 +5018,31 @@ function renderPag(){const o=cur;
   if(pagAte)rows=rows.filter(r=>!r.p.venc||r.p.venc<=pagAte);
   const q=pagBusca.trim().toLowerCase();
   if(q)rows=rows.filter(r=>((r.p.ben||"")+" "+(r.p.ref||"")+" "+(r.p.nfNum||"")).toLowerCase().includes(q));
+  // Filtros avançados
+  if(pagFornecedor)rows=rows.filter(r=>(r.p.ben||"")==pagFornecedor);
+  if(pagPagante)rows=rows.filter(r=>(r.p.pagn||"")==pagPagante);
+  if(pagCategoria)rows=rows.filter(r=>(r.p.cat||"")==pagCategoria);
+  if(pagNfTipo)rows=rows.filter(r=>(r.p.nfTipo||"")==pagNfTipo);
+  if(pagContrato)rows=rows.filter(r=>String(r.p.contratoSeq||"")==pagContrato);
+
+  // Coletar opções únicas para os dropdowns (da lista SEM filtros avançados)
+  const baseRows=(isObra?allObra:allExtra).filter(r=>{
+    if(pagFiltro==="pagos"&&r.p.st!=="PAGO")return false;
+    if(pagFiltro==="atraso"&&!isAtraso(r.p))return false;
+    if(pagFiltro==="pend"&&r.p.st==="PAGO")return false;
+    if(pagDe&&r.p.venc&&r.p.venc<pagDe)return false;
+    if(pagAte&&r.p.venc&&r.p.venc>pagAte)return false;
+    if(q&&!((r.p.ben||"")+" "+(r.p.ref||"")+" "+(r.p.nfNum||"")).toLowerCase().includes(q))return false;
+    return true;
+  });
+  const uniq=(arr)=>[...new Set(arr.filter(Boolean))].sort();
+  const optForn=uniq(baseRows.map(r=>r.p.ben));
+  const optPag=uniq(baseRows.map(r=>r.p.pagn&&r.p.pagn!=='—'?r.p.pagn:null));
+  const optCat=uniq(baseRows.map(r=>{const c=catById(r.p.cat);return c&&c.nome&&c.nome!=='(removida)'&&c.nome!=='outros'?r.p.cat:null;}));
+  const optNf=uniq(baseRows.map(r=>r.p.nfTipo));
+  const optContr=uniq(baseRows.map(r=>r.p.contratoSeq?String(r.p.contratoSeq):null));
+  // Contar filtros ativos
+  const nFiltrosAtivos=[pagFornecedor,pagPagante,pagCategoria,pagNfTipo,pagContrato].filter(Boolean).length;
 
   const fb=(f,l)=>`<button class="chip ${pagFiltro===f?'active':''}" onclick="setPagFiltro('${f}')">${l}</button>`;
   const tp=sumPago(rows),tpe=sumPend(rows);
@@ -5117,10 +5149,20 @@ function renderPag(){const o=cur;
     <input class="fi" id="pag-busca" style="flex:1;min-width:140px;max-width:220px;padding:7px 11px;font-size:13px" placeholder="Buscar…" value="${pagBusca.replace(/"/g,'&quot;')}" oninput="setPagBusca(this.value)">
     <button class="btn btn-sm" onclick="exportCSV()">↓ CSV</button>
   </div>
-  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
     ${fb("todos","Todos")} ${fb("pagos","✓ Pagos")} ${fb("pend","⏳ Pendentes")} ${fb("atraso","⚠ Atraso")}
-    <input class="fi" type="date" style="width:120px;padding:5px 9px;font-size:12.5px;margin-left:auto" value="${pagDe}" onchange="setPagDe(this.value)" title="De">
-    <input class="fi" type="date" style="width:120px;padding:5px 9px;font-size:12.5px" value="${pagAte}" onchange="setPagAte(this.value)" title="Até">
+    <input class="fi" type="date" style="width:118px;padding:5px 9px;font-size:12px;margin-left:auto" value="${pagDe}" onchange="setPagDe(this.value)" title="De">
+    <input class="fi" type="date" style="width:118px;padding:5px 9px;font-size:12px" value="${pagAte}" onchange="setPagAte(this.value)" title="Até">
+  </div>
+  <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding:10px 12px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line)">
+    <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;flex-shrink:0">Filtrar</span>
+    ${optForn.length>1?'<select class="fi" style="flex:1;min-width:130px;max-width:195px;padding:5px 8px;font-size:12.5px" onchange="setPagFornecedor(this.value)"><option value="">Fornecedor</option>'+optForn.map(f=>'<option value="'+f+'"'+(f===pagFornecedor?' selected':'')+'>'+(f.length>26?f.slice(0,26)+'…':f)+'</option>').join('')+'</select>':''}
+    ${optPag.length>1?'<select class="fi" style="flex:1;min-width:110px;max-width:160px;padding:5px 8px;font-size:12.5px" onchange="setPagPagante(this.value)"><option value="">Pagante</option>'+optPag.map(p=>'<option value="'+p+'"'+(p===pagPagante?' selected':'')+'>'+p+'</option>').join('')+'</select>':''}
+    ${optCat.length>1?'<select class="fi" style="flex:1;min-width:105px;max-width:155px;padding:5px 8px;font-size:12.5px" onchange="setPagCategoria(this.value)"><option value="">Categoria</option>'+optCat.map(c=>{const cat=catById(c);return'<option value="'+c+'"'+(c===pagCategoria?' selected':'')+'>'+cat.nome+'</option>';}).join('')+'</select>':''}
+    ${optNf.length>1?'<select class="fi" style="flex:1;min-width:95px;max-width:135px;padding:5px 8px;font-size:12.5px" onchange="setPagNfTipo(this.value)"><option value="">Tipo de NF</option>'+optNf.map(n=>'<option value="'+n+'"'+(n===pagNfTipo?' selected':'')+'>'+n+'</option>').join('')+'</select>':''}
+    ${optContr.length>1?'<select class="fi" style="flex:1;min-width:110px;max-width:165px;padding:5px 8px;font-size:12.5px" onchange="setPagContrato(this.value)"><option value="">Contrato</option>'+optContr.map(s=>{const c2=o.contratos.find(x=>String(x.seq)===s);return'<option value="'+s+'"'+(s===pagContrato?' selected':'>')+(c2?c2.nome_contr||c2.forn:'Contrato '+s)+'</option>';}).join('')+'</select>':''}
+    ${nFiltrosAtivos>0?'<button onclick="limparFiltrosPag()" style="font-size:12px;font-weight:600;color:var(--danger);background:var(--danger)10;border:1px solid var(--danger)30;border-radius:var(--r);padding:4px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:inherit">✕ Limpar ('+nFiltrosAtivos+')</button>':''}
+    <span style="font-size:11.5px;color:var(--muted);margin-left:auto;flex-shrink:0">${rows.length} resultado${rows.length!==1?'s':''}</span>
   </div>
   <div class="card" style="padding:0;overflow:hidden">${listHtml}</div>`;
 
