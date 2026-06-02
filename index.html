@@ -5036,22 +5036,39 @@ function renderPag(){const o=cur;
         </div>
       </div>`:'' ;
 
-    // Collapsed row: APENAS string concatenation, sem template literals aninhados
+    // Collapsed row — compacto e informativo, pura concatenação
     var _rowBg=atr?'background:var(--danger)06;':'';
-    var _rowArrow='<span style="font-size:11px;color:var(--muted);transition:transform .2s;display:inline-block;transform:rotate('+(exp?90:0)+'deg);flex-shrink:0">&#9658;</span>';
-    var _rowBen='<span style="font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+p.ben+'</span>';
-    var _rowVal='<span style="font-weight:800;font-size:16px;font-family:\'DM Mono\',monospace;white-space:nowrap;color:'+stColor+';flex-shrink:0">'+fmt(p.v)+'</span>';
-    var _rowRef=p.ref?'<div style="font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">'+p.ref.slice(0,80)+'</div>':'';
-    var _rowStatus='<span style="font-size:11px;font-weight:600;color:'+stColor+';background:'+stColor+'15;padding:1px 7px;border-radius:10px;border:1px solid '+stColor+'30">'+stLabel+'</span>';
-    var _rowCat=(cat&&cat.nome&&cat.nome!=='(removida)'&&cat.nome!=='outros')?'<span style="font-size:11px;background:var(--accent)12;color:var(--accent);padding:1px 7px;border-radius:10px;font-weight:600">'+cat.nome+'</span>':'';
-    var _rowDt=(p.venc||p.pagaEm)?'<span style="font-size:11.5px;color:var(--muted)">&#128197; '+(p.pagaEm&&p.st==='PAGO'?fmtD(p.pagaEm):(p.venc?fmtD(p.venc):'--'))+'</span>':'';
-    var _rowPagn=(p.pagn&&p.pagn!=='—')?'<span style="font-size:11.5px;color:var(--muted)">&#183; '+p.pagn+'</span>':'';
-    var _collapsedHtml='<div onclick="togglePagRow('+i+')" style="display:flex;align-items:center;gap:12px;padding:12px 20px;cursor:pointer;'+_rowBg+'transition:background .1s">'
-      +_rowArrow
+    // Data: só data efetiva de pagamento se PAGO, senão vencimento com aviso
+    var _dataPag=p.pagaEm&&p.st==='PAGO'
+      ?('<span style="font-size:11px;font-weight:600;color:var(--ok);background:var(--ok)12;padding:1px 7px;border-radius:8px">'+fmtD(p.pagaEm)+'</span>')
+      :(p.venc?('<span style="font-size:11px;color:'+(atr?'var(--danger)':'var(--muted)')+'">vcto '+fmtD(p.venc)+'</span>'):'');
+    // NF número
+    var _nfNum=p.nfNum?('<span style="font-size:11px;color:var(--muted);background:var(--surface-2);padding:1px 6px;border-radius:6px;border:1px solid var(--line);font-family:DM Mono,monospace">NF '+p.nfNum+'</span>'):'';
+    // Botões de arquivo — pequeninhos, só ícone
+    var _btnNF=p.nfDoc
+      ?('<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].nfDoc)" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--accent);background:var(--accent)10;border:1px solid var(--accent)30;border-radius:6px;padding:1px 7px;cursor:pointer;font-family:inherit">&#128196; NF</button>')
+      :(p.nfTipo&&p.nfTipo!=='Sem nota'?('<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:1px 7px;cursor:pointer;font-family:inherit">&#128462; NF</button>'):'');
+    var _btnComp=p.compDoc
+      ?('<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].compDoc)" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--ok);background:var(--ok)10;border:1px solid var(--ok)30;border-radius:6px;padding:1px 7px;cursor:pointer;font-family:inherit">&#129534; Comp</button>')
+      :('<button onclick="event.stopPropagation();anexarComp('+o.id+','+i+')" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:1px 7px;cursor:pointer;font-family:inherit">&#128462; Comp</button>');
+    var _rowStatus='<span style="font-size:11px;font-weight:600;color:'+stColor+';background:'+stColor+'15;padding:1px 7px;border-radius:8px;border:1px solid '+stColor+'30">'+stLabel+'</span>';
+    var _rowCat=(cat&&cat.nome&&cat.nome!=='(removida)'&&cat.nome!=='outros')?'<span style="font-size:11px;background:var(--accent)12;color:var(--accent);padding:1px 7px;border-radius:8px;font-weight:600">'+cat.nome+'</span>':'';
+    var _collapsedHtml='<div onclick="togglePagRow('+i+')" style="display:flex;align-items:flex-start;gap:10px;padding:11px 18px;cursor:pointer;'+_rowBg+'transition:background .12s">'
+      +'<span style="font-size:10px;color:var(--muted);margin-top:4px;transition:transform .2s;display:inline-block;transform:rotate('+(exp?90:0)+'deg);flex-shrink:0">&#9658;</span>'
       +'<div style="flex:1;min-width:0">'
-      +'<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:2px">'+_rowBen+_rowVal+'</div>'
-      +_rowRef
-      +'<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:3px">'+_rowStatus+_rowCat+_rowDt+_rowPagn+'</div>'
+      // Linha 1: nome + valor
+      +'<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:3px">'
+      +'<span style="font-weight:700;font-size:13.5px;text-transform:uppercase;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+p.ben+'</span>'
+      +'<span style="font-weight:800;font-size:15px;font-family:DM Mono,monospace;white-space:nowrap;color:'+stColor+';flex-shrink:0">'+fmt(p.v)+'</span>'
+      +'</div>'
+      // Linha 2: referência (se houver)
+      +(p.ref?'<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px">'+p.ref.slice(0,90)+'</div>':'')
+      // Linha 3: metadados + botões
+      +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+      +_rowStatus+_rowCat+_dataPag+_nfNum
+      +'<span style="flex:1"></span>'
+      +_btnNF+_btnComp
+      +'</div>'
       +'</div>'
       +'</div>';
     return'<div style="border-bottom:1px solid var(--line)">'+_collapsedHtml+detalhes+'</div>';
