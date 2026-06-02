@@ -2838,6 +2838,25 @@ function cmBuildParcelas(){
 }
 
 
+function goToContract(seq){
+  showTab('contr');
+  setTimeout(function(){
+    if(!cur)return;
+    var ci=cur.contratos.findIndex(function(c){return c.seq===seq;});
+    if(ci<0)return;
+    var cards=document.querySelectorAll('#pane-contr .card[style]');
+    // Tentar pelo índice na lista de contratos
+    var allCards=document.querySelectorAll('#pane-contr .card');
+    var target=allCards[ci];
+    if(target){
+      target.scrollIntoView({behavior:'smooth',block:'center'});
+      target.style.outline='2px solid var(--accent)';
+      target.style.transition='outline .3s';
+      setTimeout(function(){target.style.outline='';},2500);
+    }
+  },150);
+}
+
 function openContrModal(idx){
 
   contrEditIdx=(typeof idx==="number")?idx:null;
@@ -5381,7 +5400,7 @@ function renderPag(){const o=cur;
           ${p.pagaEm&&p.st==='PAGO'?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Pago em</div><div style="font-size:13.5px;color:var(--ok);font-weight:600">✓ ${fmtD(p.pagaEm)}</div></div>`:''}
           ${p.pagn?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Pago por</div><div style="font-size:13.5px">👤 ${p.pagn}</div></div>`:''}
           ${cat&&cat.nome!=='(removida)'?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Categoria</div><div style="font-size:13.5px">🏷 ${cat.nome}</div></div>`:''}
-          ${cVinc?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Contrato vinculado</div><div style="font-size:13px;color:var(--info)">📋 ${cVinc.nome_contr||cVinc.forn}</div></div>`:''}
+          ${cVinc?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Contrato vinculado</div><button onclick="event.stopPropagation();goToContract(${cVinc.seq})" style="font-size:13px;color:var(--info);background:var(--info)12;border:1px solid var(--info)33;border-radius:8px;padding:3px 10px;cursor:pointer;font-family:inherit;font-weight:600;text-align:left">📋 ${cVinc.nome_contr||cVinc.forn} →</button></div>`:''}
           ${p.nfTipo?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Documento fiscal</div><div style="font-size:13.5px">${p.nfTipo}${p.nfNum?' · Nº '+p.nfNum:''}</div></div>`:''}
           ${p.obs?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Observações</div><div style="font-size:13px;color:var(--ink)">${p.obs}</div></div>`:''}
         </div>
