@@ -5448,7 +5448,7 @@ function renderPag(){const o=cur;
     var _dataPag=p.pagaEm&&p.st==='PAGO'
       ?('<span style="font-size:11px;font-weight:600;color:var(--ok);background:var(--ok)12;padding:2px 8px;border-radius:8px">&#10003; '+fmtD(p.pagaEm)+'</span>')
       :(p.venc?('<span style="font-size:11px;color:'+(atr?'var(--danger)':'var(--muted)')+'">vcto '+fmtD(p.venc)+'</span>'):'');
-    var _nfNum=p.nfNum?('<span style="font-size:11px;color:var(--info);background:var(--info)12;padding:2px 7px;border-radius:6px;border:1px solid var(--info)40;font-weight:600">NF '+p.nfNum+'</span>'):'';
+    var _nfNum=p.nfNum?('<span style="font-size:11px;color:var(--info);background:var(--info)12;padding:2px 7px;border-radius:6px;border:1px solid var(--info)40;font-weight:600">'+p.nfNum+'</span>'):'';
     var _rowStatus='<span style="font-size:11px;font-weight:700;color:'+stColor+';background:'+stColor+'15;padding:2px 8px;border-radius:8px;border:1px solid '+stColor+'30">'+stLabel+'</span>';
     var _rowCat=(cat&&cat.nome&&cat.nome!=='(removida)'&&cat.nome!=='outros')?'<span style="font-size:11px;background:var(--accent)12;color:var(--accent);padding:2px 8px;border-radius:8px;font-weight:600">'+cat.nome+'</span>':'';
     var _tkBadge=p.ticketRaiz?('<span style="font-size:11px;background:#5C35CC18;color:#5C35CC;padding:2px 8px;border-radius:8px;font-weight:700;border:1px solid #5C35CC30">'+p.ticketRaiz+'</span>'):'';
@@ -5473,7 +5473,7 @@ function renderPag(){const o=cur;
     var _collapsedHtml='<div onclick="togglePagRow('+i+')" style="padding:12px 14px;cursor:pointer;border-left:4px solid '+stColor+';'+_rowBg+'transition:background .12s" onmouseenter="this.style.background=\'var(--surface-2)\'" onmouseleave="this.style.background=\'\'">'
       +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:0 14px;align-items:start">'
       // ── Bloco esquerdo: nome + chips ──────────────────────────────────────
-      +'<div style="width:max-content">'
+      +'<div style="width:'+_leftColW+'">'
       +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'
       +'<span style="font-size:9px;color:var(--muted);transition:transform .2s;display:inline-block;transform:rotate('+(exp?90:0)+'deg);flex-shrink:0">&#9658;</span>'
       +'<span style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap">'+p.ben+'</span>'
@@ -5506,6 +5506,8 @@ function renderPag(){const o=cur;
     return da.localeCompare(db);
   });
 
+  // Largura fixa do bloco esquerdo = maior nome de fornecedor da lista
+  var _leftColW=Math.max(120,Math.min(280,Math.round(rows.reduce(function(m,r){return(r.p.ben||'').length>m?(r.p.ben||'').length:m;},0)*7.6)))+'px';
   const listHtml=rows.length===0
     ?`<div style="padding:40px;text-align:center;color:var(--muted)"><div style="font-size:40px;margin-bottom:10px">${icon}</div><p>Nenhum lançamento${pagFiltro!=='todos'||pagMes?' com este filtro':''}</p></div>`
     :rows.map(r=>expandableRow(r)).join('');
