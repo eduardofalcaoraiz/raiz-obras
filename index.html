@@ -14,7 +14,7 @@
 
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <style>
 
@@ -38,11 +38,12 @@
 
 html,body{height:100%}
 
-body{font-family:"Plus Jakarta Sans",system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body{font-family:"DM Sans",system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;font-feature-settings:"liga" 1}
 
-.num{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.num{font-family:"DM Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.nome-up{text-transform:uppercase;letter-spacing:.04em}
 
-h1,h2,h3{font-family:"Plus Jakarta Sans",system-ui,sans-serif;font-weight:500;line-height:1.15;letter-spacing:-.01em}
+h1,h2,h3{font-family:"DM Sans",system-ui,sans-serif;font-weight:700;line-height:1.15;letter-spacing:-.02em}
 
 button{font-family:inherit;cursor:pointer}
 
@@ -54,7 +55,7 @@ button{font-family:inherit;cursor:pointer}
 
 .brand .mk{width:36px;height:36px;border-radius:9px;background:white;display:grid;place-items:center;padding:4px;overflow:hidden}
 
-.brand b{font-family:"Plus Jakarta Sans",system-ui,sans-serif;font-weight:600;font-size:18px;color:#fff;display:block;line-height:1.1}
+.brand b{font-family:"DM Sans",system-ui,sans-serif;font-weight:600;font-size:18px;color:#fff;display:block;line-height:1.1}
 
 .brand span{font-size:11.5px;color:var(--cream-soft);letter-spacing:.03em}
 
@@ -120,7 +121,7 @@ button{font-family:inherit;cursor:pointer}
 
 .kpi .lab{font-size:12.5px;color:var(--muted);margin-bottom:8px}
 
-.kpi .val{font-size:22px;font-weight:500;font-family:"JetBrains Mono",monospace}
+.kpi .val{font-size:22px;font-weight:500;font-family:"DM Mono",monospace}
 
 .kpi .val.acc{color:var(--accent)}.kpi .val.ok{color:var(--ok)}.kpi .val.dg{color:var(--danger)}
 
@@ -156,7 +157,7 @@ button{font-family:inherit;cursor:pointer}
 
 .pcard .figs{display:flex;justify-content:space-between;margin-top:11px;font-size:13px;color:var(--muted)}
 
-.pcard .figs b{color:var(--ink);font-weight:500;font-family:"JetBrains Mono",monospace}
+.pcard .figs b{color:var(--ink);font-weight:500;font-family:"DM Mono",monospace}
 
 .badge{font-size:11.5px;font-weight:500;padding:3px 10px;border-radius:30px;white-space:nowrap;display:inline-block}
 
@@ -176,7 +177,7 @@ button{font-family:inherit;cursor:pointer}
 
 .cyear-card:hover{transform:translateY(-3px);box-shadow:0 10px 28px -16px rgba(23,60,52,.4)}
 
-.cyear-num{font-family:"Plus Jakarta Sans",system-ui,sans-serif;font-size:42px;font-weight:600;color:var(--ink-2);line-height:1;margin-bottom:16px}
+.cyear-num{font-family:"DM Sans",system-ui,sans-serif;font-size:42px;font-weight:600;color:var(--ink-2);line-height:1;margin-bottom:16px}
 
 .cprog{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:8px 0 14px}
 
@@ -202,7 +203,7 @@ button{font-family:inherit;cursor:pointer}
 
 .esc-card-acts{display:flex;flex-direction:column;gap:3px;flex-shrink:0}
 
-.b-doc{background:var(--surface-2);color:var(--muted);border:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-size:11px}
+.b-doc{background:var(--surface-2);color:var(--muted);border:1px solid var(--line);font-family:"DM Mono",monospace;font-size:11px}
 
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:22px;flex-wrap:wrap}
 
@@ -222,7 +223,7 @@ td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
 
 tr:last-child td{border-bottom:0}
 
-td.n{font-family:"JetBrains Mono",monospace;text-align:right;white-space:nowrap}
+td.n{font-family:"DM Mono",monospace;text-align:right;white-space:nowrap}
 
 .ref{color:var(--muted);font-size:12.5px;max-width:300px}
 
@@ -230,11 +231,11 @@ td.n{font-family:"JetBrains Mono",monospace;text-align:right;white-space:nowrap}
 
 .invc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:15px 17px}
 
-.invc .nm{font-weight:500;font-size:13.5px;margin-bottom:8px}.invc .v{font-size:19px;font-weight:500;font-family:"JetBrains Mono",monospace}.invc .pc{font-size:12px;color:var(--soft);margin-top:5px}
+.invc .nm{font-weight:500;font-size:13.5px;margin-bottom:8px}.invc .v{font-size:19px;font-weight:500;font-family:"DM Mono",monospace}.invc .pc{font-size:12px;color:var(--soft);margin-top:5px}
 
 .catbar{display:grid;grid-template-columns:200px 1fr 130px;gap:14px;align-items:center;padding:9px 0;font-size:13.5px}
 
-.catbar .nm{font-weight:500}.catbar .vv{text-align:right;font-family:"JetBrains Mono",monospace;color:var(--muted)}
+.catbar .nm{font-weight:500}.catbar .vv{text-align:right;font-family:"DM Mono",monospace;color:var(--muted)}
 
 .alert{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:var(--r);margin-bottom:10px;font-size:13.5px}
 
@@ -288,7 +289,7 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 
 .extracted .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
 
-.extracted .k{font-size:11.5px;color:var(--muted)}.extracted .v{font-weight:500;font-size:13.5px;margin-top:2px}.extracted .v.mono{font-family:"JetBrains Mono",monospace;font-size:12px}.full{grid-column:1/-1}
+.extracted .k{font-size:11.5px;color:var(--muted)}.extracted .v{font-weight:500;font-size:13.5px;margin-top:2px}.extracted .v.mono{font-family:"DM Mono",monospace;font-size:12px}.full{grid-column:1/-1}
 
 .imp-sec{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:12px}
 
@@ -354,7 +355,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 #login-screen .lbrand .mk{width:48px;height:48px;border-radius:12px;background:white;display:grid;place-items:center;flex:none;overflow:hidden;padding:5px}
 
-#login-screen .lbrand b{font-family:"Plus Jakarta Sans",system-ui,sans-serif;font-weight:600;font-size:18px;color:#fff;display:block;line-height:1.1}
+#login-screen .lbrand b{font-family:"DM Sans",system-ui,sans-serif;font-weight:600;font-size:18px;color:#fff;display:block;line-height:1.1}
 
 #login-screen .lbrand span{font-size:12px;color:rgba(255,255,255,.82)}
 
@@ -440,7 +441,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 .mobile-topbar{display:none;align-items:center;justify-content:space-between;background:var(--ink);padding:10px 14px;position:sticky;top:0;z-index:90;border-bottom:1px solid rgba(237,231,218,.12);flex-shrink:0}
 
-.mobile-brand{font-family:"Plus Jakarta Sans",system-ui,sans-serif;font-size:17px;color:#fff;font-weight:600;letter-spacing:-.01em}
+.mobile-brand{font-family:"DM Sans",system-ui,sans-serif;font-size:17px;color:#fff;font-weight:600;letter-spacing:-.01em}
 
 .side-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:98;-webkit-tap-highlight-color:transparent}
 
@@ -648,7 +649,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 .brand-section-header .bsh-info{flex:1;display:flex;flex-direction:column;justify-content:center;padding:10px 14px}
 
-.brand-section-header .bsh-name{font-size:20px;font-weight:800;color:white;font-family:'Plus Jakarta Sans',system-ui,sans-serif;text-shadow:0 1px 3px rgba(0,0,0,.25);line-height:1.2}
+.brand-section-header .bsh-name{font-size:20px;font-weight:800;color:white;font-family:'DM Sans',system-ui,sans-serif;text-shadow:0 1px 3px rgba(0,0,0,.25);line-height:1.2}
 
 .brand-section-header .bsh-sub{font-size:12.5px;color:rgba(255,255,255,.82);margin-top:3px}
 
@@ -2659,7 +2660,7 @@ function setEsfFiltro(m){esfFiltroMarca=m;renderEsfera();}
 
 /* GRÁFICO MENSAL */
 
-function renderChart(o){const map={};o.pag.filter(p=>p.st==="PAGO"&&p.venc&&p.venc.length>=7).forEach(p=>{const k=p.venc.slice(0,7);map[k]=(map[k]||0)+p.v;});const keys=Object.keys(map).sort().slice(-18);if(!keys.length)return'';const maxV=Math.max(...keys.map(k=>map[k]));const H=90;const fmtM=n=>n>=1000000?(n/1000000).toFixed(1)+'M':n>=1000?Math.round(n/1000)+'k':Math.round(n);const bars=keys.map(k=>{const v=map[k];const h=Math.max(3,Math.round(v/maxV*H));const lbl=k.slice(5)+'/'+k.slice(2,4);return '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:34px">'+'<span style="font-size:9px;color:var(--muted);font-family:\'JetBrains Mono\',monospace;white-space:nowrap">'+fmtM(v)+'</span>'+'<div style="width:26px;background:var(--info);border-radius:3px 3px 0 0;height:'+h+'px;cursor:default;transition:background .15s" title="'+lbl+': '+fmt(v)+'" onmouseenter="this.style.background=\'var(--accent)\'" onmouseleave="this.style.background=\'var(--info)\'"></div>'+'<span style="font-size:9px;color:var(--soft)">'+lbl+'</span></div>';}).join('');return'<div style="overflow-x:auto"><div style="display:flex;align-items:flex-end;gap:4px;padding:4px 0 0">'+bars+'</div></div>';}
+function renderChart(o){const map={};o.pag.filter(p=>p.st==="PAGO"&&p.venc&&p.venc.length>=7).forEach(p=>{const k=p.venc.slice(0,7);map[k]=(map[k]||0)+p.v;});const keys=Object.keys(map).sort().slice(-18);if(!keys.length)return'';const maxV=Math.max(...keys.map(k=>map[k]));const H=90;const fmtM=n=>n>=1000000?(n/1000000).toFixed(1)+'M':n>=1000?Math.round(n/1000)+'k':Math.round(n);const bars=keys.map(k=>{const v=map[k];const h=Math.max(3,Math.round(v/maxV*H));const lbl=k.slice(5)+'/'+k.slice(2,4);return '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:34px">'+'<span style="font-size:9px;color:var(--muted);font-family:\'DM Mono\',monospace;white-space:nowrap">'+fmtM(v)+'</span>'+'<div style="width:26px;background:var(--info);border-radius:3px 3px 0 0;height:'+h+'px;cursor:default;transition:background .15s" title="'+lbl+': '+fmt(v)+'" onmouseenter="this.style.background=\'var(--accent)\'" onmouseleave="this.style.background=\'var(--info)\'"></div>'+'<span style="font-size:9px;color:var(--soft)">'+lbl+'</span></div>';}).join('');return'<div style="overflow-x:auto"><div style="display:flex;align-items:flex-end;gap:4px;padding:4px 0 0">'+bars+'</div></div>';}
 
 
 
@@ -3991,7 +3992,7 @@ function renderCapexBrands(){
 
           <div style="font-size:10.5px;color:rgba(255,255,255,.7);letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px">${capexDrillYear}</div>
 
-          <h3 style="font-size:18px;color:white;margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m}</h3>
+          <h3 style="font-size:18px;color:white;margin:0;font-family:'DM Sans',system-ui,sans-serif;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m}</h3>
 
           <div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:3px">${regUnis.length} unidade${regUnis.length!==1?'s':''}</div>
 
@@ -4502,7 +4503,7 @@ function renderObra(){const o=cur,pct=execObra(o);
       var saldoS=s.aportado-s.utilizado;
       var scS=saldoS<0?'var(--danger)':saldoS<s.aportado*0.1?'var(--warn)':'var(--ok)';
       _invRows+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)">'
-        +'<span style="flex:1;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.nome+'</span>'
+        +'<span style="flex:1;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:uppercase;letter-spacing:.03em">'+s.nome+'</span>'
         +'<span style="font-size:11.5px;color:var(--muted)">'+pctS+'%</span>'
         +'<span style="font-size:13px;font-weight:700">'+fmt(s.aportado)+'</span>'
         +'<span style="font-size:12px;font-weight:700;color:'+scS+';min-width:80px;text-align:right">'+fmt(saldoS)+'</span>'
@@ -4663,7 +4664,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
 
-            ${c.numero?`<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--surface-2);padding:2px 8px;border-radius:6px;border:1px solid var(--line)">Nº ${c.numero}</span>`:''}
+            ${c.numero?`<span style="font-family:'DM Mono',monospace;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--surface-2);padding:2px 8px;border-radius:6px;border:1px solid var(--line)">Nº ${c.numero}</span>`:''}
 
             <span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:12px;background:${sc}18;color:${sc};border:1px solid ${sc}44">${c.status_contr||'Ativo'}</span>
 
@@ -4675,7 +4676,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
           <div style="font-size:13px;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:6px">
 
-            <span>🏢 ${c.forn||'Fornecedor não definido'}</span>
+            <span>🏢 ${(c.forn||'Fornecedor não definido').toUpperCase()}</span>
 
           </div>
 
@@ -4702,7 +4703,7 @@ function renderObra(){const o=cur,pct=execObra(o);
         <div style="text-align:right;flex-shrink:0">
 
           <div style="font-size:11px;color:var(--muted)">${_aditsTot?'Valor base':'Valor contratado'}</div>
-          <div style="font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace">${fmt(c.v)}</div>
+          <div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace">${fmt(c.v)}</div>
           ${_aditsTot?`<div style="font-size:11.5px;color:var(--warn);font-weight:600;margin-top:2px">＋${fmt(_aditsTot)} aditivos</div><div style="font-size:13px;font-weight:800;color:var(--ink);border-top:1px solid var(--line);margin-top:4px;padding-top:4px">= ${fmt(vTotal)}</div>`:''}
 
         </div>
@@ -4865,7 +4866,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
           <div style="font-size:11px;color:var(--muted)">Pagamentos</div>
 
-          <div style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace">${s.pagamentos.length}</div>
+          <div style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace">${s.pagamentos.length}</div>
 
           ${temAporte?`<button class="btn btn-ghost btn-sm" style="font-size:11px;margin-top:6px" onclick="setPagFiltro('todos');showTab('pag');setTimeout(()=>setPagBusca('${s.nome}'),100)" title="Ver pagamentos deste investidor">Ver pagamentos →</button>`:''}
 
@@ -4903,7 +4904,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
       <div>
 
-        <h3 style="font-size:17px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;margin-bottom:2px">Análise por Investidor / Fonte</h3>
+        <h3 style="font-size:17px;font-family:'DM Sans',system-ui,sans-serif;margin-bottom:2px">Análise por Investidor / Fonte</h3>
 
         <div style="font-size:13px;color:var(--muted)">Cruzamento automático entre depósitos recebidos e pagamentos realizados.</div>
 
@@ -4919,7 +4920,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line)">
 
-      <h3 style="font-size:15px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;margin-bottom:10px">Histórico de depósitos recebidos</h3>
+      <h3 style="font-size:15px;font-family:'DM Sans',system-ui,sans-serif;margin-bottom:10px">Histórico de depósitos recebidos</h3>
 
       <div class="tablewrap"><table><thead><tr><th>Investidor / Fonte</th><th style="text-align:right">Valor depositado</th><th>Data do depósito</th><th></th></tr></thead><tbody>${o.aportes.length?o.aportes.map((a,ai)=>`<tr><td style="font-weight:500">${a.inv}</td><td class="n">${fmt(a.v)}</td><td style="color:var(--muted)">${a.d?fmtD(a.d.length<=7?a.d+'-01':a.d):'—'}</td><td style="white-space:nowrap"><button class="iconbtn" title="Editar" onclick="openAporteModal(${ai})">✎</button><button class="iconbtn" title="Excluir" onclick="deleteAporte(${ai})" style="color:var(--danger)">🗑</button></td></tr>`).join(""):'<tr><td colspan="4"><p class="empty">Nenhum depósito registrado ainda.</p></td></tr>'}</tbody></table></div>
 
@@ -5061,7 +5062,7 @@ function renderMatServ(){
         <h2 style="font-size:17px;margin-bottom:2px">🏷 ${cg.cat.nome}</h2>
         <div class="sub">${cg.pags.length} pagamento${cg.pags.length!==1?'s':''} · ${totalPago>0?(cg.total/totalPago*100).toFixed(1):0}% do total gasto</div>
       </div>
-      <div style="font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--accent)">${fmt(cg.total)}</div>
+      <div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace;color:var(--accent)">${fmt(cg.total)}</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:5px">
       ${cg.pags.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface-2);border-radius:var(--r);gap:10px">
@@ -5240,7 +5241,7 @@ function renderPag(){const o=cur;
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;white-space:nowrap">${fmt(p.v)}</div>
+          <div style="font-size:20px;font-weight:800;font-family:'DM Mono',monospace;white-space:nowrap">${fmt(p.v)}</div>
         </div>
       </div>
       ${detalhes}
@@ -5301,7 +5302,7 @@ function renderCobranca(){const atr=allAtrasos(),pend=allPendentes();const futur
 
    <div class="kpi"><div class="lab">Maior atraso</div><div class="val">${atr.length?diasAtraso(atr[0].p)+'d':'—'}</div></div>`;
 
-  const row=(x,late)=>{const _marcas=x.o.marca.split(' + ');const _logos=_marcas.map(m=>`<span style="display:inline-flex;background:white;border-radius:3px;overflow:hidden;height:14px;width:22px;align-items:center;border:1px solid ${brandColor(m)}33">${brandLogoImg(m,'height:12px;width:20px;object-fit:contain')}</span>`).join('');return`<tr><td>${late?`<span class="badge b-danger">${diasAtraso(x.p)}d</span>`:fmtD(x.p.venc)}</td><td style="font-weight:500">${x.p.ben}</td><td class="ref">${x.p.ref}</td><td style="font-size:12.5px"><div style="display:flex;align-items:center;gap:5px">${_logos}<span>${x.o.nome.split(" —")[0].split(" (")[0]}</span></div></td><td>${x.p.pagn||'—'}</td><td class="n">${fmt(x.p.v)}</td><td style="white-space:nowrap"><button class="btn btn-sm btn-primary" onclick="marcarPago(${x.o.id},${x.i})">Marcar pago</button> <button class="iconbtn" title="Excluir" onclick="deletePagment(${x.o.id},${x.i})">🗑</button></td></tr>`;};
+  const row=(x,late)=>{const _marcas=x.o.marca.split(' + ');const _logos=_marcas.map(m=>`<span style="display:inline-flex;background:white;border-radius:3px;overflow:hidden;height:14px;width:22px;align-items:center;border:1px solid ${brandColor(m)}33">${brandLogoImg(m,'height:12px;width:20px;object-fit:contain')}</span>`).join('');return`<tr><td>${late?`<span class="badge b-danger">${diasAtraso(x.p)}d</span>`:fmtD(x.p.venc)}</td><td style="font-weight:600;text-transform:uppercase;letter-spacing:.03em">${x.p.ben}</td><td class="ref">${x.p.ref}</td><td style="font-size:12.5px"><div style="display:flex;align-items:center;gap:5px">${_logos}<span>${x.o.nome.split(" —")[0].split(" (")[0]}</span></div></td><td>${x.p.pagn||'—'}</td><td class="n">${fmt(x.p.v)}</td><td style="white-space:nowrap"><button class="btn btn-sm btn-primary" onclick="marcarPago(${x.o.id},${x.i})">Marcar pago</button> <button class="iconbtn" title="Excluir" onclick="deletePagment(${x.o.id},${x.i})">🗑</button></td></tr>`;};
 
   let html="";
 
@@ -5395,7 +5396,7 @@ function renderDocs(){
 
           </div>
 
-          ${u.cnpj?`<div style="font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'JetBrains Mono',monospace">${u.cnpj}</div>`:''}
+          ${u.cnpj?`<div style="font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'DM Mono',monospace">${u.cnpj}</div>`:''}
 
           ${u.endereco?`<div style="font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📍 ${u.endereco}</div>`:''}
 
@@ -5629,7 +5630,7 @@ function renderForn(){
 
           <div style="font-weight:700;font-size:15px;line-height:1.3;word-break:break-word">${f.nome}</div>
 
-          ${cnpj?`<div style="font-size:11.5px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:3px">${cnpj}</div>`:''}
+          ${cnpj?`<div style="font-size:11.5px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:3px">${cnpj}</div>`:''}
 
           ${fd.atividade?`<div style="font-size:11.5px;color:var(--soft);margin-top:5px;display:flex;gap:4px;align-items:flex-start"><span>⚙</span><span>${fd.atividade.slice(0,65)}${fd.atividade.length>65?'…':''}</span></div>`:''}
 
@@ -5713,7 +5714,7 @@ function openFornDetail(nameEnc){
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
 
-      <div>${cnpj?`<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">CNPJ</div><span style="font-family:'JetBrains Mono',monospace;font-size:13px">${cnpj}</span></div>`:''}
+      <div>${cnpj?`<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">CNPJ</div><span style="font-family:'DM Mono',monospace;font-size:13px">${cnpj}</span></div>`:''}
 
         ${fd.atividade?`<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Atividade (CNAE)</div><span style="font-size:13px">${fd.atividade}</span></div>`:''}
 
@@ -6713,7 +6714,7 @@ function renderEscolas(){
 
             <span class="badge ${u.tipo==='Em obra'?'b-info':u.tipo==='Inativa'?'b-neutral':'b-ok'}" style="font-size:11px">${u.tipo||'Em operação'}</span>
 
-            ${u.cnpj?`<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)">${u.cnpj}</span>`:''}
+            ${u.cnpj?`<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${u.cnpj}</span>`:''}
 
           </div>
 
@@ -7262,7 +7263,7 @@ async function viewFile(d){
 
       const escaped=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-      body.innerHTML=`<pre style="padding:20px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.6;overflow:auto;height:75vh;margin:0;white-space:pre-wrap;word-break:break-word">${escaped}</pre>`;
+      body.innerHTML=`<pre style="padding:20px;font-family:'DM Mono',monospace;font-size:13px;line-height:1.6;overflow:auto;height:75vh;margin:0;white-space:pre-wrap;word-break:break-word">${escaped}</pre>`;
 
     }catch(e){
 
@@ -9515,7 +9516,7 @@ function renderInvestidores(){
 
             <div style="font-weight:700;font-size:16px;line-height:1.2">${inv.nome}</div>
 
-            ${inv.cnpj_cpf?`<div style="font-size:11.5px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:3px">${inv.cnpj_cpf}</div>`:''}
+            ${inv.cnpj_cpf?`<div style="font-size:11.5px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:3px">${inv.cnpj_cpf}</div>`:''}
 
           </div>
 
