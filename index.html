@@ -413,6 +413,14 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 .esc-brand-banner .banner-fade{position:absolute;bottom:0;left:0;right:0;height:40px;background:linear-gradient(to bottom,transparent,rgba(0,0,0,0.08))}
 
+.obra-brand-banner{display:none} /* replaced by page art */
+/* Arte de página — faixas transversais artísticas */
+.page-art-layer{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;overflow:hidden;z-index:0;min-height:100vh}
+#view-obra,#view-escolas{position:relative}
+#view-obra .wrap,#view-escolas .wrap{position:relative;z-index:1}
+#view-obra .card,#view-obra .kpi,#view-obra .pag-row,#view-obra .tablewrap,#view-obra .tabs,#view-obra .imp-sec{background:var(--surface);position:relative}
+#view-escolas .esc-card,#view-escolas .card,#view-escolas .kpi{background:var(--surface);position:relative}
+.phead{position:relative;z-index:1}
 .esc-brand-banner .banner-content{position:relative;z-index:2;display:flex;align-items:center;gap:16px}
 
 @media(max-width:768px){
@@ -893,6 +901,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <section id="view-obra" class="view">
 
+      <div class="page-art-layer" id="o-page-art"></div>
       <!-- Arte da página — gerada pelo JS com as cores da marca -->
 
       <div class="page-art-layer" id="o-page-art"></div>
@@ -3177,140 +3186,85 @@ function _prng(seed){let s=seed;return()=>{s=(s*16807+0)%2147483647;return(s-1)/
 
 
 
-// Gera SVG com faixas diagonais onduladas e trêmulas
+// Arte da pagina: linhas fluidas onduladas — estilo sound waves / topografia
 
 function _makePageArt(colors,w,h,marcas){
-
   if(!colors||!colors.length)colors=['#F08700'];
+  var rand=_prng(colors.join('').length*42+w);
+  var svg='';
 
-  const rand=_prng(colors.join('').length*42+w);
-
-  let svg='';
-
-
-
-  // Cada cor gera 3-4 faixas em posições variadas
-
-  colors.forEach((col,ci)=>{
-
-    const numBands=4-(ci%2);
-
-    for(let b=0;b<numBands;b++){
-
-      const r=rand;
-
-      // Posição base da faixa (dividida ao longo da altura)
-
-      const yFrac=(ci*numBands+b+0.3)/(colors.length*numBands)*1.3-0.1;
-
-      const yBase=yFrac*h;
-
-      const thickness=h*(0.10+rand()*0.12); // 10-22% da altura — faixas mais largas
-
-      const opacity=0.18+rand()*0.14;       // 18-32% de opacidade — mais vivo!
-
-
-
-      // Gera pontos da borda superior com múltiplas ondas (tremulação)
-
-      const nPts=10;
-
-      const pts=[];
-
-      for(let i=0;i<=nPts;i++){
-
-        const t=i/nPts;
-
-        const x=t*(w+200)-100;
-
-        // Deriva diagonal + ondas de frequências diferentes (efeito trêmulo)
-
-        const y=yBase
-
-          +t*(h*0.35)              // deriva diagonal principal
-
-          +Math.sin(t*Math.PI*2.5+ci)*h*0.05   // onda longa
-
-          +Math.sin(t*Math.PI*6.3+b*1.7)*h*0.025 // onda média
-
-          +Math.sin(t*Math.PI*13+ci*3.1+b)*h*0.01 // tremulação fina
-
-          +(rand()-0.5)*h*0.012;   // ruído aleatório
-
-        pts.push({x,y});
-
-      }
-
-
-
-      // Path da borda superior (smooth cubic bezier)
-
-      let d=`M${pts[0].x},${pts[0].y}`;
-
-      for(let i=1;i<pts.length;i++){
-
-        const prev=pts[i-1],cur=pts[i];
-
-        const cpx=(prev.x+cur.x)/2;
-
-        d+=` Q${cpx},${prev.y} ${cur.x},${cur.y}`;
-
-      }
-
-
-
-      // Fecha descendo pela borda inferior (offset = thickness)
-
-      const bot=pts.map(p=>({x:p.x,y:p.y+thickness+(Math.sin(p.x/w*Math.PI*3+ci)*h*0.015)}));
-
-      d+=` L${bot[bot.length-1].x},${bot[bot.length-1].y}`;
-
-      for(let i=bot.length-2;i>=0;i--){
-
-        const prev=bot[i+1],cur=bot[i];
-
-        const cpx=(prev.x+cur.x)/2;
-
-        d+=` Q${cpx},${prev.y} ${cur.x},${cur.y}`;
-
-      }
-
-      d+=' Z';
-
-
-
-      svg+=`<path d="${d}" fill="${col}" opacity="${opacity.toFixed(3)}"/>`;
-
+  function wavePath(yB,f1,f2,f3,a1,a2,a3,drift,ph){
+    var n=16,pts=[];
+    for(var i=0;i<=n;i++){
+      var t=i/n;
+      pts.push([
+        t*(w+80)-40,
+        yB+t*drift
+          +Math.sin(t*Math.PI*f1+ph)*a1
+          +Math.sin(t*Math.PI*f2+ph*1.3)*a2
+          +Math.sin(t*Math.PI*f3+ph*0.7)*a3
+      ]);
     }
+    var d='M'+pts[0][0].toFixed(1)+','+pts[0][1].toFixed(1);
+    for(var i=1;i<n+1;i++){
+      var mx=((pts[i-1][0]+pts[i][0])/2).toFixed(1);
+      d+=' Q'+mx+','+pts[i-1][1].toFixed(1)+' '+pts[i][0].toFixed(1)+','+pts[i][1].toFixed(1);
+    }
+    return d;
+  }
 
+  var LPC=14; // linhas por cor
+  var total=colors.length*LPC;
+  var sp=h/total;
+
+  colors.forEach(function(col,ci){
+    var ph0=rand()*Math.PI*2;
+    for(var li=0;li<LPC;li++){
+      var yB=((ci*LPC+li)+0.5)*sp;
+      var ph=ph0+li*0.63+ci*1.2;
+      var f1=2.2+rand()*1.8, f2=5.5+rand()*3, f3=11+rand()*6;
+      var a1=sp*(0.8+rand()*1.2), a2=sp*(0.3+rand()*0.5), a3=sp*(0.1+rand()*0.15);
+      var drift=(rand()-0.5)*sp*0.8;
+      var focal=(li%4===0), sec=(li%2===1);
+      var sw=focal?2.2:sec?0.65:1.1;
+      var op=focal?(0.45+rand()*0.15):sec?(0.11+rand()*0.07):(0.20+rand()*0.10);
+      svg+='<path d="'+wavePath(yB,f1,f2,f3,a1,a2,a3,drift,ph)+'" stroke="'+col+'" stroke-width="'+sw.toFixed(2)+'" fill="none" opacity="'+op.toFixed(3)+'"/>';
+    }
   });
 
+  // Linhas de brilho brancas ultra-finas
+  colors.forEach(function(col,ci){
+    for(var li=0;li<3;li++){
+      var yB=((ci*LPC+li*4+1)+0.5)*sp;
+      var ph=rand()*Math.PI*2+ci;
+      var d=wavePath(yB,2.5+rand()*2,6+rand()*3,9,sp*(0.6+rand()*0.9),sp*(0.2+rand()*0.4),sp*0.08,0,ph);
+      svg+='<path d="'+d+'" stroke="rgba(255,255,255,0.16)" stroke-width="0.55" fill="none"/>';
+    }
+  });
 
-
-    // Marcas d'agua das logos — 3 instancias por logo, espalhadas e rotacionadas
-
-  const _logUrls=(marcas||[]).map(m=>getBrandLogoUrl(m)).filter(Boolean);
-
-  _logUrls.forEach((url,li)=>{
-
-    [{x:w*(-0.02+li*0.28),y:h*0.03,w:w*0.45,h:h*0.40,rot:-18+li*9,op:0.10},
-
-     {x:w*(0.46-li*0.08),y:h*0.42,w:w*0.38,h:h*0.34,rot:13-li*6,op:0.07},
-
-     {x:w*(0.16+li*0.36),y:h*0.66,w:w*0.30,h:h*0.28,rot:-8+li*12,op:0.055}
-
-    ].forEach(p=>{
-
-      const cx=p.x+p.w/2,cy=p.y+p.h/2;
-
-      svg+=`<image href="${url}" x="${p.x|0}" y="${p.y|0}" width="${p.w|0}" height="${p.h|0}" opacity="${p.op}" preserveAspectRatio="xMidYMid meet" transform="rotate(${p.rot},${cx|0},${cy|0})"/>`;
-
+  // Logos watermark — generosas e bem espalhadas
+  var lus=(marcas||[]).map(function(m){return getBrandLogoUrl(m);}).filter(Boolean);
+  lus.forEach(function(url,li){
+    [{x:w*(-0.01+li*0.30),y:h*0.02,w:w*0.50,h:h*0.44,rot:-12+li*7,op:0.12},
+     {x:w*(0.50-li*0.06),y:h*0.40,w:w*0.42,h:h*0.38,rot:10-li*5,op:0.08},
+     {x:w*(0.18+li*0.30),y:h*0.68,w:w*0.34,h:h*0.30,rot:-7+li*10,op:0.065}
+    ].forEach(function(p){
+      var cx=(p.x+p.w/2)|0,cy=(p.y+p.h/2)|0;
+      svg+='<image href="'+url+'" x="'+(p.x|0)+'" y="'+(p.y|0)+'" width="'+(p.w|0)+'" height="'+(p.h|0)+'" opacity="'+p.op+'" preserveAspectRatio="xMidYMid meet" transform="rotate('+p.rot+','+cx+','+cy+')"/>';
     });
-
   });
 
-  return`<svg width="100%" height="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" style="position:absolute;inset:0">${svg}</svg>`;
+  // Fade suave nas bordas
+  svg+='<defs>'
+    +'<linearGradient id="paFL" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="var(--paper)" stop-opacity="0.65"/><stop offset="12%" stop-opacity="0"/></linearGradient>'
+    +'<linearGradient id="paFR" x1="0" y1="0" x2="1" y2="0"><stop offset="88%" stop-opacity="0"/><stop offset="100%" stop-color="var(--paper)" stop-opacity="0.65"/></linearGradient>'
+    +'<linearGradient id="paFT" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--paper)" stop-opacity="0.45"/><stop offset="18%" stop-opacity="0"/></linearGradient>'
+    +'</defs>'
+    +'<rect width="'+w+'" height="'+h+'" fill="url(#paFL)"/>'
+    +'<rect width="'+w+'" height="'+h+'" fill="url(#paFR)"/>'
+    +'<rect width="'+w+'" height="'+h+'" fill="url(#paFT)"/>';
 
+  return'<svg width="100%" height="100%" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" style="position:absolute;inset:0">'+svg+'</svg>';
 }
 
 
@@ -4266,6 +4220,7 @@ function openObra(id){
   if(_voEl){_voEl.style.setProperty('--brand-cur',_bc);_voEl.style.setProperty('--brand-cur-light',_bl);}
 
   renderObra();showTab('resumo');go("obra");
+  setTimeout(()=>updatePageArt('o-page-art',[(cur?.marca||'').split(' + ')[0],...((cur?.marca||'').split(' + ').slice(1))]),100);
 
   setTimeout(()=>updatePageArt('o-page-art',[(cur?.marca||'').split(' + ')[0],...((cur?.marca||'').split(' + ').slice(1))]),100);
 
@@ -6451,6 +6406,10 @@ function toggleNovaMarca(val){
 
 
 function renderEscolas(){
+  // Injeta arte da página com todas as marcas presentes
+  const allMarcas=[...new Set(unidades.map(u=>u.marca).filter(m=>m&&m!=='—'))];
+  // Delay para garantir que o DOM está montado
+  setTimeout(()=>updatePageArt('esc-page-art',allMarcas.slice(0,4)),80);
 
   const allMarcas=[...new Set(unidades.map(u=>u.marca).filter(m=>m&&m!=='—'))];
 
