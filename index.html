@@ -4343,7 +4343,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   const _ouni=unidades.find(u=>u.obraId===o.id);
 
-  const _constrLabel=o.tem_construtora===false?'Sem construtora contratada':(o.constr&&o.constr!=='—'?o.constr:'—');
+  const _constrLabel=o.tem_construtora===false?'Sem construtora contratada':(o.construtoras&&o.construtoras.length>0?o.construtoras.map(function(c){return c.nome;}).filter(Boolean).join(' · '):(o.constr&&o.constr!=='—'?o.constr:'—'));
 
   document.getElementById("o-crumb").innerHTML=_oMarcaPills+`<span style="color:var(--muted);font-size:13px"> · ${_constrLabel}</span>`;
 
@@ -6080,12 +6080,14 @@ function omRenderConstrutoras(){
   }).join('');
 }
 function omAddConstrutora(){
+  omSyncConstrutoras(); // salvar campos atuais antes de re-renderizar
   var nextSeq=(_omConstrutoras.reduce(function(m,c){return Math.max(m,c.seq||0);},0))+1;
   _omConstrutoras.push({seq:nextSeq,nome:'',cnpj:'',valor:0});
   omRenderConstrutoras();
 }
 function omRemoveConstrutora(idx){
   if(_omConstrutoras.length<=1){toast('A obra precisa ter ao menos uma construtora.');return;}
+  omSyncConstrutoras();
   _omConstrutoras.splice(idx,1);
   omRenderConstrutoras();
 }
@@ -6780,7 +6782,7 @@ function saveObra(){
 
   const contratado=parseCurrency(g("om-contr").value);
 
-  const investimento_disponivel=parseCurrency(g("om-investimento").value);
+  const investimento_disponivel=_omInvAct==='sim'?parseCurrency(g("om-investimento").value):contratado;
 
   const ano_inauguracao=+g("om-ano").value||null;
 
