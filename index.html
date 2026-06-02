@@ -3220,7 +3220,7 @@ const contratadoTotal=o=>o.contratado+aditivosTotal(o);
 
 // Saldo do contrato: quanto falta pagar à construtora
 
-const saldoContr=o=>contratadoTotal(o)-o.pago;
+const saldoContr=o=>contratadoTotal(o)-(o.pago+pagoExtra(o));
 
 // Saldo do investimento: cada pagamento debita do teto disponível
 
@@ -3230,7 +3230,7 @@ const saldoInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-(o.pago|
 
 const margemInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-contratadoTotal(o):null;
 
-const execObra=o=>contratadoTotal(o)?Math.round(o.pago/contratadoTotal(o)*100):0;
+const execObra=o=>contratadoTotal(o)?Math.min(Math.round((o.pago+pagoExtra(o))/contratadoTotal(o)*100),100):0;
 // Pagamentos 'extra' (escola paga do próprio caixa — não debitam investimento)
 const pagoExtra=o=>(o.pag||[]).filter(p=>p.st==='PAGO'&&p.escopoFin==='extra').reduce((a,p)=>a+p.v,0);
 
@@ -4392,7 +4392,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   const _contrTot=contratadoTotal(o);
 
-  const _saldoContr=saldoContr(o);        // quanto falta pagar ao contratado
+  const _saldoContr=saldoContr(o);        // A pagar ao contratado (investimento + escola)
 
   const _saldoInv=saldoInv(o);            // investimento disponível − total pago
 
@@ -4409,24 +4409,31 @@ function renderObra(){const o=cur,pct=execObra(o);
   const _totalAportadoKpi=_invList.reduce(function(a,s){return a+s.aportado;},0);
   const _invBase=o.investimento_disponivel||o.aportado||_totalAportadoKpi;
   // Comprometido separado por fonte (usa pct_investimento de cada contrato)
-  var _pagoPorContrIdx={};
-  o.pag.filter(function(p){return p.st==='PAGO'&&p.contratoSeq;}).forEach(function(p){_pagoPorContrIdx[p.contratoSeq]=(_pagoPorContrIdx[p.contratoSeq]||0)+p.v;});
+  var _pagoPorContrIdx={};  // total pago por contrato (todos os pagamentos)
+  var _pagoPorContrInv={};  // pago do investimento externo por contrato
+  var _pagoPorContrEsc={};  // pago da escola por contrato
+  o.pag.filter(function(p){return p.st==='PAGO'&&p.contratoSeq;}).forEach(function(p){
+    _pagoPorContrIdx[p.contratoSeq]=(_pagoPorContrIdx[p.contratoSeq]||0)+p.v;
+    if(p.escopoFin!=='extra'){_pagoPorContrInv[p.contratoSeq]=(_pagoPorContrInv[p.contratoSeq]||0)+p.v;}
+    else{_pagoPorContrEsc[p.contratoSeq]=(_pagoPorContrEsc[p.contratoSeq]||0)+p.v;}
+  });
   var _comprometidoInv=0,_comprometidoEscola=0;
   o.contratos.forEach(function(c){
     var vTot=valorContrTotal(c);
-    var pago=_pagoPorContrIdx[c.seq]||0;
-    var restante=Math.max(0,vTot-pago);
-    // Base: quanto do valor original vem do investimento
+    // Obrigação total de cada fonte neste contrato
     var baseInv=(c.valor_investimento!==null&&c.valor_investimento!==undefined)?Math.min(+c.valor_investimento,c.v):c.v;
-    // Aditivos: cada um tem seu próprio valor_investimento
     var aditsInv=(c.aditivos||[]).reduce(function(a,ad){
       var vAd=Math.abs(ad.valor||0);
       return a+(ad.valor_investimento!==undefined&&ad.valor_investimento!==null?Math.min(+ad.valor_investimento,vAd):vAd);
     },0);
-    var totalInvAmount=baseInv+aditsInv;
-    var ratioInv=vTot>0?Math.min(totalInvAmount/vTot,1):1;
-    _comprometidoInv+=restante*ratioInv;
-    _comprometidoEscola+=restante*(1-ratioInv);
+    var totalInvObligation=Math.min(baseInv+aditsInv,vTot);
+    var totalEscObligation=Math.max(0,vTot-totalInvObligation);
+    // Quanto cada fonte já pagou especificamente neste contrato
+    var pagoInvC=_pagoPorContrInv[c.seq]||0;
+    var pagoEscC=_pagoPorContrEsc[c.seq]||0;
+    // Comprometido = obrigação original − já pago pela mesma fonte
+    _comprometidoInv+=Math.max(0,totalInvObligation-pagoInvC);
+    _comprometidoEscola+=Math.max(0,totalEscObligation-pagoEscC);
   });
   var _comprometido=_comprometidoInv;
   var _saldoLivre=Math.max(0,_saldoInv-_comprometidoInv);
@@ -4464,7 +4471,7 @@ function renderObra(){const o=cur,pct=execObra(o);
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px">'
       +_cell('Contratado',fmt(o.contratado),'','')
       +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Aditivos</div><div style="font-size:13.5px;font-weight:700;color:'+(_aditTot>0?'var(--warn)':'var(--soft)')+'">'+(_aditTot>0?'+'+fmt(_aditTot):'—')+'</div></div>'
-      +_cell('Executado',fmt(o.pago),'var(--accent)',_execPct+'%')
+      +_cell('Executado',fmt(o.pago+_pagoExtra),'var(--accent)',_execPct+'%')
       +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">A pagar</div><div style="font-size:13.5px;font-weight:700;color:'+_aPagarColor+'">'+(_saldoContr<0?'–'+fmt(-_saldoContr):fmt(_saldoContr))+'</div></div>'
       +'</div>'
       +_bar5(Math.min(_execPct,100),_execColor)
