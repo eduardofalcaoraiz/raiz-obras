@@ -3019,7 +3019,9 @@ async function saveContr(){
   }
   const fimEhGatilho=g('cm-fim')?.style.display==='none';
   const _cValInv=parseCurrency(document.getElementById('cm-val-inv')?.value||'');
-  const _cValInvFinal=_cValInv>=0?_cValInv:null;
+  const _cValEscola=parseCurrency(document.getElementById('cm-val-esc')?.value||'');
+  // Só define split se escola tiver valor > 0 (senão null = 100% investimento por padrão)
+  const _cValInvFinal=_cValEscola>0?_cValInv:null;
   const obj={
     nome_contr:nomeContr,forn,escopo:g("cm-escopo").value.trim(),v,pago:0,valor_investimento:_cValInvFinal,
     numero:nomeContr,
@@ -5983,10 +5985,13 @@ async function saveAditContr(){
   const motivo=document.getElementById('ac-motivo').value.trim();
   const data=document.getElementById('ac-data').value;
   const vInv=parseCurrency(document.getElementById('ac-val-inv')?.value||'0')||0;
+  const vEscAdit=parseCurrency(document.getElementById('ac-val-esc')?.value||'0')||0;
+  // Só define split se escola tiver valor (senão null = 100% investimento)
+  const vInvFinal=vEscAdit>0?vInv:null;
   const c=cur.contratos[_acContrIdx];
   if(!c.aditivos)c.aditivos=[];
-  if(_acAditIdx!=null){c.aditivos[_acAditIdx]={valor,motivo,data,valor_investimento:vInv};}
-  else{c.aditivos.push({valor,motivo,data,valor_investimento:vInv});}
+  if(_acAditIdx!=null){c.aditivos[_acAditIdx]={valor,motivo,data,valor_investimento:vInvFinal};}
+  else{c.aditivos.push({valor,motivo,data,valor_investimento:vInvFinal});}
   const{error}=await db.from('contratos').update({aditivos:c.aditivos}).eq('obra_id',cur.id).eq('seq',c.seq);
   if(error){toast('Erro ao salvar aditivo: '+error.message);console.error(error);return;}
   closeAditContrModal();renderObra();showTab('contr');
