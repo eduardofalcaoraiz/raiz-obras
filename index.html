@@ -4964,124 +4964,184 @@ function _monthLabel(k){if(k==='sem-data')return'Sem data definida';const[y,m]=k
 
 
 function renderDashboard(){
-  var o=cur;
-  if(!o)return;
-
-  // ── Dados base ───────────────────────────────────────────────────────────
+  var o=cur; if(!o)return;
   var pagsAll=o.pag||[];
   var pagsPagos=pagsAll.filter(function(p){return p.st==='PAGO';});
-  var pagsPend=pagsAll.filter(function(p){return p.st!=='PAGO'&&p.st!=='Cancelado';});
-  var totalPagoGeral=pagsPagos.reduce(function(a,p){return a+p.v;},0);
-  var totalPendGeral=pagsPend.reduce(function(a,p){return a+p.v;},0);
-  var invBase=o.investimento_disponivel||o.aportado||0;
-  var pagoExtra_=pagoExtra(o);
-  var saldoInvVal=saldoInv(o);
-  var contrTotVal=contratadoTotal(o);
+  var pagsPend=pagsAll.filter(function(p){return p.st==='PENDENTE';});
+  var pagsAtr=pagsAll.filter(isAtraso);
+  var totalPago_=pagsPagos.reduce(function(a,p){return a+p.v;},0);
+  var totalPend_=pagsPend.reduce(function(a,p){return a+p.v;},0);
+  var invBase_=o.investimento_disponivel||o.aportado||0;
+  var saldoInv_=saldoInv(o);
+  var contrTot_=contratadoTotal(o);
+  var saldoContr_=saldoContr(o);
   var execPct_=execObra(o);
+  var pagoExtra_=pagoExtra(o);
+  var hoje_=new Date();
 
-  // ── Métricas de inteligência ─────────────────────────────────────────────
-  // Velocidade de gasto mensal
+  // ── Velocidade e projeção ────────────────────────────────────────────
   var velMensal=0, mesesAtivos=0;
   var datasP=pagsPagos.map(function(p){return p.pagaEm||p.venc;}).filter(Boolean).sort();
   if(datasP.length>=2){
-    var d1=new Date(datasP[0]+'T12:00:00'), d2=new Date(datasP[datasP.length-1]+'T12:00:00');
-    mesesAtivos=Math.max(1,(d2.getFullYear()-d1.getFullYear())*12+(d2.getMonth()-d1.getMonth()));
-    velMensal=totalPagoGeral/mesesAtivos;
+    var d1_=new Date(datasP[0]+'T12:00:00'), d2_=new Date(datasP[datasP.length-1]+'T12:00:00');
+    mesesAtivos=Math.max(1,(d2_.getFullYear()-d1_.getFullYear())*12+(d2_.getMonth()-d1_.getMonth()));
+    velMensal=totalPago_/mesesAtivos;
   }
-  // Projeção: quantos meses de saldo
-  var projMeses=velMensal>100?Math.round(saldoInvVal/velMensal):-1;
-  var projLabel=projMeses<0?'—':projMeses===0?'Esgotando':projMeses+' '+(projMeses===1?'mês':'meses');
+  var projMeses=velMensal>100?Math.round(saldoInv_/velMensal):-1;
+  var projLabel=projMeses<0?'—':projMeses===0?'Esgotando':projMeses+(projMeses===1?' mês':' meses');
   var projColor=projMeses<0?'var(--muted)':projMeses<=2?'var(--danger)':projMeses<=5?'var(--warn)':'var(--ok)';
-  // % Comprometimento
-  var txCompr=invBase>0?Math.min(Math.round((totalPagoGeral+totalPendGeral)/invBase*100),999):0;
-  var comprColor=txCompr>=100?'var(--danger)':txCompr>80?'var(--warn)':'var(--ok)';
-  // Categoria líder (maior gasto)
-  var catMax=null, catMaxVal=0;
-  CATS.forEach(function(c){var g=gastoCat(o,c.id);if(g>catMaxVal){catMaxVal=g;catMax=c;}});
+  var invUsoPct=invBase_>0?Math.min(Math.round(totalPago_/invBase_*100),100):0;
+  var invUsoColor=invUsoPct>=90?'var(--danger)':invUsoPct>70?'var(--warn)':'var(--ok)';
 
-  // ── Alertas ──────────────────────────────────────────────────────────────
-  var atr=o.pag.filter(isAtraso);
+  // ── Alertas ──────────────────────────────────────────────────────────
   var al='';
-  if(atr.length>0)al+='<div class="alert alert-danger"><span class="ic">⚠</span><div><b>'+atr.length+' pagamento'+(atr.length!==1?'s':'')+' em atraso.</b> Regularize para evitar multas.</div></div>';
-  var _temContr=contrTotVal>0;
-  var _saldoContrV=saldoContr(o);
-  if(_temContr&&_saldoContrV<0)al+='<div class="alert alert-danger"><span class="ic">▲</span><div>Pagamentos ultrapassaram o contrato em <b>'+fmt(-_saldoContrV)+'</b>.</div></div>';
-  if(invBase>0&&saldoInvVal<0)al+='<div class="alert alert-danger"><span class="ic">💸</span><div>Investimento esgotado — pagamentos superam o teto em <b>'+fmt(-saldoInvVal)+'</b>.</div></div>';
-  if(_temContr&&_saldoContrV>=0&&_saldoContrV<contrTotVal*0.15&&totalPagoGeral>0)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam apenas <b>'+fmt(_saldoContrV)+'</b>.</div></div>';
-  if(invBase>0&&saldoInvVal>=0&&invBase>0&&saldoInvVal<invBase*0.1)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Saldo do investimento crítico — restam <b>'+fmt(saldoInvVal)+'</b>.</div></div>';
+  if(pagsAtr.length>0)al+='<div class="alert alert-danger"><span class="ic">⚠</span><div><b>'+pagsAtr.length+' pagamento'+(pagsAtr.length!==1?'s':'')+' em atraso</b> — regularize para evitar penalidades.</div></div>';
+  if(saldoContr_<0)al+='<div class="alert alert-danger"><span class="ic">▲</span><div>Pagamentos ultrapassaram o contrato em <b>'+fmt(-saldoContr_)+'</b>.</div></div>';
+  if(invBase_>0&&saldoInv_<0)al+='<div class="alert alert-danger"><span class="ic">💸</span><div>Investimento esgotado — supera o teto em <b>'+fmt(-saldoInv_)+'</b>.</div></div>';
+  if(contrTot_>0&&saldoContr_>=0&&saldoContr_<contrTot_*0.12&&totalPago_>0)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam <b>'+fmt(saldoContr_)+'</b> ('+execPct_+'% executado).</div></div>';
+  if(invBase_>0&&saldoInv_>=0&&saldoInv_<invBase_*0.08)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Saldo do investimento crítico — restam <b>'+fmt(saldoInv_)+'</b>.</div></div>';
+  if(projMeses>=0&&projMeses<=3&&velMensal>500)al+='<div class="alert alert-warn"><span class="ic">⏱</span><div>No ritmo atual, investimento dura <b>'+projLabel+'</b>.</div></div>';
 
-  // ── Distribuição por categoria (da renderMatServ) ─────────────────────
-  var catAnalysis=renderMatServ();
+  // ── Seção 1: Saúde financeira (strip compacto) ───────────────────────
+  var s1='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px">';
+  function kCard(label,val,sub,color,barPct,barColor){
+    var bar=barPct>=0?'<div style="height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:6px"><div style="height:100%;width:'+Math.min(barPct,100)+'%;background:'+barColor+';border-radius:2px;transition:width .5s"></div></div>':'';
+    return'<div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px">'
+      +'<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">'+label+'</div>'
+      +'<div style="font-size:18px;font-weight:800;color:'+(color||'inherit')+';font-family:DM Mono,monospace;white-space:nowrap">'+val+'</div>'
+      +(sub?'<div style="font-size:11px;color:var(--muted);margin-top:1px">'+sub+'</div>':'')
+      +bar+'</div>';
+  }
+  if(invBase_>0)s1+=kCard('Investimento',fmt(invBase_),'disponível','',invUsoPct,invUsoColor);
+  s1+=kCard('Executado',fmt(totalPago_+pagoExtra_),execPct_+'% do contrato','var(--accent)',execPct_,'var(--info)');
+  if(invBase_>0)s1+=kCard('Saldo',fmt(saldoInv_),'do investimento',saldoInv_<0?'var(--danger)':saldoInv_<invBase_*0.1?'var(--warn)':'var(--ok)',-1,'');
+  if(contrTot_>0)s1+=kCard('A pagar',fmt(Math.max(0,saldoContr_)),'ao contratado',saldoContr_<0?'var(--danger)':saldoContr_<contrTot_*0.1?'var(--warn)':'inherit',-1,'');
+  if(velMensal>100)s1+=kCard('Velocidade',fmt(Math.round(velMensal))+'/mês',mesesAtivos+'m de histórico','',invUsoPct,invUsoColor);
+  if(projMeses>=0)s1+=kCard('Saldo dura',projLabel,'no ritmo atual',projColor,-1,'');
+  s1+='</div>';
 
-  // ── Strip de inteligência ─────────────────────────────────────────────
-  var intelligenceStrip='';
-  if(totalPagoGeral>0){
-    intelligenceStrip='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px">';
-    // Card velocidade
-    intelligenceStrip+='<div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:3px">'
-      +'<div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Velocidade de gasto</div>'
-      +'<div style="font-size:20px;font-weight:800;font-family:DM Mono,monospace">'+(velMensal>0?fmt(Math.round(velMensal))+'<span style="font-size:12px;font-weight:500;color:var(--muted)">/mês</span>':'—')+'</div>'
-      +'<div style="font-size:12px;color:var(--muted)">'+(mesesAtivos>0?mesesAtivos+' meses de histórico':'Dados insuficientes')+'</div>'
-      +'</div>';
-    // Card comprometimento
-    intelligenceStrip+='<div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px">'
-      +'<div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Comprometimento</div>'
-      +'<div style="font-size:20px;font-weight:800;color:'+comprColor+'">'+txCompr+'%</div>'
-      +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin:6px 0 3px">'
-      +'<div style="height:100%;width:'+Math.min(txCompr,100)+'%;background:'+comprColor+';border-radius:3px;transition:width .5s"></div></div>'
-      +'<div style="font-size:12px;color:var(--muted)">do investimento utilizado/comprometido</div>'
-      +'</div>';
-    // Card projeção
-    if(invBase>0){
-      intelligenceStrip+='<div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px">'
-        +'<div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Saldo dura</div>'
-        +'<div style="font-size:20px;font-weight:800;color:'+projColor+'">'+projLabel+'</div>'
-        +'<div style="font-size:12px;color:var(--muted)">'+(projMeses<0?'velocidade insuficiente':'no ritmo atual de gastos')+'</div>'
-        +'</div>';
-    }
-    // Card maior categoria
-    if(catMax&&catMaxVal>0){
-      intelligenceStrip+='<div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px">'
-        +'<div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Maior gasto</div>'
-        +'<div style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+catMax.nome+'</div>'
-        +'<div style="font-size:18px;font-weight:800;color:var(--accent);font-family:DM Mono,monospace">'+fmt(catMaxVal)+'</div>'
-        +'<div style="font-size:12px;color:var(--muted)">'+(totalPagoGeral>0?Math.round(catMaxVal/totalPagoGeral*100)+'% do total pago':'')+'</div>'
-        +'</div>';
-    }
-    intelligenceStrip+='</div>';
+  // ── Seção 2: Execução dos contratos (mini-barras) ────────────────────
+  var s2='';
+  if(o.contratos.length>0){
+    var pagoPorContr_={};
+    pagsAll.filter(function(p){return p.st==='PAGO'&&p.contratoSeq;}).forEach(function(p){pagoPorContr_[p.contratoSeq]=(pagoPorContr_[p.contratoSeq]||0)+p.v;});
+    var contrRows_=o.contratos.map(function(c){
+      var vTot=valorContrTotal(c), pR=pagoPorContr_[c.seq]||0;
+      var pct_=vTot?Math.min(Math.round(pR/vTot*100),100):0;
+      var cor_=pct_>=100?'var(--ok)':pct_>70?'var(--info)':'var(--muted)';
+      var status_=c.status_contr||'Ativo';
+      return'<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">'
+        +'<div><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+( c.nome_contr||c.forn)+'</div>'
+        +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:4px">'
+        +'<div style="height:100%;width:'+pct_+'%;background:'+cor_+';border-radius:3px;transition:width .5s"></div></div>'
+        +'<div style="font-size:11px;color:var(--muted);margin-top:2px">'+fmt(pR)+' de '+fmt(vTot)+' · '+pct_+'%</div>'
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0">'
+        +'<div style="font-size:12px;font-weight:700;color:'+cor_+'">'+pct_+'%</div>'
+        +'<div style="font-size:11px;color:var(--muted)">'+status_+'</div>'
+        +'</div></div>';
+    }).join('');
+    s2='<div class="card" style="padding:16px 20px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+      +'<h2 style="font-size:15px;margin:0">Execução dos Contratos</h2>'
+      +'<span style="font-size:12px;color:var(--muted)">'+o.contratos.length+' contrato'+(o.contratos.length!==1?'s':'')+'</span></div>'
+      +contrRows_+'</div>';
   }
 
-  // ── Evolução mensal + quem pagou (lado a lado) ─────────────────────────
+  // ── Seção 3: Vencimentos próximos (30 dias) ──────────────────────────
+  var s3='';
+  var hoje30=new Date(hoje_); hoje30.setDate(hoje30.getDate()+30);
+  var vencProx=pagsPend.filter(function(p){
+    if(!p.venc)return false;
+    var dv=new Date(p.venc+'T12:00:00');
+    return dv<=hoje30;
+  }).sort(function(a,b){return(a.venc||'').localeCompare(b.venc||'');}).slice(0,8);
+  if(vencProx.length>0||pagsAtr.length>0){
+    var allUrg=pagsAtr.concat(vencProx.filter(function(p){return!isAtraso(p);}));
+    var urgRows=allUrg.map(function(p){
+      var atr_=isAtraso(p);
+      var daysLeft=p.venc?Math.ceil((new Date(p.venc+'T12:00:00')-hoje_)/86400000):999;
+      var urgColor=atr_?'var(--danger)':daysLeft<=7?'var(--danger)':daysLeft<=15?'var(--warn)':'var(--ok)';
+      var dayLabel=atr_?diasAtraso(p)+'d atrasado':daysLeft===0?'Hoje':daysLeft===1?'Amanhã':daysLeft+'d';
+      return'<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)">'
+        +'<div style="flex-shrink:0;min-width:64px;text-align:right;font-size:12px;font-weight:700;color:'+urgColor+'">'+dayLabel+'</div>'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:uppercase;letter-spacing:.02em">'+p.ben+'</div>'
+        +(p.ref?'<div style="font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.ref.slice(0,50)+'</div>':'')
+        +'</div>'
+        +'<div style="font-size:14px;font-weight:800;font-family:DM Mono,monospace;white-space:nowrap;color:'+urgColor+'">'+fmt(p.v)+'</div>'
+        +'</div>';
+    }).join('');
+    s3='<div class="card" style="padding:16px 20px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+      +'<h2 style="font-size:15px;margin:0">Pagamentos Urgentes</h2>'
+      +'<span style="font-size:12px;background:var(--danger)15;color:var(--danger);padding:2px 8px;border-radius:10px;font-weight:600">'+allUrg.length+' pendente'+(allUrg.length!==1?'s':'')+'</span></div>'
+      +urgRows+'</div>';
+  }
+
+  // ── Seção 4: Evolução mensal + Distribuição por categoria (lado a lado) ─
   var chartH_=renderChart(o);
-  var tot_=CATS.reduce(function(a,c){return a+gastoCat(o,c.id);},0)||1;
-  var cats_=CATS.filter(function(c){return gastoCat(o,c.id)>0;}).sort(function(a,b){return gastoCat(o,b.id)-gastoCat(o,a.id);}).map(function(c){var g=gastoCat(o,c.id),p=Math.round(g/tot_*100);return'<div class="catbar"><span class="nm">'+c.nome+'</span><div class="bar"><i style="width:'+p+'%"></i></div><span class="vv">'+fmt(g)+' · '+p+'%</span></div>';}).join('');
+  // Categoria: UMA VEZ, limpa, só proporções
+  var catData=CATS.filter(function(c){return gastoCat(o,c.id)>0;}).map(function(c){return{cat:c,v:gastoCat(o,c.id)};}).sort(function(a,b){return b.v-a.v;});
+  var catTot_=catData.reduce(function(a,x){return a+x.v;},0)||1;
+  var catRows_=catData.map(function(x){
+    var pct_=Math.round(x.v/catTot_*100);
+    return'<div style="margin-bottom:8px">'
+      +'<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">'
+      +'<span style="font-weight:500">'+x.cat.nome+'</span>'
+      +'<span style="font-weight:700;color:var(--accent);font-family:DM Mono,monospace">'+fmt(x.v)+'</span></div>'
+      +'<div style="height:6px;background:var(--line);border-radius:3px;overflow:hidden;display:flex">'
+      +'<div style="height:100%;width:'+pct_+'%;background:var(--accent);border-radius:3px;transition:width .5s"></div></div>'
+      +'<div style="font-size:11px;color:var(--muted);margin-top:2px">'+pct_+'% dos gastos pagos</div>'
+      +'</div>';
+  }).join('');
+  var s4='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:0">';
+  if(chartH_)s4+='<div class="card"><h2 style="font-size:15px;margin-bottom:12px">Evolução mensal de gastos</h2>'+chartH_+'</div>';
+  if(catRows_)s4+='<div class="card"><h2 style="font-size:15px;margin-bottom:14px">Distribuição por categoria</h2>'+catRows_+'</div>';
+  // Por fonte
   var f_=porFonte(o);
-  var fH_=Object.keys(f_).length
-    ?'<div class="invgrid">'+Object.entries(f_).sort(function(a,b){return b[1]-a[1];}).map(function(e){return'<div class="invc"><div class="nm">'+e[0]+'</div><div class="v">'+fmt(e[1])+'</div><div class="pc">'+(o.pago>0?Math.round(e[1]/o.pago*100):0)+'% do investimento</div></div>';}).join('')+'</div>'
-    :'';
-  var analyticsRow=chartH_||cats_||fH_
-    ?'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:16px">'
-      +(chartH_?'<div class="card"><h2 style="font-size:15px;margin-bottom:10px">Evolução mensal</h2>'+chartH_+'</div>':'')
-      +(cats_?'<div class="card"><h2 style="font-size:15px;margin-bottom:10px">Por categoria</h2>'+cats_+'</div>':'')
-      +(fH_?'<div class="card"><h2 style="font-size:15px;margin-bottom:10px">Por fonte de recurso</h2>'+fH_+'</div>':'')
-      +'</div>'
-    :'';
+  var fEntries_=Object.entries(f_).sort(function(a,b){return b[1]-a[1];});
+  if(fEntries_.length>0){
+    var fRows_=fEntries_.map(function(e){
+      var pct_=totalPago_>0?Math.round(e[1]/totalPago_*100):0;
+      return'<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)">'
+        +'<span style="flex:1;font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e[0]+'</span>'
+        +'<span style="font-size:12px;color:var(--muted)">'+pct_+'%</span>'
+        +'<span style="font-size:14px;font-weight:700;font-family:DM Mono,monospace">'+fmt(e[1])+'</span>'
+        +'</div>';
+    }).join('');
+    s4+='<div class="card"><h2 style="font-size:15px;margin-bottom:14px">Por fonte de recurso</h2>'+fRows_+'</div>';
+  }
+  s4+='</div>';
 
-  // ── Taxa de administração ─────────────────────────────────────────────
-  var taxaH_=o.taxa&&o.taxa.total>0&&o.modelo_contrato==='ADMINISTRACAO'
-    ?'<div class="card" style="margin-bottom:16px"><h2>Taxa de administração</h2><div class="invgrid"><div class="invc"><div class="nm">Acordada</div><div class="v">'+fmt(o.taxa.total)+'</div></div><div class="invc"><div class="nm">Paga</div><div class="v">'+fmt(o.taxa.pago)+'</div></div><div class="invc"><div class="nm">Saldo</div><div class="v" style="color:'+(o.taxa.total-o.taxa.pago<0?'var(--danger)':'var(--ok)')+'">'+fmt(o.taxa.total-o.taxa.pago)+'</div></div></div></div>'
-    :'';
+  // ── Seção 5: Últimas movimentações ───────────────────────────────────
+  var s5='';
+  var ultPagos=pagsPagos.slice().sort(function(a,b){return(b.pagaEm||b.venc||'').localeCompare(a.pagaEm||a.venc||'');}).slice(0,5);
+  if(ultPagos.length>0){
+    var ultRows=ultPagos.map(function(p){
+      return'<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)">'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:uppercase;letter-spacing:.02em">'+p.ben+'</div>'
+        +(p.ref?'<div style="font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.ref.slice(0,50)+'</div>':'')
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0">'
+        +'<div style="font-size:14px;font-weight:800;font-family:DM Mono,monospace;color:var(--ok)">'+fmt(p.v)+'</div>'
+        +(p.pagaEm?'<div style="font-size:11px;color:var(--muted)">'+fmtD(p.pagaEm)+'</div>':'')
+        +'</div></div>';
+    }).join('');
+    s5='<div class="card" style="margin-top:16px"><h2 style="font-size:15px;margin-bottom:10px">Últimos pagamentos realizados</h2>'+ultRows+'</div>';
+  }
 
-  // ── Montar dashboard final ────────────────────────────────────────────
-  var html='';
-  html+=intelligenceStrip;
-  html+=taxaH_;
-  if(al)html+='<div class="card" style="margin-bottom:16px"><h2>Alertas</h2>'+al+'</div>';
-  html+=analyticsRow;
-  html+=catAnalysis;
-
+  // ── Montar ───────────────────────────────────────────────────────────
+  var html=s1;
+  if(al)html+='<div class="card" style="margin-bottom:16px">'+al+'</div>';
+  // Grade: contratos + urgentes lado a lado
+  if(s2||s3)html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:16px">'+(s2||'')+(s3||'')+'</div>';
+  html+=s4;
+  html+=s5;
   document.getElementById('pane-resumo').innerHTML=html;
 }
+
 
 function renderPag(){const o=cur;
   const sumPago=rows=>rows.filter(r=>r.p.st==='PAGO').reduce((a,r)=>a+r.p.v,0);
