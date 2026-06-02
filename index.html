@@ -934,13 +934,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <div class="tabs">
 
-        <button class="tabbtn active" data-tab="resumo" onclick="showTab('resumo')">Resumo</button>
+        <button class="tabbtn active" data-tab="resumo" onclick="showTab('resumo')">Dashboard</button>
 
         <button class="tabbtn" data-tab="pag" onclick="showTab('pag')">Pagamentos</button>
 
         <button class="tabbtn" data-tab="contr" onclick="showTab('contr')">Contratos</button>
 
-        <button class="tabbtn" data-tab="custos" onclick="showTab('custos')">📊 Análise de Custos</button>
+        
 
         <button class="tabbtn" data-tab="aportes" onclick="showTab('aportes')">Aportes</button>
 
@@ -952,7 +952,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <div class="tabpane" data-tab="contr" id="pane-contr"></div>
 
-      <div class="tabpane" data-tab="custos" id="pane-custos"></div>
+      
 
       <div class="tabpane" data-tab="aportes" id="pane-aportes"></div>
 
@@ -4551,9 +4551,9 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   if(!_temContr&&o.pago>0)al+=`<div class="alert alert-warn"><span class="ic">ℹ</span><div>Esta obra tem <b>${fmt(o.pago)} em pagamentos</b> mas nenhum valor contratado definido. Considere registrar o contrato na aba Contratos.</div></div>`;
 
-  document.getElementById("pane-resumo").innerHTML=`${al?`<div class="card"><h2>Alertas</h2><div class="sub">O que merece atenção.</div>${al}</div>`:""}${contratoH}${taxaH}<div class="card"><h2>Evolução mensal de gastos</h2><div class="sub">Total pago por mês (apenas lançamentos com data).</div>${chartH||'<p class="empty">Sem datas de pagamento cadastradas.</p>'}</div><div class="card"><h2>Gasto por categoria</h2><div class="sub">Distribuição do que já foi pago.</div>${cats||'<p class="empty">Sem pagamentos.</p>'}</div><div class="card"><h2>Quem pagou</h2><div class="sub">Consolidado por fonte de recurso.</div>${fH||'<p class="empty">Sem pagamentos.</p>'}</div>`;
+  /* pane-resumo agora gerado por renderDashboard() */
 
-  renderPag();renderMatServ();
+  renderPag();renderDashboard();
 
   // Calcula quanto foi pago por contrato via pagamentos vinculados
 
@@ -4918,7 +4918,7 @@ function renderMatServ(){
     :'';
 
   var emptyHtml=pagsPagos.length===0?'<div class="card"><p class="empty">Nenhum pagamento pago registrado ainda.</p></div>':'';
-  document.getElementById('pane-custos').innerHTML=kpisHtml+distHtml+catCardsHtml+semCatHtml+emptyHtml;
+  return kpisHtml+distHtml+catCardsHtml+semCatHtml+emptyHtml;
 }
 
 function setPagFiltro(f){pagFiltro=f;pagPage=0;renderPag();}
@@ -4962,6 +4962,126 @@ const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agos
 function _monthLabel(k){if(k==='sem-data')return'Sem data definida';const[y,m]=k.split('-');return`${MESES[+m-1]} ${y}`;}
 
 
+
+function renderDashboard(){
+  var o=cur;
+  if(!o)return;
+
+  // ── Dados base ───────────────────────────────────────────────────────────
+  var pagsAll=o.pag||[];
+  var pagsPagos=pagsAll.filter(function(p){return p.st==='PAGO';});
+  var pagsPend=pagsAll.filter(function(p){return p.st!=='PAGO'&&p.st!=='Cancelado';});
+  var totalPagoGeral=pagsPagos.reduce(function(a,p){return a+p.v;},0);
+  var totalPendGeral=pagsPend.reduce(function(a,p){return a+p.v;},0);
+  var invBase=o.investimento_disponivel||o.aportado||0;
+  var pagoExtra_=pagoExtra(o);
+  var saldoInvVal=saldoInv(o);
+  var contrTotVal=contratadoTotal(o);
+  var execPct_=execObra(o);
+
+  // ── Métricas de inteligência ─────────────────────────────────────────────
+  // Velocidade de gasto mensal
+  var velMensal=0, mesesAtivos=0;
+  var datasP=pagsPagos.map(function(p){return p.pagaEm||p.venc;}).filter(Boolean).sort();
+  if(datasP.length>=2){
+    var d1=new Date(datasP[0]+'T12:00:00'), d2=new Date(datasP[datasP.length-1]+'T12:00:00');
+    mesesAtivos=Math.max(1,(d2.getFullYear()-d1.getFullYear())*12+(d2.getMonth()-d1.getMonth()));
+    velMensal=totalPagoGeral/mesesAtivos;
+  }
+  // Projeção: quantos meses de saldo
+  var projMeses=velMensal>100?Math.round(saldoInvVal/velMensal):-1;
+  var projLabel=projMeses<0?'—':projMeses===0?'Esgotando':projMeses+' '+(projMeses===1?'mês':'meses');
+  var projColor=projMeses<0?'var(--muted)':projMeses<=2?'var(--danger)':projMeses<=5?'var(--warn)':'var(--ok)';
+  // % Comprometimento
+  var txCompr=invBase>0?Math.min(Math.round((totalPagoGeral+totalPendGeral)/invBase*100),999):0;
+  var comprColor=txCompr>=100?'var(--danger)':txCompr>80?'var(--warn)':'var(--ok)';
+  // Categoria líder (maior gasto)
+  var catMax=null, catMaxVal=0;
+  CATS.forEach(function(c){var g=gastoCat(o,c.id);if(g>catMaxVal){catMaxVal=g;catMax=c;}});
+
+  // ── Alertas ──────────────────────────────────────────────────────────────
+  var atr=o.pag.filter(isAtraso);
+  var al='';
+  if(atr.length>0)al+='<div class="alert alert-danger"><span class="ic">⚠</span><div><b>'+atr.length+' pagamento'+(atr.length!==1?'s':'')+' em atraso.</b> Regularize para evitar multas.</div></div>';
+  var _temContr=contrTotVal>0;
+  var _saldoContrV=saldoContr(o);
+  if(_temContr&&_saldoContrV<0)al+='<div class="alert alert-danger"><span class="ic">▲</span><div>Pagamentos ultrapassaram o contrato em <b>'+fmt(-_saldoContrV)+'</b>.</div></div>';
+  if(invBase>0&&saldoInvVal<0)al+='<div class="alert alert-danger"><span class="ic">💸</span><div>Investimento esgotado — pagamentos superam o teto em <b>'+fmt(-saldoInvVal)+'</b>.</div></div>';
+  if(_temContr&&_saldoContrV>=0&&_saldoContrV<contrTotVal*0.15&&totalPagoGeral>0)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam apenas <b>'+fmt(_saldoContrV)+'</b>.</div></div>';
+  if(invBase>0&&saldoInvVal>=0&&invBase>0&&saldoInvVal<invBase*0.1)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Saldo do investimento crítico — restam <b>'+fmt(saldoInvVal)+'</b>.</div></div>';
+
+  // ── Distribuição por categoria (da renderMatServ) ─────────────────────
+  var catAnalysis=renderMatServ();
+
+  // ── Strip de inteligência ─────────────────────────────────────────────
+  var intelligenceStrip='';
+  if(totalPagoGeral>0){
+    intelligenceStrip='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px">';
+    // Card velocidade
+    intelligenceStrip+='<div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:3px">'
+      +'<div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Velocidade de gasto</div>'
+      +'<div style="font-size:20px;font-weight:800;font-family:DM Mono,monospace">'+(velMensal>0?fmt(Math.round(velMensal))+'<span style="font-size:12px;font-weight:500;color:var(--muted)">/mês</span>':'—')+'</div>'
+      +'<div style="font-size:12px;color:var(--muted)">'+(mesesAtivos>0?mesesAtivos+' meses de histórico':'Dados insuficientes')+'</div>'
+      +'</div>';
+    // Card comprometimento
+    intelligenceStrip+='<div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px">'
+      +'<div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Comprometimento</div>'
+      +'<div style="font-size:20px;font-weight:800;color:'+comprColor+'">'+txCompr+'%</div>'
+      +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin:6px 0 3px">'
+      +'<div style="height:100%;width:'+Math.min(txCompr,100)+'%;background:'+comprColor+';border-radius:3px;transition:width .5s"></div></div>'
+      +'<div style="font-size:12px;color:var(--muted)">do investimento utilizado/comprometido</div>'
+      +'</div>';
+    // Card projeção
+    if(invBase>0){
+      intelligenceStrip+='<div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px">'
+        +'<div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Saldo dura</div>'
+        +'<div style="font-size:20px;font-weight:800;color:'+projColor+'">'+projLabel+'</div>'
+        +'<div style="font-size:12px;color:var(--muted)">'+(projMeses<0?'velocidade insuficiente':'no ritmo atual de gastos')+'</div>'
+        +'</div>';
+    }
+    // Card maior categoria
+    if(catMax&&catMaxVal>0){
+      intelligenceStrip+='<div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px">'
+        +'<div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Maior gasto</div>'
+        +'<div style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+catMax.nome+'</div>'
+        +'<div style="font-size:18px;font-weight:800;color:var(--accent);font-family:DM Mono,monospace">'+fmt(catMaxVal)+'</div>'
+        +'<div style="font-size:12px;color:var(--muted)">'+(totalPagoGeral>0?Math.round(catMaxVal/totalPagoGeral*100)+'% do total pago':'')+'</div>'
+        +'</div>';
+    }
+    intelligenceStrip+='</div>';
+  }
+
+  // ── Evolução mensal + quem pagou (lado a lado) ─────────────────────────
+  var chartH_=renderChart(o);
+  var tot_=CATS.reduce(function(a,c){return a+gastoCat(o,c.id);},0)||1;
+  var cats_=CATS.filter(function(c){return gastoCat(o,c.id)>0;}).sort(function(a,b){return gastoCat(o,b.id)-gastoCat(o,a.id);}).map(function(c){var g=gastoCat(o,c.id),p=Math.round(g/tot_*100);return'<div class="catbar"><span class="nm">'+c.nome+'</span><div class="bar"><i style="width:'+p+'%"></i></div><span class="vv">'+fmt(g)+' · '+p+'%</span></div>';}).join('');
+  var f_=porFonte(o);
+  var fH_=Object.keys(f_).length
+    ?'<div class="invgrid">'+Object.entries(f_).sort(function(a,b){return b[1]-a[1];}).map(function(e){return'<div class="invc"><div class="nm">'+e[0]+'</div><div class="v">'+fmt(e[1])+'</div><div class="pc">'+(o.pago>0?Math.round(e[1]/o.pago*100):0)+'% do investimento</div></div>';}).join('')+'</div>'
+    :'';
+  var analyticsRow=chartH_||cats_||fH_
+    ?'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:16px">'
+      +(chartH_?'<div class="card"><h2 style="font-size:15px;margin-bottom:10px">Evolução mensal</h2>'+chartH_+'</div>':'')
+      +(cats_?'<div class="card"><h2 style="font-size:15px;margin-bottom:10px">Por categoria</h2>'+cats_+'</div>':'')
+      +(fH_?'<div class="card"><h2 style="font-size:15px;margin-bottom:10px">Por fonte de recurso</h2>'+fH_+'</div>':'')
+      +'</div>'
+    :'';
+
+  // ── Taxa de administração ─────────────────────────────────────────────
+  var taxaH_=o.taxa&&o.taxa.total>0&&o.modelo_contrato==='ADMINISTRACAO'
+    ?'<div class="card" style="margin-bottom:16px"><h2>Taxa de administração</h2><div class="invgrid"><div class="invc"><div class="nm">Acordada</div><div class="v">'+fmt(o.taxa.total)+'</div></div><div class="invc"><div class="nm">Paga</div><div class="v">'+fmt(o.taxa.pago)+'</div></div><div class="invc"><div class="nm">Saldo</div><div class="v" style="color:'+(o.taxa.total-o.taxa.pago<0?'var(--danger)':'var(--ok)')+'">'+fmt(o.taxa.total-o.taxa.pago)+'</div></div></div></div>'
+    :'';
+
+  // ── Montar dashboard final ────────────────────────────────────────────
+  var html='';
+  html+=intelligenceStrip;
+  html+=taxaH_;
+  if(al)html+='<div class="card" style="margin-bottom:16px"><h2>Alertas</h2>'+al+'</div>';
+  html+=analyticsRow;
+  html+=catAnalysis;
+
+  document.getElementById('pane-resumo').innerHTML=html;
+}
 
 function renderPag(){const o=cur;
   const sumPago=rows=>rows.filter(r=>r.p.st==='PAGO').reduce((a,r)=>a+r.p.v,0);
