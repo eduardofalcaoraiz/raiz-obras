@@ -2106,7 +2106,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         <label class="fl" style="font-weight:700;color:var(--ink)">Valor total do contrato (R$)</label>
 
-        <input class="fi num" id="cm-v" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this);cmBuildParcelas()" placeholder="0,00" style="font-size:20px;font-weight:700">
+        <input class="fi num" id="cm-v" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this);cmBuildParcelas();setCmValInv(null,parseCurrency(this.value))" placeholder="0,00" style="font-size:20px;font-weight:700">
 
       </div>
 
@@ -2162,21 +2162,17 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
     <div class="imp-sec">
       <div class="imp-sec-hd">Fonte de Recursos</div>
       <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Quanto deste contrato será pago pelo investimento externo e quanto pelo caixa da escola. Isso provisiona o saldo de cada fonte.</p>
-      <div class="frow" style="margin-bottom:8px">
-        <label class="fl" style="display:flex;justify-content:space-between;align-items:center">
-          <span>% do Investimento Externo</span>
-          <span id="cm-pct-label" style="font-size:12px;color:var(--muted);font-weight:400">100% externo · 0% escola</span>
-        </label>
-        <input class="fi" id="cm-pct-inv" type="range" min="0" max="100" value="100" style="padding:0;height:32px;cursor:pointer;accent-color:var(--accent)" oninput="setCmPctInv(this.value)">
+      <div class="fgrid">
+        <div class="frow" style="margin-bottom:0">
+          <label class="fl" style="color:var(--accent);font-weight:600">Investimento externo (R$)</label>
+          <input class="fi num" id="cm-val-inv" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this);cmValInvChanged()" placeholder="0,00" style="font-weight:700;font-size:15px">
+        </div>
+        <div class="frow" style="margin-bottom:0">
+          <label class="fl" style="color:var(--warn);font-weight:600">Caixa da escola (R$)</label>
+          <input class="fi num" id="cm-val-esc" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this);cmValEscChanged()" placeholder="0,00" style="font-weight:700;font-size:15px">
+        </div>
       </div>
-      <div style="height:8px;border-radius:4px;overflow:hidden;display:flex;margin-bottom:4px">
-        <div id="cm-pct-inv-bar" style="height:100%;width:100%;background:var(--accent);transition:width .2s"></div>
-        <div id="cm-pct-esc-bar" style="height:100%;width:0%;background:var(--warn);transition:width .2s"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:11.5px">
-        <span style="color:var(--accent);font-weight:600">Investimento externo</span>
-        <span style="color:var(--warn);font-weight:600">Caixa da escola</span>
-      </div>
+      <p style="font-size:11.5px;color:var(--muted);margin-top:6px">Os dois valores devem somar o total do contrato. Ao alterar um, o outro se ajusta automaticamente.</p>
     </div>
 
     <!-- 7. Observações -->
@@ -2795,16 +2791,26 @@ function cmSetPlano(plano){
 
 
 
-function setCmPctInv(pct){
-  const val=Math.min(100,Math.max(0,+pct||100));
-  const inp=document.getElementById('cm-pct-inv');if(inp)inp.value=val;
-  const escola=100-val;
-  const lbl=document.getElementById('cm-pct-label');
-  if(lbl){lbl.textContent=val+'% investimento externo · '+escola+'% caixa da escola';}
-  const faixaInv=document.getElementById('cm-pct-inv-bar');
-  if(faixaInv){faixaInv.style.width=val+'%';}
-  const faixaEsc=document.getElementById('cm-pct-esc-bar');
-  if(faixaEsc){faixaEsc.style.width=escola+'%';}
+function setCmValInv(valorInv,valorTotal){
+  const vTotal=valorTotal||parseCurrency(document.getElementById('cm-v')?.value||'0')||0;
+  const vInv=valorInv!==null&&valorInv!==undefined?Math.min(+valorInv,vTotal):vTotal;
+  const vEsc=Math.max(0,vTotal-vInv);
+  const inpInv=document.getElementById('cm-val-inv');
+  if(inpInv)setCurrencyValue('cm-val-inv',vInv);
+  const inpEsc=document.getElementById('cm-val-esc');
+  if(inpEsc)setCurrencyValue('cm-val-esc',vEsc);
+}
+function cmValInvChanged(){
+  const vTotal=parseCurrency(document.getElementById('cm-v')?.value||'0')||0;
+  const vInv=parseCurrency(document.getElementById('cm-val-inv')?.value||'0')||0;
+  const vEsc=Math.max(0,vTotal-vInv);
+  setCurrencyValue('cm-val-esc',vEsc);
+}
+function cmValEscChanged(){
+  const vTotal=parseCurrency(document.getElementById('cm-v')?.value||'0')||0;
+  const vEsc=parseCurrency(document.getElementById('cm-val-esc')?.value||'0')||0;
+  const vInv=Math.max(0,vTotal-vEsc);
+  setCurrencyValue('cm-val-inv',vInv);
 }
 function cmToggleFim(tipo){
   const d=document.getElementById('cm-fim');
@@ -2919,7 +2925,7 @@ function openContrModal(idx){
 
   // Reset form
 
-  _cmDocFile=null;['cm-nome-contr','cm-forn','cm-forn-cnpj','cm-escopo','cm-obs','cm-inicio','cm-fim','cm-fim-gatilho','cm-medicao-desc','cm-medicao-freq-texto'].forEach(x=>{const el=g(x);if(el)el.value='';});cmToggleFim('data');cmRemoverContrato();setCmPctInv(100);
+  _cmDocFile=null;['cm-nome-contr','cm-forn','cm-forn-cnpj','cm-escopo','cm-obs','cm-inicio','cm-fim','cm-fim-gatilho','cm-medicao-desc','cm-medicao-freq-texto'].forEach(x=>{const el=g(x);if(el)el.value='';});cmToggleFim('data');cmRemoverContrato();setCmValInv(null,0);
 
   g('cm-v').value='';g('cm-num-parc').value='1';
 
@@ -2966,7 +2972,7 @@ function openContrModal(idx){
 
     if(c.plano_pagamento==='parcelas'){g('cm-num-parc').value=c.num_parc_contr||1;setTimeout(cmBuildParcelas,50);}
 
-    if(c.plano_pagamento==='medicoes'){if(g('cm-medicao-desc'))g('cm-medicao-desc').value=c.medicao_desc||'';if(g('cm-medicao-freq-texto'))g('cm-medicao-freq-texto').value=c.medicao_freq_texto||c.medicao_freq||'';}setCmPctInv(c.pct_investimento!==undefined?c.pct_investimento:100);
+    if(c.plano_pagamento==='medicoes'){if(g('cm-medicao-desc'))g('cm-medicao-desc').value=c.medicao_desc||'';if(g('cm-medicao-freq-texto'))g('cm-medicao-freq-texto').value=c.medicao_freq_texto||c.medicao_freq||'';}setCmValInv(c.valor_investimento,valorContrTotal(c));
 
   }else{
 
@@ -2999,9 +3005,10 @@ async function saveContr(){
     });
   }
   const fimEhGatilho=g('cm-fim')?.style.display==='none';
-  const _cPctInv=parseInt(document.getElementById('cm-pct-inv')?.value)||100;
+  const _cValInv=parseCurrency(document.getElementById('cm-val-inv')?.value||'');
+  const _cValInvFinal=_cValInv>=0?_cValInv:null;
   const obj={
-    nome_contr:nomeContr,forn,escopo:g("cm-escopo").value.trim(),v,pago:0,pct_investimento:_cPctInv,
+    nome_contr:nomeContr,forn,escopo:g("cm-escopo").value.trim(),v,pago:0,valor_investimento:_cValInvFinal,
     numero:nomeContr,
     data_assn:g("cm-inicio").value,data_inicio:g("cm-inicio").value,
     data_fim_prev:fimEhGatilho?(g('cm-fim-gatilho')?.value||''):(g('cm-fim')?.value||''),
@@ -3033,7 +3040,7 @@ async function saveContr(){
     parcelas_contr:obj.parcelas_contr,medicao_freq:null,
     contrato_doc_path:obj.contrato_doc_path,data_fim_tipo:obj.data_fim_tipo,
     data_fim_gatilho:obj.data_fim_gatilho,medicao_desc:obj.medicao_desc,
-    medicao_freq_texto:obj.medicao_freq_texto,aditivos:obj.aditivos||[],pct_investimento:obj.pct_investimento!==undefined?obj.pct_investimento:100};
+    medicao_freq_texto:obj.medicao_freq_texto,aditivos:obj.aditivos||[],pct_investimento:100,valor_investimento:obj.valor_investimento!==undefined?obj.valor_investimento:null};
   if(contrEditIdx!==null){
     // Edição: UPDATE direto por obra_id+seq
     obj.seq=cur.contratos[contrEditIdx].seq;
@@ -4394,9 +4401,11 @@ function renderObra(){const o=cur,pct=execObra(o);
     var vTot=valorContrTotal(c);
     var pago=_pagoPorContrIdx[c.seq]||0;
     var restante=Math.max(0,vTot-pago);
-    var pctInv=c.pct_investimento!==undefined?c.pct_investimento:100;
-    _comprometidoInv+=restante*pctInv/100;
-    _comprometidoEscola+=restante*(100-pctInv)/100;
+    var vInvC=c.valor_investimento!==null&&c.valor_investimento!==undefined?Math.min(+c.valor_investimento,vTot):((c.pct_investimento!==undefined?c.pct_investimento:100)/100*vTot);
+    var vEscC=Math.max(0,vTot-vInvC);
+    var ratioInv=vTot>0?vInvC/vTot:1;
+    _comprometidoInv+=restante*ratioInv;
+    _comprometidoEscola+=restante*(1-ratioInv);
   });
   var _comprometido=_comprometidoInv;
   var _saldoLivre=Math.max(0,_saldoInv-_comprometidoInv);
@@ -4446,12 +4455,10 @@ function renderObra(){const o=cur,pct=execObra(o);
   // Mostrar fonte de recursos dos contratos
   var _totalRestante=o.contratos.reduce(function(a,c){var vT=valorContrTotal(c);var pR=_pagoPorContrIdx[c.seq]||0;return a+Math.max(0,vT-pR);},0);
   if(_totalRestante>0){
-    var _restInvPct=Math.round(_comprometidoInv/_totalRestante*100);
-    var _restEscPct=100-_restInvPct;
     _cardConstr+='<div style="font-size:11.5px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--line);display:flex;gap:12px">'
-      +'<span>Saldo restante: <b>'+fmt(_totalRestante)+'</b></span>'
-      +'<span style="color:var(--accent)">'+_restInvPct+'% externo</span>'
-      +(_restEscPct>0?'<span style="color:var(--warn)">'+_restEscPct+'% escola</span>':'')
+      +'<span>Saldo a pagar: <b>'+fmt(_totalRestante)+'</b></span>'
+      +'<span style="color:var(--accent)">Externo: '+fmt(_comprometidoInv)+'</span>'
+      +(_comprometidoEscola>0?'<span style="color:var(--warn)">Escola: '+fmt(_comprometidoEscola)+'</span>':'')
       +'</div>';
   }
   _cardConstr+='</div>';
@@ -7329,7 +7336,7 @@ async function loadFromDB(){
 
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
 
-      contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||'',aditivos:Array.isArray(c.aditivos)?c.aditivos:[],pct_investimento:c.pct_investimento!==null?+c.pct_investimento:100}))
+      contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||'',aditivos:Array.isArray(c.aditivos)?c.aditivos:[],pct_investimento:c.pct_investimento!==null?+c.pct_investimento:100,valor_investimento:c.valor_investimento!==null&&c.valor_investimento!==undefined?+c.valor_investimento:null}))
 
     }));
 
