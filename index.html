@@ -4820,33 +4820,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
 
 
-  document.getElementById("pane-aportes").innerHTML=`
-
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
-
-      <div>
-
-        <h3 style="font-size:17px;font-family:'DM Sans',system-ui,sans-serif;margin-bottom:2px">Análise por Investidor / Fonte</h3>
-
-        <div style="font-size:13px;color:var(--muted)">Cruzamento automático entre depósitos recebidos e pagamentos realizados.</div>
-
-      </div>
-
-      <button class="btn btn-primary btn-sm" onclick="openAporteModal()"><span class="ic">＋</span> Registrar depósito</button>
-
-    </div>
-
-    ${_painelTotal}
-
-    ${_invCards}
-
-    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line)">
-
-      <h3 style="font-size:15px;font-family:'DM Sans',system-ui,sans-serif;margin-bottom:10px">Histórico de depósitos recebidos</h3>
-
-      <div class="tablewrap"><table><thead><tr><th>Investidor / Fonte</th><th style="text-align:right">Valor depositado</th><th>Data do depósito</th><th></th></tr></thead><tbody>${o.aportes.length?o.aportes.map((a,ai)=>`<tr><td style="font-weight:500">${a.inv}</td><td class="n">${fmt(a.v)}</td><td style="color:var(--muted)">${a.d?fmtD(a.d.length<=7?a.d+'-01':a.d):'—'}</td><td style="white-space:nowrap"><button class="iconbtn" title="Editar" onclick="openAporteModal(${ai})">✎</button><button class="iconbtn" title="Excluir" onclick="deleteAporte(${ai})" style="color:var(--danger)">🗑</button></td></tr>`).join(""):'<tr><td colspan="4"><p class="empty">Nenhum depósito registrado ainda.</p></td></tr>'}</tbody></table></div>
-
-    </div>`;
+  /* pane-aportes integrado no dashboard - nao escrever mais aqui */
 
 }
 
