@@ -3177,30 +3177,29 @@ function _prng(seed){let s=seed;return()=>{s=(s*16807+0)%2147483647;return(s-1)/
 
 
 
-// Arte da pagina: fita ondulante com linhas concentricas — estilo referencia Pinterest
+// Arte da pagina: fitas ondulantes vivas — cobre toda a pagina, logos em posicoes artisticas
 
 function _makePageArt(colors,w,h,marcas){
   if(!colors||!colors.length)colors=['#F08700'];
   var rand=_prng(colors.join('').length*42+w);
   var svg='';
 
-  // Gera os pontos de controle de UMA onda principal
-  function makeRibbonPts(centerY,phase,amp1,amp2,amp3){
-    var n=18, pts=[];
+  function ribbonPts(centerY,phase,amp1,amp2,amp3){
+    var n=20,pts=[];
     for(var i=0;i<=n;i++){
       var t=i/n;
-      var x=t*(w+120)-60;
-      var y=centerY
-        +Math.sin(t*Math.PI*1.8+phase)*amp1
-        +Math.sin(t*Math.PI*4.1+phase*1.5)*amp2
-        +Math.sin(t*Math.PI*7.3+phase*0.7)*amp3;
-      pts.push([x,y]);
+      pts.push([
+        t*(w+160)-80,
+        centerY
+          +Math.sin(t*Math.PI*2.0+phase)*amp1
+          +Math.sin(t*Math.PI*4.5+phase*1.4)*amp2
+          +Math.sin(t*Math.PI*8.0+phase*0.8)*amp3
+      ]);
     }
     return pts;
   }
 
-  // Gera um path smooth (quadratic bezier) a partir de pontos + offset Y
-  function ptsToPath(pts,dy){
+  function drawPath(pts,dy){
     var d='M'+pts[0][0].toFixed(1)+','+(pts[0][1]+dy).toFixed(1);
     for(var i=1;i<pts.length;i++){
       var mx=((pts[i-1][0]+pts[i][0])/2).toFixed(1);
@@ -3210,62 +3209,89 @@ function _makePageArt(colors,w,h,marcas){
   }
 
   var nc=colors.length;
+  // Cada cor gera 2 fitas que cobrem a pagina toda
+  var ribbonsPerColor=2;
 
   colors.forEach(function(col,ci){
-    // Centro vertical desta fita
-    var centerY=h*(0.2+ci*(0.6/(nc>1?nc-1:1)));
-    var phase=rand()*Math.PI*2+ci*1.4;
+    for(var ri=0;ri<ribbonsPerColor;ri++){
+      // Posicionar fitas de forma que cubram de cima a baixo
+      var sectionH=h/(nc*ribbonsPerColor);
+      var centerY=sectionH*(ci*ribbonsPerColor+ri+0.5);
 
-    // Amplitude dramatica — cria as dobras profundas como na referencia
-    var amp1=h*(0.18+rand()*0.10);
-    var amp2=h*(0.08+rand()*0.05);
-    var amp3=h*(0.025+rand()*0.02);
+      var phase=rand()*Math.PI*2+ci*1.7+ri*2.3;
+      // Amplitude grande para cobrir bastante espaco vertical
+      var amp1=h*(0.20+rand()*0.08);
+      var amp2=h*(0.08+rand()*0.04);
+      var amp3=h*(0.03+rand()*0.02);
 
-    // Gerar os pontos base da onda principal
-    var basePts=makeRibbonPts(centerY,phase,amp1,amp2,amp3);
+      var basePts=ribbonPts(centerY,phase,amp1,amp2,amp3);
 
-    // Numero de linhas na fita — muitas para criar o efeito de compressao
-    var NL=42;
-    var halfBand=h*0.14; // metade da largura da fita
+      // Fita mais larga e mais viva
+      var NL=50;
+      var halfBand=h*(0.16+rand()*0.04);
 
-    for(var li=0;li<NL;li++){
-      // Offset de -halfBand a +halfBand
-      var t=li/(NL-1);
-      var dy=(t-0.5)*2*halfBand;
+      for(var li=0;li<NL;li++){
+        var t=li/(NL-1);
+        var dy=(t-0.5)*2*halfBand;
+        var dc=Math.abs(t-0.5)*2; // 0=centro, 1=borda
 
-      // Espessura e opacidade variam com a posicao na fita
-      // Centro da fita: linhas mais grossas e opacas
-      // Bordas: linhas mais finas e transparentes
-      var distCenter=Math.abs(t-0.5)*2; // 0=centro, 1=borda
-      var sw=distCenter<0.3?(1.4-distCenter*2):(0.5-distCenter*0.3);
-      if(sw<0.3)sw=0.3;
-      var op=distCenter<0.4?(0.55-distCenter*0.5):(0.25-distCenter*0.2);
-      if(op<0.06)op=0.06;
-      if(op>0.55)op=0.55;
+        // Linhas mais grossas e vivas
+        var sw;
+        if(dc<0.15) sw=2.8-dc*4;
+        else if(dc<0.5) sw=1.8-dc*1.8;
+        else sw=0.8-dc*0.6;
+        if(sw<0.35)sw=0.35;
 
-      var d=ptsToPath(basePts,dy);
-      svg+='<path d="'+d+'" stroke="'+col+'" stroke-width="'+sw.toFixed(2)+'" fill="none" opacity="'+op.toFixed(3)+'"/>';
+        var op;
+        if(dc<0.15) op=0.72-dc*1.5;
+        else if(dc<0.4) op=0.55-dc*0.8;
+        else op=0.30-dc*0.25;
+        if(op<0.07)op=0.07;
+
+        svg+='<path d="'+drawPath(basePts,dy)+'" stroke="'+col+'" stroke-width="'+sw.toFixed(2)+'" fill="none" opacity="'+op.toFixed(3)+'"/>';
+      }
+
+      // Linha central forte
+      svg+='<path d="'+drawPath(basePts,0)+'" stroke="'+col+'" stroke-width="3.5" fill="none" opacity="0.75"/>';
+      // Brilho
+      svg+='<path d="'+drawPath(basePts,-halfBand*0.12)+'" stroke="rgba(255,255,255,0.28)" stroke-width="1.2" fill="none"/>';
+      // Sombra para profundidade
+      svg+='<path d="'+drawPath(basePts,halfBand*0.12)+'" stroke="rgba(0,0,0,0.10)" stroke-width="1.0" fill="none"/>';
     }
-
-    // Linha central de destaque (mais grossa e viva)
-    var dCenter=ptsToPath(basePts,0);
-    svg+='<path d="'+dCenter+'" stroke="'+col+'" stroke-width="2.8" fill="none" opacity="0.55"/>';
-
-    // Linha brilho branca sobre a fita (sensacao 3D)
-    var dGlow=ptsToPath(basePts,-halfBand*0.15);
-    svg+='<path d="'+dGlow+'" stroke="rgba(255,255,255,0.22)" stroke-width="1.0" fill="none"/>';
   });
 
-  // Logos watermark
+  // Logos em posicoes artisticas — grandes, rotacionadas, integradas
   var lus=(marcas||[]).map(function(m){return getBrandLogoUrl(m);}).filter(Boolean);
+
+  // Layout artistico das logos: distribui pelos quatro quadrantes e centro
+  var positions=[
+    // Grande no canto superior esquerdo, levemente inclinada
+    {xf:0.02,yf:0.01,wf:0.55,hf:0.48,rot:-18,op:0.13},
+    // Grande no canto inferior direito
+    {xf:0.40,yf:0.52,wf:0.58,hf:0.46,rot:14,op:0.11},
+    // Media no centro-esquerda
+    {xf:0.05,yf:0.38,wf:0.38,hf:0.34,rot:8,op:0.09},
+    // Media no canto superior direito
+    {xf:0.60,yf:0.04,wf:0.36,hf:0.32,rot:-10,op:0.09},
+    // Menor no centro
+    {xf:0.28,yf:0.44,wf:0.28,hf:0.26,rot:5,op:0.07},
+    // Menor no canto inferior esquerdo
+    {xf:0.02,yf:0.72,wf:0.28,hf:0.26,rot:-6,op:0.07},
+  ];
+
   lus.forEach(function(url,li){
-    [{x:w*(0.02+li*0.28),y:h*0.04,w:w*0.44,h:h*0.42,rot:-14+li*8,op:0.11},
-     {x:w*(0.48-li*0.07),y:h*0.43,w:w*0.38,h:h*0.36,rot:12-li*5,op:0.075},
-     {x:w*(0.15+li*0.32),y:h*0.67,w:w*0.32,h:h*0.30,rot:-8+li*11,op:0.06}
-    ].forEach(function(p){
-      var cx=(p.x+p.w/2)|0, cy=(p.y+p.h/2)|0;
-      svg+='<image href="'+url+'" x="'+(p.x|0)+'" y="'+(p.y|0)+'" width="'+(p.w|0)+'" height="'+(p.h|0)+'" opacity="'+p.op+'" preserveAspectRatio="xMidYMid meet" transform="rotate('+p.rot+','+cx+','+cy+')"/>';
-    });
+    // Cada logo recebe 2-3 posicoes do array, ciclando
+    var numPos=Math.min(3,positions.length);
+    for(var pi=0;pi<numPos;pi++){
+      var pos=positions[(li*numPos+pi)%positions.length];
+      var x=(pos.xf*w)|0, y=(pos.yf*h)|0;
+      var pw=(pos.wf*w)|0, ph=(pos.hf*h)|0;
+      var cx=(x+pw/2)|0, cy=(y+ph/2)|0;
+      // Deslocar levemente cada logo para nao sobrepor exatamente
+      var dx=((li*137+pi*89)%60-30)|0;
+      var dy=((li*97+pi*61)%40-20)|0;
+      svg+='<image href="'+url+'" x="'+(x+dx)+'" y="'+(y+dy)+'" width="'+pw+'" height="'+ph+'" opacity="'+pos.op+'" preserveAspectRatio="xMidYMid meet" transform="rotate('+pos.rot+','+(cx+dx)+','+(cy+dy)+')"/>';
+    }
   });
 
   return'<svg width="100%" height="100%" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" style="position:absolute;inset:0">'+svg+'</svg>';
