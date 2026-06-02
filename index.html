@@ -942,7 +942,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         
 
-        <button class="tabbtn" data-tab="aportes" onclick="showTab('aportes')">Aportes</button>
+        
 
       </div>
 
@@ -954,7 +954,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       
 
-      <div class="tabpane" data-tab="aportes" id="pane-aportes"></div>
+      
 
     </section>
 
@@ -3117,9 +3117,9 @@ function openAporteModal(idx){
 
 function closeAporteModal(){document.getElementById("apor-overlay").classList.remove("show");aporteEditIdx=null;}
 
-function saveAporte(){const g=v=>document.getElementById(v).value;const inv=g("am-inv");if(!inv){toast("Selecione o investidor.");return;}const v=parseCurrency(g("am-v"));if(!v){toast("Informe o valor.");return;}const obj={inv,v,d:g("am-d")};if(aporteEditIdx!==null){const old=cur.aportes[aporteEditIdx];cur.aportado+=(v-old.v);cur.aportes[aporteEditIdx]=obj;}else{cur.aportes.push(obj);cur.aportado+=v;}persist(cur.id);closeAporteModal();renderObra();showTab("aportes");toast(aporteEditIdx!==null?"Aporte atualizado.":"Aporte registrado.");}
+function saveAporte(){const g=v=>document.getElementById(v).value;const inv=g("am-inv");if(!inv){toast("Selecione o investidor.");return;}const v=parseCurrency(g("am-v"));if(!v){toast("Informe o valor.");return;}const obj={inv,v,d:g("am-d")};if(aporteEditIdx!==null){const old=cur.aportes[aporteEditIdx];cur.aportado+=(v-old.v);cur.aportes[aporteEditIdx]=obj;}else{cur.aportes.push(obj);cur.aportado+=v;}persist(cur.id);closeAporteModal();renderObra();showTab('resumo');toast(aporteEditIdx!==null?"Aporte atualizado.":"Aporte registrado.");}
 
-function deleteAporte(idx){const a=cur.aportes[idx];askConfirm('Excluir aporte de '+fmt(a.v)+' ('+a.inv+')? Esta ação não pode ser desfeita.',()=>{cur.aportado-=a.v;cur.aportes.splice(idx,1);persist(cur.id);renderObra();showTab("aportes");toast("Aporte excluído.");});}
+function deleteAporte(idx){const a=cur.aportes[idx];askConfirm('Excluir aporte de '+fmt(a.v)+' ('+a.inv+')? Esta ação não pode ser desfeita.',()=>{cur.aportado-=a.v;cur.aportes.splice(idx,1);persist(cur.id);renderObra();showTab('resumo');toast("Aporte excluído.");});}
 
 
 
@@ -5132,7 +5132,74 @@ function renderDashboard(){
   // Últimas movimentações
   if(ultRows_)html+='<div class="card"><h2 style="font-size:15px;margin-bottom:2px">Últimas movimentações</h2><div class="sub" style="margin-bottom:12px">Pagamentos mais recentes realizados</div>'+ultRows_+'</div>';
 
-  document.getElementById('pane-resumo').innerHTML=html||'<div class="card"><p class="empty">Nenhum pagamento registrado ainda.</p></div>';
+  // ── Seção Investidores e Aportes (integrada do antigo tab Aportes) ──────
+  var sAportes='';
+  var invStats_=calcInvestStats(o);
+  if(o.aportes.length>0||invStats_.length>0){
+    var totAp_=invStats_.reduce(function(a,s){return a+s.aportado;},0);
+    var totUt_=invStats_.reduce(function(a,s){return a+s.utilizado;},0);
+    var totPend_=invStats_.reduce(function(a,s){return a+s.pendente;},0);
+    var saldoAp_=totAp_-totUt_;
+    // KPI strip dos aportes
+    var apKpi='<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line);margin-bottom:14px;font-size:13px">';
+    apKpi+='<span>Recebido: <b>'+fmt(totAp_)+'</b></span>';
+    apKpi+='<span>Utilizado: <b style="color:var(--accent)">'+fmt(totUt_)+'</b></span>';
+    if(totPend_>0)apKpi+='<span>Pendente: <b style="color:var(--warn)">'+fmt(totPend_)+'</b></span>';
+    apKpi+='<span style="margin-left:auto">Saldo: <b style="color:'+(saldoAp_<0?'var(--danger)':'var(--ok)')+'">'+fmt(saldoAp_)+'</b></span>';
+    apKpi+='</div>';
+    // Cards por investidor (compactos)
+    var invRows_='';
+    invStats_.forEach(function(s){
+      var saldo_=s.aportado-s.utilizado;
+      var sColor=saldo_<0?'var(--danger)':saldo_<s.aportado*0.1?'var(--warn)':'var(--ok)';
+      var usoPct_=s.aportado>0?Math.min(Math.round(s.utilizado/s.aportado*100),100):0;
+      invRows_+='<div style="padding:10px 0;border-bottom:1px solid var(--line)">'
+        +'<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center;margin-bottom:5px">'
+        +'<span style="font-size:13.5px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.nome+'</span>'
+        +'<span style="font-size:12px;color:var(--muted);white-space:nowrap">Aportou <b>'+fmt(s.aportado)+'</b></span>'
+        +'<span style="font-size:12px;color:var(--muted);white-space:nowrap">Usou <b style="color:var(--accent)">'+fmt(s.utilizado)+'</b></span>'
+        +'<span style="font-size:13px;font-weight:700;color:'+sColor+';white-space:nowrap">Saldo '+fmt(saldo_)+'</span>'
+        +'</div>'
+        +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden">'
+        +'<div style="height:100%;width:'+usoPct_+'%;background:'+(usoPct_>=90?'var(--danger)':usoPct_>70?'var(--warn)':'var(--ok)')+';border-radius:3px;transition:width .5s"></div></div>'
+        +'</div>';
+    });
+    // Histórico de depósitos
+    var histRows_='';
+    var sortedAportes=o.aportes.slice().sort(function(a,b){return(b.d||'').localeCompare(a.d||'');});
+    sortedAportes.forEach(function(a,ai){
+      var realIdx=o.aportes.indexOf(a);
+      histRows_+='<tr>'
+        +'<td style="font-weight:600;text-transform:uppercase;letter-spacing:.02em">'+a.inv+'</td>'
+        +'<td class="n" style="font-family:DM Mono,monospace">'+fmt(a.v)+'</td>'
+        +'<td style="color:var(--muted)">'+( a.d?fmtD(a.d.length<=7?a.d+'-01':a.d):'—')+'</td>'
+        +'<td style="white-space:nowrap">'
+        +'<button class="iconbtn" title="Editar" onclick="openAporteModal('+realIdx+')">✎</button>'
+        +'<button class="iconbtn" title="Excluir" onclick="deleteAporte('+realIdx+')" style="color:var(--danger)">🗑</button>'
+        +'</td></tr>';
+    });
+    sAportes='<div class="card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
+      +'<div><h2 style="font-size:15px;margin-bottom:2px">Investidores e Aportes</h2>'
+      +'<div class="sub">Cruzamento automático entre depósitos recebidos e execução financeira</div></div>'
+      +'<button class="btn btn-primary btn-sm" onclick="openAporteModal()"><span class="ic">＋</span> Registrar depósito</button>'
+      +'</div>'
+      +apKpi
+      +(invRows_?'<div style="margin-bottom:14px">'+invRows_+'</div>':'')
+      +(histRows_
+        ?'<div><div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Histórico de depósitos</div>'
+        +'<div class="tablewrap"><table><thead><tr><th>Investidor / Fonte</th><th style="text-align:right">Valor</th><th>Data</th><th></th></tr></thead><tbody>'+histRows_+'</tbody></table></div>'
+        +'</div>'
+        :'<p class="empty" style="margin-top:8px">Nenhum depósito registrado ainda.</p>')
+      +'</div>';
+  }
+
+  // ── Inserir aportes no lugar certo: após contratos/urgentes, antes de analytics ──
+  var htmlFinal=html;
+  // Adicionar secao aportes antes de categorias/evolucao
+  if(sAportes)htmlFinal+=sAportes;
+
+  document.getElementById('pane-resumo').innerHTML=htmlFinal||'<div class="card"><p class="empty">Nenhum pagamento registrado ainda.</p></div>';
 }
 
 
