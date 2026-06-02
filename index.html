@@ -1419,6 +1419,11 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         </div>
 
+        <div id="imp-constr-row" style="display:none;margin-top:10px">
+          <label class="fl">Construtora responsável <span style="font-size:11px;color:var(--muted);font-weight:400">(obra tem múltiplas)</span></label>
+          <select class="fi" id="imp-constr-sel"><option value="">&#8212; Sem vínculo &#8212;</option></select>
+        </div>
+
       </div>
 
 
@@ -1660,6 +1665,11 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <select class="fi" id="pm-contrato"><option value="">— Sem vínculo de contrato —</option></select>
     </div>
 
+    <div class="frow" id="pm-constr-row" style="display:none;margin-bottom:4px">
+      <label class="fl">Construtora responsável <span style="font-size:11px;color:var(--muted);font-weight:400">(obra tem múltiplas construtoras)</span></label>
+      <select class="fi" id="pm-constr-sel"><option value="">— Sem vínculo específico —</option></select>
+    </div>
+
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px"><button class="btn btn-ghost" onclick="closePagModal()">Cancelar</button><button class="btn btn-primary" onclick="savePag()"><span class="ic">✓</span> Salvar</button></div>
 
   </div>
@@ -1716,7 +1726,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <div id="om-constr-nao-msg" style="margin-top:10px;font-size:12.5px;color:var(--muted)">Sem construtora definida ainda — pode ser atualizado a qualquer momento editando a obra.</div>
 
-      <div id="om-constr-section" style="display:none;margin-top:12px"><input class="fi" id="om-constr" list="om-constr-list" placeholder="Nome da construtora"><datalist id="om-constr-list"></datalist></div>
+      <div id="om-constr-section" style="display:none;margin-top:12px"><div id="om-construtoras-list"></div><button type="button" class="btn btn-ghost btn-sm" onclick="omAddConstrutora()" style="margin-top:6px;font-size:12px"><span class="ic">&#xFF0B;</span> Adicionar outra construtora</button><input type="hidden" id="om-constr" value=""><datalist id="om-constr-list"></datalist></div>
 
     </div>
 
@@ -4974,7 +4984,7 @@ function renderDashboard(){
     _dc1='<div class="card" style="padding:14px 16px">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
       +'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Contrato da Obra</div>'
-      +(o.constr&&o.constr!=='—'?'<div style="font-size:12.5px;font-weight:500">'+o.constr+'</div>':'')+'</div>'
+      +(o.construtoras&&o.construtoras.length>=2?'<div style="font-size:12.5px;font-weight:500">'+o.construtoras.length+' construtoras</div>':(o.constr&&o.constr!=='—'?'<div style="font-size:12.5px;font-weight:500">'+o.constr+'</div>':''))+'</div>'
       +'<div style="text-align:right"><div style="font-size:15px;font-weight:800">'+fmt(_ct)+'</div>'
       +(_at>0?'<div style="font-size:11px;color:var(--muted)">'+fmt(o.contratado)+' + '+fmt(_at)+' adits</div>':'')+'</div></div>'
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:6px">'
@@ -4987,7 +4997,7 @@ function renderDashboard(){
       +'<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px">'
       +'<span style="color:var(--muted)">'+_ep+'% executado</span>'
       +(_ads.length>0?'<span style="color:var(--warn)">'+_ads.length+' aditivo'+(_ads.length!==1?'s':'')+'</span>':'')
-      +'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px" onclick="openAditivoModal()">+ Aditivo</button></div></div>';
+      +'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px" onclick="openAditivoModal()">+ Aditivo</button></div>'+(function(){if(!o.construtoras||o.construtoras.length<2)return '';var rows=o.construtoras.map(function(c){var cP=(o.pag||[]).filter(function(p){return p.construtora_seq===c.seq&&p.st==='PAGO'&&(p.escopoFin||'obra')==='obra';}).reduce(function(s,p){return s+p.v;},0);var cPct=c.valor>0?Math.min(Math.round(cP/c.valor*100),100):0;var cClr=c.valor>0?(cPct>=100?'var(--danger)':cPct>80?'var(--warn)':'var(--ok)'):'var(--muted)';return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)">'+'<span style="font-size:12.5px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px">'+(c.nome||'Sem nome')+'</span>'+(c.cnpj?'<span style="font-size:10.5px;color:var(--muted);margin-right:6px">'+c.cnpj+'</span>':'')+'<span style="font-size:12px;font-weight:700;color:'+cClr+'">'+fmt(cP)+(c.valor>0?' / '+fmt(c.valor):'')+'</span></div>';}).join('');return '<div style="margin-top:10px"><div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Por construtora</div>'+rows+'</div>';}())+'</div>';
   }
   // Card investimento externo (unificado — inclui breakdown por investidor)
   var _invS=calcInvestStats(o);
@@ -5986,14 +5996,89 @@ function closeFornDetail(){document.getElementById('forn-detail-overlay').classL
 
 /* ===== modais: obra ===== */
 
-let obraEditId=null,omInvSeq=0,_omInvAct='nao',_omConstrAct='nao',_omModeloAct='GLOBAL';
+let obraEditId=null,omInvSeq=0,_omInvAct='nao',_omConstrAct='nao',_omModeloAct='GLOBAL',_omConstrutoras=[];
 
 const _omBtnStyle=(isActive)=>isActive?'padding:7px 22px;font-size:13px;border:0;cursor:pointer;background:var(--accent);color:white;font-weight:600':'padding:7px 22px;font-size:13px;border:0;cursor:pointer;background:transparent;color:var(--ink);border-left:1px solid var(--line)';
 
 function omToggleInv(v){_omInvAct=v;document.getElementById('om-inv-nao-btn').style.cssText=_omBtnStyle(v==='nao').replace('border-left:1px solid var(--line)','');document.getElementById('om-inv-sim-btn').style.cssText=_omBtnStyle(v==='sim');document.getElementById('om-inv-section').style.display=v==='sim'?'block':'none';document.getElementById('om-inv-nao-msg').style.display=v==='nao'?'block':'none';}
 
-function omToggleConstr(v){_omConstrAct=v;document.getElementById('om-constr-nao-btn').style.cssText=_omBtnStyle(v==='nao').replace('border-left:1px solid var(--line)','');document.getElementById('om-constr-sim-btn').style.cssText=_omBtnStyle(v==='sim');document.getElementById('om-constr-section').style.display=v==='sim'?'block':'none';document.getElementById('om-constr-nao-msg').style.display=v==='nao'?'block':'none';}
+function omToggleConstr(v){_omConstrAct=v;document.getElementById('om-constr-nao-btn').style.cssText=_omBtnStyle(v==='nao').replace('border-left:1px solid var(--line)','');document.getElementById('om-constr-sim-btn').style.cssText=_omBtnStyle(v==='sim');document.getElementById('om-constr-section').style.display=v==='sim'?'block':'none';document.getElementById('om-constr-nao-msg').style.display=v==='nao'?'block':'none';if(v==='sim'){if(_omConstrutoras.length===0)_omConstrutoras=[{seq:1,nome:'',cnpj:'',valor:0}];omRenderConstrutoras();}}
 
+function omRenderConstrutoras(){
+  var list=document.getElementById('om-construtoras-list');if(!list)return;
+  if(_omConstrutoras.length===0){list.innerHTML='';return;}
+  var multi=_omConstrutoras.length>1;
+  list.innerHTML=_omConstrutoras.map(function(c,i){
+    var vStr=c.valor?(+c.valor).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
+    return '<div style="border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:8px">'
+      +'<div style="display:flex;gap:6px;align-items:flex-start">'
+      +'<div style="flex:1">'
+      +'<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">'
+      +'<input class="fi mono" style="width:175px;flex-shrink:0;font-size:13px" placeholder="CNPJ (opcional)" oninput="omCnpjInputConstr(this,'+i+')" inputmode="numeric" id="om-cn-cnpj-'+i+'" value="'+escHtml(c.cnpj||'')+'">'
+      +'<button type="button" class="btn btn-sm" id="om-cn-btn-'+i+'" onclick="omBuscarCnpjConstr('+i+')" style="flex-shrink:0">Buscar</button>'
+      +'<input class="fi" style="flex:1;min-width:150px" placeholder="Nome *" id="om-cn-nome-'+i+'" value="'+escHtml(c.nome||'')+'">'
+      +'</div>'
+      +'<div style="display:flex;gap:6px;align-items:center">'
+      +'<label style="font-size:12px;color:var(--muted);white-space:nowrap;flex-shrink:0">Orçamento:</label>'
+      +'<input class="fi num" style="flex:1" placeholder="0,00" type="text" inputmode="decimal" id="om-cn-valor-'+i+'" value="'+vStr+'" onblur="fmtCurrencyBlur(this)">'
+      +'</div></div>'
+      +(multi?'<button type="button" onclick="omRemoveConstrutora('+i+')" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:16px;padding:4px 2px;flex-shrink:0;margin-left:6px;margin-top:2px" title="Remover">✕</button>':'')
+      +'</div></div>';
+  }).join('');
+}
+function omAddConstrutora(){
+  var nextSeq=(_omConstrutoras.reduce(function(m,c){return Math.max(m,c.seq||0);},0))+1;
+  _omConstrutoras.push({seq:nextSeq,nome:'',cnpj:'',valor:0});
+  omRenderConstrutoras();
+}
+function omRemoveConstrutora(idx){
+  if(_omConstrutoras.length<=1){toast('A obra precisa ter ao menos uma construtora.');return;}
+  _omConstrutoras.splice(idx,1);
+  omRenderConstrutoras();
+}
+function omCnpjInputConstr(el,idx){
+  var raw=el.value.replace(/\D/g,'');
+  if(raw.length===14)omBuscarCnpjConstr(idx);
+}
+async function omBuscarCnpjConstr(idx){
+  var btn=document.getElementById('om-cn-btn-'+idx);
+  var cnpjEl=document.getElementById('om-cn-cnpj-'+idx);
+  var nomeEl=document.getElementById('om-cn-nome-'+idx);
+  if(!cnpjEl||!nomeEl)return;
+  var raw=cnpjEl.value.replace(/\D/g,'');
+  if(raw.length!==14){toast('CNPJ deve ter 14 dígitos.');return;}
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  try{
+    var j=await fetchCNPJData(raw);
+    var d=parseCNPJData(j);
+    if(d.nome){nomeEl.value=d.nome;if(_omConstrutoras[idx])_omConstrutoras[idx].nome=d.nome;}
+    if(_omConstrutoras[idx])_omConstrutoras[idx].cnpj=cnpjEl.value;
+    toast('Razão social: '+d.nome);
+  }catch(e){toast('CNPJ não encontrado na Receita Federal.');}
+  finally{if(btn){btn.disabled=false;btn.textContent='Buscar';}}
+}
+function omSyncConstrutoras(){
+  _omConstrutoras.forEach(function(c,i){
+    var nomeEl=document.getElementById('om-cn-nome-'+i);
+    var cnpjEl=document.getElementById('om-cn-cnpj-'+i);
+    var valorEl=document.getElementById('om-cn-valor-'+i);
+    if(nomeEl)c.nome=nomeEl.value.trim();
+    if(cnpjEl)c.cnpj=cnpjEl.value.trim();
+    if(valorEl)c.valor=parseCurrency(valorEl.value)||0;
+  });
+  _omConstrutoras=_omConstrutoras.filter(function(c){return c.nome;});
+}
+function _fillConstrSel(selId,o,val){
+  var sel=document.getElementById(selId);
+  var row=document.getElementById(selId.replace('-sel','-row'));
+  if(!sel||!row)return;
+  var cl=o&&o.construtoras?o.construtoras:[];
+  if(cl.length>=2){
+    sel.innerHTML='<option value="">&#8212; Sem vínculo específico &#8212;</option>'
+      +cl.map(function(c){return '<option value="'+c.seq+'"'+(c.seq==val?' selected':'')+'>'+(c.nome||'Construtora '+c.seq)+'</option>';}).join('');
+    row.style.display='block';
+  }else{row.style.display='none';}
+}
 function omToggleModelo(v){_omModeloAct=v;document.getElementById('om-modelo-global-btn').style.cssText=_omBtnStyle(v==='GLOBAL').replace('border-left:1px solid var(--line)','');document.getElementById('om-modelo-adm-btn').style.cssText=_omBtnStyle(v==='ADMINISTRACAO');document.getElementById('om-modelo-adm-section').style.display=v==='ADMINISTRACAO'?'block':'none';document.getElementById('om-modelo-global-msg').style.display=v==='GLOBAL'?'block':'none';}
 
 function omToggleTaxa(v){omToggleModelo(v==='sim'?'ADMINISTRACAO':'GLOBAL');}// compat
@@ -6062,7 +6147,7 @@ function openObraModal(id){
 
   omInvSeq=0;g('om-inv-list').innerHTML='';
 
-  omToggleInv('nao');omToggleConstr('nao');omToggleModelo('GLOBAL');
+  _omConstrutoras=[];omToggleInv('nao');omToggleConstr('nao');omToggleModelo('GLOBAL');
 
   if(id){
 
@@ -6078,7 +6163,7 @@ function openObraModal(id){
 
     // Construtora
 
-    if(o.tem_construtora!==false&&o.constr&&o.constr!=='—'){omToggleConstr('sim');g('om-constr').value=o.constr||'';}
+    if(o.tem_construtora!==false&&o.constr&&o.constr!=='—'){if(o.construtoras&&o.construtoras.length>0){_omConstrutoras=o.construtoras.map(function(c){return Object.assign({},c);});}else{_omConstrutoras=[{seq:1,nome:o.constr||'',cnpj:'',valor:0}];}omToggleConstr('sim');}
 
     else omToggleConstr('nao');
 
@@ -6634,8 +6719,9 @@ function saveObra(){
   const marca=escolaObj.marca||'—';
 
   const tem_construtora=_omConstrAct==='sim';
-
-  const constr=tem_construtora?(g("om-constr").value.trim()||'—'):'—';
+  if(tem_construtora)omSyncConstrutoras();
+  const construtoras=tem_construtora?_omConstrutoras.slice():[];
+  const constr=tem_construtora&&construtoras.length>0?(construtoras[0].nome||'—'):'—';
 
   const modelo_contrato=_omModeloAct||'GLOBAL';
 
@@ -6665,7 +6751,7 @@ function saveObra(){
 
     if(oldEscola)oldEscola.obraId=null;
 
-    Object.assign(o,{marca,constr,nome,contratado,investimento_disponivel,tem_construtora,modelo_contrato,aportado:totalAportado||o.aportado,ano_inauguracao,endereco_obra,esfera:o.esfera});
+    Object.assign(o,{marca,constr,nome,contratado,investimento_disponivel,tem_construtora,construtoras,modelo_contrato,aportado:totalAportado||o.aportado,ano_inauguracao,endereco_obra,esfera:o.esfera});
 
     o.taxa.total=taxaTotal;if(_omInvAct==='sim')o.aportes=novosAportes;
 
@@ -6675,7 +6761,7 @@ function saveObra(){
 
     const newId=nextObraId;
 
-    obras.push({id:nextObraId++,nome,marca,constr,tem_construtora,modelo_contrato,status:'Planejamento',esfera,contratado,investimento_disponivel,aportado:totalAportado,pago:0,taxa:{total:taxaTotal,pago:0},aportes:novosAportes,contratos:[],pag:[],aditivos_contrato:[],ano_inauguracao,endereco_obra});
+    obras.push({id:nextObraId++,nome,marca,constr,tem_construtora,construtoras,modelo_contrato,status:'Planejamento',esfera,contratado,investimento_disponivel,aportado:totalAportado,pago:0,taxa:{total:taxaTotal,pago:0},aportes:novosAportes,contratos:[],pag:[],aditivos_contrato:[],ano_inauguracao,endereco_obra});
 
     escolaObj.obraId=newId;
 
@@ -6716,9 +6802,9 @@ function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(
 
   g("pm-pag").onchange=function(){let info=document.getElementById("pm-pag-saldo");if(!info){info=document.createElement("p");info.id="pm-pag-saldo";info.style.cssText="font-size:12px;margin:5px 0 0";this.after(info);}if(!cur)return;const s=getInvestSaldo(cur,this.value);if(s===null){info.textContent='';return;}info.innerHTML=s>=0?`<span style="color:var(--ok)">Saldo disponível: ${fmt(s)}</span>`:`<span style="color:var(--danger)">⚠ Déficit atual de ${fmt(-s)}</span>`;}
 
-  _fillContrSelect("pm-contrato",cur,'');
+  _fillContrSelect("pm-contrato",cur,'');_fillConstrSel('pm-constr-sel',cur,pagEditIdx!==null&&cur.pag[pagEditIdx]?cur.pag[pagEditIdx].construtora_seq||'':''  );
 
-  if(pagEditIdx!==null){const p=cur.pag[pagEditIdx];g("pag-title").textContent="Editar pagamento";g("pm-ben").value=p.ben;setCurrencyValue("pm-val",p.v);g("pm-ref").value=p.ref||'';if(g("pm-nfnum"))g("pm-nfnum").value=p.nfNum||'';g("pm-cat").value=p.cat||CATS[0].id;g("pm-pag").value=p.pagn;g("pm-st").value=p.st;g("pm-venc").value=p.venc||"";if(g("pm-emissao"))g("pm-emissao").value=p.emissao||"";if(g("pm-pago-em"))g("pm-pago-em").value=p.pagaEm||"";g("pm-nf").value=p.nfTipo||"Sem nota";pmNfChange();pmStChange();pmSetEscopo(p.escopoFin||"obra");if(g("pm-contrato"))g("pm-contrato").value=p.contratoSeq||'';}
+  if(pagEditIdx!==null){const p=cur.pag[pagEditIdx];g("pag-title").textContent="Editar pagamento";g("pm-ben").value=p.ben;setCurrencyValue("pm-val",p.v);g("pm-ref").value=p.ref||'';if(g("pm-nfnum"))g("pm-nfnum").value=p.nfNum||'';g("pm-cat").value=p.cat||CATS[0].id;g("pm-pag").value=p.pagn;g("pm-st").value=p.st;g("pm-venc").value=p.venc||"";if(g("pm-emissao"))g("pm-emissao").value=p.emissao||"";if(g("pm-pago-em"))g("pm-pago-em").value=p.pagaEm||"";g("pm-nf").value=p.nfTipo||"Sem nota";pmNfChange();pmStChange();pmSetEscopo(p.escopoFin||"obra");if(g("pm-contrato"))g("pm-contrato").value=p.contratoSeq||'';var _pmCS=document.getElementById('pm-constr-sel');if(_pmCS)_pmCS.value=p.construtora_seq||'';}
 
   else{g("pag-title").textContent="Lançar pagamento";["pm-ben","pm-val","pm-ref","pm-venc","pm-emissao","pm-pago-em"].forEach(x=>{const el=g(x);if(el)el.value="";});if(g("pm-nfnum"))g("pm-nfnum").value="";g("pm-cat").value=CATS[0].id;g("pm-st").value="PENDENTE";g("pm-nf").value="Sem nota";pmNfChange();pmStChange();pmSetEscopo("obra");if(g("pm-contrato"))g("pm-contrato").value='';}
 
@@ -6764,7 +6850,7 @@ function savePag(){if(currentProfile?.role==='leitor'){toast('Sem permissão: vo
   // Preserva tipoCusto existente se for mat/svc/eqp; senão marca como 'outros' (categorizado)
   const _existTipo=pagEditIdx!==null?(cur.pag[pagEditIdx].tipoCusto||''):'';
   const tipoCusto=['material','servico','equipamento'].includes(_existTipo)?_existTipo:'outros';
-  const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=(document.getElementById("pm-pago-em")?.value||"").trim();const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),emissao,pagaEm,nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin};
+  const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=(document.getElementById("pm-pago-em")?.value||"").trim();const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const _pmCrRow=document.getElementById('pm-constr-row');const _pmCrSel=document.getElementById('pm-constr-sel');const _pmCrSeq=_pmCrRow&&_pmCrRow.style.display!=='none'&&_pmCrSel&&_pmCrSel.value?+_pmCrSel.value:null;const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),emissao,pagaEm,nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin,construtora_seq:_pmCrSeq};
 
   if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];const wasPago=(old.st||'')==="PAGO";const willPago=obj.st==="PAGO";const oldEscopo=(old.escopoFin||'obra');const newEscopo=escopoFin||'obra';cur.pago+=(willPago&&newEscopo==='obra'?obj.v:0)-(wasPago&&oldEscopo==='obra'?(old.v||0):0);cur.pag[pagEditIdx]={...old,...obj};}
 
@@ -7540,13 +7626,13 @@ async function persist(obraId){
 
     const ts=obraId!=null?obras.filter(o=>o.id===obraId):obras;
 
-    if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:(o.pag||[]).filter(p=>p.st==='PAGO'&&(p.escopoFin||'obra')==='obra').reduce((a,p)=>a+p.v,0)||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,teto_escola:o.teto_escola||0,aditivos_contrato:o.aditivos_contrato||[]})));
+    if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:(o.pag||[]).filter(p=>p.st==='PAGO'&&(p.escopoFin||'obra')==='obra').reduce((a,p)=>a+p.v,0)||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,teto_escola:o.teto_escola||0,aditivos_contrato:o.aditivos_contrato||[],construtoras:o.construtoras||[]})));
 
     for(const o of ts){
 
       await db.from('pagamentos').delete().eq('obra_id',o.id);
 
-      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:p.nfNum||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',emissao:p.emissao||'',paga_em:p.pagaEm||'',escopo_fin:p.escopoFin||'obra',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null})));
+      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:p.nfNum||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',emissao:p.emissao||'',paga_em:p.pagaEm||'',escopo_fin:p.escopoFin||'obra',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null,construtora_seq:p.construtora_seq||null})));
 
       await db.from('aportes').delete().eq('obra_id',o.id);
 
@@ -7606,7 +7692,7 @@ async function loadFromDB(){
 
     obras=od.map(o=>({
 
-      id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',esfera:o.esfera||'nova',
+      id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',construtoras:Array.isArray(o.construtoras)?o.construtoras.map(function(c){return{seq:c.seq||1,nome:c.nome||'',cnpj:c.cnpj||'',valor:+c.valor||0};}):[],status:o.status||'Em andamento',esfera:o.esfera||'nova',
 
       contratado:+o.contratado||0,aportado:+o.aportado||0,pago:+o.pago||0,
 
@@ -7624,7 +7710,7 @@ async function loadFromDB(){
 
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
 
-      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null,contratoSeq:p.contrato_seq||null,emissao:p.emissao||'',pagaEm:p.paga_em||'',escopoFin:p.escopo_fin||'obra',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:Array.isArray(p.parcelas)?p.parcelas:[],itens:Array.isArray(p.itens_pag)?p.itens_pag:[]})),
+      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:p.nf_num||'',cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null,contratoSeq:p.contrato_seq||null,emissao:p.emissao||'',pagaEm:p.paga_em||'',escopoFin:p.escopo_fin||'obra',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:Array.isArray(p.parcelas)?p.parcelas:[],itens:Array.isArray(p.itens_pag)?p.itens_pag:[],construtora_seq:p.construtora_seq||null})),
 
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
 
@@ -7720,7 +7806,7 @@ function openImport(){
 
   const _refEl=document.getElementById("imp-ref");if(_refEl)_refEl.value="";
 
-  _fillContrSelect("imp-contrato",cur,'');
+  _fillContrSelect("imp-contrato",cur,'');_fillConstrSel('imp-constr-sel',cur,'');
 
   document.getElementById("imp-cat").innerHTML=CATS.filter(function(c){return c.tipo!=='pasta';}).map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
 
@@ -9397,6 +9483,9 @@ async function confirmImport(){
   const obs=document.getElementById("imp-obs").value.trim();
 
   const impContrSeq=document.getElementById("imp-contrato")?.value||'';
+  const _impCrRow=document.getElementById('imp-constr-row');
+  const _impCrSel=document.getElementById('imp-constr-sel');
+  const impConstrSeq=_impCrRow&&_impCrRow.style.display!=='none'&&_impCrSel&&_impCrSel.value?+_impCrSel.value:null;
   const impEscopoFin=document.getElementById('imp-escopo')?.value||'obra';
 
   const tipoCusto=document.getElementById('imp-custo-val')?.value||'';
@@ -9413,7 +9502,7 @@ async function confirmImport(){
 
   if(!val){toast("Informe o valor.");return;}
 
-  const impVenc=(document.getElementById("imp-venc")?.value||"").trim();const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:impVenc||date,emissao:date,pagaEm:(st==="PAGO"?(impVenc||date):""),nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade,escopoFin:impEscopoFin};
+  const impVenc=(document.getElementById("imp-venc")?.value||"").trim();const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:impVenc||date,emissao:date,pagaEm:(st==="PAGO"?(impVenc||date):""),nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade,escopoFin:impEscopoFin,construtora_seq:impConstrSeq};
 
   if(chave)p.chave=chave;
 
