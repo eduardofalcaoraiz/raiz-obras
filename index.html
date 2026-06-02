@@ -4473,27 +4473,6 @@ function renderObra(){const o=cur,pct=execObra(o);
     +_cardConstr+_cardInv+_cardEscola+'</div>';
   }
 
-  // CARD 2 — Investimento
-  let _cardInv='';
-  if(_invBase>0){
-    let _invInner='';
-    if(_invList.length>0){
-      _invList.slice().sort(function(a,b){return b.aportado-a.aportado;}).forEach(function(s){
-        const pct2=_totalAportadoKpi>0?Math.round(s.aportado/_totalAportadoKpi*100):0;
-        _invInner+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)">'
-          +'<span style="flex:1;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.nome+'</span>'
-          +'<span style="font-size:12.5px;font-weight:700">'+fmt(s.aportado)+'</span>'
-          +'<span style="font-size:11px;color:var(--muted);min-width:32px;text-align:right">'+pct2+'%</span>'
-          +'</div>';
-      });
-    }
-    _cardInv='<div class="card" style="padding:14px 16px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
-      +'<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Investimento '+(o.investimento_disponivel>0?'(teto aprovado)':'(total aportado)')+'</div>'
-      +'<div style="font-size:18px;font-weight:800">'+fmt(_invBase)+'</div></div>'
-      +(_invInner?('<div style="margin-bottom:4px">'+_invInner+'</div>'):'')
-      +'</div>';
-  }
 
 
 
