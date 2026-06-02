@@ -4985,6 +4985,9 @@ function _monthLabel(k){if(k==='sem-data')return'Sem data definida';const[y,m]=k
 function renderDashboard(){
   var o=cur; if(!o)return;
   var _di=o.investimento_disponivel||o.aportado||0;
+  // Investimento interno: sem aportes externos → _di = valor contratado (escola financia 100%)
+  var _isInterno=(!o.aportes||!o.aportes.length)&&!o.investimento_disponivel;
+  if(_isInterno&&o.contratado)_di=o.contratado;
   var _ct=contratadoTotal(o);var _sc=saldoContr(o);var _si=saldoInv(o);
   var _ep=execObra(o);var _pe=pagoExtra(o);var _at=aditivosTotal(o);
   var _te=o.teto_escola||0;var _ga=_pe;
@@ -5047,9 +5050,9 @@ function renderDashboard(){
     _dc2='<div class="card" style="padding:14px 16px">'
       // Header
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
-      +'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Investimento Externo</div>'
+      +'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">'+(_isInterno?'Investimento Interno da Escola':'Investimento Externo')+'</div>'
       +'<div style="font-size:16px;font-weight:800;margin-top:1px">'+fmt(_di)+'</div></div>'
-      +'<button class="btn btn-primary btn-sm" style="font-size:11.5px" onclick="openAporteModal()"><span class="ic">＋</span> Aporte</button></div>'
+      +(_isInterno?'':'<button class="btn btn-primary btn-sm" style="font-size:11.5px" onclick="openAporteModal()"><span class="ic">＋</span> Aporte</button>')+'</div>'
       // Grid financeiro
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px">'
       +'<div style="padding:7px 9px"><div style="font-size:10px;color:var(--muted);margin-bottom:1px">Pago</div><div style="font-size:13px;font-weight:700;color:var(--brand-cur)">'+fmt(o.pago)+'</div></div>'
@@ -5062,7 +5065,7 @@ function renderDashboard(){
       // Por investidor
       +(_invRows
         ?('<div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Por investidor</div>'+_invRows)
-        :'<div style="font-size:13px;color:var(--soft);padding:8px 0">Nenhum investidor registrado. <button class="linkbtn" onclick="openAporteModal()">Registrar primeiro aporte</button></div>')
+        :(_isInterno?'':'<div style="font-size:13px;color:var(--soft);padding:8px 0">Nenhum investidor registrado. <button class="linkbtn" onclick="openAporteModal()">Registrar primeiro aporte</button></div>'))
       +'</div>';
   }
   // Card escola
