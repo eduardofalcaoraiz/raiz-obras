@@ -908,9 +908,20 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
           <button class="btn btn-sm" onclick="openObraModal(cur.id)"><span class="ic">✎</span> Editar</button>
 
-          <button class="btn btn-sm" onclick="openCsvImport()"><span class="ic">📊</span> Planilha</button>
-
-          <button class="btn btn-primary btn-sm" onclick="openImport()"><span class="ic">＋</span> Lançar</button>
+          <div style="position:relative">
+            <button class="btn btn-primary btn-sm" onclick="toggleLancarMenu()" id="btn-lancar-main" style="display:flex;align-items:center;gap:6px"><span class="ic">＋</span> Lançar <span style="font-size:9px;opacity:.7">▼</span></button>
+            <div id="lancar-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:50;min-width:210px;overflow:hidden">
+              <button onclick="openPagModal();closeLancarMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:0;border-bottom:1px solid var(--line);cursor:pointer;font-family:inherit;font-size:13.5px;text-align:left;color:var(--ink)" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background=''">
+                <span style="font-size:17px">✏️</span><div><div style="font-weight:600">Lançamento manual</div><div style="font-size:11.5px;color:var(--muted)">Sem nota ou com dados manuais</div></div>
+              </button>
+              <button onclick="openImport();closeLancarMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:0;border-bottom:1px solid var(--line);cursor:pointer;font-family:inherit;font-size:13.5px;text-align:left;color:var(--ink)" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background=''">
+                <span style="font-size:17px">📄</span><div><div style="font-weight:600">Ler nota fiscal</div><div style="font-size:11.5px;color:var(--muted)">OCR / XML / PDF automático</div></div>
+              </button>
+              <button onclick="openCsvImport();closeLancarMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:0;cursor:pointer;font-family:inherit;font-size:13.5px;text-align:left;color:var(--ink)" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background=''">
+                <span style="font-size:17px">📊</span><div><div style="font-weight:600">Importar planilha</div><div style="font-size:11.5px;color:var(--muted)">CSV com múltiplos pagamentos</div></div>
+              </button>
+            </div>
+          </div>
 
           <button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)88" onclick="deleteObra(cur?.id)">🗑</button>
 
@@ -5093,6 +5104,9 @@ function renderMatServ(){
 
 
 
+function toggleLancarMenu(){const m=document.getElementById('lancar-menu');if(m){const isOpen=m.style.display!=='none';m.style.display=isOpen?'none':'block';if(!isOpen){setTimeout(()=>document.addEventListener('click',closeLancarMenuOutside,{once:true}),10);}}}
+function closeLancarMenu(){const m=document.getElementById('lancar-menu');if(m)m.style.display='none';}
+function closeLancarMenuOutside(e){if(!document.getElementById('btn-lancar-main')?.contains(e.target))closeLancarMenu();}
 function setPagFiltro(f){pagFiltro=f;pagPage=0;renderPag();}
 function drillPag(escopo){pagEscopo=escopo;pagExpanded=new Set();pagBusca="";renderPag();}
 function backPag(){pagEscopo=null;pagExpanded=new Set();renderPag();}
@@ -5160,7 +5174,6 @@ function renderPag(){const o=cur;
     };
     document.getElementById("pane-pag").innerHTML=`
       <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
-        <button class="btn btn-primary btn-sm" onclick="openPagModal()"><span class="ic">＋</span> Novo lançamento</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px">
         ${summaryCard(allObra,allObra,'Dentro da Obra','🏗','obra','var(--accent)')}
@@ -5274,7 +5287,6 @@ function renderPag(){const o=cur;
     <div style="flex:1"></div>
     <input class="fi" id="pag-busca" style="flex:1;min-width:140px;max-width:220px;padding:7px 11px;font-size:13px" placeholder="Buscar…" value="${pagBusca.replace(/"/g,'&quot;')}" oninput="setPagBusca(this.value)">
     <button class="btn btn-sm" onclick="exportCSV()">↓ CSV</button>
-    <button class="btn btn-primary btn-sm" onclick="openPagModal()"><span class="ic">＋</span> Lançar</button>
   </div>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
     ${fb("todos","Todos")} ${fb("pagos","✓ Pagos")} ${fb("pend","⏳ Pendentes")} ${fb("atraso","⚠ Atraso")}
@@ -6987,23 +6999,26 @@ function saveCatModal(){
 
   persistGlobal();
 
+  // Guardar flags ANTES de closeCatModal() que os reseta
+  const _wasPm=_catModalFromPm;
+  const _wasForm=_catModalFromForm;
+
   closeCatModal();
 
   if(curUni)renderUni();
 
   // Se aberto a partir do formulário de pagamento, seleciona automaticamente
-
-  if(_catModalFromPm&&newId){
+  if(_wasPm&&newId){
     const catEl=document.getElementById("pm-cat");
     if(catEl){
       catEl.innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
-      catEl.value=newId;pmSubs();
+      catEl.value=newId;
       toast(`Categoria "${nm}" criada e selecionada.`);
       return;
     }
   }
 
-  if(_catModalFromForm&&newId){
+  if(_wasForm&&newId){
 
     const catEl=document.getElementById("imp-cat");
 
