@@ -5454,13 +5454,13 @@ function renderPag(){const o=cur;
     // Botão NF — mesmo estilo do botão Comp, cor azul (info)
     var _nfInteg='';
     if(_nfClean&&p.nfDoc){
-      _nfInteg='<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].nfDoc)" style="'+_bs+'color:var(--info);background:var(--info)10;border-color:var(--info)40">&#128196; NF '+_nfClean+'</button>';
+      _nfInteg='<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].nfDoc)" style="'+_bs+'color:#1565C0;background:#E3F2FD;border-color:#90CAF9">&#128196; NF '+_nfClean+'</button>';
     }else if(_nfClean){
-      _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_bs+'color:var(--info);background:var(--info)10;border-color:var(--info)40">&#128462; NF '+_nfClean+'</button>';
+      _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_bs+'color:#1565C0;background:#E3F2FD;border-color:#90CAF9">&#128462; NF '+_nfClean+'</button>';
     }else if(p.nfTipo&&p.nfTipo!=='Sem nota'){
-      _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#128462; Anexar NF</button>';
+      _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_bs+'color:#1565C0;background:#E3F2FD;border-color:#90CAF9">&#128462; Anexar NF</button>';
     }else{
-      _nfInteg='<span style="font-size:11px;color:var(--soft);font-style:italic">Sem nota</span>';
+      _nfInteg='<span style="'+_bs+'color:var(--soft);background:var(--surface-2);border-color:var(--line);cursor:default;font-style:italic">Sem nota</span>';
     }
     // Chips de metadados (sem NF — ela vai integrada acima)
     var _rowCat=(cat&&cat.nome&&cat.nome!=='(removida)'&&cat.nome!=='outros')?'<span style="font-size:11px;background:var(--accent)12;color:var(--accent);padding:2px 8px;border-radius:8px;font-weight:600">'+cat.nome+'</span>':'';
