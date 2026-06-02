@@ -5457,33 +5457,41 @@ function renderPag(){const o=cur;
       return _c?'<span style="font-size:11px;background:var(--surface-2);color:var(--ink);padding:2px 8px;border-radius:8px;border:1px solid var(--line);font-weight:500">&#127959; '+_c.nome+'</span>':'';
     }()):'';
     var _pagante=p.pagn&&p.pagn!=='—'?('<span style="font-size:11px;color:var(--muted)">&#128100; '+p.pagn+'</span>'):'';
-    // ── Botões de ação — todos com o mesmo tamanho ───────────────────────────
-    var _bs='display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;cursor:pointer;font-family:inherit;border:1px solid;';
+    // ── Bloco esquerdo: nome + chips de info empilhados ─────────────────────
+    var _infoItems=[_rowStatus,_rowCat,_dataPag,_nfNum,_tkBadge,_constrTag,_pagante].filter(function(x){return x;});
+    var _leftBlock='<div style="min-width:0">'
+      +'<div style="font-weight:700;font-size:13.5px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;margin-bottom:7px">'+p.ben+'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">'
+      +_infoItems.join('')
+      +'</div></div>';
+    // ── Bloco direito: valor + botões empilhados ─────────────────────────────
+    var _bs='display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:600;padding:6px 10px;border-radius:7px;cursor:pointer;font-family:inherit;border:1px solid;width:100%;';
     var _btnNF=p.nfDoc
       ?('<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].nfDoc)" style="'+_bs+'color:var(--accent);background:var(--accent)10;border-color:var(--accent)40">&#128196; NF</button>')
-      :(p.nfTipo&&p.nfTipo!=='Sem nota'?('<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#128462; Anexar NF</button>'):'');
+      :(p.nfTipo&&p.nfTipo!=='Sem nota'?('<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#128462; NF</button>'):'');
     var _btnComp=p.compDoc
       ?('<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].compDoc)" style="'+_bs+'color:var(--ok);background:var(--ok)10;border-color:var(--ok)40">&#129534; Comp</button>')
       :('<button onclick="event.stopPropagation();anexarComp('+o.id+','+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#128462; Comp</button>');
     var _btnEdit='<button onclick="event.stopPropagation();openPagModal('+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#9998; Editar</button>';
     var _btnDel='<button onclick="event.stopPropagation();deletePagment('+o.id+','+i+')" style="'+_bs+'color:var(--danger);background:var(--danger)08;border-color:var(--danger)30">&#128465; Excluir</button>';
-    // ── Montar card collapsed ────────────────────────────────────────────────
+    var _rightBlock='<div style="min-width:130px;display:flex;flex-direction:column;gap:6px;align-items:stretch">'
+      +'<div style="font-weight:800;font-size:18px;font-family:Space Grotesk,sans-serif;white-space:nowrap;color:'+stColor+';text-align:center;margin-bottom:2px">'+fmt(p.v)+'</div>'
+      +(_btnNF?_btnNF:'')
+      +_btnComp
+      +_btnEdit
+      +_btnDel
+      +'</div>';
+    // ── Montar card collapsed: 3 blocos via grid ─────────────────────────────
     var _collapsedHtml='<div onclick="togglePagRow('+i+')" style="padding:14px 16px;cursor:pointer;border-left:4px solid '+stColor+';'+_rowBg+'transition:background .12s" onmouseenter="this.style.background=\'var(--surface-2)\'" onmouseleave="this.style.background=\'\'">'
       +'<div style="display:flex;align-items:flex-start;gap:10px">'
-      +'<span style="font-size:9px;color:var(--muted);margin-top:5px;transition:transform .2s;display:inline-block;transform:rotate('+(exp?90:0)+'deg);flex-shrink:0">&#9658;</span>'
-      +'<div style="flex:1;min-width:0">'
-      // Linha 1: grid 3 colunas — nome | referência | valor
-      +'<div style="display:grid;grid-template-columns:max-content 1fr auto;align-items:start;gap:0 14px;margin-bottom:8px">'
-      +'<span style="font-weight:700;font-size:13.5px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;padding-top:2px">'+p.ben+'</span>'
-      +(p.ref?'<span style="font-size:13px;color:var(--muted);line-height:1.55;word-break:break-word;padding-top:2px">'+p.ref+'</span>':'<span></span>')
-      +'<span style="font-weight:800;font-size:17px;font-family:Space Grotesk,sans-serif;white-space:nowrap;color:'+stColor+';text-align:right">'+fmt(p.v)+'</span>'
+      +'<span style="font-size:9px;color:var(--muted);margin-top:4px;transition:transform .2s;display:inline-block;transform:rotate('+(exp?90:0)+'deg);flex-shrink:0">&#9658;</span>'
+      +'<div style="flex:1;min-width:0;display:grid;grid-template-columns:auto 1fr auto;gap:0 16px;align-items:start">'
+      +_leftBlock
+      // Bloco central: referência em destaque
+      +'<div style="border-left:1px solid var(--line);border-right:1px solid var(--line);padding:0 16px">'
+      +(p.ref?'<div style="font-size:14px;font-weight:500;color:var(--ink);line-height:1.6;word-break:break-word">'+p.ref+'</div>':'<div style="font-size:13px;color:var(--soft);font-style:italic">Sem referência</div>')
       +'</div>'
-      // Linha 2: chips + botões numa sequência só
-      +'<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">'
-      +_rowStatus+_rowCat+_dataPag+_nfNum+_tkBadge+_constrTag+_pagante
-      +'<span style="flex:1"></span>'
-      +_btnNF+_btnComp+_btnEdit+_btnDel
-      +'</div>'
+      +_rightBlock
       +'</div>'
       +'</div>'
       +'</div>';
