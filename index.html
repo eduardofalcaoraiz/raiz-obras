@@ -1,4 +1,4 @@
-﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -1283,20 +1283,17 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         <div class="imp-sec-hd" style="display:flex;justify-content:space-between;align-items:center">
           <span>Categoria do Gasto</span>
-          <button type="button" onclick="openCatModalFromForm()" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">＋ Nova categoria</button>
+          <button type="button" onclick="openCatModalFromForm()" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">+ Nova categoria</button>
         </div>
 
-        <select class="fi" id="imp-cat" onchange="impCatChanged()" style="display:block"><!-- populado pelo JS --></select>
+        <select class="fi" id="imp-cat" onchange="impCatChanged()" style="display:block;margin-bottom:8px"><!-- populado pelo JS --></select>
 
-        <p style="font-size:11.5px;color:var(--muted);margin-top:8px">Ex: <b>Comissões</b> · <b>Taxa de administração</b> · <b>Legalização</b> · <b>Material</b> · <b>Mão de obra</b></p>
+        <p style="font-size:11.5px;color:var(--muted);margin-bottom:0">Ex: <b>Comissoes</b>, <b>Taxa administrativa</b>, <b>Legalizacao</b>, <b>Material</b>, <b>Mao de obra</b></p>
 
-        <!-- Detalhe de material (visível se categoria de material) -->
-        <div id="imp-mat-detail" style="display:none;margin-top:12px;padding:12px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line)">
-          <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Detalhamento do material</div>
-          <div class="fgrid"><div class="frow" style="margin-bottom:0"><label class="fl">Tipo de material</label><select class="fi" id="imp-mat-tipo" style="display:block"><option value="">— Tipo —</option></select></div><div class="frow" style="margin-bottom:0"><label class="fl">Quantidade</label><input class="fi num" id="imp-mat-qtd" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0" style="flex:1"><select class="fi" id="imp-mat-un" style="max-width:90px"><option>un</option><option>m²</option><option>m³</option><option>m</option><option>kg</option><option>t</option><option>L</option><option>sc</option><option>cx</option></select></div></div>
-        </div>
+        <div id="imp-cat-detail" style="display:none"></div>
 
         <input type="hidden" id="imp-custo-val" value="">
+
         <input type="hidden" id="imp-tipo" value="OBRA">
 
       </div>
@@ -4839,60 +4836,42 @@ function renderObra(){const o=cur,pct=execObra(o);
 }
 
 function renderMatServ(){
-  const o=cur;
-  const pagsPagos=o.pag.filter(p=>p.st==='PAGO');
-  const totalPago=pagsPagos.reduce(function(a,p){return a+p.v;},0)||1;
-  const sumV=function(arr){return arr.reduce(function(a,p){return a+p.v;},0);};
-
-  // Agrupar por CATEGORIA do usuário (p.cat)
-  const catGroups={};
-  const semCat=[];
+  var o=cur;
+  var pagsPagos=o.pag.filter(function(p){return p.st==='PAGO';});
+  var totalPago=pagsPagos.reduce(function(a,p){return a+p.v;},0)||1;
+  var catGroups={};
+  var semCat=[];
   pagsPagos.forEach(function(p){
-    const cid=p.cat||'outros';
+    var cid=p.cat||'outros';
     if(cid&&cid!=='outros'){
       if(!catGroups[cid])catGroups[cid]={cat:catById(cid),pags:[],total:0};
-      catGroups[cid].pags.push(p);
-      catGroups[cid].total+=p.v;
-    }else{
-      semCat.push(p);
-    }
+      catGroups[cid].pags.push(p);catGroups[cid].total+=p.v;
+    }else{semCat.push(p);}
   });
-  const catArr=Object.values(catGroups).sort(function(a,b){return b.total-a.total;});
-  const tCat=catArr.reduce(function(a,g){return a+g.total;},0);
-  const tSem=sumV(semCat);
-  const barFn=function(v,tot,cor){return '<div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:10px;background:var(--line);border-radius:5px;overflow:hidden"><div style="height:100%;width:'+( tot>0?Math.min(v/tot*100,100).toFixed(1):0)+'%;background:'+cor+';border-radius:5px"></div></div><span style="font-size:12px;color:var(--muted);min-width:40px;text-align:right">'+(tot>0?(v/tot*100).toFixed(1):0)+'%</span></div>';};
+  var catArr=Object.values(catGroups).sort(function(a,b){return b.total-a.total;});
+  var tSem=semCat.reduce(function(a,p){return a+p.v;},0);
+  var barFn=function(v,tot,cor){return '<div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:10px;background:var(--line);border-radius:5px;overflow:hidden"><div style="height:100%;width:'+(tot>0?Math.min(v/tot*100,100).toFixed(1):0)+'%;background:'+cor+';border-radius:5px"></div></div><span style="font-size:12px;color:var(--muted);min-width:40px;text-align:right">'+(tot>0?(v/tot*100).toFixed(1):0)+'%</span></div>';};
 
-  // KPIs
   var kpisHtml='<div class="kpis" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:20px">';
-  catArr.forEach(function(cg){
-    kpisHtml+='<div class="kpi"><div class="lab">'+cg.cat.nome+'</div><div class="val" style="color:var(--accent)">'+fmt(cg.total)+'</div><div class="sub">'+(totalPago>0?(cg.total/totalPago*100).toFixed(1):0)+'% do total</div></div>';
-  });
-  if(tSem>0){
-    kpisHtml+='<div class="kpi"><div class="lab">⬜ Sem categoria</div><div class="val" style="color:var(--muted)">'+fmt(tSem)+'</div><div class="sub">'+semCat.length+' pagamento'+(semCat.length!==1?'s':'')+'</div></div>';
-  }
+  catArr.forEach(function(cg){kpisHtml+='<div class="kpi"><div class="lab">'+cg.cat.nome+'</div><div class="val" style="color:var(--accent)">'+fmt(cg.total)+'</div><div class="sub">'+(totalPago>0?(cg.total/totalPago*100).toFixed(1):0)+'% do total</div></div>';});
+  if(tSem>0)kpisHtml+='<div class="kpi"><div class="lab">Sem categoria</div><div class="val" style="color:var(--muted)">'+fmt(tSem)+'</div><div class="sub">'+semCat.length+' pagamento'+(semCat.length!==1?'s':'')+'</div></div>';
   kpisHtml+='</div>';
 
-  // Card de distribuição
-  var distHtml='<div class="card" style="margin-bottom:16px"><h2 style="font-size:17px;margin-bottom:14px">Distribuição por Categoria</h2><div style="display:grid;gap:14px">';
-  catArr.forEach(function(cg){
-    distHtml+='<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">'+cg.cat.nome+'</span><span style="font-weight:700;color:var(--accent)">'+fmt(cg.total)+'</span></div>'+barFn(cg.total,totalPago,'var(--accent)')+'</div>';
-  });
-  if(tSem>0){
-    distHtml+='<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;color:var(--muted)">Sem categoria</span><span style="color:var(--muted)">'+fmt(tSem)+'</span></div>'+barFn(tSem,totalPago,'var(--line)')+'</div>';
-  }
+  var distHtml='<div class="card" style="margin-bottom:16px"><h2 style="font-size:17px;margin-bottom:14px">Distribuicao por Categoria</h2><div style="display:grid;gap:14px">';
+  catArr.forEach(function(cg){distHtml+='<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;font-weight:600">'+cg.cat.nome+'</span><span style="font-weight:700;color:var(--accent)">'+fmt(cg.total)+'</span></div>'+barFn(cg.total,totalPago,'var(--accent)')+'</div>';});
+  if(tSem>0)distHtml+='<div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13.5px;color:var(--muted)">Sem categoria</span><span style="color:var(--muted)">'+fmt(tSem)+'</span></div>'+barFn(tSem,totalPago,'var(--line)')+'</div>';
   distHtml+='</div></div>';
 
-  // Cards por categoria
   var catCardsHtml=catArr.map(function(cg){
     var rows=cg.pags.map(function(p){
       var atr=isAtraso(p);
       var stColor=atr?'var(--danger)':p.st==='PAGO'?'var(--ok)':'var(--warn)';
-      var dt=p.pagaEm&&p.st==='PAGO'?fmtD(p.pagaEm):(p.venc?fmtD(p.venc):'—');
+      var dt=p.pagaEm&&p.st==='PAGO'?fmtD(p.pagaEm):(p.venc?fmtD(p.venc):'--');
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line);gap:12px">'
         +'<div style="flex:1;min-width:0">'
         +'<div style="font-weight:600;font-size:13.5px;text-transform:uppercase;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.ben+'</div>'
         +(p.ref?'<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.ref.slice(0,60)+'</div>':'')
-        +'<div style="font-size:11.5px;color:'+stColor+';margin-top:1px">'+(p.st==='PAGO'?'✓ Pago':'⏳ Pendente')+(dt?' · '+dt:'')+'</div>'
+        +'<div style="font-size:11.5px;color:'+stColor+';margin-top:1px">'+(p.st==='PAGO'?'Pago':'Pendente')+(dt?' - '+dt:'')+'</div>'
         +'</div>'
         +'<div style="font-weight:800;font-size:15px;font-family:'DM Mono',monospace;white-space:nowrap;color:'+stColor+'">'+fmt(p.v)+'</div>'
         +'</div>';
@@ -4900,34 +4879,30 @@ function renderMatServ(){
     return '<div class="card" style="margin-bottom:16px">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
       +'<div><h2 style="font-size:17px;margin-bottom:2px">'+cg.cat.nome+'</h2>'
-      +'<div class="sub">'+cg.pags.length+' pagamento'+(cg.pags.length!==1?'s':'')+' · '+(totalPago>0?(cg.total/totalPago*100).toFixed(1):0)+'% do total pago</div></div>'
+      +'<div class="sub">'+cg.pags.length+' pagamento'+(cg.pags.length!==1?'s':'')+' - '+(totalPago>0?(cg.total/totalPago*100).toFixed(1):0)+'% do total</div></div>'
       +'<div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace;color:var(--accent)">'+fmt(cg.total)+'</div>'
       +'</div>'+rows+'</div>';
   }).join('');
 
-  // Card sem categoria (aguardando classificação)
   var semCatHtml=semCat.length>0
     ?('<div class="card" style="border-left:4px solid var(--warn);margin-bottom:16px">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
-      +'<div><h2 style="font-size:17px;margin-bottom:2px">⚠ Sem categoria</h2>'
-      +'<div class="sub">'+semCat.length+' pagamento'+(semCat.length!==1?'s sem':'sem')+' categoria definida</div></div>'
+      +'<div><h2 style="font-size:17px;margin-bottom:2px">Sem categoria</h2>'
+      +'<div class="sub">'+semCat.length+' pagamento'+(semCat.length!==1?'s':'')+' sem categoria</div></div>'
       +'<div style="font-size:18px;font-weight:800;color:var(--muted)">'+fmt(tSem)+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:6px">'
       +semCat.slice(0,5).map(function(p){
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface-2);border-radius:var(--r);gap:10px">'
           +'<div style="flex:1;min-width:0"><span style="font-weight:600;text-transform:uppercase;letter-spacing:.03em">'+p.ben+'</span>'
-          +(p.ref?'<span style="color:var(--muted);font-size:12.5px;margin-left:6px">· '+p.ref.slice(0,40)+'</span>':'')+'</div>'
+          +(p.ref?'<span style="color:var(--muted);font-size:12.5px;margin-left:6px">- '+p.ref.slice(0,40)+'</span>':'')+'</div>'
           +'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0"><span style="font-weight:700">'+fmt(p.v)+'</span>'
-          +'<button class="btn btn-sm" onclick="openPagModal('+o.pag.indexOf(p)+')">Categorizar ✎</button></div></div>';
+          +'<button class="btn btn-sm" onclick="openPagModal('+o.pag.indexOf(p)+')">Categorizar</button></div></div>';
       }).join('')
-      +(semCat.length>5?'<p style="font-size:13px;color:var(--muted);text-align:center;margin-top:4px">… e mais '+(semCat.length-5)+'</p>':'')
+      +(semCat.length>5?'<p style="font-size:13px;color:var(--muted);text-align:center;margin-top:4px">... e mais '+(semCat.length-5)+'</p>':'')
       +'</div></div>')
     :'';
 
-  var emptyHtml=pagsPagos.length===0
-    ?'<div class="card"><p class="empty">Nenhum pagamento pago registrado ainda.</p></div>'
-    :'';
-
+  var emptyHtml=pagsPagos.length===0?'<div class="card"><p class="empty">Nenhum pagamento pago registrado ainda.</p></div>':'';
   document.getElementById('pane-custos').innerHTML=kpisHtml+distHtml+catCardsHtml+semCatHtml+emptyHtml;
 }
 
@@ -5061,24 +5036,25 @@ function renderPag(){const o=cur;
         </div>
       </div>`:'' ;
 
-    return`<div style="border-bottom:1px solid var(--line)">
-      <div onclick="togglePagRow(${i})" style="display:flex;align-items:center;gap:12px;padding:12px 20px;cursor:pointer;${atr?'background:var(--danger)06;':''}transition:background .1s;border-left:3px solid ${exp?'var(--accent)':'transparent'}" onmouseenter="this.style.borderLeftColor='var(--line)'" onmouseleave="this.style.borderLeftColor='${exp?'var(--accent)':'transparent'}'">
-        <span style="font-size:11px;color:var(--muted);transition:transform .2s;display:inline-block;transform:rotate(${exp?90:0}deg);flex-shrink:0">▶</span>
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:3px">
-            <span style="font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${p.ben}</span>
-            <span style="font-weight:800;font-size:16px;font-family:'DM Mono',monospace;white-space:nowrap;color:${stColor};flex-shrink:0">${fmt(p.v)}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:600;color:${stColor};background:${stColor}15;padding:1px 7px;border-radius:10px;border:1px solid ${stColor}30">${stLabel}</span>
-            ${cat&&cat.nome!=='(removida)'&&cat.nome!=='outros'?`<span style="font-size:11px;background:var(--accent)12;color:var(--accent);padding:1px 7px;border-radius:10px;font-weight:600">${cat.nome}</span>`:''}
-            ${p.venc||p.pagaEm?`<span style="font-size:11.5px;color:var(--muted)">📅 ${p.pagaEm&&p.st==='PAGO'?fmtD(p.pagaEm):(p.venc?fmtD(p.venc):'—')}</span>`:''}
-            ${p.pagn&&p.pagn!=='—'?`<span style="font-size:11.5px;color:var(--muted)">· ${p.pagn}</span>`:''}
-          </div>
-        </div>
-      </div>
-      ${detalhes}
-    </div>`;
+    // Collapsed row: APENAS string concatenation, sem template literals aninhados
+    var _rowBg=atr?'background:var(--danger)06;':'';
+    var _rowArrow='<span style="font-size:11px;color:var(--muted);transition:transform .2s;display:inline-block;transform:rotate('+(exp?90:0)+'deg);flex-shrink:0">&#9658;</span>';
+    var _rowBen='<span style="font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+p.ben+'</span>';
+    var _rowVal='<span style="font-weight:800;font-size:16px;font-family:\'DM Mono\',monospace;white-space:nowrap;color:'+stColor+';flex-shrink:0">'+fmt(p.v)+'</span>';
+    var _rowRef=p.ref?'<div style="font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">'+p.ref.slice(0,80)+'</div>':'';
+    var _rowStatus='<span style="font-size:11px;font-weight:600;color:'+stColor+';background:'+stColor+'15;padding:1px 7px;border-radius:10px;border:1px solid '+stColor+'30">'+stLabel+'</span>';
+    var _rowCat=(cat&&cat.nome&&cat.nome!=='(removida)'&&cat.nome!=='outros')?'<span style="font-size:11px;background:var(--accent)12;color:var(--accent);padding:1px 7px;border-radius:10px;font-weight:600">'+cat.nome+'</span>':'';
+    var _rowDt=(p.venc||p.pagaEm)?'<span style="font-size:11.5px;color:var(--muted)">&#128197; '+(p.pagaEm&&p.st==='PAGO'?fmtD(p.pagaEm):(p.venc?fmtD(p.venc):'--'))+'</span>':'';
+    var _rowPagn=(p.pagn&&p.pagn!=='—')?'<span style="font-size:11.5px;color:var(--muted)">&#183; '+p.pagn+'</span>':'';
+    var _collapsedHtml='<div onclick="togglePagRow('+i+')" style="display:flex;align-items:center;gap:12px;padding:12px 20px;cursor:pointer;'+_rowBg+'transition:background .1s">'
+      +_rowArrow
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:2px">'+_rowBen+_rowVal+'</div>'
+      +_rowRef
+      +'<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:3px">'+_rowStatus+_rowCat+_rowDt+_rowPagn+'</div>'
+      +'</div>'
+      +'</div>';
+    return'<div style="border-bottom:1px solid var(--line)">'+_collapsedHtml+detalhes+'</div>';
   };
 
   const byM={};rows.forEach(r=>{const k=r.p.venc?r.p.venc.slice(0,7):'sem-data';if(!byM[k])byM[k]=[];byM[k].push(r);});
