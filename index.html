@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -78,6 +78,7 @@ button{font-family:inherit;cursor:pointer}
 .main{flex:1;min-width:0;overflow-y:auto;height:100vh}
 
 .wrap{max-width:none;margin:0;padding:28px 32px 80px}
+#view-obra #o-kpis,#view-obra .bar{display:none!important}
 
 .view{display:none;animation:fade .4s ease both}.view.active{display:block}
 
@@ -930,7 +931,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <div class="kpis" id="o-kpis"></div>
 
-      <div id="o-bar-wrap" style="display:none"><div class="bar" style="margin-bottom:24px"><i id="o-bar"></i></div></div>
+      <div class="bar" style="margin-bottom:24px"><i id="o-bar"></i></div>
 
       <div class="tabs">
 
@@ -4480,10 +4481,10 @@ function renderObra(){const o=cur,pct=execObra(o);
   _cardEscola+='</div>';
 
   // Montar grid
-  // Cards integrados ao dashboard
   var _oKpisEl2=document.getElementById("o-kpis");
-  if(_oKpisEl2){_oKpisEl2.style.display='none';_oKpisEl2.innerHTML='';}
-  _dashCardConstr=_cardConstr;_dashCardInv=_cardInv;_dashCardEscola=_cardEscola;
+  _oKpisEl2.style.display='block';
+  _oKpisEl2.style.marginBottom='20px';
+  _oKpisEl2.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:start">'+_cardConstr+_cardInv+_cardEscola+'</div>';
 
   const bar=document.getElementById("o-bar");bar.className=barClass(pct);bar.style.width=Math.min(pct,100)+"%";
 
@@ -4907,8 +4908,7 @@ function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfD
   return `<div style="display:flex;flex-direction:column;gap:3px;font-size:11.5px;min-width:155px"><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">NF</b> ${nf}</span><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Pgto</b> ${comp}</span></div>`;}
 
 let pagBusca="",pagDe="",pagAte="",pagPage=0;
-let pagEscopo=null; // null=resumo
-var _dashCardConstr='', _dashCardInv='', _dashCardEscola=''; // cards do dashboard | 'obra' | 'extra'
+let pagEscopo=null; // null=resumo | 'obra' | 'extra'
 let pagFornecedor="",pagPagante="",pagCategoria="",pagNfTipo="",pagContrato="";
 function setPagFornecedor(v){pagFornecedor=v;pagPage=0;renderPag();}
 function setPagPagante(v){pagPagante=v;pagPage=0;renderPag();}
@@ -4940,6 +4940,91 @@ function _monthLabel(k){if(k==='sem-data')return'Sem data definida';const[y,m]=k
 
 function renderDashboard(){
   var o=cur; if(!o)return;
+  var _di=o.investimento_disponivel||o.aportado||0;
+  var _ct=contratadoTotal(o);var _sc=saldoContr(o);var _si=saldoInv(o);
+  var _ep=execObra(o);var _pe=pagoExtra(o);var _at=aditivosTotal(o);
+  var _te=o.teto_escola||0;var _ga=_pe;
+  // Card contrato
+  var _dc1='';
+  var _ads=o.aditivos_contrato||[];
+  var _eb=Math.min(_ep,100);
+  var _ec=_ep>=100?'var(--danger)':_ep>80?'var(--warn)':'var(--info)';
+  if(!o.contratado&&(!o.constr||o.constr==='—')){
+    _dc1='<div class="card" style="padding:14px 16px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Contrato da Obra</div><div style="text-align:center;padding:10px 0"><div style="font-size:24px;opacity:.25">&#128203;</div><div style="font-size:13px;color:var(--muted);margin:6px 0 10px">Nenhum contrato definido</div><button class="btn btn-primary btn-sm" onclick="openObraModal(cur.id)">Definir contrato</button></div></div>';
+  }else{
+    var _apc=_sc<0?'var(--danger)':_sc<_ct*0.15?'var(--warn)':'inherit';
+    _dc1='<div class="card" style="padding:14px 16px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+      +'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Contrato da Obra</div>'
+      +(o.constr&&o.constr!=='—'?'<div style="font-size:12.5px;font-weight:500">'+o.constr+'</div>':'')+'</div>'
+      +'<div style="text-align:right"><div style="font-size:15px;font-weight:800">'+fmt(_ct)+'</div>'
+      +(_at>0?'<div style="font-size:11px;color:var(--muted)">'+fmt(o.contratado)+' + '+fmt(_at)+' adits</div>':'')+'</div></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:6px">'
+      +'<div style="padding:7px 8px"><div style="font-size:10px;color:var(--muted)">Contratado</div><div style="font-size:12.5px;font-weight:700">'+fmt(o.contratado)+'</div></div>'
+      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Aditivos</div><div style="font-size:12.5px;font-weight:700;color:'+(_at>0?'var(--warn)':'var(--soft)')+'">'+(_at>0?'+'+fmt(_at):'—')+'</div></div>'
+      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Executado</div><div style="font-size:12.5px;font-weight:700;color:var(--accent)">'+fmt(o.pago+_pe)+'</div><div style="font-size:10px;color:var(--muted)">'+_ep+'%</div></div>'
+      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">A pagar</div><div style="font-size:12.5px;font-weight:700;color:'+_apc+'">'+(_sc<0?'–'+fmt(-_sc):fmt(_sc))+'</div></div>'
+      +'</div>'
+      +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:3px"><div style="height:100%;width:'+_eb+'%;background:'+_ec+';border-radius:3px;transition:width .5s"></div></div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px">'
+      +'<span style="color:var(--muted)">'+_ep+'% executado</span>'
+      +(_ads.length>0?'<span style="color:var(--warn)">'+_ads.length+' aditivo'+(_ads.length!==1?'s':'')+'</span>':'')
+      +'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px" onclick="openAditivoModal()">+ Aditivo</button></div></div>';
+  }
+  // Card investimento
+  var _invS=calcInvestStats(o);
+  var _invL=_invS.filter(function(s){return s.aportado>0||s.utilizado>0;});
+  var _totA=_invL.reduce(function(a,s){return a+s.aportado;},0);
+  var _uso=_di>0?Math.min(Math.round(o.pago/_di*100),100):0;
+  var _sClr=_si<0?'var(--danger)':_si<_di*0.1?'var(--warn)':'var(--ok)';
+  var _compr=Math.max(0,_sc);var _livre=Math.max(0,_si-_compr);
+  var _dc2='';
+  if(_di>0||_invL.length>0){
+    var _iR='';
+    _invL.slice().sort(function(a,b){return b.aportado-a.aportado;}).forEach(function(s){
+      var p=_totA>0?Math.round(s.aportado/_totA*100):0;
+      var sd=s.aportado-s.utilizado;
+      var sc=sd<0?'var(--danger)':sd<s.aportado*0.1?'var(--warn)':'var(--ok)';
+      _iR+='<div style="display:flex;gap:6px;padding:4px 0;border-bottom:1px solid var(--line);align-items:center">'
+        +'<span style="flex:1;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.nome+'</span>'
+        +'<span style="font-size:11px;color:var(--muted)">'+p+'%</span>'
+        +'<span style="font-size:12px;font-weight:700">'+fmt(s.aportado)+'</span>'
+        +'<span style="font-size:11.5px;font-weight:700;color:'+sc+';min-width:68px;text-align:right">'+fmt(sd)+'</span></div>';
+    });
+    _dc2='<div class="card" style="padding:14px 16px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+      +'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Investimento Externo</div>'
+      +'<div style="font-size:15px;font-weight:800">'+fmt(_di)+'</div></div>'
+      +'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px" onclick="openAporteModal()">+ Aporte</button></div>'
+      +(_iR?'<div style="margin-bottom:8px">'+_iR+'</div>':'')
+      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:6px">'
+      +'<div style="padding:7px 8px"><div style="font-size:10px;color:var(--muted)">Investido</div><div style="font-size:12.5px;font-weight:700">'+fmt(_di)+'</div></div>'
+      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Pago</div><div style="font-size:12.5px;font-weight:700;color:var(--accent)">'+fmt(o.pago)+'</div><div style="font-size:10px;color:var(--muted)">'+_uso+'%</div></div>'
+      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Comprometido</div><div style="font-size:12.5px;font-weight:700;color:var(--warn)">'+fmt(_compr)+'</div></div>'
+      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Saldo livre</div><div style="font-size:12.5px;font-weight:700;color:'+_sClr+'">'+fmt(_livre)+'</div></div>'
+      +'</div>'
+      +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:3px"><div style="height:100%;width:'+_uso+'%;background:'+(_uso>=100?'var(--danger)':_uso>80?'var(--warn)':'var(--ok)')+';border-radius:3px;transition:width .5s"></div></div>'
+      +'<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">'
+      +'<span>Saldo total: <b style="color:'+_sClr+'">'+fmt(_si)+'</b></span><span>'+_uso+'% utilizado</span></div></div>';
+  }
+  // Card escola
+  var _dc3='<div class="card" style="padding:14px 16px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Caixa Próprio da Escola</div>'
+    +'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px" onclick="editarTetoEscola()">Teto</button></div>';
+  if(_te>0){
+    var _ep2=Math.min(Math.round(_ga/_te*100),100);
+    var _ec2=_ga>_te?'var(--danger)':_ga>_te*0.9?'var(--warn)':'var(--ok)';
+    _dc3+='<div style="display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:6px">'
+      +'<div style="padding:7px 8px"><div style="font-size:10px;color:var(--muted)">Teto</div><div style="font-size:12.5px;font-weight:700">'+fmt(_te)+'</div></div>'
+      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Gasto</div><div style="font-size:12.5px;font-weight:700;color:var(--warn)">'+fmt(_ga)+'</div></div>'
+      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Saldo</div><div style="font-size:12.5px;font-weight:700;color:'+_ec2+'">'+fmt(_te-_ga)+'</div></div></div>'
+      +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+_ep2+'%;background:'+_ec2+';border-radius:3px;transition:width .5s"></div></div>';
+  }else{
+    _dc3+=(_ga>0?'<div style="font-size:13px;font-weight:700;color:var(--warn)">'+fmt(_ga)+' gastos</div>':'<div style="font-size:13px;color:var(--soft)">Sem gastos registrados.</div>');
+  }
+  _dc3+='</div>';
+  var sDashCards='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:18px">'+_dc1+_dc2+_dc3+'</div>';
   var pagsAll=o.pag||[];
   var pagsPagos=pagsAll.filter(function(p){return p.st==='PAGO';});
   var pagsPend=pagsAll.filter(function(p){return p.st==='PENDENTE';});
@@ -4971,20 +5056,6 @@ function renderDashboard(){
   if(contrTot_>0&&saldoContr_>=0&&saldoContr_<contrTot_*0.12&&totalPago_>0)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam apenas <b>'+fmt(saldoContr_)+'</b>.</div></div>';
   if(invBase_>0&&saldoInv_>=0&&saldoInv_<invBase_*0.08)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Saldo do investimento crítico — restam <b>'+fmt(saldoInv_)+'</b>.</div></div>';
   if(projMeses>=0&&projMeses<=3&&velMensal>500)al+='<div class="alert alert-warn"><span class="ic">⏱</span><div>No ritmo atual, o investimento dura <b>'+projLabel+'</b>.</div></div>';
-
-  // ── Cards consolidados (topo do dashboard) ──────────────────────────
-  var sCards='';
-  if(_dashCardConstr||_dashCardInv||_dashCardEscola){
-    sCards='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px">';
-    if(_dashCardConstr)sCards+=_dashCardConstr;
-    if(_dashCardInv)sCards+=_dashCardInv;
-    if(_dashCardEscola)sCards+=_dashCardEscola;
-    sCards+='</div>';
-  }
-  // Barra de execução integrada
-  var execBar_=Math.min(execPct_,100);
-  var execBarColor_=execPct_>=100?'var(--danger)':execPct_>80?'var(--warn)':'var(--ok)';
-  var sExecBar=contrTot_>0?('<div style="margin-bottom:20px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px"><span>Execução geral da obra</span><span>'+execPct_+'%</span></div><div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+execBar_+'%;background:'+execBarColor_+';border-radius:4px;transition:width .5s"></div></div></div>'):'';
 
   // ── Insights de tempo (EXCLUSIVO — não está nos cards consolidados) ────
   var sInsights='';
@@ -5107,8 +5178,7 @@ function renderDashboard(){
 
   // ── Montar dashboard ─────────────────────────────────────────────────
   var html='';
-  html+=sCards;
-  html+=sExecBar;
+  html+=sDashCards;
   if(sInsights)html+=sInsights;
   if(al)html+='<div class="card" style="margin-bottom:16px">'+al+'</div>';
   // Contratos + Urgentes lado a lado
