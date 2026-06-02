@@ -685,6 +685,139 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 @media(max-width:768px){.uni-grid{grid-template-columns:1fr}}
 
+
+/* ════════════════════════════════════════════════════════
+   MOBILE OPTIMIZATIONS (2026-06-02)
+   ════════════════════════════════════════════════════════ */
+
+/* ── Touch targets ────────────────────────────────────── */
+@media(max-width:768px){
+  .iconbtn{padding:7px 10px;font-size:16px;min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}
+  .linkbtn{padding:4px 8px;display:inline-block}
+  .chip{padding:9px 18px;font-size:14px}
+  .x{padding:8px 12px;font-size:20px}
+}
+
+/* ── Modals: nunca maiores que a tela ─────────────────── */
+@media(max-width:768px){
+  #overlay,#viewer-overlay,#contr-overlay,#forn-detail-overlay,
+  #csv-overlay,#aditivo-overlay,#aporte-overlay,#aporteContr-overlay,
+  #cat-overlay,#confirm-overlay,#invest-overlay,#obra-overlay{
+    max-width:100%!important;
+    width:100%!important;
+  }
+  .modal,.mhead{border-radius:16px 16px 0 0}
+  .mhead{padding:14px 16px 12px}
+  .mhead h2{font-size:16px}
+}
+
+/* ── Card de pagamento: empilha em tela pequena ────────── */
+@media(max-width:600px){
+  .pag-card-grid{
+    grid-template-columns:1fr!important;
+    gap:10px 0!important;
+  }
+  .pag-card-grid>div:nth-child(2){
+    border-left:none!important;
+    border-right:none!important;
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+    padding:10px 0!important;
+  }
+  .pag-card-grid>div:nth-child(3){
+    flex-direction:row!important;
+    align-items:center!important;
+    gap:10px!important;
+    flex-wrap:wrap;
+  }
+}
+
+/* ── Dashboard financeiro ─────────────────────────────── */
+@media(max-width:600px){
+  /* Grids de 4 colunas → 2 colunas */
+  div[style*="grid-template-columns:repeat(4,1fr)"]{
+    grid-template-columns:repeat(2,1fr)!important;
+  }
+  div[style*="grid-template-columns:repeat(4,1fr)"]>div:nth-child(3){
+    border-left:none!important;
+    border-top:1px solid var(--line);
+  }
+  div[style*="grid-template-columns:repeat(4,1fr)"]>div:nth-child(4){
+    border-top:1px solid var(--line);
+  }
+}
+
+/* ── Abas da obra ────────────────────────────────────────*/
+@media(max-width:600px){
+  .tabs{gap:0}
+  .tabbtn{padding:10px 12px;font-size:13px}
+}
+
+/* ── Formulário de construtoras ─────────────────────────*/
+@media(max-width:600px){
+  #om-construtoras-list div[style*="flex-wrap:wrap"]{flex-direction:column}
+  #om-construtoras-list input.mono{width:100%!important}
+}
+
+/* ── Botões de ação do card de pagamento ────────────────*/
+@media(max-width:480px){
+  div[style*="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end"]{
+    justify-content:flex-start!important;
+  }
+}
+
+/* ── Títulos e fontes ───────────────────────────────────*/
+@media(max-width:600px){
+  .brand-section-header .bsh-name{font-size:15px!important}
+  .phead h1{font-size:19px}
+}
+
+/* ── KPIs da obra (o-kpis / esf-kpis) ──────────────────*/
+@media(max-width:600px){
+  #esf-kpis.kpis,#o-kpis.kpis{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ── Filtro de pagamentos: chips e inputs empilham ──────*/
+@media(max-width:600px){
+  #pane-pag .fi[type="date"]{width:100%!important;max-width:100%!important}
+}
+
+/* ── Logo da marca na identidade da obra: reduz ─────────*/
+@media(max-width:600px){
+  #o-brand-logo-bar img,[id="o-brand-logo-bar"] img{height:42px!important;max-width:120px!important}
+  #o-brand-logo-bar>div{padding:8px 12px!important}
+}
+
+/* ── Seção de pag-card clicavel: padding ────────────────*/
+@media(max-width:600px){
+  .card div[onclick*="togglePagRow"]{padding:10px 12px!important}
+}
+
+/* ── Overlay de NF (imp-overlay): seções compactam ─────*/
+@media(max-width:600px){
+  .imp-sec{padding:12px 14px}
+  .imp-sec-hd{font-size:12px}
+  #imp-val-input{font-size:22px!important}
+}
+
+/* ── Grids minmax: garantir que não quebram em <280px ───*/
+@media(max-width:360px){
+  .pgrid,.cyear-grid,.esc-grid,.uni-grid{
+    grid-template-columns:1fr!important
+  }
+}
+
+/* ── Cabeçalho de obra: o-crumb e o-meta em coluna ─────*/
+@media(max-width:480px){
+  #o-identity-bar{flex-direction:column;align-items:flex-start;gap:8px}
+  #o-crumb{flex-wrap:wrap}
+}
+
+/* ── Bottom navigation mobile mais acessível ───────────*/
+@media(max-width:768px){
+  .nav button span.ic{font-size:18px}
+  .nav button{padding:13px 14px}
+}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -5525,7 +5658,7 @@ function renderPag(){const o=cur;
     // ── Montar chips do bloco esquerdo ───────────────────────────────────────
     var _infoChips=[_nfInteg,_rowCat,_tkBadge,_constrTag,_pagante].filter(function(x){return x;}).join('');
     var _collapsedHtml='<div onclick="togglePagRow('+i+')" style="padding:12px 14px;cursor:pointer;border-left:4px solid '+stColor+';'+_rowBg+'transition:background .12s" onmouseenter="this.style.background=\'var(--surface-2)\'" onmouseleave="this.style.background=\'\'">'
-      +'<div style="display:grid;grid-template-columns:1.5fr 2.4fr 1.1fr;gap:0 14px;align-items:start">'
+      +'<div class="pag-card-grid" style="display:grid;grid-template-columns:1.5fr 2.4fr 1.1fr;gap:0 14px;align-items:start">'
       // ── Bloco esquerdo: nome + chips ──────────────────────────────────────
       +'<div style="min-width:0">'
       +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'
