@@ -909,7 +909,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
           <button class="btn btn-sm" onclick="openObraModal(cur.id)"><span class="ic">✎</span> Editar</button>
 
           <button class="btn btn-ghost btn-sm" onclick="openCsvImport()" title="Importar múltiplos pagamentos via planilha CSV">📊</button>
-          <button class="btn btn-primary btn-sm" onclick="openPagModal()"><span class="ic">＋</span> Lançar pagamento</button>
+          <button class="btn btn-primary btn-sm" onclick="openImport()"><span class="ic">＋</span> Lançar pagamento</button>
 
           <button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)88" onclick="deleteObra(cur?.id)">🗑</button>
 
@@ -1531,6 +1531,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
         <div class="imp-sec-hd">Responsável pelo Pagamento</div>
 
         <div><label class="fl">Quem pagou esta nota?</label><select class="fi" id="imp-pag"></select></div>
+      <div style="margin-top:12px"><label class="fl" style="margin-bottom:6px;display:block">Este pagamento é...</label>
+      <div style="display:flex;gap:0;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--line)">
+        <button type="button" id="imp-escopo-obra-btn" onclick="impSetEscopo('obra')" style="flex:1;padding:9px 12px;font-size:13px;font-weight:600;border:0;cursor:pointer;background:var(--accent);color:white;transition:.15s">🏗 Dentro da obra</button>
+        <button type="button" id="imp-escopo-extra-btn" onclick="impSetEscopo('extra')" style="flex:1;padding:9px 12px;font-size:13px;font-weight:600;border:0;cursor:pointer;background:var(--surface);color:var(--muted);transition:.15s">📤 Fora da obra</button>
+      </div>
+      <input type="hidden" id="imp-escopo" value="obra">
+      <p id="imp-escopo-hint" style="font-size:11.5px;color:var(--muted);margin-top:4px">Dinheiro do investimento da obra.</p></div>
 
       </div>
 
@@ -5087,9 +5094,6 @@ function renderMatServ(){
 
 
 
-function toggleLancarMenu(){const m=document.getElementById('lancar-menu');if(m){const isOpen=m.style.display!=='none';m.style.display=isOpen?'none':'block';if(!isOpen){setTimeout(()=>document.addEventListener('click',closeLancarMenuOutside,{once:true}),10);}}}
-function closeLancarMenu(){const m=document.getElementById('lancar-menu');if(m)m.style.display='none';}
-function closeLancarMenuOutside(e){if(!document.getElementById('btn-lancar-main')?.contains(e.target))closeLancarMenu();}
 function setPagFiltro(f){pagFiltro=f;pagPage=0;renderPag();}
 function drillPag(escopo){pagEscopo=escopo;pagExpanded=new Set();pagBusca="";renderPag();}
 function backPag(){pagEscopo=null;pagExpanded=new Set();renderPag();}
@@ -5151,7 +5155,7 @@ function renderPag(){const o=cur;
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;padding-top:14px;border-top:1px solid var(--line)">
           <span style="font-size:13.5px;color:${accentColor};font-weight:600">Ver lançamentos →</span>
-          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();drillPag('${escopo}');setTimeout(()=>openPagModal(),100)" style="font-size:12px;padding:5px 12px">＋ Lançar aqui</button>
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();drillPag('${escopo}')" style="font-size:12px;padding:5px 12px">Ver lançamentos →</button>
         </div>
       </div>`;
     };
@@ -6516,8 +6520,16 @@ function pmNfChange(){
   const er=document.getElementById('pm-emissao-row');
   if(er)er.style.display=(t&&t!=='Sem nota')?'':'none';
   // Mostra botão "Ler nota automaticamente" quando NF-e ou NFS-e
-  const lerBtn=document.getElementById('pm-ler-nf-btn');
-  if(lerBtn)lerBtn.style.display=(t==='NF-e'||t==='NFS-e')?'':'none';
+
+}
+function impSetEscopo(v){
+  document.getElementById('imp-escopo').value=v;
+  const ob=document.getElementById('imp-escopo-obra-btn');
+  const ex=document.getElementById('imp-escopo-extra-btn');
+  const hint=document.getElementById('imp-escopo-hint');
+  if(ob){ob.style.background=v==='obra'?'var(--accent)':'var(--surface)';ob.style.color=v==='obra'?'white':'var(--muted)';}
+  if(ex){ex.style.background=v==='extra'?'var(--warn)':'var(--surface)';ex.style.color=v==='extra'?'white':'var(--muted)';}
+  if(hint)hint.textContent=v==='obra'?'Dinheiro do investimento da obra.':'Pagamento fora do investimento da obra.';
 }
 function pmSetEscopo(v){
   document.getElementById('pm-escopo').value=v;
@@ -7492,6 +7504,7 @@ function openImport(){
 
   // Indicador de saldo ao selecionar pagante
 
+  impSetEscopo('obra');
   document.getElementById("imp-pag").onchange=function(){
 
     let info=document.getElementById("imp-pag-saldo");
@@ -9160,6 +9173,7 @@ async function confirmImport(){
   const obs=document.getElementById("imp-obs").value.trim();
 
   const impContrSeq=document.getElementById("imp-contrato")?.value||'';
+  const impEscopoFin=document.getElementById('imp-escopo')?.value||'obra';
 
   const tipoCusto=document.getElementById('imp-custo-val')?.value||'';
 
@@ -9175,7 +9189,7 @@ async function confirmImport(){
 
   if(!val){toast("Informe o valor.");return;}
 
-  const impVenc=(document.getElementById("imp-venc")?.value||"").trim();const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:impVenc||date,emissao:date,pagaEm:(st==="PAGO"?(impVenc||date):""),nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade,escopoFin:"obra"};
+  const impVenc=(document.getElementById("imp-venc")?.value||"").trim();const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:impVenc||date,emissao:date,pagaEm:(st==="PAGO"?(impVenc||date):""),nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade,escopoFin:impEscopoFin};
 
   if(chave)p.chave=chave;
 
