@@ -2554,6 +2554,18 @@ const MATERIAL_TIPOS=[
 
   {id:'outros',    nome:'Outros materiais',          unidades:['un','kg','m²','m³']},
 
+  {id:'vidro',     nome:'Vidros / Espelhos',           unidades:['m²','un','kg']},
+
+  {id:'louca',     nome:'Louças / Metais Sanitários',  unidades:['un','cj','kit']},
+
+  {id:'isolamento',nome:'Isolamento Térmico/Acústico',  unidades:['m²','m³','un','rolo']},
+
+  {id:'serralheria',nome:'Serralheria / Ferragens',    unidades:['un','kg','m','cj']},
+
+  {id:'forro',     nome:'Forros / Revestimentos',      unidades:['m²','un','m']},
+
+  {id:'argamassa_ac',nome:'Argamassa / Acabamento',    unidades:['sc','kg','m²']},
+
 ];
 
 const SERVICE_TIPOS=[
@@ -2571,6 +2583,18 @@ const SERVICE_TIPOS=[
   {id:'frete',        nome:'Frete / Transporte / Logística'},
 
   {id:'outros_svc',   nome:'Outros serviços'},
+
+  {id:'inspecao',    nome:'Inspeção / Diagnóstico / Parecer'},
+
+  {id:'limpeza',     nome:'Limpeza / Retirada de entulho'},
+
+  {id:'vigilancia',  nome:'Vigilância / Segurança'},
+
+  {id:'topografia',  nome:'Topografia / Sondagem / Geotécnica'},
+
+  {id:'comission',   nome:'Teste / Comissionamento de sistemas'},
+
+  {id:'financeiro',  nome:'Taxas / Emolumentos / Cartório'},
 
 ];
 
@@ -2666,6 +2690,32 @@ const MATERIAL_ALIASES={
 
     'dreno','drenagem','manta geotextil','geotextil','argamassa impermeavel','epoxi impermeavel'],
 
+  vidro:['vidro','espelho','cristal','temperado','laminado','reflexivo','insulado','box','box banheiro',
+    'espelhos','divisoria de vidro','bloco de vidro','vitro','policarbonato folha','acrilico folha',
+    'vidraceiro','vidraçaria','glazing','fachada de vidro','pele de vidro'],
+
+  louca:['louça','louca','bacia','privada','vaso sanitario','pia','lavatório','lavatorio','cuba','tanque',
+    'chuveiro','ducha','mictorio','bidê','bide','saboneteira','papeleira','toalheiro',
+    'metais sanitarios','torneira','misturador','registro','valvula','sifao','ralo','caixa acoplada',
+    'coluna louca','cuba louca','banheira','bide','box acrilico'],
+
+  isolamento:['la de vidro','la de rocha','lã de vidro','lã de rocha','isopor','eps','poliestireno',
+    'poliuretano','pur','manta termica','manta acustica','isolamento','isolante','rockwool',
+    'isover','termoacustico','isolamento termico','isolamento acustico','lã mineral'],
+
+  serralheria:['dobradiça','dobradica','prego','parafuso','porca','bucha','arruela','rebite',
+    'chapa metalica','perfil metalico','cantoneira','metalon','tubo metalico',
+    'ferrolho','fechamento','cadeado','mola porta','ferragem','hardware','kit ferragem',
+    'roldana','ripa metalica','tela metalica','tela soldada fina'],
+
+  forro:['forro','gesso cartonado','drywall','pvc forro','forro pvc','forro gesso','lambri','sanca',
+    'moldura','cornice','placa de gesso','gesso placa','perfilado','forro modular',
+    'forro mineral','forro acustico','painel acustico','divisoria'],
+
+  argamassa_ac:['argamassa colante','ac1','ac2','ac3','acii','aciii','rejunte','rejuntamento',
+    'rejuntador','chapisco','reboco','emboco','massa corrida fachada','gesso projetado',
+    'argamassa de assentamento','nata de cimento','calda de cimento','graxa'],
+
 };
 
 
@@ -2744,9 +2794,47 @@ function classifyPagamento(p){
 
   const svcKW=['projeto','servico','mao de obra','honorario','taxa','habite','alvara',
 
-    'legalizacao','consultoria','administracao','frete','transporte','gerenciamento'];
+    'legalizacao','consultoria','administracao','frete','transporte','gerenciamento',
+
+    'empreitada','medicao','labor','obra','construcao','demolicio','terraplanagem',
+
+    'limpeza','entulho','varrição','varricao','higienizacao','vigilancia','segurança','portaria',
+
+    'topografia','sondagem','levantamento','geotecnico','inspecao','diagnostico','parecer',
+
+    'fiscalizacao','coordenacao','acompanhamento','gerenciamento','rrt','art','anotacao',
+
+    'comissionamento','ensaio','teste de infiltracao','arquiteto','engenheiro','arquitetura',
+
+    'cartorio','emolumento','registro','financiamento','corretagem','assessoria juridica'];
 
   if(svcKW.some(k=>txt.includes(k)))return'servico';
+
+  // Detectar equipamentos
+
+  const eqpKW=['elevador','ar condicionado','ar-condicionado','split','ar cond','bomba','compressor',
+
+    'gerador','nobreak','transformador','quadro eletrico','painel eletrico','central de gas',
+
+    'escavadeira','betoneira','andaime','grua','retroescavadeira','motoniveladora'];
+
+  if(eqpKW.some(k=>txt.includes(k)))return'equipamento';
+
+  // Usar itens da NF se disponíveis
+
+  if(p.itens&&p.itens.length){
+
+    const itensTxt=p.itens.map(x=>(x.descricao||'').toLowerCase()).join(' ');
+
+    for(const aliases of Object.values(MATERIAL_ALIASES)){
+
+      if(aliases.some(a=>itensTxt.includes(a)))return'material';
+
+    }
+
+    if(svcKW.some(k=>itensTxt.includes(k)))return'servico';
+
+  }
 
   return'';
 
@@ -5551,9 +5639,35 @@ function renderDashboard(){
       +'</div></div>';
   }).join('');
 
+  // ── Análise de fornecedores (top 5 por valor) ──────────────────────────────
+  var _fornMap={};
+  pagsAll.filter(function(p){return p.st==='PAGO'&&(p.escopoFin||'obra')==='obra';}).forEach(function(p){
+    if(!_fornMap[p.ben])_fornMap[p.ben]={total:0,n:0};
+    _fornMap[p.ben].total+=(p.v||0);_fornMap[p.ben].n++;
+  });
+  var _fornArr=Object.entries(_fornMap).sort(function(a,b){return b[1].total-a[1].total;}).slice(0,5);
+  var sForn='';
+  if(_fornArr.length>=2){
+    var _fornMax=_fornArr[0][1].total;
+    sForn='<div class="card" style="padding:14px 16px;margin-bottom:16px">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Top Fornecedores</div>'
+      +_fornArr.map(function(e){
+        var pct=_fornMax>0?Math.round(e[1].total/_fornMax*100):0;
+        return '<div style="margin-bottom:8px">'
+          +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">'
+          +'<span style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%">'+e[0]+'</span>'
+          +'<span style="font-size:12px;font-weight:700;color:var(--brand-cur)">'+fmt(e[1].total)+'</span></div>'
+          +'<div style="height:4px;background:var(--line);border-radius:2px;overflow:hidden">'
+          +'<div style="height:100%;width:'+pct+'%;background:var(--brand-cur);border-radius:2px;transition:width .5s"></div></div>'
+          +'<div style="font-size:10.5px;color:var(--muted);margin-top:2px">'+e[1].n+' pagamento'+(e[1].n!==1?'s':'')+'</div></div>';
+      }).join('')
+      +'</div>';
+  }
+
   // ── Montar dashboard ─────────────────────────────────────────────────
   var html='';
   html+=sDashCards;
+  if(sForn)html+=sForn;
   if(sInsights)html+=sInsights;
   if(al)html+='<div class="card" style="margin-bottom:16px">'+al+'</div>';
   // Contratos + Urgentes lado a lado
