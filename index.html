@@ -352,7 +352,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 #login-screen{position:fixed;inset:0;background:linear-gradient(145deg,#173C34 0%,#1A5040 55%,#0F2A24 100%);display:flex;align-items:center;justify-content:center;padding:24px;z-index:200}
 
-#login-screen .lcard{background:rgba(255,255,255,.97);border:0;border-radius:20px;padding:36px 32px;width:100%;max-width:420px;box-shadow:0 40px 80px -20px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.08);overflow:hidden;position:relative;z-index:2}#login-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}#login-bg .lb-item{position:absolute;font-weight:800;letter-spacing:.04em;text-transform:uppercase;opacity:.13;white-space:nowrap;animation:lbFloat linear infinite}@keyframes lbFloat{0%{transform:translateY(0) rotate(var(--r,0deg))}50%{transform:translateY(-18px) rotate(var(--r,0deg))}100%{transform:translateY(0) rotate(var(--r,0deg))}}
+#login-screen .lcard{background:rgba(255,255,255,.97);border:0;border-radius:22px;padding:36px 32px;width:100%;max-width:420px;box-shadow:0 40px 80px -20px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.12),0 0 60px rgba(0,0,0,.4);overflow:hidden;position:relative;z-index:2}#login-bg{position:fixed;inset:0;z-index:0;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(3,1fr);gap:4px;padding:4px;background:#0d1117}#login-screen::after{content:"";position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,.38) 0%,rgba(0,0,0,.62) 100%)}.lb-tile{display:flex;align-items:center;justify-content:center;border-radius:10px;overflow:hidden;animation:lbPulse ease-in-out infinite alternate;position:relative}.lb-tile img{width:60%;max-height:52px;object-fit:contain;filter:brightness(0) invert(1);opacity:.88}@keyframes lbPulse{from{filter:brightness(.85) saturate(1)}to{filter:brightness(1.12) saturate(1.1)}}
 
 #login-screen .lbrand{display:flex;align-items:center;gap:13px;margin:-36px -32px 28px;padding:22px 28px 22px;border-bottom:1px solid rgba(0,0,0,.08);background:linear-gradient(135deg,#F08700 0%,#E07200 100%)}
 
@@ -832,29 +832,23 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 <div id="login-screen">
 
-  <!-- Fundo visual: marcas + engenharia + documentos + finanças -->
+  <!-- Fundo: mosaico real das logos das marcas -->
   <div id="login-bg">
-    <div class="lb-item" style="font-size:52px;color:#F88808;left:3%;top:8%;--r:-12deg;animation-duration:9s;animation-delay:0s">RAIZ</div>
-    <div class="lb-item" style="font-size:38px;color:#480868;right:5%;top:15%;--r:8deg;animation-duration:11s;animation-delay:-2s">QI</div>
-    <div class="lb-item" style="font-size:44px;color:#08B8A8;left:8%;bottom:22%;--r:6deg;animation-duration:13s;animation-delay:-4s">CUBO</div>
-    <div class="lb-item" style="font-size:30px;color:#88B858;right:8%;bottom:30%;--r:-9deg;animation-duration:10s;animation-delay:-1s">GLOBAL TREE</div>
-    <div class="lb-item" style="font-size:28px;color:#183868;left:20%;top:28%;--r:4deg;animation-duration:14s;animation-delay:-6s">SARAH DAWSEY</div>
-    <div class="lb-item" style="font-size:34px;color:#E86808;right:18%;top:42%;--r:-6deg;animation-duration:12s;animation-delay:-3s">LEONARDO DA VINCI</div>
-    <div class="lb-item" style="font-size:22px;color:#0878C8;left:5%;top:55%;--r:10deg;animation-duration:15s;animation-delay:-7s">SÁ PEREIRA</div>
-    <div class="lb-item" style="font-size:24px;color:#F85838;right:3%;bottom:12%;--r:-4deg;animation-duration:8s;animation-delay:-5s">SAP</div>
-    <div class="lb-item" style="font-size:26px;color:#582878;left:35%;bottom:10%;--r:7deg;animation-duration:16s;animation-delay:-8s">UNIFICADO</div>
-    <div class="lb-item" style="font-size:20px;color:#0848B8;right:30%;top:6%;--r:-11deg;animation-duration:11s;animation-delay:-9s">APOGEU</div>
-    <!-- Ícones de engenharia e documentos -->
-    <div class="lb-item" style="font-size:48px;color:#fff;left:48%;top:18%;--r:15deg;animation-duration:10s;animation-delay:-2s">📐</div>
-    <div class="lb-item" style="font-size:44px;color:#fff;right:25%;bottom:18%;--r:-8deg;animation-duration:13s;animation-delay:-4s">📋</div>
-    <div class="lb-item" style="font-size:40px;color:#fff;left:15%;top:42%;--r:5deg;animation-duration:9s;animation-delay:-6s">🏗</div>
-    <div class="lb-item" style="font-size:42px;color:#fff;right:42%;top:68%;--r:-14deg;animation-duration:14s;animation-delay:-1s">📁</div>
-    <div class="lb-item" style="font-size:36px;color:#fff;left:62%;bottom:35%;--r:9deg;animation-duration:12s;animation-delay:-3s">📈</div>
-    <div class="lb-item" style="font-size:38px;color:#fff;left:28%;top:72%;--r:-7deg;animation-duration:11s;animation-delay:-5s">🔧</div>
-    <div class="lb-item" style="font-size:34px;color:#F88808;right:14%;top:25%;--r:12deg;animation-duration:10s;animation-delay:-7s">R$</div>
-    <div class="lb-item" style="font-size:32px;color:#fff;left:72%;top:8%;--r:-3deg;animation-duration:15s;animation-delay:-9s">📏</div>
-    <div class="lb-item" style="font-size:36px;color:#08B8A8;left:55%;bottom:8%;--r:6deg;animation-duration:13s;animation-delay:-2s">⚙️</div>
-    <div class="lb-item" style="font-size:30px;color:#fff;right:55%;top:38%;--r:-10deg;animation-duration:9s;animation-delay:-8s">🏛</div>
+    <div class="lb-tile" style="background:#F88808;animation-duration:5s;animation-delay:0s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png" alt="RAIZ"></div>
+    <div class="lb-tile" style="background:#480868;animation-duration:6s;animation-delay:0.4s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20QI.png" alt="QI"></div>
+    <div class="lb-tile" style="background:#08B8A8;animation-duration:7s;animation-delay:0.8s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20CUBO%20GLOBAL%20SCHOOL.png" alt="CUBO"></div>
+    <div class="lb-tile" style="background:#88B858;animation-duration:5.5s;animation-delay:1.2s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20GLOBAL%20TREE.png" alt="GLOBAL TREE"></div>
+    <div class="lb-tile" style="background:#183868;animation-duration:6.5s;animation-delay:1.6s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20SARAH%20DAWSEY.png" alt="SARAH DAWSEY"></div>
+    <div class="lb-tile" style="background:#1868A8;animation-duration:7.5s;animation-delay:2.0s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20MATRIZ%20EDUCA%C3%87%C3%83O.png" alt="MATRIZ"></div>
+    <div class="lb-tile" style="background:#0848B8;animation-duration:5s;animation-delay:2.4s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20APOGEU%20GLOBAL%20SCHOOL.png" alt="APOGEU"></div>
+    <div class="lb-tile" style="background:#E86808;animation-duration:6s;animation-delay:2.8s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20LEONARDO%20DA%20VINCI.png" alt="LEONARDO DA VINCI"></div>
+    <div class="lb-tile" style="background:#0878C8;animation-duration:7s;animation-delay:3.2s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20S%C3%81%20PEREIRA.png" alt="SÁ PEREIRA"></div>
+    <div class="lb-tile" style="background:#F85838;animation-duration:5.5s;animation-delay:3.6s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20SAP.png" alt="SAP"></div>
+    <div class="lb-tile" style="background:#0868B8;animation-duration:6.5s;animation-delay:4.0s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20AMERICANO.png" alt="AMERICANO"></div>
+    <div class="lb-tile" style="background:#582878;animation-duration:7.5s;animation-delay:4.4s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20UNIFICADO.png" alt="UNIFICADO"></div>
+    <div class="lb-tile" style="background:#C83838;animation-duration:5s;animation-delay:4.8s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20UNI%C3%83O.png" alt="UNIÃO"></div>
+    <div class="lb-tile" style="background:#182848;animation-duration:6s;animation-delay:5.2s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20ESCOLA%20INTEGRA.png" alt="INTEGRA"></div>
+    <div class="lb-tile" style="background:#382888;animation-duration:7s;animation-delay:5.6s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20BOM%20TEMPO.png" alt="BOM TEMPO"></div>
   </div>
 
   <div class="lcard">
