@@ -3298,7 +3298,7 @@ async function saveContr(){
 }
 
 
-function deleteContr(idx){const c=cur.contratos[idx];const msg=`Excluir o contrato "${c.nome_contr||c.forn}"? Os pagamentos vinculados a ele perderão o vínculo. Esta ação não pode ser desfeita.`;askConfirm(msg,async()=>{const seq=c.seq;cur.pag.forEach(p=>{if(p.contratoSeq===seq)p.contratoSeq=null;});cur.contratos.splice(idx,1);const{error}=await db.from('contratos').delete().eq('obra_id',cur.id).eq('seq',seq);if(error)console.error('deleteContr:',error);renderObra();showTab("contr");toast("Contrato excluído e vínculos liberados.");});}
+function deleteContr(idx){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const c=cur.contratos[idx];const msg=`Excluir o contrato "${c.nome_contr||c.forn}"? Os pagamentos vinculados a ele perderão o vínculo. Esta ação não pode ser desfeita.`;askConfirm(msg,async()=>{const seq=c.seq;cur.pag.forEach(p=>{if(p.contratoSeq===seq)p.contratoSeq=null;});cur.contratos.splice(idx,1);const{error}=await db.from('contratos').delete().eq('obra_id',cur.id).eq('seq',seq);if(error)console.error('deleteContr:',error);renderObra();showTab("contr");toast("Contrato excluído e vínculos liberados.");});}
 
 
 
@@ -3428,9 +3428,9 @@ function openAporteModal(idx){
 
 function closeAporteModal(){document.getElementById("apor-overlay").classList.remove("show");aporteEditIdx=null;}
 
-function saveAporte(){const g=v=>document.getElementById(v).value;const inv=g("am-inv");if(!inv){toast("Selecione o investidor.");return;}const v=parseCurrency(g("am-v"));if(!v){toast("Informe o valor.");return;}const obj={inv,v,d:g("am-d")};if(aporteEditIdx!==null){const old=cur.aportes[aporteEditIdx];cur.aportado+=(v-old.v);cur.aportes[aporteEditIdx]=obj;}else{cur.aportes.push(obj);cur.aportado+=v;}persist(cur.id);closeAporteModal();renderObra();showTab('resumo');toast(aporteEditIdx!==null?"Aporte atualizado.":"Aporte registrado.");}
+function saveAporte(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const g=v=>document.getElementById(v).value;const inv=g("am-inv");if(!inv){toast("Selecione o investidor.");return;}const v=parseCurrency(g("am-v"));if(!v){toast("Informe o valor.");return;}const obj={inv,v,d:g("am-d")};if(aporteEditIdx!==null){const old=cur.aportes[aporteEditIdx];cur.aportado+=(v-old.v);cur.aportes[aporteEditIdx]=obj;}else{cur.aportes.push(obj);cur.aportado+=v;}persist(cur.id);closeAporteModal();renderObra();showTab('resumo');toast(aporteEditIdx!==null?"Aporte atualizado.":"Aporte registrado.");}
 
-function deleteAporte(idx){const a=cur.aportes[idx];askConfirm('Excluir aporte de '+fmt(a.v)+' ('+a.inv+')? Esta ação não pode ser desfeita.',()=>{cur.aportado-=a.v;cur.aportes.splice(idx,1);persist(cur.id);renderObra();showTab('resumo');toast("Aporte excluído.");});}
+function deleteAporte(idx){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const a=cur.aportes[idx];askConfirm('Excluir aporte de '+fmt(a.v)+' ('+a.inv+')? Esta ação não pode ser desfeita.',()=>{cur.aportado-=a.v;cur.aportes.splice(idx,1);persist(cur.id);renderObra();showTab('resumo');toast("Aporte excluído.");});}
 
 
 
@@ -4463,7 +4463,7 @@ async function updateCapexSituacao(id,sit,sel){
 
 
 
-async function deleteCapexItem(id){
+async function deleteCapexItem(id){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   const it=capexItens.find(i=>i.id===id);
 
@@ -4525,7 +4525,7 @@ function closeCapexItemModal(){document.getElementById('capex-item-overlay').cla
 
 
 
-async function saveCapexItem(){
+async function saveCapexItem(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   const g=id=>document.getElementById(id).value.trim();
 
@@ -6641,7 +6641,7 @@ function openAditContrModal(ci,di){
   document.getElementById('adit-contr-overlay').classList.add('show');
 }
 function closeAditContrModal(){document.getElementById('adit-contr-overlay').classList.remove('show');}
-async function saveAditContr(){
+async function saveAditContr(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
   const valor=parseCurrency(document.getElementById('ac-valor').value);
   if(!valor&&valor!==0){toast('Informe o valor do aditivo.');return;}
   const motivo=document.getElementById('ac-motivo').value.trim();
@@ -6659,7 +6659,7 @@ async function saveAditContr(){
   closeAditContrModal();renderObra();showTab('contr');
   toast('Aditivo de '+fmt(valor)+' registrado.');
 }
-async function deleteAditContr(ci,di){
+async function deleteAditContr(ci,di){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
   const c=cur.contratos[ci];
   askConfirm('Excluir este aditivo?',async()=>{
     c.aditivos.splice(di,1);
@@ -6670,7 +6670,7 @@ async function deleteAditContr(ci,di){
 }
 /* ── FIM ADITIVOS POR CONTRATO ── */
 
-function saveAditivo(){
+function saveAditivo(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   const valor=parseCurrency(document.getElementById('adit-valor').value);
 
@@ -6692,7 +6692,7 @@ function saveAditivo(){
 
 }
 
-function deleteAditivo(idx){
+function deleteAditivo(idx){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   if(!cur||!cur.aditivos_contrato)return;
 
@@ -7061,6 +7061,8 @@ function _updateCsvCount(){const inc=_csvRows.filter(r=>r.include);document.getE
 function confirmCsvImport(){if(!cur)return;const pagante=document.getElementById('csv-pagante').value;const toAdd=_csvRows.filter(r=>r.include);if(!toAdd.length){toast('Nenhum lançamento selecionado.');return;}toAdd.forEach(r=>{const p={ben:r.ben,v:r.v,ref:r.ref,cat:r.cat,sub:0,pagn:pagante,st:r.st,venc:r.venc,nfTipo:'Sem nota',comp:''};if(r.st==='PAGO')cur.pago+=r.v;cur.pag.push(p);});persist(cur.id);closeCsvImport();renderObra();renderPainel();updateNavBadge();toast(`${toAdd.length} pagamento(s) importados com sucesso.`);}
 
 function saveObra(){
+
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   const g=v=>document.getElementById(v);
 
@@ -7458,7 +7460,7 @@ function openUniModal(id){
 
 function closeUniModal(){document.getElementById("uni-overlay").classList.remove("show");}
 
-async function saveUni(){
+async function saveUni(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   const g=v=>document.getElementById(v);
 
@@ -7632,7 +7634,7 @@ function openCatModal(id,tipo){
 
 function closeCatModal(){document.getElementById("cat-overlay").classList.remove("show");catEditId=null;_catModalFromForm=false;_catModalFromPm=false;_catTipo='pagamento';}
 
-function saveCatModal(){
+function saveCatModal(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   const nm=document.getElementById("cat-input").value.trim();
 
@@ -8006,7 +8008,7 @@ async function persist(obraId){
 
     if(cl.length)await db.from('fornecedores_cnpj').upsert(cl);
 
-  }catch(e){console.error('persist:',e);}
+  }catch(e){console.error('[persist]',e);toast('Erro ao salvar dados. Verifique sua conexão.');}
 
 }
 
@@ -10093,7 +10095,7 @@ function renderAdminCats(){
 
 
 
-function deleteCat(id){
+function deleteCat(id){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   const c=catById(id);
 
@@ -10115,11 +10117,11 @@ function deleteCat(id){
 
 }
 
-async function setUserRole(id,role){await db.from('user_profiles').update({role}).eq('id',id);toast('Função atualizada.');}
+async function setUserRole(id,role){if(currentProfile?.role!=='admin'){toast('Sem permissão: acesso restrito a administradores.');return;}await db.from('user_profiles').update({role}).eq('id',id);toast('Função atualizada.');}
 
-async function aprovarUser(id){await db.from('user_profiles').update({aprovado:true}).eq('id',id);renderAdmin();toast('Usuário aprovado.');}
+async function aprovarUser(id){if(currentProfile?.role!=='admin'){toast('Sem permissão: acesso restrito a administradores.');return;}await db.from('user_profiles').update({aprovado:true}).eq('id',id);renderAdmin();toast('Usuário aprovado.');}
 
-async function revogarUser(id){await db.from('user_profiles').update({aprovado:false}).eq('id',id);renderAdmin();toast('Acesso revogado.');}
+async function revogarUser(id){if(currentProfile?.role!=='admin'){toast('Sem permissão: acesso restrito a administradores.');return;}await db.from('user_profiles').update({aprovado:false}).eq('id',id);renderAdmin();toast('Acesso revogado.');}
 
 
 
@@ -10458,7 +10460,7 @@ function closeInvModal(){document.getElementById('inv-overlay').classList.remove
 
 
 
-async function saveInvestidor(){
+async function saveInvestidor(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   const nome=document.getElementById('inv-nome').value.trim();
 
@@ -10502,7 +10504,7 @@ async function saveInvestidor(){
 
 
 
-async function deleteInvestidor(id){
+async function deleteInvestidor(id){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   const inv=investidores.find(i=>i.id===id);
 
@@ -10554,6 +10556,12 @@ async function onLogin(user){
     return;
   }
 
+  // Garantir que role é um valor conhecido; fallback para 'leitor'
+  const _validRoles=['leitor','doc','editor','admin'];
+  if(!_validRoles.includes(profile.role)){
+    console.warn('[onLogin] role inválido:',profile.role,'— fallback para leitor');
+    profile.role='leitor';
+  }
   currentProfile=profile;
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='flex';
