@@ -894,29 +894,29 @@ to{transform:rotate(var(--r,0deg)) translateY(-10px)}}
 
 /* ════ LOGIN — arte igual às páginas de obras ══════════════════════════════ */
 #login-screen{
-  background:#08101e;
+  background:#06101c;
   position:fixed;inset:0;
   display:flex;align-items:center;justify-content:center;
   z-index:900;overflow:hidden
 }
+/* Fundo artístico — opacidade reduzida para não dominar */
 #login-bg{
-  position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden
+  position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  opacity:0.28
 }
-/* Vinheta escura nos bordas para destacar o card */
+/* Overlay escuro forte sobre o fundo para deixar o card legível */
 #login-screen::after{
   content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
-  background:radial-gradient(ellipse 65% 70% at 50% 50%,
-    rgba(8,16,30,.05) 0%,
-    rgba(8,16,30,.55) 70%,
-    rgba(8,16,30,.82) 100%)
+  background:rgba(6,16,28,.62)
 }
-/* Card de login — branco sólido acima de tudo */
+/* Card de login — centrado, branco, acima de tudo */
 #login-screen .lcard{
   position:relative;z-index:10;
   background:#ffffff;
-  border-radius:22px;
+  border-radius:20px;
   padding:40px 36px;
-  width:calc(100% - 32px);max-width:420px;
+  width:calc(100% - 40px);max-width:420px;
+  margin:auto;
   box-shadow:
     0 2px 4px rgba(0,0,0,.04),
     0 12px 32px rgba(0,0,0,.18),
@@ -10577,19 +10577,15 @@ async function onLogin(user){
   renderGeral();updateNavBadge();populateEscolasSelect();updateSideArt(["RAIZ"]);
 }
 
-// Arte de fundo do login — mesma função das páginas de obras, todas as marcas
+// Arte de fundo do login — 6 cores representativas, suave
 (function(){
   try{
-    var allCols=Object.values(BRAND_COLORS).map(function(b){return b.p;})
-      .filter(function(c){return c&&!c.startsWith('var');});
-    // Remover duplicatas
-    var seen={};
-    allCols=allCols.filter(function(c){return seen[c]?false:(seen[c]=true);});
+    var loginCols=['#F88808','#480868','#08B8A8','#88B858','#0848B8','#F85838'];
     var bgEl=document.getElementById('login-bg');
-    if(bgEl&&allCols.length){
+    if(bgEl){
       var W=Math.max(window.innerWidth,1400);
       var H=Math.max(window.innerHeight,900);
-      bgEl.innerHTML=_makePageArt(allCols,W,H,[]);  // sem logos — só fitas
+      bgEl.innerHTML=_makePageArt(loginCols,W,H,[]);
     }
   }catch(e){console.warn('[login art]',e);}
 })();
