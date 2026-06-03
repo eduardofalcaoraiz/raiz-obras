@@ -2103,6 +2103,11 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <div class="frow" style="margin-bottom:0"><label class="fl">Data</label><input class="fi" id="adit-data" type="date"></div>
 
+    <div class="frow" id="adit-constr-row" style="display:none;margin-bottom:0">
+      <label class="fl">Construtora responsável <span style="font-size:11px;color:var(--muted);font-weight:400">(obra tem múltiplas)</span></label>
+      <select class="fi" id="adit-constr"><option value="">— Aditivo geral da obra —</option></select>
+    </div>
+
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px"><button class="btn btn-ghost" onclick="closeAditivoModal()">Cancelar</button><button class="btn btn-primary" onclick="saveAditivo()"><span class="ic">✓</span> Confirmar aditivo</button></div>
 
   </div>
@@ -4822,7 +4827,8 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   const _adits=o.aditivos_contrato||[];
 
-  const _aditsH=_adits.length?`<div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Data</th><th>Motivo</th><th style="text-align:right">Valor</th><th></th></tr></thead><tbody>${_adits.map((d,di)=>`<tr><td style="font-size:13px">${d.data?fmtD(d.data):'—'}</td><td style="font-size:13px">${d.motivo||'—'}</td><td style="text-align:right;font-weight:600">${fmt(d.valor)}</td><td><button class="iconbtn" title="Excluir" onclick="deleteAditivo(${di})">🗑</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="empty" style="margin:10px 0 0">Nenhum aditivo registrado.</p>';
+  const _multiConstr=o.construtoras&&o.construtoras.length>=2;
+  const _aditsH=_adits.length?`<div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Data</th><th>Motivo</th>${_multiConstr?'<th>Construtora</th>':''}<th style="text-align:right">Valor</th><th></th></tr></thead><tbody>${_adits.map((d,di)=>{const _cn=d.construtora_seq&&_multiConstr?(o.construtoras.find(c=>c.seq===d.construtora_seq)?.nome||'—'):'';return`<tr><td style="font-size:13px">${d.data?fmtD(d.data):'—'}</td><td style="font-size:13px">${d.motivo||'—'}</td>${_multiConstr?`<td style="font-size:12.5px;color:var(--muted)">${_cn||'Geral'}</td>`:''}<td style="text-align:right;font-weight:600">${fmt(d.valor)}</td><td><button class="iconbtn" title="Editar" onclick="openAditivoModal(${di})">✎</button> <button class="iconbtn" title="Excluir" onclick="deleteAditivo(${di})">🗑</button></td></tr>`;}).join('')}</tbody></table></div>`:'<p class="empty" style="margin:10px 0 0">Nenhum aditivo registrado.</p>';
 
   const _modeloLabel=o.modelo_contrato==='ADMINISTRACAO'?'Por Administração':'Preço Global';
 
@@ -6598,6 +6604,20 @@ function openAditivoModal(idx){
 
   }
 
+  // Mostrar seletor de construtora apenas quando a obra tem ≥2 construtoras
+  const _aditConstrRow=document.getElementById('adit-constr-row');
+  const _aditConstrSel=document.getElementById('adit-constr');
+  const _constList=cur&&cur.construtoras&&cur.construtoras.length>=2?cur.construtoras:[];
+  if(_constList.length>=2&&_aditConstrRow&&_aditConstrSel){
+    _aditConstrSel.innerHTML='<option value="">— Aditivo geral da obra —</option>'+
+      _constList.map(c=>'<option value="'+c.seq+'">'+c.nome+'</option>').join('');
+    const _editSeq=idx!=null?((cur.aditivos_contrato||[])[idx]?.construtora_seq||''):'';
+    _aditConstrSel.value=_editSeq;
+    _aditConstrRow.style.display='block';
+  }else if(_aditConstrRow){
+    _aditConstrRow.style.display='none';
+  }
+
   document.getElementById('aditivo-overlay').classList.add('show');
 
 }
@@ -6688,11 +6708,18 @@ function saveAditivo(){if(['leitor','doc'].includes(currentProfile?.role)){toast
 
   const data=document.getElementById('adit-data').value;
 
+  const _aditConstrRow=document.getElementById('adit-constr-row');
+  const _aditCSel=document.getElementById('adit-constr');
+  const construtora_seq=_aditConstrRow&&_aditConstrRow.style.display!=='none'&&_aditCSel&&_aditCSel.value?+_aditCSel.value:null;
+
   if(!cur.aditivos_contrato)cur.aditivos_contrato=[];
 
-  if(_aditEditIdx!=null){cur.aditivos_contrato[_aditEditIdx]={valor,motivo,data};}
+  const _adit={valor,motivo,data};
+  if(construtora_seq)_adit.construtora_seq=construtora_seq;
 
-  else{cur.aditivos_contrato.push({valor,motivo,data});}
+  if(_aditEditIdx!=null){cur.aditivos_contrato[_aditEditIdx]=_adit;}
+
+  else{cur.aditivos_contrato.push(_adit);}
 
   persist(cur.id);closeAditivoModal();renderObra();
 
