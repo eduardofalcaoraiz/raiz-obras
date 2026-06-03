@@ -8772,38 +8772,28 @@ async function readInvoiceWithAI(file,onStatus){
 
   const isPDF=ext==='pdf';
 
-  const mediaType=ext==='png'?'image/png':'image/jpeg';
-
-
-
-  // Converter arquivo em imagem base64 (PDF→JPEG via PDF.js, imagem→leitura direta)
-
+  // Gemini 2.5 aceita PDF diretamente — sem conversão para JPEG
   let imgB64;
+  let mediaType;
 
   if(isPDF){
-
-    if(onStatus)onStatus('Renderizando PDF para análise visual…');
-
-    try{imgB64=await pdfPageToJpeg(file,1.6);}
-
-    catch(e){throw new Error('Falha ao converter PDF: '+e.message);}
-
-  } else {
-
-    if(onStatus)onStatus('Preparando imagem para análise…');
-
+    if(onStatus)onStatus('Preparando PDF para análise com Gemini…');
+    mediaType='application/pdf';
     imgB64=await new Promise((res,rej)=>{
-
       const rd=new FileReader();
-
       rd.onload=e=>res(e.target.result.split(',')[1]);
-
-      rd.onerror=()=>rej(new Error('Erro ao ler arquivo'));
-
+      rd.onerror=()=>rej(new Error('Erro ao ler PDF'));
       rd.readAsDataURL(file);
-
     });
-
+  } else {
+    if(onStatus)onStatus('Preparando imagem para análise…');
+    mediaType=ext==='png'?'image/png':'image/jpeg';
+    imgB64=await new Promise((res,rej)=>{
+      const rd=new FileReader();
+      rd.onload=e=>res(e.target.result.split(',')[1]);
+      rd.onerror=()=>rej(new Error('Erro ao ler arquivo'));
+      rd.readAsDataURL(file);
+    });
   }
 
 
