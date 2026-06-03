@@ -350,9 +350,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 .obra-uni-link{font-size:12.5px;color:var(--ok);font-weight:500;margin-top:6px}
 
-#login-screen{position:fixed;inset:0;background:linear-gradient(145deg,#173C34 0%,#1A5040 55%,#0F2A24 100%);display:flex;align-items:center;justify-content:center;padding:24px;z-index:200}
 
-#login-screen .lcard{background:rgba(255,255,255,.97);border:0;border-radius:22px;padding:36px 32px;width:100%;max-width:420px;box-shadow:0 40px 80px -20px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.12),0 0 60px rgba(0,0,0,.4);overflow:hidden;position:relative;z-index:2}.lb-tile img{width:60%;max-height:52px;object-fit:contain;filter:brightness(0) invert(1);opacity:.88}to{filter:brightness(1.12) saturate(1.1)}}
+
+.lb-tile img{width:60%;max-height:52px;object-fit:contain;filter:brightness(0) invert(1);opacity:.88}to{filter:brightness(1.12) saturate(1.1)}}
 
 #login-screen .lbrand{display:flex;align-items:center;gap:13px;margin:-36px -32px 28px;padding:22px 28px 22px;border-bottom:1px solid rgba(0,0,0,.08);background:linear-gradient(135deg,#F08700 0%,#E07200 100%)}
 
@@ -615,7 +615,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
   #login-screen{padding:16px}
 
-  #login-screen .lcard{padding:26px 20px}
+  
 
   #login-screen .lbrand{margin:-26px -20px 24px;padding:18px 20px}
 
@@ -829,8 +829,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 /* Logos flutuantes */
 
-.lb-logo img{display:block;width:100%;height:auto;max-height:var(--h,60px);object-fit:contain;
-  filter:brightness(0) invert(1);opacity:var(--op,.45)}
+
 /* Elementos SVG técnicos */
 
 /* Esconder no mobile para não poluir */
@@ -840,11 +839,9 @@ to{transform:rotate(var(--r,0deg)) translateY(-10px)}}
 /* Vinheta escura sobre o fundo */
 
 /* Card de login - vidro sobre o fundo */
-#login-screen .lcard{z-index:2;position:relative;background:rgba(255,255,255,.96);
-  box-shadow:0 32px 80px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.15),0 0 100px rgba(0,0,0,.5);
-  border-radius:22px}
 
-/* ════ LOGIN BACKGROUND — aurora gradient mesh ════════════════════════════ */
+
+
 #login-screen{
   background:
     radial-gradient(ellipse 80% 60% at 15% 20%, hsla(33,94%,50%,.28) 0,transparent 55%),
@@ -856,57 +853,101 @@ to{transform:rotate(var(--r,0deg)) translateY(-10px)}}
   background-attachment:fixed;
   animation:loginAurora 25s ease-in-out infinite alternate
 }
-@keyframes loginAurora{
-  0%{background-position:0% 0%,100% 100%,100% 0%,0% 100%,50% 50%}
+
   33%{background-position:20% 30%,80% 60%,70% 20%,30% 80%,50% 50%}
   66%{background-position:10% 60%,90% 30%,50% 10%,20% 90%,50% 50%}
   100%{background-position:30% 10%,70% 90%,80% 30%,10% 70%,50% 50%}
 }
 /* Grade blueprint ultra-sutil */
-#login-screen::before{
-  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
-  background-image:
-    linear-gradient(rgba(100,160,255,.04) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(100,160,255,.04) 1px,transparent 1px);
-  background-size:52px 52px
-}
+
 /* Vinheta escura nas bordas */
-#login-screen::after{
-  content:'';position:fixed;inset:0;z-index:1;pointer-events:none;
-  background:radial-gradient(ellipse 75% 85% at 50% 50%,
-    rgba(6,16,28,0) 30%,rgba(6,16,28,.65) 100%)
-}
+
 /* Card de login — branco puro, sombra profunda */
+
+/* Elementos decorativos SVG — cantos do card */
+
+@media(max-width:600px){
+  #login-screen{padding:20px;background-size:100% 100%}
+  
+}
+
+
+  to{transform:translateY(-12px)}
+}
+
+/* ════ LOGIN ════════════════════════════════════════════════════════════════ */
+#login-screen{
+  background:#06101d;
+  position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  z-index:900;overflow:hidden
+}
+
+/* Sticker de marca */
+.lbs{
+  position:absolute;
+  background:var(--bc,#F88808);
+  border-radius:14px;
+  padding:0;
+  transform:rotate(var(--r,0deg));
+  animation:lbsA var(--dur,10s) ease-in-out infinite alternate;
+  box-shadow:0 8px 28px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.2);
+  overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center
+}
+.lbs-logo{
+  display:block;padding:10px 14px 6px;
+  background:rgba(255,255,255,.96);width:100%;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center
+}
+.lbs-logo img{height:36px;max-width:110px;object-fit:contain;display:block}
+.lbs-name{
+  font-family:'Outfit',sans-serif;font-weight:800;font-size:10px;
+  letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.95);
+  padding:6px 12px 7px;width:100%;text-align:center;box-sizing:border-box
+}
+
+/* SVG técnicos */
+.lbsvg{
+  position:absolute;fill:none;stroke:rgba(180,210,255,.2);stroke-width:1.3;
+  overflow:visible;animation:lbsA var(--dur,12s) ease-in-out infinite alternate
+}
+
+@keyframes lbsA{
+  from{transform:rotate(var(--r,0deg)) translateY(0) scale(1)}
+  to{transform:rotate(var(--r,0deg)) translateY(-11px) scale(1.02)}
+}
+
+/* Brilho radial central ultra-sutil */
+#login-screen::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 60% 55% at 15% 18%,rgba(248,136,8,.18) 0,transparent 55%),
+    radial-gradient(ellipse 50% 60% at 86% 84%,rgba(72,8,104,.22) 0,transparent 55%),
+    radial-gradient(ellipse 45% 45% at 80% 12%,rgba(8,184,168,.14) 0,transparent 50%),
+    radial-gradient(ellipse 40% 50% at 14% 85%,rgba(8,72,184,.14) 0,transparent 50%);
+  z-index:0
+}
+
+/* Card de login — sólido, sem sombra que vaze */
 #login-screen .lcard{
-  position:relative;z-index:2;
+  position:relative;z-index:10;
   background:#fff;
   border-radius:22px;
   padding:40px 36px;
-  width:100%;max-width:420px;
-  box-shadow:
-    0 2px 4px rgba(0,0,0,.04),
-    0 8px 24px rgba(0,0,0,.12),
-    0 32px 64px rgba(0,0,0,.28),
-    0 64px 120px rgba(0,0,0,.22),
-    0 0 0 1px rgba(255,255,255,.08)
-}
-/* Elementos decorativos SVG — cantos do card */
-#login-screen .lcard::before{
-  content:'';position:absolute;top:-1px;left:-1px;right:-1px;bottom:-1px;
-  border-radius:23px;pointer-events:none;
-  background:linear-gradient(135deg,
-    rgba(248,136,8,.15) 0%,transparent 40%,
-    transparent 60%,rgba(8,184,168,.12) 100%);
-  z-index:-1
-}
-@media(max-width:600px){
-  #login-screen{padding:20px;background-size:100% 100%}
-  #login-screen .lcard{padding:28px 22px;border-radius:18px}
+  width:calc(100% - 32px);max-width:420px;
+  box-shadow:0 4px 8px rgba(0,0,0,.06),0 16px 40px rgba(0,0,0,.2),0 40px 80px rgba(0,0,0,.3)
 }
 
-@keyframes lbSvgDrift{
-  from{transform:translateY(0)}
-  to{transform:translateY(-12px)}
+/* Faixa de cor no topo do card */
+#login-screen .lbrand{
+  margin:-40px -36px 28px;
+  border-radius:22px 22px 0 0
+}
+
+@media(max-width:600px){
+  #login-screen .lcard{padding:28px 20px;border-radius:16px}
+  #login-screen .lbrand{margin:-28px -20px 22px;border-radius:16px 16px 0 0}
+  .lbs,.lbsvg{display:none}
 }
 </style>
 
@@ -922,77 +963,22 @@ to{transform:rotate(var(--r,0deg)) translateY(-10px)}}
 
 <div id="login-screen">
 
-  <!-- Decoração: SVG técnicos leves, sem imagens externas -->
-  <div id="login-bg" style="position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden">
-
-    <!-- Compasso arquitetônico — canto superior direito -->
-    <svg viewBox="0 0 120 130" style="position:absolute;right:5%;top:6%;width:min(120px,14vw);opacity:.18;fill:none;stroke:rgba(200,230,255,.7);stroke-width:1.2;animation:lbSvgDrift 11s ease-in-out infinite alternate">
-      <circle cx="60" cy="55" r="42" stroke-dasharray="5 4"/>
-      <circle cx="60" cy="55" r="4" fill="rgba(200,230,255,.5)"/>
-      <line x1="60" y1="13" x2="44" y2="100" stroke-width="1.6"/>
-      <line x1="60" y1="13" x2="76" y2="100" stroke-width="1.6"/>
-      <path d="M44 100 Q60 93 76 100" stroke-width="1.4" fill="none"/>
-      <circle cx="60" cy="13" r="4.5"/>
-    </svg>
-
-    <!-- Planta baixa — esquerda centro -->
-    <svg viewBox="0 0 130 100" style="position:absolute;left:3%;top:42%;width:min(130px,14vw);opacity:.15;fill:none;stroke:rgba(180,220,255,.65);stroke-width:1.2;animation:lbSvgDrift 14s ease-in-out infinite alternate-reverse;animation-delay:-3s">
-      <rect x="6" y="6" width="118" height="88" rx="2"/>
-      <line x1="6" y1="46" x2="65" y2="46"/>
-      <line x1="65" y1="6" x2="65" y2="94"/>
-      <line x1="65" y1="62" x2="124" y2="62"/>
-      <rect x="14" y="13" width="22" height="16" rx="1"/>
-      <rect x="75" y="68" width="34" height="20" rx="1"/>
-      <line x1="36" y1="94" x2="36" y2="80"/>
-      <line x1="36" y1="80" x2="65" y2="80"/>
-    </svg>
-
-    <!-- Gráfico financeiro ascendente — direita baixo -->
-    <svg viewBox="0 0 110 90" style="position:absolute;right:3%;bottom:12%;width:min(110px,13vw);opacity:.18;fill:none;stroke:rgba(180,255,210,.65);stroke-width:1.3;animation:lbSvgDrift 9s ease-in-out infinite alternate;animation-delay:-5s">
-      <line x1="14" y1="78" x2="14" y2="8" stroke-width="1.6"/>
-      <line x1="14" y1="78" x2="98" y2="78" stroke-width="1.6"/>
-      <polyline points="20,68 35,54 52,42 68,28 88,14" stroke-width="2.2" stroke="rgba(180,255,210,.8)"/>
-      <circle cx="88" cy="14" r="4" fill="rgba(180,255,210,.4)"/>
-      <line x1="14" y1="54" x2="19" y2="54" stroke-dasharray="2 4"/>
-      <line x1="14" y1="36" x2="19" y2="36" stroke-dasharray="2 4"/>
-      <line x1="35" y1="78" x2="35" y2="83" stroke-dasharray="2 4"/>
-      <line x1="60" y1="78" x2="60" y2="83" stroke-dasharray="2 4"/>
-      <line x1="88" y1="78" x2="88" y2="83" stroke-dasharray="2 4"/>
-    </svg>
-
-    <!-- Edifício / fachada — esquerda baixo -->
-    <svg viewBox="0 0 80 110" style="position:absolute;left:8%;bottom:8%;width:min(70px,9vw);opacity:.14;fill:none;stroke:rgba(200,230,255,.65);stroke-width:1.2;animation:lbSvgDrift 16s ease-in-out infinite alternate;animation-delay:-7s">
-      <rect x="12" y="34" width="56" height="68" rx="1"/>
-      <rect x="30" y="14" width="20" height="20"/>
-      <rect x="18" y="44" width="12" height="10" rx="1"/>
-      <rect x="34" y="44" width="12" height="10" rx="1"/>
-      <rect x="50" y="44" width="12" height="10" rx="1"/>
-      <rect x="18" y="62" width="12" height="10" rx="1"/>
-      <rect x="34" y="62" width="12" height="10" rx="1"/>
-      <rect x="50" y="62" width="12" height="10" rx="1"/>
-      <rect x="32" y="82" width="16" height="20"/>
-      <line x1="5" y1="102" x2="75" y2="102" stroke-width="1.8"/>
-    </svg>
-
-    <!-- Régua + escala — centro superior -->
-    <svg viewBox="0 0 160 38" style="position:absolute;left:30%;top:4%;width:min(160px,18vw);opacity:.14;fill:none;stroke:rgba(200,220,255,.6);stroke-width:1.2;animation:lbSvgDrift 13s ease-in-out infinite alternate-reverse;animation-delay:-2s">
-      <rect x="2" y="10" width="156" height="18" rx="3"/>
-      <line x1="22" y1="10" x2="22" y2="17"/>
-      <line x1="42" y1="10" x2="42" y2="22"/>
-      <line x1="62" y1="10" x2="62" y2="17"/>
-      <line x1="82" y1="10" x2="82" y2="26"/>
-      <line x1="102" y1="10" x2="102" y2="17"/>
-      <line x1="122" y1="10" x2="122" y2="22"/>
-      <line x1="142" y1="10" x2="142" y2="17"/>
-    </svg>
-
-    <!-- Moeda R$ — canto inferior direito -->
-    <svg viewBox="0 0 80 80" style="position:absolute;right:12%;bottom:28%;width:min(72px,9vw);opacity:.16;fill:none;stroke:rgba(255,220,120,.6);stroke-width:1.3;animation:lbSvgDrift 10s ease-in-out infinite alternate;animation-delay:-9s">
-      <circle cx="40" cy="40" r="34"/>
-      <circle cx="40" cy="40" r="26"/>
-      <text x="40" y="47" text-anchor="middle" font-size="18" font-weight="800" font-family="Outfit,sans-serif" fill="rgba(255,220,120,.5)" stroke="none">R$</text>
-    </svg>
-
+  <!-- Stickers das marcas + elementos técnicos -->
+  <div id="login-bg" style="position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden">
+    <div class="lbs" style="--bc:#F88808;left:2%;top:4%;width:155px;--r:-7deg;--dur:10s;animation-delay:0s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png" alt="RAIZ" loading="lazy"></div><div class="lbs-name">RAIZ</div></div>
+    <div class="lbs" style="--bc:#480868;left:74%;top:3%;width:115px;--r:6deg;--dur:11s;animation-delay:1s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20QI.png" alt="QI" loading="lazy"></div><div class="lbs-name">QI</div></div>
+    <div class="lbs" style="--bc:#08B8A8;left:2%;top:62%;width:145px;--r:8deg;--dur:13s;animation-delay:2s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20CUBO%20GLOBAL%20SCHOOL.png" alt="CUBO" loading="lazy"></div><div class="lbs-name">CUBO</div></div>
+    <div class="lbs" style="--bc:#88B858;left:66%;top:67%;width:125px;--r:-5deg;--dur:9s;animation-delay:3s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20GLOBAL%20TREE.png" alt="GLOBAL TREE" loading="lazy"></div><div class="lbs-name">GLOBAL TREE</div></div>
+    <div class="lbs" style="--bc:#183868;left:28%;top:3%;width:150px;--r:-4deg;--dur:12s;animation-delay:1.5s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20SARAH%20DAWSEY.png" alt="SARAH DAWSEY" loading="lazy"></div><div class="lbs-name">SARAH DAWSEY</div></div>
+    <div class="lbs" style="--bc:#1868A8;left:80%;top:36%;width:105px;--r:7deg;--dur:14s;animation-delay:4s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20MATRIZ%20EDUCA%C3%87%C3%83O.png" alt="MATRIZ" loading="lazy"></div><div class="lbs-name">MATRIZ</div></div>
+    <div class="lbs" style="--bc:#0848B8;left:3%;top:33%;width:110px;--r:-9deg;--dur:10s;animation-delay:2.5s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20APOGEU%20GLOBAL%20SCHOOL.png" alt="APOGEU" loading="lazy"></div><div class="lbs-name">APOGEU</div></div>
+    <div class="lbs" style="--bc:#E86808;left:42%;top:78%;width:145px;--r:4deg;--dur:11s;animation-delay:5s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20LEONARDO%20DA%20VINCI.png" alt="LEONARDO DA VINCI" loading="lazy"></div><div class="lbs-name">LEONARDO DA VINCI</div></div>
+    <div class="lbs" style="--bc:#0878C8;left:64%;top:22%;width:110px;--r:-5deg;--dur:9s;animation-delay:6s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20S%C3%81%20PEREIRA.png" alt="SÁ PEREIRA" loading="lazy"></div><div class="lbs-name">SÁ PEREIRA</div></div>
+    <div class="lbs" style="--bc:#F85838;left:4%;top:84%;width:90px;--r:11deg;--dur:8s;animation-delay:0.5s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20SAP.png" alt="SAP" loading="lazy"></div><div class="lbs-name">SAP</div></div>
+    <div class="lbs" style="--bc:#0868B8;left:81%;top:78%;width:100px;--r:-8deg;--dur:12s;animation-delay:3.5s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20AMERICANO.png" alt="AMERICANO" loading="lazy"></div><div class="lbs-name">AMERICANO</div></div>
+    <div class="lbs" style="--bc:#582878;left:25%;top:82%;width:100px;--r:6deg;--dur:10s;animation-delay:7s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20UNIFICADO.png" alt="UNIFICADO" loading="lazy"></div><div class="lbs-name">UNIFICADO</div></div>
+    <div class="lbs" style="--bc:#382888;left:56%;top:8%;width:105px;--r:-6deg;--dur:13s;animation-delay:4.5s"><div class="lbs-logo"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20BOM%20TEMPO.png" alt="BOM TEMPO" loading="lazy"></div><div class="lbs-name">BOM TEMPO</div></div>
+    <svg class="lbsvg" viewBox="0 0 100 110" style="right:5%;top:5%;width:88px;--dur:11s;--r:-8deg"><circle cx="50" cy="46" r="36" stroke-dasharray="5 3.5"/><circle cx="50" cy="46" r="3.5" fill="rgba(180,210,255,.3)"/><line x1="50" y1="10" x2="38" y2="90" stroke-width="1.5"/><line x1="50" y1="10" x2="62" y2="90" stroke-width="1.5"/><line x1="35" y1="86" x2="65" y2="86" stroke-dasharray="2 3"/><circle cx="50" cy="10" r="4"/></svg><svg class="lbsvg" viewBox="0 0 120 95" style="left:8%;top:54%;width:115px;--dur:14s;animation-delay:-4s;--r:2deg"><rect x="6" y="6" width="108" height="83" rx="2"/><line x1="6" y1="44" x2="60" y2="44"/><line x1="60" y1="6" x2="60" y2="89"/><line x1="60" y1="60" x2="114" y2="60"/><rect x="13" y="13" width="20" height="14" rx="1"/><rect x="68" y="66" width="30" height="17" rx="1"/><line x1="30" y1="89" x2="30" y2="75"/></svg><svg class="lbsvg" viewBox="0 0 95 85" style="right:2%;top:46%;width:85px;--dur:9s;animation-delay:-5s;stroke:rgba(180,255,200,.22)"><line x1="12" y1="74" x2="12" y2="8" stroke-width="1.6"/><line x1="12" y1="74" x2="86" y2="74" stroke-width="1.6"/><polyline points="18,64 30,50 46,38 62,25 80,12" stroke-width="2" stroke="rgba(180,255,200,.45)"/><circle cx="80" cy="12" r="3.5" fill="rgba(180,255,200,.35)"/></svg><svg class="lbsvg" viewBox="0 0 75 105" style="left:50%;top:62%;margin-left:-38px;width:62px;--dur:16s;animation-delay:-2s;--r:3deg"><rect x="10" y="28" width="55" height="68" rx="1"/><rect x="26" y="12" width="23" height="16"/><rect x="16" y="38" width="11" height="10" rx="1"/><rect x="32" y="38" width="11" height="10" rx="1"/><rect x="48" y="38" width="11" height="10" rx="1"/><rect x="16" y="56" width="11" height="10" rx="1"/><rect x="32" y="56" width="11" height="10" rx="1"/><rect x="48" y="56" width="11" height="10" rx="1"/><rect x="29" y="72" width="17" height="24"/></svg><svg class="lbsvg" viewBox="0 0 70 70" style="right:14%;bottom:16%;width:58px;--dur:8s;animation-delay:-9s;stroke:rgba(255,215,100,.22)"><circle cx="35" cy="35" r="30"/><circle cx="35" cy="35" r="22"/><text x="35" y="42" text-anchor="middle" font-size="15" font-weight="800" font-family="Outfit,sans-serif" fill="rgba(255,215,100,.4)" stroke="none">R$</text></svg>
   </div>
 
   <div class="lcard">
