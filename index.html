@@ -7250,22 +7250,28 @@ function savePag(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Se
 function anexarComp(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getElementById("comp-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="comp-input";inp.style.display="none";document.body.appendChild(inp);}
 
   inp.onchange=async()=>{if(!inp.files.length)return;const f=inp.files[0];toast('Enviando comprovante…');
-
-    try{const path=await uploadPagDoc(oid,f,'comp');o.pag[i].compDoc={name:f.name,storagePath:path,type:f.type};}
-
-    catch(e){console.error('upload comp:',e);o.pag[i].compDoc={name:f.name,dataUrl:await fileToDataUrl(f),type:f.type};}
-
-    persist(oid);if(cur&&cur.id===oid)renderObra();toast("Comprovante anexado.");inp.value="";};inp.click();}
+    try{
+      const path=await uploadPagDoc(oid,f,'comp');
+      o.pag[i].compDoc={name:f.name,storagePath:path,type:f.type};
+      persist(oid);if(cur&&cur.id===oid)renderObra();toast("Comprovante anexado.");
+    }catch(e){
+      console.error('upload comp:',e);
+      toast('❌ Falha ao salvar comprovante. Verifique sua conexão e tente novamente.');
+    }
+    inp.value="";};inp.click();}
 
 function anexarNF(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getElementById("nf-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="nf-input";inp.style.display="none";document.body.appendChild(inp);}
 
   inp.onchange=async()=>{if(!inp.files.length)return;const f=inp.files[0];toast('Enviando nota fiscal…');
-
-    try{const path=await uploadPagDoc(oid,f,'nf');o.pag[i].nfDoc={name:f.name,storagePath:path,type:f.type};}
-
-    catch(e){console.error('upload NF:',e);o.pag[i].nfDoc={name:f.name,dataUrl:await fileToDataUrl(f),type:f.type};}
-
-    persist(oid);if(cur&&cur.id===oid)renderObra();toast("Nota fiscal anexada.");inp.value="";};inp.click();}
+    try{
+      const path=await uploadPagDoc(oid,f,'nf');
+      o.pag[i].nfDoc={name:f.name,storagePath:path,type:f.type};
+      persist(oid);if(cur&&cur.id===oid)renderObra();toast("Nota fiscal anexada.");
+    }catch(e){
+      console.error('upload NF:',e);
+      toast('❌ Falha ao salvar a nota fiscal. Verifique sua conexão e tente novamente.');
+    }
+    inp.value="";};inp.click();}
 
 
 
