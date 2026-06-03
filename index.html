@@ -7800,7 +7800,8 @@ async function uploadPagDoc(obraId,file,tipo){
 
   const ts=Date.now();
 
-  const path=`obra_${obraId}/${tipo}_${ts}/${file.name}`;
+  const safeName=file.name.replace(/[^a-zA-Z0-9._\-]/g,'_');
+  const path=`obra_${obraId}/${tipo}_${ts}/${safeName}`;
 
   const{error}=await db.storage.from('pagamentos').upload(path,file,{upsert:true});
 
@@ -7816,16 +7817,16 @@ function getPagDocUrl(storagePath){
 
   if(!storagePath)return null;
 
-  return `${SUPA_URL}/storage/v1/object/public/pagamentos/${storagePath}`;
+  var encodedPath=storagePath.split('/').map(function(s){return encodeURIComponent(s);}).join('/');
+  return SUPA_URL+'/storage/v1/object/public/pagamentos/'+encodedPath;
 
 }
 
 function getDocUrl(bucket,storagePath){
-
   if(!storagePath)return null;
-
-  return `${SUPA_URL}/storage/v1/object/public/${bucket}/${storagePath}`;
-
+  // Codificar cada segmento para lidar com espaços e caracteres especiais
+  var encodedPath=storagePath.split('/').map(function(s){return encodeURIComponent(s);}).join('/');
+  return SUPA_URL+'/storage/v1/object/public/'+bucket+'/'+encodedPath;
 }
 
 function inferType(path){
@@ -7927,10 +7928,8 @@ async function viewFile(d){
       try{
         if(typeof pdfjsLib==='undefined')throw new Error('PDF.js não carregado');
         pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        const resp=await fetch(url);
-        if(!resp.ok)throw new Error('HTTP '+resp.status);
-        const ab=await resp.arrayBuffer();
-        const pdf=await pdfjsLib.getDocument({data:new Uint8Array(ab)}).promise;
+        // Usar getDocument({url}) diretamente — lida melhor com CORS do que fetch()
+        const pdf=await pdfjsLib.getDocument({url:url,withCredentials:false}).promise;
         const wrap=document.getElementById('pdf-render-wrap');
         if(!wrap)return;
         // Info de páginas
@@ -7954,7 +7953,9 @@ async function viewFile(d){
         }
       }catch(e){
         const wrap=document.getElementById('pdf-render-wrap');
-        if(wrap)wrap.innerHTML='<div style="color:rgba(255,255,255,.8);text-align:center;padding:30px"><p style="margin-bottom:16px">Não foi possível renderizar o PDF.</p><button class="btn" onclick="downloadFromViewer()" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)">↓ Baixar para visualizar</button></div>';
+        const errMsg=e?.message||String(e);
+        console.error('[PDF Viewer]',e);
+        if(wrap)wrap.innerHTML='<div style="color:rgba(255,255,255,.8);text-align:center;padding:30px"><p style="margin-bottom:8px">Não foi possível renderizar o PDF.</p><p style="font-size:11.5px;opacity:.6;margin-bottom:16px">'+errMsg.slice(0,120)+'</p><button class="btn" onclick="downloadFromViewer()" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)">↓ Baixar para visualizar</button></div>';
       }
     })();
 
@@ -10088,12 +10089,14 @@ async function confirmImport(){
 
   if(impFile){
     try{
+      const{data:{session:_sess}}=await db.auth.getSession();
+      if(!_sess){toast('Sessão expirada. Faça login novamente.');return;}
       const path=await uploadPagDoc(cur.id,impFile,'nf');
       p.nfDoc={name:impFile.name,storagePath:path,type:impFile.type};
     }catch(e){
-      console.error('[confirmImport] Falha no upload da NF:',e);
-      toast('❌ Não foi possível salvar o arquivo da NF. Salve o lançamento assim mesmo e anexe a NF depois usando o botão 📎 no card do pagamento.');
-      // Não salvar como dataUrl — arquivo seria perdido no próximo carregamento
+      const msg=e?.message||e?.error||String(e);
+      console.error('[confirmImport] Falha upload NF:',e);
+      toast('⚠ NF não salva: '+msg.slice(0,100)+'. Confirme o lançamento e anexe depois com o botão 📎.');
     }
   }
 
