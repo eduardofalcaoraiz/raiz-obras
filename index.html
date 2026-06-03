@@ -8629,6 +8629,37 @@ async function readImportFile(inp){
 
   if(aiData&&(aiData.ben||aiData.val||aiData.cnpj||aiData.chave)){
 
+    // Para PDFs com mais de 1 página: ler páginas adicionais para capturar itens extras
+    if(isPDF&&aiData.tipo==='NF-e'){
+      try{
+        const ab=await file.arrayBuffer();
+        const _pdfCheck=await pdfjsLib.getDocument({data:new Uint8Array(ab)}).promise;
+        if(_pdfCheck.numPages>1){
+          _setImpStatus('Lendo páginas adicionais para itens…');
+          for(let pg=2;pg<=Math.min(_pdfCheck.numPages,4);pg++){
+            try{
+              const _pgB64=await _renderPdfPage(file,pg,1.4);
+              const _pgResp=await fetch(SUPA_URL+'/functions/v1/read-invoice',{
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_ANON,'apikey':SUPA_ANON},
+                body:JSON.stringify({imageBase64:_pgB64,mediaType:'image/jpeg'}),
+                signal:AbortSignal.timeout(30000)
+              });
+              if(_pgResp.ok){
+                const _pgJ=await _pgResp.json();
+                if(_pgJ.ok&&_pgJ.data&&_pgJ.data.itens&&_pgJ.data.itens.length){
+                  // Adicionar apenas itens novos (evitar duplicatas)
+                  const _existDesc=new Set((aiData.itens||[]).map(x=>x.descricao));
+                  const _novos=_pgJ.data.itens.filter(x=>x.descricao&&!_existDesc.has(x.descricao));
+                  if(_novos.length){aiData.itens=[...(aiData.itens||[]),..._novos];console.log('[NF pg'+pg+']',_novos.length,'itens extras');}
+                }
+              }
+            }catch(pgErr){console.warn('[NF pg'+pg+']',pgErr.message);}
+          }
+        }
+      }catch(pgCheckErr){console.warn('[NF multi-pg]',pgCheckErr.message);}
+    }
+
     showImportReview(aiData);
 
     if(!aiData.val)toast('⚠ IA não encontrou o valor total — preencha manualmente.');
@@ -8682,6 +8713,20 @@ async function readImportFile(inp){
 }
 
 
+
+// Renderiza uma página específica de um PDF como base64 JPEG
+async function _renderPdfPage(file,pageNum,scale){
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const ab=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:new Uint8Array(ab)}).promise;
+  if(pageNum>pdf.numPages)throw new Error('Página '+pageNum+' não existe');
+  const page=await pdf.getPage(pageNum);
+  const vp=page.getViewport({scale:scale||1.4});
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.round(vp.width);canvas.height=Math.round(vp.height);
+  await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+  return canvas.toDataURL('image/jpeg',0.85).split(',')[1];
+}
 
 async function pdfPageToJpeg(file,scale){
 
