@@ -8249,16 +8249,21 @@ function openImport(){
   impReviewData={}; impFile=null;
 
   document.getElementById("imp-upload").style.display="block";
-
   document.getElementById("imp-reading").style.display="none";
-
   document.getElementById("imp-review").style.display="none";
 
+  // Limpar TODOS os campos — cada NF é uma NF nova
   document.getElementById("imp-file").value="";
-
   document.getElementById("imp-chave-paste").value="";
-
-  const _refEl=document.getElementById("imp-ref");if(_refEl)_refEl.value="";
+  ['imp-ben','imp-doc','imp-chave','imp-ref','imp-obs','imp-venc','imp-cnpj'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  ['imp-val-input','imp-subtotal','imp-desconto','imp-frete'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var _iw=document.getElementById('imp-itens-wrap');if(_iw)_iw.innerHTML='';
+  var _it=document.getElementById('imp-tag');if(_it)_it.textContent='';
+  var _ticket=document.getElementById('imp-ticket');if(_ticket)_ticket.value='';
+  document.getElementById('imp-nftipo').value='NF-e';
+  impNfTipoChanged('NF-e');
+  impSetCusto('');
+  impSetEscopo('obra');
 
   _fillContrSelect("imp-contrato",cur,'');_fillConstrSel('imp-constr-sel',cur,'');
 
