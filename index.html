@@ -8745,15 +8745,13 @@ async function pdfPageToJpeg(file,scale){
 
   const vp=page.getViewport({scale:s});
 
-  const merged=document.createElement('canvas');
+  const canvas=document.createElement('canvas');
 
-  merged.width=Math.round(vp.width);merged.height=Math.round(vp.height);
+  canvas.width=Math.round(vp.width);canvas.height=Math.round(vp.height);
 
-  const ctx=merged.getContext('2d');let y=0;
+  await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
 
-  for(const c of canvases){ctx.drawImage(c,0,y);y+=c.height;}
-
-  const b64=merged.toDataURL('image/jpeg',0.88).split(',')[1];
+  const b64=canvas.toDataURL('image/jpeg',0.88).split(',')[1];
 
   if(b64.length>1500000&&s>1){
 
