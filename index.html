@@ -2448,7 +2448,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 <div class="overlay" id="viewer-overlay"><div class="modal" style="max-width:940px;width:100%">
 
-  <div class="mhead"><h2 id="viewer-name" style="font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:68%">Documento</h2><div style="display:flex;gap:10px;align-items:center"><a class="btn btn-sm" id="viewer-download" href="#" download><span class="ic">↓</span> Baixar</a><button class="x" onclick="closeViewer()">×</button></div></div>
+  <div class="mhead"><h2 id="viewer-name" style="font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:68%">Documento</h2><div style="display:flex;gap:10px;align-items:center"><button class="btn btn-sm" id="viewer-download" onclick="downloadFromViewer()"><span class="ic">↓</span> Baixar</button><button class="x" onclick="closeViewer()">×</button></div></div>
 
   <div class="mbody" id="viewer-body" style="padding:14px"></div>
 
@@ -3104,9 +3104,9 @@ async function cmVerContrato(){
 }
 async function cmDownloadContrato(){
   const path=document.getElementById('cm-doc-path')?.value;
-  if(_cmDocFile){const a=document.createElement('a');a.href=await fileToDataUrl(_cmDocFile);a.download=_cmDocFile.name;a.click();return;}
-  if(path){const url=getDocUrl('contratos',path);const a=document.createElement('a');a.href=url;a.download=path.split('/').pop();a.target='_blank';a.click();return;}
-  toast('Nenhum arquivo para baixar.');
+  if(_cmDocFile){viewFile({name:_cmDocFile.name,dataUrl:await fileToDataUrl(_cmDocFile),type:_cmDocFile.type});return;}
+  if(path){viewFile({name:path.split('/').pop(),storagePath:path,bucket:'contratos',type:inferType(path)});return;}
+  toast('Nenhum arquivo para visualizar.');
 }
 function cmRemoverContrato(){
   _cmDocFile=null;
@@ -6114,17 +6114,11 @@ async function viewUniDoc(cid,idx){
 }
 
 async function downloadDoc(cid,idx){
-
+  // Abre no viewer interno — download fica disponível dentro do viewer
   const d=(curUni.docs[cid]||[])[idx];
-
   if(!d)return;
-
-  const url=d.dataUrl||getDocUrl('documentos',d.storagePath);
-
-  if(!url){toast("Arquivo não encontrado.");return;}
-
-  const a=document.createElement('a');a.href=url;a.download=d.name;a.click();
-
+  if(!d.bucket&&d.storagePath)d.bucket='documentos';
+  viewFile(d);
 }
 
 async function deleteDoc(cid,idx){const d=(curUni.docs[cid]||[])[idx];if(!d)return;askConfirm(`Excluir "${d.name}"? Esta ação não pode ser desfeita.`,async()=>{if(d.storagePath)await db.storage.from('documentos').remove([d.storagePath]);if(d.dbId)await db.from('documentos_unidade').delete().eq('id',d.dbId);(curUni.docs[cid]||[]).splice(idx,1);renderUni();toast("Documento excluído.");});}
@@ -7857,7 +7851,7 @@ async function viewFile(d){
 
   const dl=document.getElementById("viewer-download");
 
-  if(dl){dl.href=url||"#";dl.setAttribute("download",d.name||'arquivo');}
+  if(dl){dl.dataset.url=url||'';dl.dataset.filename=d.name||'arquivo';}
 
   const body=document.getElementById("viewer-body");
 
@@ -7915,12 +7909,11 @@ async function viewFile(d){
 
     // PDF: tenta embed direto; fallback para abrir em nova aba
     body.innerHTML=`<div style="display:flex;flex-direction:column;height:78vh;gap:0">
-      <div style="background:#f0f0f0;padding:6px 12px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted)">
+      <div style="background:#f0f0f0;padding:6px 12px;border-radius:8px 8px 0 0;display:flex;align-items:center;font-size:12.5px;color:var(--muted)">
         <span>📄 ${d.name||'documento.pdf'}</span>
-        <a href="${url}" target="_blank" class="btn btn-ghost btn-sm" style="font-size:12px">Abrir em nova aba ↗</a>
       </div>
       <iframe src="${url}" style="flex:1;width:100%;border:0;border-radius:0 0 8px 8px;background:#fff"
-        onload="if(this.contentDocument&&this.contentDocument.body.innerHTML==='')this.outerHTML='<div style=padding:40px;text-align:center><p>O navegador não suporta PDF inline.</p><a href=${url} target=_blank class=btn>Abrir PDF ↗</a></div>'"
+        onload="if(this.contentDocument&&this.contentDocument.body.innerHTML==='')this.outerHTML='<div style=padding:40px;text-align:center><p style=margin-bottom:12px>Visualização não disponível neste browser.</p><button class=btn onclick=downloadFromViewer()>↓ Baixar PDF</button></div>'"
       ></iframe>
     </div>`;
 
@@ -7974,7 +7967,7 @@ async function viewFile(d){
 
     }catch(e){
 
-      body.innerHTML=`<div style="padding:40px;text-align:center;color:var(--muted)"><p>Não foi possível carregar o arquivo de texto.</p><a href="${url}" target="_blank" class="btn btn-sm" style="margin-top:12px">Abrir em nova aba</a></div>`;
+      body.innerHTML=`<div style="padding:40px;text-align:center;color:var(--muted)"><p>Não foi possível carregar o arquivo. Use o botão Baixar acima.</p></div>`;
 
     }
 
@@ -8008,12 +8001,31 @@ async function viewFile(d){
 
       <a href="${url}" download="${d.name}" class="btn btn-primary">⬇ Baixar arquivo</a>
 
-      <a href="${url}" target="_blank" class="btn btn-ghost" style="margin-left:10px">Abrir em nova aba</a>
+      <span style="font-size:12px;color:var(--muted)">Use o botão Baixar acima.</span>
 
     </div>`;
 
   }
 
+}
+
+async function downloadFromViewer(){
+  const dl=document.getElementById('viewer-download');
+  const url=dl?.dataset?.url;
+  const fname=dl?.dataset?.filename||'arquivo';
+  if(!url){toast('Nenhum arquivo disponível.');return;}
+  try{
+    const resp=await fetch(url);
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    const blob=await resp.blob();
+    const burl=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=burl;a.download=fname;a.click();
+    setTimeout(()=>URL.revokeObjectURL(burl),2000);
+  }catch(e){
+    // Fallback: abrir em nova aba se fetch falhar (CORS ou rede)
+    window.open(url,'_blank');
+    toast('Arquivo aberto em nova aba para download.');
+  }
 }
 
 function closeViewer(){document.getElementById("viewer-overlay").classList.remove("show");document.getElementById("viewer-body").innerHTML="";}
