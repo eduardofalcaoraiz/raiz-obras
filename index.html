@@ -10543,14 +10543,35 @@ async function onLogin(user){
   }
 
   if(profileErr&&!profile){
-    // Perfil não encontrado — pode ser primeiro login, criar perfil mínimo
+    // Distinguir "perfil não existe" (PGRST116) de erro de rede/timeout
+    const isNotFound=profileErr?.code==='PGRST116'
+      ||(profileErr?.message||'').toLowerCase().includes('no rows')
+      ||(profileErr?.message||'').toLowerCase().includes('not found');
+
+    if(!isNotFound){
+      // Erro de rede — NÃO criar/sobrescrever perfil (pode existir com aprovado:true)
+      console.error('[onLogin] Erro de rede:',profileErr?.message);
+      document.getElementById('login-screen').style.display='flex';
+      lSwitch('login');
+      const errEl=document.getElementById('l-err');
+      if(errEl){errEl.textContent='Erro de conexão ao carregar seu perfil. Tente novamente.';errEl.style.display='block';}
+      return;
+    }
+
+    // Perfil realmente não existe — criar com INSERT (nunca sobrescreve)
     const{data:nu}=await db.auth.getUser();
     const meta=nu?.user?.user_metadata||{};
-    const{error:upsertErr}=await db.from('user_profiles').upsert({
-      id:user.id,nome:meta.nome||user.email.split('@')[0],email:user.email,
-      role:meta.role||'leitor',aprovado:false
-    },{onConflict:'id'});
-    if(!upsertErr){const{data:pd2}=await db.from('user_profiles').select('*').eq('id',user.id).single();profile=pd2;}
+    const{error:insertErr}=await db.from('user_profiles').insert({
+      id:user.id,
+      nome:meta.nome||user.email.split('@')[0],
+      email:user.email,
+      role:meta.role||'leitor',
+      aprovado:false
+    });
+    if(!insertErr){
+      const{data:pd2}=await db.from('user_profiles').select('*').eq('id',user.id).single();
+      profile=pd2;
+    }
   }
 
   if(!profile||!profile.aprovado){
