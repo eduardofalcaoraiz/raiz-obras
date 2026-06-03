@@ -8683,7 +8683,7 @@ async function readImportFile(inp){
 
 
 
-async function pdfPageToJpeg(file,scale,pageNum){
+async function pdfPageToJpeg(file,scale){
 
   if(typeof pdfjsLib==='undefined')throw new Error('PDF.js não carregado');
 
@@ -8695,37 +8695,14 @@ async function pdfPageToJpeg(file,scale,pageNum){
 
   const s=scale||1.6;
 
-  const totalPages=pdfDoc.numPages;
+  // Renderiza apenas a página 1 — suficiente para a IA ler NF-e e NFS-e
+  const page=await pdfDoc.getPage(1);
 
-  // Renderiza até 2 páginas para capturar itens que estejam na pg 2
-  const pagesToRender=pageNum?[pageNum]:totalPages>1?[1,2]:[1];
+  const vp=page.getViewport({scale:s});
 
-  const canvases=[];
-
-  let totalHeight=0,maxWidth=0;
-
-  for(const pg of pagesToRender){
-
-    if(pg>totalPages)continue;
-
-    const page=await pdfDoc.getPage(pg);
-
-    const vp=page.getViewport({scale:s});
-
-    const c=document.createElement('canvas');
-
-    c.width=Math.round(vp.width);c.height=Math.round(vp.height);
-
-    await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
-
-    canvases.push(c);totalHeight+=c.height;maxWidth=Math.max(maxWidth,c.width);
-
-  }
-
-  // Concatenar verticalmente em um canvas único
   const merged=document.createElement('canvas');
 
-  merged.width=maxWidth;merged.height=totalHeight;
+  merged.width=Math.round(vp.width);merged.height=Math.round(vp.height);
 
   const ctx=merged.getContext('2d');let y=0;
 
@@ -8737,7 +8714,7 @@ async function pdfPageToJpeg(file,scale,pageNum){
 
     console.warn('[NF Import] Imagem grande, reduzindo escala…');
 
-    return pdfPageToJpeg(file,0.9,1); // fallback p.1 só
+    return pdfPageToJpeg(file,0.9); // fallback escala menor
 
   }
 
