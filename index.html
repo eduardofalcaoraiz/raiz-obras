@@ -5605,7 +5605,7 @@ function renderPag(){const o=cur;
           ${cat&&cat.nome!=='(removida)'?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Categoria</div><div style="font-size:13.5px">🏷 ${cat.nome}</div></div>`:''}
           ${cVinc?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Contrato vinculado</div><button onclick="event.stopPropagation();goToContract(${cVinc.seq})" style="font-size:13px;color:var(--info);background:var(--info)12;border:1px solid var(--info)33;border-radius:8px;padding:3px 10px;cursor:pointer;font-family:inherit;font-weight:600;text-align:left">📋 ${cVinc.nome_contr||cVinc.forn} →</button></div>`:''}
           ${p.nfTipo?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Documento fiscal</div><div style="font-size:13.5px">${p.nfTipo}${p.nfNum?' · Nº '+p.nfNum:''}</div></div>`:''}
-          ${p.ticketRaiz?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Ticket Raiz</div><div style="font-size:13.5px;font-family:"Space Grotesk",sans-serif;font-weight:700;color:#5C35CC">${p.ticketRaiz}</div></div>`:''}${p.obs?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Observações</div><div style="font-size:13px;color:var(--ink)">${p.obs}</div></div>`:''}
+          ${p.ticketRaiz?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Ticket Raiz</div><div style="font-size:13.5px;font-family:"Space Grotesk",sans-serif;font-weight:700;color:#5C35CC">${p.ticketRaiz}</div></div>`:''}${p.obs?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Observações</div><div style="font-size:13px;color:var(--ink)">${p.obs}</div></div>`:''}${p.itens&&p.itens.length?`<div style="grid-column:1/-1;margin-top:8px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:5px">Itens da Nota (${p.itens.length})</div><div style="overflow-x:auto"><table class="imp-itens-tbl"><thead><tr><th>#</th><th>Descrição</th><th style="text-align:right">Qtd</th><th>Un</th><th style="text-align:right">Total</th></tr></thead><tbody>${p.itens.map((it,ii)=>`<tr><td style="color:var(--muted);text-align:center;width:24px">${ii+1}</td><td>${it.descricao||'—'}</td><td style="text-align:right;white-space:nowrap">${it.quantidade!=null?parseFloat(it.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:4}):'—'}</td><td style="color:var(--muted)">${it.unidade||'—'}</td><td style="text-align:right;font-weight:600;white-space:nowrap">R$ ${it.valor_total!=null?parseFloat(it.valor_total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)">
           ${p.nfDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">📄 Ver NF</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarNF(${o.id},${i})">📎 Anexar NF</button>`}
@@ -8451,48 +8451,67 @@ async function readImportFile(inp){
 
 
 
-async function pdfPageToJpeg(file,scale){
+async function pdfPageToJpeg(file,scale,pageNum){
 
-  const buf=await file.arrayBuffer();
-
-  if(typeof pdfjsLib==='undefined')throw new Error('PDF.js não disponível — verifique conexão');
+  if(typeof pdfjsLib==='undefined')throw new Error('PDF.js não carregado');
 
   pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-  const pdfDoc=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+  const ab=await file.arrayBuffer();
 
-  const page=await pdfDoc.getPage(1);
+  const pdfDoc=await pdfjsLib.getDocument({data:new Uint8Array(ab)}).promise;
 
-  const vp=page.getViewport({scale:scale||1.6});
+  const s=scale||1.6;
 
-  const canvas=document.createElement('canvas');
+  const totalPages=pdfDoc.numPages;
 
-  canvas.width=vp.width; canvas.height=vp.height;
+  // Renderiza até 2 páginas para capturar itens que estejam na pg 2
+  const pagesToRender=pageNum?[pageNum]:totalPages>1?[1,2]:[1];
 
-  const ctx=canvas.getContext('2d');
+  const canvases=[];
 
-  ctx.fillStyle='#ffffff';
+  let totalHeight=0,maxWidth=0;
 
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+  for(const pg of pagesToRender){
 
-  await page.render({canvasContext:ctx,viewport:vp}).promise;
+    if(pg>totalPages)continue;
 
-  const b64=canvas.toDataURL('image/jpeg',0.82).split(',')[1];
+    const page=await pdfDoc.getPage(pg);
 
-  // Se ainda muito grande (>1.5MB base64 ≈ 1.1MB raw), renderiza menor
+    const vp=page.getViewport({scale:s});
 
-  if(b64.length>1500000&&scale>1){
+    const c=document.createElement('canvas');
 
-    console.warn('[NF Import] Imagem grande ('+Math.round(b64.length/1024)+'KB), reduzindo escala…');
+    c.width=Math.round(vp.width);c.height=Math.round(vp.height);
 
-    return pdfPageToJpeg(file,0.9);
+    await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+
+    canvases.push(c);totalHeight+=c.height;maxWidth=Math.max(maxWidth,c.width);
+
+  }
+
+  // Concatenar verticalmente em um canvas único
+  const merged=document.createElement('canvas');
+
+  merged.width=maxWidth;merged.height=totalHeight;
+
+  const ctx=merged.getContext('2d');let y=0;
+
+  for(const c of canvases){ctx.drawImage(c,0,y);y+=c.height;}
+
+  const b64=merged.toDataURL('image/jpeg',0.88).split(',')[1];
+
+  if(b64.length>1500000&&s>1){
+
+    console.warn('[NF Import] Imagem grande, reduzindo escala…');
+
+    return pdfPageToJpeg(file,0.9,1); // fallback p.1 só
 
   }
 
   return b64;
 
 }
-
 
 
 async function readInvoiceWithAI(file,onStatus){
@@ -9435,6 +9454,22 @@ function showImportReview(data){
 
   impRenderItens(data.itens||[],data.discriminacao||data.desc||'',nfTipo);
 
+  // Auto-preencher referência a partir dos itens (se campo estiver vazio)
+  const _refEl=document.getElementById('imp-ref');
+  if(_refEl&&!_refEl.value&&data.itens&&data.itens.length){
+    const _groups={};
+    data.itens.forEach(function(it){
+      const _t=matchMaterialTipo(it.descricao||'');
+      if(!_groups[_t]){_groups[_t]={qtd:0,un:it.unidade||'un',nome:(MATERIAL_TIPOS.find(function(m){return m.id===_t;})||{nome:'Outros'}).nome.split(' ')[0]};}
+      _groups[_t].qtd+=(parseFloat(it.quantidade)||0);
+    });
+    const _parts=Object.entries(_groups).slice(0,3).map(function(e){
+      var g=e[1]; return g.nome+' '+g.qtd.toLocaleString('pt-BR',{maximumFractionDigits:2})+' '+g.un;
+    });
+    if(data.itens.length>3)_parts.push('+'+(data.itens.length-3)+' itens');
+    _refEl.value=_parts.join(' · ');
+  }
+
   // Valores
 
   setCurrencyValue("imp-subtotal",data.subtotal&&data.subtotal!==data.val?data.subtotal:0);
@@ -9565,40 +9600,83 @@ function impRenderItens(itens,discriminacao,nfTipo){
 
   }
 
-  if(!itens||!itens.length){
+  // Cores dos tipos de material
+  const TIPO_COLOR={concreto:'#795548',aco:'#546E7A',alvenaria:'#BF360C',ceramica:'#6A1B9A',
+    pintura:'#1B5E20',madeira:'#4E342E',cobertura:'#01579B',hidraulica:'#006064',
+    eletrica:'#F57F17',esquadria:'#004D40',impermeab:'#1A237E',outros:'#424242'};
 
-    wrap.innerHTML=`<p style="color:var(--muted);font-size:13px;text-align:center;padding:12px 0">Itens não extraídos automaticamente.<br><span style="font-size:12px">Se necessário, registre as informações em Observações.</span></p>`;
-
-    return;
-
+  function _buildRows(itensArr){
+    return itensArr.map((it,i)=>{
+      const tipo=matchMaterialTipo(it.descricao||'');
+      const cor=TIPO_COLOR[tipo]||'#424242';
+      const tipoNome=(MATERIAL_TIPOS.find(m=>m.id===tipo)||{nome:'Outros'}).nome.split(' ')[0];
+      const fmtV=v=>v!=null&&v>0?parseFloat(v).toLocaleString('pt-BR',{minimumFractionDigits:2}):'';
+      const fmtQ=v=>v!=null&&v>0?parseFloat(v).toLocaleString('pt-BR',{maximumFractionDigits:4}):'';
+      return `<tr data-row="${i}">
+        <td style="text-align:center;width:26px;vertical-align:middle">
+          <button type="button" onclick="impRemoveItem(${i})" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:13px;padding:2px 4px;line-height:1">✕</button>
+        </td>
+        <td>
+          <input data-f="desc" class="fi" style="font-size:12.5px;padding:4px 7px;min-width:180px;width:100%" value="${(it.descricao||'').replace(/"/g,'&quot;')}" placeholder="Descrição do item">
+          <span style="display:inline-block;background:${cor}18;color:${cor};border:1px solid ${cor}40;border-radius:4px;font-size:10px;font-weight:600;padding:1px 5px;margin-top:3px">${tipoNome}</span>
+        </td>
+        <td><input data-f="qtd" class="fi num" style="font-size:12.5px;padding:4px 6px;width:70px;text-align:right" value="${fmtQ(it.quantidade)}" placeholder="0"></td>
+        <td><input data-f="un" class="fi" style="font-size:12.5px;padding:4px 6px;width:52px;text-transform:uppercase" value="${(it.unidade||'').replace(/"/g,'&quot;')}" placeholder="UN"></td>
+        <td><input data-f="vunit" class="fi num" style="font-size:12px;padding:4px 6px;width:88px;text-align:right" value="${fmtV(it.valor_unitario)}" placeholder="0,00"></td>
+        <td><input data-f="vtot" class="fi num" style="font-size:12px;padding:4px 6px;width:88px;text-align:right;font-weight:600" value="${fmtV(it.valor_total)}" placeholder="0,00"></td>
+      </tr>`;
+    }).join('');
   }
 
-  const fmtN=v=>v!=null?parseFloat(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
+  if(!itens||!itens.length){
+    wrap.innerHTML='<p style="color:var(--muted);font-size:13px;text-align:center;padding:10px 0">Nenhum item extraído. <button class="linkbtn" onclick="impAddItem()">＋ Adicionar manualmente</button></p>';
+    return;
+  }
 
-  const rows=itens.map((it,i)=>`<tr>
+  wrap.innerHTML=`<div style="overflow-x:auto"><table class="imp-itens-tbl" id="imp-itens-tbl">
+    <thead><tr>
+      <th style="width:26px"></th>
+      <th>Descrição + Tipo</th>
+      <th style="text-align:right">Qtd</th>
+      <th>Unid</th>
+      <th style="text-align:right">Vlr Unit</th>
+      <th style="text-align:right">Vlr Total</th>
+    </tr></thead>
+    <tbody id="imp-itens-tbody">${_buildRows(itens)}</tbody>
+  </table></div>
+  <button type="button" class="btn btn-ghost btn-sm" onclick="impAddItem()" style="margin-top:6px;font-size:12px"><span class="ic">＋</span> Adicionar item</button>`;
 
-    <td style="color:var(--muted);text-align:center;width:28px">${i+1}</td>
+}
 
-    <td style="max-width:240px">${it.descricao||'—'}</td>
+function impAddItem(){
+  const tbody=document.getElementById('imp-itens-tbody');
+  if(!tbody){
+    const wrap=document.getElementById('imp-itens-wrap');
+    if(wrap)wrap.innerHTML='<div style="overflow-x:auto"><table class="imp-itens-tbl" id="imp-itens-tbl"><thead><tr><th style="width:26px"></th><th>Descrição + Tipo</th><th style="text-align:right">Qtd</th><th>Unid</th><th style="text-align:right">Vlr Unit</th><th style="text-align:right">Vlr Total</th></tr></thead><tbody id="imp-itens-tbody"></tbody></table></div><button type="button" class="btn btn-ghost btn-sm" onclick="impAddItem()" style="margin-top:6px;font-size:12px"><span class="ic">＋</span> Adicionar item</button>';
+    impAddItem();return;
+  }
+  const i=tbody.querySelectorAll('tr[data-row]').length;
+  const tr=document.createElement('tr');tr.dataset.row=i;
+  tr.innerHTML=`<td style="text-align:center;vertical-align:middle"><button type="button" onclick="impRemoveItem(${i})" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:13px;padding:2px 4px">✕</button></td><td><input data-f="desc" class="fi" style="font-size:12.5px;padding:4px 7px;min-width:180px;width:100%" placeholder="Descrição do item"></td><td><input data-f="qtd" class="fi num" style="font-size:12.5px;padding:4px 6px;width:70px;text-align:right" placeholder="0"></td><td><input data-f="un" class="fi" style="font-size:12.5px;padding:4px 6px;width:52px;text-transform:uppercase" placeholder="UN"></td><td><input data-f="vunit" class="fi num" style="font-size:12px;padding:4px 6px;width:88px;text-align:right" placeholder="0,00"></td><td><input data-f="vtot" class="fi num" style="font-size:12px;padding:4px 6px;width:88px;text-align:right;font-weight:600" placeholder="0,00"></td>`;
+  tbody.appendChild(tr);
+  tr.querySelector('[data-f="desc"]').focus();
+}
 
-    <td style="text-align:right;white-space:nowrap">${it.quantidade!=null?parseFloat(it.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:4}):'—'}</td>
+function impRemoveItem(idx){
+  const row=document.querySelector('#imp-itens-tbody tr[data-row="'+idx+'"]');
+  if(row)row.remove();
+}
 
-    <td style="color:var(--muted)">${it.unidade||'—'}</td>
-
-    <td style="text-align:right;white-space:nowrap">R$ ${fmtN(it.valor_unitario)}</td>
-
-    <td style="text-align:right;white-space:nowrap;font-weight:600">R$ ${fmtN(it.valor_total)}</td>
-
-  </tr>`).join('');
-
-  wrap.innerHTML=`<div style="overflow-x:auto"><table class="imp-itens-tbl">
-
-    <thead><tr><th style="width:28px;text-align:center">#</th><th>Descrição</th><th style="text-align:right">Qtd</th><th>Unid</th><th style="text-align:right">Vlr Unit</th><th style="text-align:right">Vlr Total</th></tr></thead>
-
-    <tbody>${rows}</tbody>
-
-  </table></div>`;
-
+function getImpItens(){
+  const rows=document.querySelectorAll('#imp-itens-tbody tr[data-row]');
+  if(!rows.length)return[];
+  return Array.from(rows).map(tr=>({
+    descricao:(tr.querySelector('[data-f="desc"]')?.value||'').trim(),
+    quantidade:parseCurrency(tr.querySelector('[data-f="qtd"]')?.value||'')||0,
+    unidade:(tr.querySelector('[data-f="un"]')?.value||'').trim().toUpperCase()||'UN',
+    valor_unitario:parseCurrency(tr.querySelector('[data-f="vunit"]')?.value||'')||0,
+    valor_total:parseCurrency(tr.querySelector('[data-f="vtot"]')?.value||'')||0,
+  })).filter(it=>it.descricao);
 }
 
 
@@ -9751,7 +9829,10 @@ async function confirmImport(){
 
   // Itens
 
-  if(impReviewData&&impReviewData.itens&&impReviewData.itens.length)p.itens=impReviewData.itens;
+  // Ler itens do DOM (usuário pode ter editado)
+  var _domItens=getImpItens();
+  if(_domItens.length)p.itens=_domItens;
+  else if(impReviewData&&impReviewData.itens&&impReviewData.itens.length)p.itens=impReviewData.itens;
 
   if(impFile){try{const path=await uploadPagDoc(cur.id,impFile,'nf');p.nfDoc={name:impFile.name,storagePath:path,type:impFile.type};}catch(e){p.nfDoc={name:impFile.name,dataUrl:await fileToDataUrl(impFile),type:impFile.type};}}
 
