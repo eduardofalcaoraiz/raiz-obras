@@ -6020,7 +6020,7 @@ function renderDocs(){
 
 
 
-async function openUni(id){curUni=unidades.find(u=>u.id===id);curUni.docs={};const snap=curUni.docs;const{data}=await db.from('documentos_unidade').select('*').eq('unidade_id',id);if(curUni.docs!==snap)return;if(data)data.forEach(d=>{(curUni.docs[d.cat_id]=curUni.docs[d.cat_id]||[]).push({dbId:d.id,name:d.name,dataUrl:d.data_url||null,storagePath:d.storage_path||null,type:d.type});});renderUni();go("uni");}
+async function openUni(id){curUni=unidades.find(u=>u.id===id);curUni.docs={};const snap=curUni.docs;const{data}=await db.from('documentos_unidade').select('*').eq('unidade_id',id);if(curUni.docs!==snap)return;if(data)data.forEach(d=>{(curUni.docs[d.cat_id]=curUni.docs[d.cat_id]||[]).push({dbId:d.id,name:d.name,storagePath:d.storage_path||null,type:d.type});});renderUni();go("uni");}
 
 function renderUni(){const u=curUni;document.getElementById("u-crumb").innerHTML=`<span style="display:inline-flex;align-items:center;gap:7px;background:${brandLight(u.marca)};border:1.5px solid ${brandColor(u.marca)}44;border-radius:20px;padding:3px 10px 3px 4px"><span style="display:inline-flex;background:white;border-radius:5px;overflow:hidden;height:20px;width:32px;align-items:center;flex-shrink:0;border:1px solid ${brandColor(u.marca)}22">${brandLogoImg(u.marca,'height:16px;width:28px;object-fit:contain')}</span><span style="font-size:12px;font-weight:600;color:${brandColor(u.marca)}">${u.marca}</span></span>`;document.getElementById("u-nome").textContent=u.nome;const _uobra=u.obraId?obras.find(x=>x.id===u.obraId):null;document.getElementById("u-meta").innerHTML=`<span class="badge ${u.tipo==='Em obra'?'b-info':'b-ok'}">${u.tipo||'Em operação'}</span>${_uobra?` <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="openObra(${_uobra.id})">↗ ${_uobra.nome}</button>`:""}`;
 
@@ -7835,17 +7835,17 @@ async function viewFile(d){
 
   if(!d)return;
 
-  // Resolve URL — prioridade: dataUrl > storage path (com bucket correto) > _signedUrl
+  // Resolve URL — prioridade: storagePath (Storage) > dataUrl (só sessão) > _signedUrl
+  // storagePath é persistente; dataUrl só existe enquanto a página está aberta
 
-  let url=d.dataUrl;
+  let url=null;
 
-  if(!url&&d.storagePath){
-
+  if(d.storagePath){
     const bucket=d.bucket||'pagamentos';
-
     url=getDocUrl(bucket,d.storagePath);
-
   }
+
+  if(!url&&d.dataUrl)url=d.dataUrl; // fallback: arquivo em memória (sessão atual)
 
   if(!url&&d._signedUrl)url=d._signedUrl;
 
@@ -10053,7 +10053,16 @@ async function confirmImport(){
   if(_domItens.length)p.itens=_domItens;
   else if(impReviewData&&impReviewData.itens&&impReviewData.itens.length)p.itens=impReviewData.itens;
 
-  if(impFile){try{const path=await uploadPagDoc(cur.id,impFile,'nf');p.nfDoc={name:impFile.name,storagePath:path,type:impFile.type};}catch(e){p.nfDoc={name:impFile.name,dataUrl:await fileToDataUrl(impFile),type:impFile.type};}}
+  if(impFile){
+    try{
+      const path=await uploadPagDoc(cur.id,impFile,'nf');
+      p.nfDoc={name:impFile.name,storagePath:path,type:impFile.type};
+    }catch(e){
+      console.error('[confirmImport] Falha no upload da NF:',e);
+      toast('❌ Não foi possível salvar o arquivo da NF. Salve o lançamento assim mesmo e anexe a NF depois usando o botão 📎 no card do pagamento.');
+      // Não salvar como dataUrl — arquivo seria perdido no próximo carregamento
+    }
+  }
 
   if(cnpj&&cnpj!=='—'){CNPJS[ben]=cnpj;autoSaveFornecedor(ben,cnpj);}
 
