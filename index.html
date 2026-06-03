@@ -893,43 +893,64 @@ to{transform:rotate(var(--r,0deg)) translateY(-10px)}}
 
 
 /* ════ LOGIN — arte igual às páginas de obras ══════════════════════════════ */
-#login-screen{
-  background:#06101c;
-  position:fixed;inset:0;
-  display:flex;align-items:center;justify-content:center;
-  z-index:900;overflow:hidden
-}
+
 /* Fundo artístico — opacidade reduzida para não dominar */
-#login-bg{
-  position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;
-  opacity:0.28
-}
+
 /* Overlay escuro forte sobre o fundo para deixar o card legível */
-#login-screen::after{
-  content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
-  background:rgba(6,16,28,.62)
-}
+
 /* Card de login — centrado, branco, acima de tudo */
-#login-screen .lcard{
-  position:relative;z-index:10;
-  background:#ffffff;
-  border-radius:20px;
-  padding:40px 36px;
-  width:calc(100% - 40px);max-width:420px;
-  margin:auto;
-  box-shadow:
-    0 2px 4px rgba(0,0,0,.04),
-    0 12px 32px rgba(0,0,0,.18),
-    0 32px 72px rgba(0,0,0,.28),
-    0 0 0 1px rgba(255,255,255,.06)
-}
-#login-screen .lbrand{
-  margin:-40px -36px 28px;
-  border-radius:22px 22px 0 0
-}
+
+
 @media(max-width:600px){
-  #login-screen .lcard{padding:26px 20px;border-radius:16px}
-  #login-screen .lbrand{margin:-26px -20px 22px;border-radius:16px 16px 0 0}
+  
+  
+}
+
+/* ════ LOGIN — premium dark ════════════════════════════════════════════════ */
+#login-screen{
+  position:fixed;inset:0;z-index:900;
+  display:flex;align-items:center;justify-content:center;
+  /* Dark gradiente sutil — profundidade sem cor */
+  background:
+    radial-gradient(ellipse 120% 100% at 50% -10%,#0f1e38 0%,#07101c 55%),
+    #07101c;
+  overflow:hidden
+}
+/* Grade de pontos quase invisível — toque técnico premium */
+#login-screen::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:radial-gradient(rgba(255,255,255,.06) 1px,transparent 1px);
+  background-size:28px 28px;
+  mask-image:radial-gradient(ellipse 70% 80% at 50% 50%,black 20%,transparent 80%);
+  -webkit-mask-image:radial-gradient(ellipse 70% 80% at 50% 50%,black 20%,transparent 80%)
+}
+/* Card */
+#login-screen .lcard{
+  position:relative;z-index:2;margin:auto;
+  background:#fff;
+  border-radius:18px;
+  padding:0;
+  width:calc(100% - 32px);max-width:420px;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.07),
+    0 8px 24px rgba(0,0,0,.3),
+    0 32px 72px rgba(0,0,0,.45)
+}
+/* Faixa topo do card — cor da marca RAIZ */
+#login-screen .lbrand{
+  background:#F88808;
+  margin:0;
+  border-radius:18px 18px 0 0;
+  padding:22px 28px 20px
+}
+/* Conteúdo do formulário */
+#login-screen .lcard>div:not(.lbrand){
+  padding:28px 28px 32px
+}
+@media(max-width:500px){
+  #login-screen .lcard{max-width:100%;border-radius:0;width:100%;min-height:100vh;display:flex;flex-direction:column;justify-content:center}
+  #login-screen .lbrand{border-radius:0}
+  #login-screen .lcard>div:not(.lbrand){padding:24px 20px 28px}
 }
 </style>
 
@@ -945,11 +966,10 @@ to{transform:rotate(var(--r,0deg)) translateY(-10px)}}
 
 <div id="login-screen">
 
-  <div id="login-bg"></div>
-
+  
   <div class="lcard">
 
-    <div class="lbrand"><div class="mk"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png" style="width:100%;height:100%;object-fit:contain" alt="Raiz Educação"></div><div><b>Raiz Educação</b><span>Gestão de obras &amp; documentos</span></div></div>
+    <div class="lbrand"><div style="display:flex;align-items:center;gap:14px;margin-bottom:14px"><div class="mk" style="flex-shrink:0"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png" style="width:100%;height:100%;object-fit:contain" alt="Raiz Educação"></div><div><b style="font-family:'Outfit',sans-serif;font-size:15px;font-weight:700;color:#fff;display:block;line-height:1.2">Raiz Educação</b><span style="font-size:11.5px;color:rgba(255,255,255,.75);font-weight:500">Grupo de Educação</span></div></div><div style="border-top:1px solid rgba(255,255,255,.2);padding-top:14px"><div style="font-family:'Outfit',sans-serif;font-size:22px;font-weight:800;color:#fff;letter-spacing:-.02em;line-height:1.1">Gestão de Obras</div><div style="font-size:12px;color:rgba(255,255,255,.7);margin-top:3px;font-weight:500">Obras · Contratos · Pagamentos · Documentos</div></div></div>
 
     <!-- Painel: Login -->
     <div id="lf-login">
@@ -10577,18 +10597,7 @@ async function onLogin(user){
   renderGeral();updateNavBadge();populateEscolasSelect();updateSideArt(["RAIZ"]);
 }
 
-// Arte de fundo do login — 6 cores representativas, suave
-(function(){
-  try{
-    var loginCols=['#F88808','#480868','#08B8A8','#88B858','#0848B8','#F85838'];
-    var bgEl=document.getElementById('login-bg');
-    if(bgEl){
-      var W=Math.max(window.innerWidth,1400);
-      var H=Math.max(window.innerHeight,900);
-      bgEl.innerHTML=_makePageArt(loginCols,W,H,[]);
-    }
-  }catch(e){console.warn('[login art]',e);}
-})();
+
 
 // Inicialização com tratamento de erro
 (async()=>{
