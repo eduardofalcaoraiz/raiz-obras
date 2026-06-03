@@ -352,7 +352,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 #login-screen{position:fixed;inset:0;background:linear-gradient(145deg,#173C34 0%,#1A5040 55%,#0F2A24 100%);display:flex;align-items:center;justify-content:center;padding:24px;z-index:200}
 
-#login-screen .lcard{background:var(--surface);border:0;border-radius:20px;padding:36px 32px;width:100%;max-width:410px;box-shadow:0 40px 80px -20px rgba(0,0,0,.55);overflow:hidden}
+#login-screen .lcard{background:rgba(255,255,255,.97);border:0;border-radius:20px;padding:36px 32px;width:100%;max-width:420px;box-shadow:0 40px 80px -20px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.08);overflow:hidden;position:relative;z-index:2}#login-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}#login-bg .lb-item{position:absolute;font-weight:800;letter-spacing:.04em;text-transform:uppercase;opacity:.13;white-space:nowrap;animation:lbFloat linear infinite}@keyframes lbFloat{0%{transform:translateY(0) rotate(var(--r,0deg))}50%{transform:translateY(-18px) rotate(var(--r,0deg))}100%{transform:translateY(0) rotate(var(--r,0deg))}}
 
 #login-screen .lbrand{display:flex;align-items:center;gap:13px;margin:-36px -32px 28px;padding:22px 28px 22px;border-bottom:1px solid rgba(0,0,0,.08);background:linear-gradient(135deg,#F08700 0%,#E07200 100%)}
 
@@ -360,7 +360,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 #login-screen .lbrand b{font-family:"Outfit",system-ui,sans-serif;font-weight:600;font-size:18px;color:#fff;display:block;line-height:1.1}
 
-#login-screen .lbrand span{font-size:12px;color:rgba(255,255,255,.82)}
+#login-screen .lbrand span{font-size:12px;color:rgba(255,255,255,.9);font-weight:500}
 
 .foot-user{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
 
@@ -615,9 +615,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
   #login-screen{padding:16px}
 
-  #login-screen .lcard{padding:24px 18px}
+  #login-screen .lcard{padding:26px 20px}
 
-  #login-screen .lbrand{margin:-24px -18px 24px;padding:18px 20px}
+  #login-screen .lbrand{margin:-26px -20px 24px;padding:18px 20px}
 
 
 
@@ -832,52 +832,92 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 <div id="login-screen">
 
+  <!-- Fundo visual: marcas + engenharia + documentos + finanças -->
+  <div id="login-bg">
+    <div class="lb-item" style="font-size:52px;color:#F88808;left:3%;top:8%;--r:-12deg;animation-duration:9s;animation-delay:0s">RAIZ</div>
+    <div class="lb-item" style="font-size:38px;color:#480868;right:5%;top:15%;--r:8deg;animation-duration:11s;animation-delay:-2s">QI</div>
+    <div class="lb-item" style="font-size:44px;color:#08B8A8;left:8%;bottom:22%;--r:6deg;animation-duration:13s;animation-delay:-4s">CUBO</div>
+    <div class="lb-item" style="font-size:30px;color:#88B858;right:8%;bottom:30%;--r:-9deg;animation-duration:10s;animation-delay:-1s">GLOBAL TREE</div>
+    <div class="lb-item" style="font-size:28px;color:#183868;left:20%;top:28%;--r:4deg;animation-duration:14s;animation-delay:-6s">SARAH DAWSEY</div>
+    <div class="lb-item" style="font-size:34px;color:#E86808;right:18%;top:42%;--r:-6deg;animation-duration:12s;animation-delay:-3s">LEONARDO DA VINCI</div>
+    <div class="lb-item" style="font-size:22px;color:#0878C8;left:5%;top:55%;--r:10deg;animation-duration:15s;animation-delay:-7s">SÁ PEREIRA</div>
+    <div class="lb-item" style="font-size:24px;color:#F85838;right:3%;bottom:12%;--r:-4deg;animation-duration:8s;animation-delay:-5s">SAP</div>
+    <div class="lb-item" style="font-size:26px;color:#582878;left:35%;bottom:10%;--r:7deg;animation-duration:16s;animation-delay:-8s">UNIFICADO</div>
+    <div class="lb-item" style="font-size:20px;color:#0848B8;right:30%;top:6%;--r:-11deg;animation-duration:11s;animation-delay:-9s">APOGEU</div>
+    <!-- Ícones de engenharia e documentos -->
+    <div class="lb-item" style="font-size:48px;color:#fff;left:48%;top:18%;--r:15deg;animation-duration:10s;animation-delay:-2s">📐</div>
+    <div class="lb-item" style="font-size:44px;color:#fff;right:25%;bottom:18%;--r:-8deg;animation-duration:13s;animation-delay:-4s">📋</div>
+    <div class="lb-item" style="font-size:40px;color:#fff;left:15%;top:42%;--r:5deg;animation-duration:9s;animation-delay:-6s">🏗</div>
+    <div class="lb-item" style="font-size:42px;color:#fff;right:42%;top:68%;--r:-14deg;animation-duration:14s;animation-delay:-1s">📁</div>
+    <div class="lb-item" style="font-size:36px;color:#fff;left:62%;bottom:35%;--r:9deg;animation-duration:12s;animation-delay:-3s">📈</div>
+    <div class="lb-item" style="font-size:38px;color:#fff;left:28%;top:72%;--r:-7deg;animation-duration:11s;animation-delay:-5s">🔧</div>
+    <div class="lb-item" style="font-size:34px;color:#F88808;right:14%;top:25%;--r:12deg;animation-duration:10s;animation-delay:-7s">R$</div>
+    <div class="lb-item" style="font-size:32px;color:#fff;left:72%;top:8%;--r:-3deg;animation-duration:15s;animation-delay:-9s">📏</div>
+    <div class="lb-item" style="font-size:36px;color:#08B8A8;left:55%;bottom:8%;--r:6deg;animation-duration:13s;animation-delay:-2s">⚙️</div>
+    <div class="lb-item" style="font-size:30px;color:#fff;right:55%;top:38%;--r:-10deg;animation-duration:9s;animation-delay:-8s">🏛</div>
+  </div>
+
   <div class="lcard">
 
     <div class="lbrand"><div class="mk"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png" style="width:100%;height:100%;object-fit:contain" alt="Raiz Educação"></div><div><b>Raiz Educação</b><span>Gestão de obras &amp; documentos</span></div></div>
 
+    <!-- Painel: Login -->
     <div id="lf-login">
-
-      <div class="frow"><label class="fl">E-mail</label><input class="fi" type="email" id="l-email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
-
-      <div class="frow" style="margin-bottom:16px"><label class="fl">Senha</label><input class="fi" type="password" id="l-senha" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
-
-      <p id="l-err" style="color:var(--danger);font-size:13px;margin-bottom:12px;display:none"></p>
-
-      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Entrar</button>
-
-      <div style="text-align:center;margin-top:14px"><button class="linkbtn" onclick="lSwitch('cad')">Ainda não tem conta? Cadastre-se</button></div>
-
+      <div class="frow"><label class="fl">E-mail</label><input class="fi" type="email" id="l-email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')doLogin()" autocomplete="email"></div>
+      <div class="frow"><label class="fl">Senha</label><input class="fi" type="password" id="l-senha" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()" autocomplete="current-password"></div>
+      <p id="l-err" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></p>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:12px" onclick="doLogin()"><span id="l-btn-txt">Entrar</span></button>
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+        <button class="linkbtn" onclick="lSwitch('cad')" style="font-size:12.5px">Criar conta</button>
+        <button class="linkbtn" onclick="lSwitch('reset')" style="font-size:12.5px;color:var(--muted)">Esqueci a senha</button>
+      </div>
     </div>
 
+    <!-- Painel: Cadastro -->
     <div id="lf-cad" style="display:none">
-
-      <div class="frow"><label class="fl">Seu nome</label><input class="fi" id="c-nome" placeholder="Nome completo"></div>
-
-      <div class="frow"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="seu@email.com"></div>
-
-      <div class="frow"><label class="fl">Senha</label><input class="fi" type="password" id="c-senha" placeholder="Mínimo 6 caracteres" onkeydown="if(event.key==='Enter')doCadastro()"></div>
-
-      <div class="frow" style="margin-bottom:16px"><label class="fl">Função solicitada</label><select class="fi" id="c-role"><option value="leitor">Leitor — apenas visualizar</option><option value="editor">Editor — criar e editar dados</option></select></div>
-
-      <p id="c-err" style="color:var(--danger);font-size:13px;margin-bottom:12px;display:none"></p>
-
-      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doCadastro()">Solicitar acesso</button>
-
-      <div style="text-align:center;margin-top:14px"><button class="linkbtn" onclick="lSwitch('login')">Já tenho conta</button></div>
-
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">Solicitar acesso</h3>
+      <div class="frow"><label class="fl">Seu nome</label><input class="fi" id="c-nome" placeholder="Nome completo" autocomplete="name"></div>
+      <div class="frow"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="seu@email.com" autocomplete="email"></div>
+      <div class="frow"><label class="fl">Senha</label><input class="fi" type="password" id="c-senha" placeholder="Mínimo 6 caracteres" onkeydown="if(event.key==='Enter')doCadastro()" autocomplete="new-password"></div>
+      <div class="frow" style="margin-bottom:16px">
+        <label class="fl">Perfil solicitado</label>
+        <select class="fi" id="c-role">
+          <option value="leitor">👁 Leitor — somente visualizar</option>
+          <option value="doc">📁 Contribuidor de documentos — upload de documentos das escolas</option>
+          <option value="editor">✏️ Editor — criar e editar obras, pagamentos e contratos</option>
+        </select>
+      </div>
+      <p id="c-err" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></p>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:12px" onclick="doCadastro()">Solicitar acesso</button>
+      <div style="text-align:center"><button class="linkbtn" onclick="lSwitch('login')" style="font-size:12.5px">Já tenho conta</button></div>
     </div>
 
+    <!-- Painel: Esqueci a senha -->
+    <div id="lf-reset" style="display:none">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:8px">Redefinir senha</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5">Informe seu e-mail. Você receberá um link para criar uma nova senha.</p>
+      <div class="frow"><label class="fl">E-mail</label><input class="fi" type="email" id="r-email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')doReset()" autocomplete="email"></div>
+      <p id="r-err" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></p>
+      <p id="r-ok" style="color:var(--ok);font-size:13px;margin-bottom:10px;display:none">✓ Link enviado! Verifique seu e-mail (inclusive a caixa de spam).</p>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:12px" onclick="doReset()">Enviar link</button>
+      <div style="text-align:center"><button class="linkbtn" onclick="lSwitch('login')" style="font-size:12.5px">Voltar ao login</button></div>
+    </div>
+
+    <!-- Painel: Nova senha (após clicar no link do email) -->
+    <div id="lf-newpwd" style="display:none">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:8px">Criar nova senha</h3>
+      <div class="frow"><label class="fl">Nova senha</label><input class="fi" type="password" id="np-senha" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+      <div class="frow" style="margin-bottom:16px"><label class="fl">Confirmar senha</label><input class="fi" type="password" id="np-conf" placeholder="Repita a senha" onkeydown="if(event.key==='Enter')doNewPassword()"></div>
+      <p id="np-err" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></p>
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doNewPassword()">Salvar nova senha</button>
+    </div>
+
+    <!-- Painel: Aguardando aprovação -->
     <div id="lf-pend" style="display:none;text-align:center;padding:8px 0 4px">
-
       <div style="font-size:38px;margin-bottom:14px">⏳</div>
-
       <h3 style="font-size:17px;margin-bottom:8px">Aguardando aprovação</h3>
-
-      <p style="color:var(--muted);font-size:14px;line-height:1.6">Seu cadastro foi recebido. Um administrador precisa aprovar seu acesso antes de entrar.</p>
-
+      <p style="color:var(--muted);font-size:14px;line-height:1.6">Seu cadastro foi recebido. Um administrador irá aprovar seu acesso em breve.</p>
       <button class="btn btn-ghost btn-sm" style="margin-top:18px" onclick="doLogout()">Voltar ao login</button>
-
     </div>
 
   </div>
@@ -3093,7 +3133,7 @@ function openContrModal(idx){
 function closeContrModal(){document.getElementById("contr-overlay").classList.remove("show");contrEditIdx=null;}
 
 async function saveContr(){
-  if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
   const g=v=>document.getElementById(v);
   const nomeContr=g("cm-nome-contr").value.trim();if(!nomeContr){toast("Dê um nome ao contrato.");return;}
   const fornSel=g('cm-forn-select').value;
@@ -6571,7 +6611,7 @@ function setObraStatus(id,st){const o=obras.find(x=>x.id===id);if(!o)return;o.st
 
 async function deleteObra(id,e){
 
-  if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   if(e)e.stopPropagation();
 
@@ -7071,7 +7111,7 @@ function pmStChange(){
   if(st==='PAGO'){const pe=document.getElementById('pm-pago-em');if(pe&&!pe.value)pe.value=new Date().toISOString().slice(0,10);}
 }
 
-function savePag(){if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const cSeq=document.getElementById("pm-contrato")?.value||'';
+function savePag(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const cSeq=document.getElementById("pm-contrato")?.value||'';
   // Preserva tipoCusto existente se for mat/svc/eqp; senão marca como 'outros' (categorizado)
   const _existTipo=pagEditIdx!==null?(cur.pag[pagEditIdx].tipoCusto||''):'';
   const tipoCusto=['material','servico','equipamento'].includes(_existTipo)?_existTipo:'outros';
@@ -7391,7 +7431,7 @@ async function saveUni(){
 
 async function deleteEscola(id){
 
-  if(currentProfile?.role==='leitor'){toast('Sem permissão: você é leitor.');return;}
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   const u=unidades.find(x=>x.id===id);
 
@@ -7955,7 +7995,7 @@ async function loadFromDB(){
 
     capexItens=ciR||[];
 
-  }catch(e){console.error('loadFromDB:',e);}
+  }catch(e){console.error('[loadFromDB] Erro:',e);throw e;}
 
 }
 
@@ -9872,6 +9912,8 @@ async function renderAdmin(){
 
     <option value="leitor" ${(u.role==='leitor'||u.role==='user'||!u.role)?'selected':''}>Leitor</option>
 
+    <option value="doc" ${u.role==='doc'?'selected':''}>Contribuidor de docs</option>
+
     <option value="editor" ${u.role==='editor'?'selected':''}>Editor</option>
 
     <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
@@ -9992,9 +10034,29 @@ async function revogarUser(id){await db.from('user_profiles').update({aprovado:f
 
 let currentUser=null,currentProfile=null;
 
-function lSwitch(panel){['login','cad','pend'].forEach(p=>document.getElementById('lf-'+p).style.display='none');document.getElementById('lf-'+panel).style.display='block';}
+function lSwitch(panel){['login','cad','pend','reset','newpwd'].forEach(p=>{var el=document.getElementById('lf-'+p);if(el)el.style.display='none';});var t=document.getElementById('lf-'+panel);if(t)t.style.display='block';}
 
-async function doLogin(){const email=document.getElementById('l-email').value.trim(),senha=document.getElementById('l-senha').value;const errEl=document.getElementById('l-err');errEl.style.display='none';if(!email||!senha){errEl.textContent='Preencha e-mail e senha.';errEl.style.display='block';return;}const{data,error}=await db.auth.signInWithPassword({email,password:senha});if(error){errEl.textContent='E-mail ou senha incorretos.';errEl.style.display='block';return;}await onLogin(data.user);}
+async function doLogin(){
+  const email=document.getElementById('l-email').value.trim();
+  const senha=document.getElementById('l-senha').value;
+  const errEl=document.getElementById('l-err');
+  const btn=document.getElementById('l-btn-txt');
+  errEl.style.display='none';
+  if(!email||!senha){errEl.textContent='Preencha e-mail e senha.';errEl.style.display='block';return;}
+  if(btn)btn.textContent='Entrando…';
+  const{data,error}=await db.auth.signInWithPassword({email,password:senha});
+  if(btn)btn.textContent='Entrar';
+  if(error){
+    if(error.message.includes('Invalid login')||error.message.includes('invalid'))
+      errEl.textContent='E-mail ou senha incorretos.';
+    else if(error.message.includes('Email not confirmed'))
+      errEl.textContent='Confirme seu e-mail antes de entrar.';
+    else
+      errEl.textContent=error.message;
+    errEl.style.display='block';return;
+  }
+  await onLogin(data.user);
+}
 
 async function doCadastro(){
 
@@ -10022,15 +10084,44 @@ async function doCadastro(){
 
 }
 
-async function doLogout(){await db.auth.signOut();currentUser=null;document.getElementById('app').style.display='none';document.getElementById('login-screen').style.display='flex';lSwitch('login');document.getElementById('l-email').value='';document.getElementById('l-senha').value='';}
+async function doReset(){
+  const email=document.getElementById('r-email')?.value.trim()||'';
+  const errEl=document.getElementById('r-err');
+  const okEl=document.getElementById('r-ok');
+  if(errEl)errEl.style.display='none';
+  if(okEl)okEl.style.display='none';
+  if(!email){if(errEl){errEl.textContent='Informe seu e-mail.';errEl.style.display='block';}return;}
+  const{error}=await db.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});
+  if(error){if(errEl){errEl.textContent=error.message;errEl.style.display='block';}return;}
+  if(okEl)okEl.style.display='block';
+}
+
+async function doNewPassword(){
+  const s1=document.getElementById('np-senha')?.value||'';
+  const s2=document.getElementById('np-conf')?.value||'';
+  const errEl=document.getElementById('np-err');
+  if(errEl)errEl.style.display='none';
+  if(s1.length<6){if(errEl){errEl.textContent='Senha precisa ter ao menos 6 caracteres.';errEl.style.display='block';}return;}
+  if(s1!==s2){if(errEl){errEl.textContent='As senhas não conferem.';errEl.style.display='block';}return;}
+  const{error}=await db.auth.updateUser({password:s1});
+  if(error){if(errEl){errEl.textContent=error.message;errEl.style.display='block';}return;}
+  toast('✓ Senha atualizada com sucesso! Entrando…');
+  const{data:{session}}=await db.auth.getSession();
+  if(session)await onLogin(session.user);
+  else lSwitch('login');
+}
+
+async function doLogout(){await db.auth.signOut();currentUser=null;currentProfile=null;document.getElementById('app').style.display='none';document.getElementById('login-screen').style.display='flex';lSwitch('login');document.getElementById('l-email').value='';document.getElementById('l-senha').value='';}
 
 /* ===== INVESTIDORES EXTERNOS ===== */
 
 async function loadInvestidores(){
 
-  const{data}=await db.from('investidores').select('*').eq('ativo',true).order('nome');
-
-  if(data)investidores=data;
+  try{
+    const{data,error}=await db.from('investidores').select('*').eq('ativo',true).order('nome');
+    if(data)investidores=data;
+    if(error)console.warn('[loadInvestidores]',error.message);
+  }catch(e){console.warn('[loadInvestidores] falhou:',e.message);}
 
 }
 
@@ -10339,12 +10430,103 @@ async function deleteInvestidor(id){
 
 
 async function onLogin(user){
+  // Limpa localStorage legado
+  try{const old=localStorage.getItem(LSKEY);if(old){const s=JSON.parse(old);if(s.uniExtra||s.obrasExtra||s.obraState)localStorage.removeItem(LSKEY);}}catch(e){}
 
-  // Limpa dados legados do localStorage (dados agora no Supabase)
+  currentUser=user;
 
-  try{const old=localStorage.getItem(LSKEY);if(old){const s=JSON.parse(old);if(s.uniExtra||s.obrasExtra||s.obraState){localStorage.removeItem(LSKEY);}}}catch(e){}currentUser=user;const{data:profile}=await db.from('user_profiles').select('*').eq('id',user.id).single();if(!profile||!profile.aprovado){document.getElementById('login-screen').style.display='flex';lSwitch('pend');return;}currentProfile=profile;document.getElementById('login-screen').style.display='none';document.getElementById('app').style.display='flex';document.getElementById('foot-user-name').textContent=profile.nome||user.email;if(profile.role==='admin')document.getElementById('nav-admin').style.display='flex';const lo=document.getElementById('lo');lo.style.display='flex';await loadFromDB();await loadInvestidores();lo.style.display='none';obras.forEach(o=>o.pag.forEach(p=>{if(p.nfTipo===undefined)p.nfTipo=p.comp?"NF-e":"Sem nota";}));renderGeral();updateNavBadge();populateEscolasSelect();updateSideArt(["RAIZ"]);}
+  // Query do perfil com tratamento de erro + retry único
+  let profile=null,profileErr=null;
+  for(let _try=0;_try<2;_try++){
+    const{data:pd,error:pe}=await db.from('user_profiles').select('*').eq('id',user.id).single();
+    if(pd){profile=pd;break;}
+    profileErr=pe;
+    if(_try===0)await new Promise(r=>setTimeout(r,1200)); // aguarda 1.2s e tenta de novo
+  }
 
-(async()=>{const{data:{session}}=await db.auth.getSession();if(session){await onLogin(session.user);}else{document.getElementById('login-screen').style.display='flex';}})();
+  if(profileErr&&!profile){
+    // Perfil não encontrado — pode ser primeiro login, criar perfil mínimo
+    const{data:nu}=await db.auth.getUser();
+    const meta=nu?.user?.user_metadata||{};
+    const{error:upsertErr}=await db.from('user_profiles').upsert({
+      id:user.id,nome:meta.nome||user.email.split('@')[0],email:user.email,
+      role:meta.role||'leitor',aprovado:false
+    },{onConflict:'id'});
+    if(!upsertErr){const{data:pd2}=await db.from('user_profiles').select('*').eq('id',user.id).single();profile=pd2;}
+  }
+
+  if(!profile||!profile.aprovado){
+    document.getElementById('login-screen').style.display='flex';
+    lSwitch('pend');
+    return;
+  }
+
+  currentProfile=profile;
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  document.getElementById('foot-user-name').textContent=profile.nome||user.email;
+
+  // Mostrar menu admin
+  const navAdmin=document.getElementById('nav-admin');
+  if(navAdmin)navAdmin.style.display=profile.role==='admin'?'flex':'none';
+
+  // Carregar dados com feedback de erro
+  const lo=document.getElementById('lo');
+  if(lo)lo.style.display='flex';
+  try{
+    await loadFromDB();
+    await loadInvestidores();
+  }catch(loadErr){
+    console.error('[onLogin] Erro ao carregar dados:',loadErr);
+    toast('Aviso: alguns dados não carregaram. Tente recarregar a página.');
+  }finally{
+    if(lo)lo.style.display='none';
+  }
+
+  obras.forEach(o=>o.pag.forEach(p=>{if(p.nfTipo===undefined)p.nfTipo=p.comp?"NF-e":"Sem nota";}));
+  renderGeral();updateNavBadge();populateEscolasSelect();updateSideArt(["RAIZ"]);
+}
+
+// Inicialização com tratamento de erro
+(async()=>{
+  try{
+    const{data:{session},error}=await db.auth.getSession();
+    if(error)throw error;
+    if(session){
+      await onLogin(session.user);
+    }else{
+      document.getElementById('login-screen').style.display='flex';
+    }
+  }catch(e){
+    console.error('[init] Erro ao verificar sessão:',e);
+    document.getElementById('login-screen').style.display='flex';
+  }
+})();
+
+// Listener de mudança de estado — detecta aprovação enquanto aguarda e recuperação de senha
+db.auth.onAuthStateChange(async(event,session)=>{
+  if(event==='PASSWORD_RECOVERY'){
+    // Usuário clicou no link de reset — mostrar formulário de nova senha
+    document.getElementById('login-screen').style.display='flex';
+    document.getElementById('app').style.display='none';
+    lSwitch('newpwd');
+    return;
+  }
+  if(event==='SIGNED_IN'&&session&&!currentProfile){
+    // Sessão estabelecida mas perfil ainda não carregado (ex: aprovação detectada)
+    const pend=document.getElementById('lf-pend');
+    if(pend&&pend.style.display!=='none'){
+      // Usuário estava na tela "aguardando" — re-verificar aprovação
+      await onLogin(session.user);
+    }
+  }
+  if(event==='SIGNED_OUT'){
+    currentUser=null;currentProfile=null;
+    document.getElementById('app').style.display='none';
+    document.getElementById('login-screen').style.display='flex';
+    lSwitch('login');
+  }
+});
 
 </script>
 
