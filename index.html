@@ -352,7 +352,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 #login-screen{position:fixed;inset:0;background:linear-gradient(145deg,#173C34 0%,#1A5040 55%,#0F2A24 100%);display:flex;align-items:center;justify-content:center;padding:24px;z-index:200}
 
-#login-screen .lcard{background:rgba(255,255,255,.97);border:0;border-radius:22px;padding:36px 32px;width:100%;max-width:420px;box-shadow:0 40px 80px -20px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.12),0 0 60px rgba(0,0,0,.4);overflow:hidden;position:relative;z-index:2}#login-bg{position:fixed;inset:0;z-index:0;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(3,1fr);gap:4px;padding:4px;background:#0d1117}#login-screen::after{content:"";position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,.38) 0%,rgba(0,0,0,.62) 100%)}.lb-tile{display:flex;align-items:center;justify-content:center;border-radius:10px;overflow:hidden;animation:lbPulse ease-in-out infinite alternate;position:relative}.lb-tile img{width:60%;max-height:52px;object-fit:contain;filter:brightness(0) invert(1);opacity:.88}@keyframes lbPulse{from{filter:brightness(.85) saturate(1)}to{filter:brightness(1.12) saturate(1.1)}}
+#login-screen .lcard{background:rgba(255,255,255,.97);border:0;border-radius:22px;padding:36px 32px;width:100%;max-width:420px;box-shadow:0 40px 80px -20px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.12),0 0 60px rgba(0,0,0,.4);overflow:hidden;position:relative;z-index:2}.lb-tile img{width:60%;max-height:52px;object-fit:contain;filter:brightness(0) invert(1);opacity:.88}to{filter:brightness(1.12) saturate(1.1)}}
 
 #login-screen .lbrand{display:flex;align-items:center;gap:13px;margin:-36px -32px 28px;padding:22px 28px 22px;border-bottom:1px solid rgba(0,0,0,.08);background:linear-gradient(135deg,#F08700 0%,#E07200 100%)}
 
@@ -818,6 +818,35 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
   .nav button span.ic{font-size:18px}
   .nav button{padding:13px 14px}
 }
+
+/* ═══ LOGIN — fundo artístico ════════════════════════════════════════════ */
+#login-screen{background:#07101c}
+#login-bg{position:fixed;inset:0;z-index:0;overflow:hidden}
+/* Grade blueprint muito sutil */
+#login-bg::before{content:'';position:absolute;inset:0;
+  background-image:linear-gradient(rgba(120,180,255,.04) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(120,180,255,.04) 1px,transparent 1px);
+  background-size:55px 55px}
+/* Blobs de cor das marcas no fundo */
+.lb-blob{position:absolute;border-radius:50%;filter:blur(90px);animation:lbBreath ease-in-out infinite alternate}
+/* Logos flutuantes */
+.lb-logo{position:absolute;transform:rotate(var(--r,0deg));animation:lbDrift ease-in-out infinite alternate}
+.lb-logo img{display:block;width:100%;height:auto;max-height:var(--h,60px);object-fit:contain;
+  filter:brightness(0) invert(1);opacity:var(--op,.45)}
+/* Elementos SVG técnicos */
+.lb-svg{position:absolute;fill:none;stroke:rgba(180,210,255,.22);stroke-width:1.2;
+  overflow:visible;animation:lbDrift ease-in-out infinite alternate}
+/* Esconder no mobile para não poluir */
+@media(max-width:600px){.lb-blob,.lb-logo,.lb-svg{display:none}}
+@keyframes lbBreath{from{opacity:.12;transform:scale(1)}to{opacity:.2;transform:scale(1.07)}}
+@keyframes lbDrift{from{transform:rotate(var(--r,0deg)) translateY(0)}to{transform:rotate(var(--r,0deg)) translateY(-10px)}}
+/* Vinheta escura sobre o fundo */
+#login-screen::after{content:'';position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse 70% 80% at 50% 50%,rgba(7,16,28,.25) 0%,rgba(7,16,28,.72) 100%)}
+/* Card de login - vidro sobre o fundo */
+#login-screen .lcard{z-index:2;position:relative;background:rgba(255,255,255,.96);
+  box-shadow:0 32px 80px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.15),0 0 100px rgba(0,0,0,.5);
+  border-radius:22px}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -832,23 +861,32 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 <div id="login-screen">
 
-  <!-- Fundo: mosaico real das logos das marcas -->
+  <!-- Fundo artístico: logos + elementos técnicos -->
   <div id="login-bg">
-    <div class="lb-tile" style="background:#F88808;animation-duration:5s;animation-delay:0s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png" alt="RAIZ"></div>
-    <div class="lb-tile" style="background:#480868;animation-duration:6s;animation-delay:0.4s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20QI.png" alt="QI"></div>
-    <div class="lb-tile" style="background:#08B8A8;animation-duration:7s;animation-delay:0.8s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20CUBO%20GLOBAL%20SCHOOL.png" alt="CUBO"></div>
-    <div class="lb-tile" style="background:#88B858;animation-duration:5.5s;animation-delay:1.2s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20GLOBAL%20TREE.png" alt="GLOBAL TREE"></div>
-    <div class="lb-tile" style="background:#183868;animation-duration:6.5s;animation-delay:1.6s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20SARAH%20DAWSEY.png" alt="SARAH DAWSEY"></div>
-    <div class="lb-tile" style="background:#1868A8;animation-duration:7.5s;animation-delay:2.0s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20MATRIZ%20EDUCA%C3%87%C3%83O.png" alt="MATRIZ"></div>
-    <div class="lb-tile" style="background:#0848B8;animation-duration:5s;animation-delay:2.4s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20APOGEU%20GLOBAL%20SCHOOL.png" alt="APOGEU"></div>
-    <div class="lb-tile" style="background:#E86808;animation-duration:6s;animation-delay:2.8s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20LEONARDO%20DA%20VINCI.png" alt="LEONARDO DA VINCI"></div>
-    <div class="lb-tile" style="background:#0878C8;animation-duration:7s;animation-delay:3.2s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20S%C3%81%20PEREIRA.png" alt="SÁ PEREIRA"></div>
-    <div class="lb-tile" style="background:#F85838;animation-duration:5.5s;animation-delay:3.6s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20SAP.png" alt="SAP"></div>
-    <div class="lb-tile" style="background:#0868B8;animation-duration:6.5s;animation-delay:4.0s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20AMERICANO.png" alt="AMERICANO"></div>
-    <div class="lb-tile" style="background:#582878;animation-duration:7.5s;animation-delay:4.4s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20UNIFICADO.png" alt="UNIFICADO"></div>
-    <div class="lb-tile" style="background:#C83838;animation-duration:5s;animation-delay:4.8s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20UNI%C3%83O.png" alt="UNIÃO"></div>
-    <div class="lb-tile" style="background:#182848;animation-duration:6s;animation-delay:5.2s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20ESCOLA%20INTEGRA.png" alt="INTEGRA"></div>
-    <div class="lb-tile" style="background:#382888;animation-duration:7s;animation-delay:5.6s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20BOM%20TEMPO.png" alt="BOM TEMPO"></div>
+    <div class="lb-blob" style="background:#F88808;width:340px;height:350px;animation-duration:7s;animation-delay:0s;top:-80px;bottom:-60px;"></div>
+    <div class="lb-blob" style="background:#480868;width:300px;height:280px;animation-duration:9s;animation-delay:-3s;bottom:-40px;"></div>
+    <div class="lb-blob" style="background:#08B8A8;width:260px;height:240px;animation-duration:8s;animation-delay:-6s;top:35%;"></div>
+    <div class="lb-blob" style="background:#88B858;width:220px;height:200px;animation-duration:11s;animation-delay:-4s;bottom:40%;"></div>
+    <div class="lb-blob" style="background:#E86808;width:180px;height:160px;animation-duration:10s;animation-delay:-8s;top:20%;bottom:-30px;"></div>
+    <div class="lb-logo" style="left:3%;top:5%;width:190px;--r:-6deg;--op:0.5;animation-delay:0.0s;animation-duration:9s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png" alt=""></div>
+    <div class="lb-logo" style="left:74%;top:4%;width:110px;--r:8deg;--op:0.44;animation-delay:0.8s;animation-duration:11s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20QI.png" alt=""></div>
+    <div class="lb-logo" style="left:4%;top:67%;width:145px;--r:7deg;--op:0.42;animation-delay:1.5s;animation-duration:12s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20CUBO%20GLOBAL%20SCHOOL.png" alt=""></div>
+    <div class="lb-logo" style="left:62%;top:68%;width:120px;--r:-5deg;--op:0.4;animation-delay:2.2s;animation-duration:10s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20GLOBAL%20TREE.png" alt=""></div>
+    <div class="lb-logo" style="left:32%;top:5%;width:150px;--r:-3deg;--op:0.4;animation-delay:3.0s;animation-duration:8s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20SARAH%20DAWSEY.png" alt=""></div>
+    <div class="lb-logo" style="left:78%;top:38%;width:100px;--r:6deg;--op:0.35;animation-delay:1.0s;animation-duration:13s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20MATRIZ%20EDUCA%C3%87%C3%83O.png" alt=""></div>
+    <div class="lb-logo" style="left:12%;top:36%;width:105px;--r:-8deg;--op:0.38;animation-delay:3.8s;animation-duration:10s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20APOGEU%20GLOBAL%20SCHOOL.png" alt=""></div>
+    <div class="lb-logo" style="left:43%;top:77%;width:140px;--r:4deg;--op:0.42;animation-delay:2.0s;animation-duration:11s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20LEONARDO%20DA%20VINCI.png" alt=""></div>
+    <div class="lb-logo" style="left:68%;top:21%;width:100px;--r:-4deg;--op:0.36;animation-delay:4.5s;animation-duration:9s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20S%C3%81%20PEREIRA.png" alt=""></div>
+    <div class="lb-logo" style="left:6%;top:87%;width:85px;--r:11deg;--op:0.35;animation-delay:0.5s;animation-duration:8s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20SAP.png" alt=""></div>
+    <div class="lb-logo" style="left:82%;top:82%;width:90px;--r:-9deg;--op:0.34;animation-delay:5.0s;animation-duration:12s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20AMERICANO.png" alt=""></div>
+    <div class="lb-logo" style="left:28%;top:44%;width:95px;--r:5deg;--op:0.3;animation-delay:2.5s;animation-duration:14s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DO%20UNIFICADO.png" alt=""></div>
+    <div class="lb-logo" style="left:55%;top:28%;width:88px;--r:-6deg;--op:0.3;animation-delay:3.5s;animation-duration:10s"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20BOM%20TEMPO.png" alt=""></div>
+    <svg class="lb-svg" viewBox="0 0 80 90" style="top:6%;right:6%;width:88px;animation-delay:-.5s;animation-duration:9s"><circle cx="40" cy="40" r="28" stroke-dasharray="4 3"/><circle cx="40" cy="40" r="3" fill="rgba(180,210,255,.3)"/><line x1="40" y1="12" x2="28" y2="70" stroke-width="1.5"/><line x1="40" y1="12" x2="52" y2="70" stroke-width="1.5"/><line x1="25" y1="65" x2="55" y2="65" stroke-dasharray="2 2"/><circle cx="40" cy="12" r="3.5"/></svg>
+    <svg class="lb-svg" viewBox="0 0 110 85" style="left:10%;top:58%;width:110px;animation-delay:-2s;animation-duration:12s"><rect x="8" y="8" width="94" height="69" rx="2"/><line x1="8" y1="38" x2="55" y2="38"/><line x1="55" y1="8" x2="55" y2="77"/><line x1="55" y1="52" x2="102" y2="52"/><rect x="15" y="15" width="18" height="14" rx="1"/><rect x="62" y="57" width="28" height="14" rx="1"/><line x1="33" y1="77" x2="33" y2="68"/><line x1="33" y1="68" x2="55" y2="68"/></svg>
+    <svg class="lb-svg" viewBox="0 0 90 80" style="right:4%;top:45%;width:90px;animation-delay:-4s;animation-duration:10s"><line x1="12" y1="68" x2="12" y2="8" stroke-width="1.5"/><line x1="12" y1="68" x2="82" y2="68" stroke-width="1.5"/><polyline points="18,60 30,48 45,38 58,25 72,14" stroke-width="2" stroke="rgba(180,255,200,.35)"/><circle cx="72" cy="14" r="3.5" fill="rgba(180,255,200,.3)"/><line x1="12" y1="48" x2="16" y2="48" stroke-dasharray="2 3"/><line x1="12" y1="30" x2="16" y2="30" stroke-dasharray="2 3"/><line x1="30" y1="68" x2="30" y2="72" stroke-dasharray="2 3"/><line x1="50" y1="68" x2="50" y2="72" stroke-dasharray="2 3"/><line x1="70" y1="68" x2="70" y2="72" stroke-dasharray="2 3"/></svg>
+    <svg class="lb-svg" viewBox="0 0 80 100" style="left:50%;top:60%;width:70px;margin-left:-35px;animation-delay:-1s;animation-duration:14s"><rect x="12" y="30" width="56" height="62" rx="1"/><rect x="30" y="15" width="20" height="15"/><rect x="18" y="40" width="10" height="10" rx="1"/><rect x="36" y="40" width="10" height="10" rx="1"/><rect x="54" y="40" width="10" height="10" rx="1"/><rect x="18" y="58" width="10" height="10" rx="1"/><rect x="36" y="58" width="10" height="10" rx="1"/><rect x="54" y="58" width="10" height="10" rx="1"/><rect x="32" y="75" width="16" height="17"/><line x1="4" y1="92" x2="76" y2="92" stroke-width="1.5"/></svg>
+    <svg class="lb-svg" viewBox="0 0 130 36" style="left:25%;bottom:9%;width:130px;animation-delay:-3s;animation-duration:11s"><rect x="3" y="10" width="124" height="16" rx="3"/><line x1="20" y1="10" x2="20" y2="15"/><line x1="35" y1="10" x2="35" y2="19"/><line x1="50" y1="10" x2="50" y2="15"/><line x1="65" y1="10" x2="65" y2="22"/><line x1="80" y1="10" x2="80" y2="15"/><line x1="95" y1="10" x2="95" y2="19"/><line x1="110" y1="10" x2="110" y2="15"/></svg>
+    <svg class="lb-svg" viewBox="0 0 70 70" style="right:15%;bottom:15%;width:60px;animation-delay:-6s;animation-duration:8s;stroke:rgba(255,220,100,.22)"><circle cx="35" cy="35" r="30"/><circle cx="35" cy="35" r="23"/><text x="35" y="42" text-anchor="middle" font-size="16" font-weight="800" fill="rgba(255,220,100,.25)" stroke="none" font-family="Outfit,sans-serif">R$</text></svg>
   </div>
 
   <div class="lcard">
