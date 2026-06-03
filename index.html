@@ -7251,12 +7251,15 @@ function anexarComp(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.ge
 
   inp.onchange=async()=>{if(!inp.files.length)return;const f=inp.files[0];toast('Enviando comprovante…');
     try{
+      const{data:{session}}=await db.auth.getSession();
+      if(!session){toast('Sessão expirada. Faça login novamente.');return;}
       const path=await uploadPagDoc(oid,f,'comp');
       o.pag[i].compDoc={name:f.name,storagePath:path,type:f.type};
-      persist(oid);if(cur&&cur.id===oid)renderObra();toast("Comprovante anexado.");
+      persist(oid);if(cur&&cur.id===oid)renderObra();toast('✓ Comprovante anexado e salvo.');
     }catch(e){
+      const msg=e?.message||e?.error||String(e);
       console.error('upload comp:',e);
-      toast('❌ Falha ao salvar comprovante. Verifique sua conexão e tente novamente.');
+      toast('❌ Falha ao anexar comprovante: '+msg.slice(0,120));
     }
     inp.value="";};inp.click();}
 
@@ -7264,12 +7267,16 @@ function anexarNF(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getE
 
   inp.onchange=async()=>{if(!inp.files.length)return;const f=inp.files[0];toast('Enviando nota fiscal…');
     try{
+      // Garantir sessão válida antes do upload
+      const{data:{session}}=await db.auth.getSession();
+      if(!session){toast('Sessão expirada. Faça login novamente.');return;}
       const path=await uploadPagDoc(oid,f,'nf');
       o.pag[i].nfDoc={name:f.name,storagePath:path,type:f.type};
-      persist(oid);if(cur&&cur.id===oid)renderObra();toast("Nota fiscal anexada.");
+      persist(oid);if(cur&&cur.id===oid)renderObra();toast('✓ Nota fiscal anexada e salva.');
     }catch(e){
+      const msg=e?.message||e?.error||String(e);
       console.error('upload NF:',e);
-      toast('❌ Falha ao salvar a nota fiscal. Verifique sua conexão e tente novamente.');
+      toast('❌ Falha ao anexar NF: '+msg.slice(0,120));
     }
     inp.value="";};inp.click();}
 
