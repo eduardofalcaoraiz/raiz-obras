@@ -8975,13 +8975,32 @@ function parseNFeXML(xmlText){
 
     if(!ben&&!val)throw new Error('XML não reconhecido como NFS-e.');
 
+    // Tentar extrair itens de serviço de estruturas ABRASF e variações municipais
+    const itensNFSe=[];
+    // Padrão ABRASF: ItemListaServico, Servico com Discriminacao individual
+    const itemRe=/<(?:[\w:]+:)?(?:ItemListaServico|Servico|ItemServico|Item)\b[^>]*>([\s\S]*?)<\/(?:[\w:]+:)?(?:ItemListaServico|Servico|ItemServico|Item)>/gi;
+    let im;
+    while((im=itemRe.exec(xmlText))!==null){
+      const blk=im[1];
+      const desc=getTag(blk,'Discriminacao')||getTag(blk,'Descricao')||getTag(blk,'xServ')||'';
+      if(!desc||desc===discriminacao)continue; // evitar duplicar discriminacao principal
+      const qtd=parseFloat(getTag(blk,'Quantidade')||getTag(blk,'qServ')||'1')||1;
+      const vUnit=parseFloat(getTag(blk,'ValorUnitario')||getTag(blk,'vUnit')||'0')||0;
+      const vTot=parseFloat(getTag(blk,'ValorTotal')||getTag(blk,'vServ')||'0')||vUnit*qtd;
+      if(desc)itensNFSe.push({descricao:desc,quantidade:qtd,unidade:'Srv',valor_unitario:vUnit||vTot,valor_total:vTot||val});
+    }
+    // Fallback: criar 1 item a partir da discriminação global (serviço não detalhado)
+    if(itensNFSe.length===0&&discriminacao){
+      itensNFSe.push({descricao:discriminacao,quantidade:1,unidade:'Srv',valor_unitario:val,valor_total:val});
+    }
+
     return{ben,cnpj:fmtCnpj(cnpjRaw),doc:nNF?`NFS-e nº ${nNF}`:'',val,
 
       subtotal:valServ||val,desconto:0,frete:0,
 
       date:dEmi,chave:codVerif,discriminacao,desc:discriminacao,
 
-      itens:[],pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:'',tipo:'NFS-e'};
+      itens:itensNFSe,pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:'',tipo:'NFS-e'};
 
   }
 
@@ -9673,20 +9692,26 @@ function showImportReview(data){
 
   impRenderItens(data.itens||[],data.discriminacao||data.desc||'',nfTipo);
 
-  // Auto-preencher referência a partir dos itens (se campo estiver vazio)
+  // Auto-preencher referência a partir dos itens ou discriminação (se campo estiver vazio)
   const _refEl=document.getElementById('imp-ref');
-  if(_refEl&&!_refEl.value&&data.itens&&data.itens.length){
-    const _groups={};
-    data.itens.forEach(function(it){
-      const _t=matchMaterialTipo(it.descricao||'');
-      if(!_groups[_t]){_groups[_t]={qtd:0,un:it.unidade||'un',nome:(MATERIAL_TIPOS.find(function(m){return m.id===_t;})||{nome:'Outros'}).nome.split(' ')[0]};}
-      _groups[_t].qtd+=(parseFloat(it.quantidade)||0);
-    });
-    const _parts=Object.entries(_groups).slice(0,3).map(function(e){
-      var g=e[1]; return g.nome+' '+g.qtd.toLocaleString('pt-BR',{maximumFractionDigits:2})+' '+g.un;
-    });
-    if(data.itens.length>3)_parts.push('+'+(data.itens.length-3)+' itens');
-    _refEl.value=_parts.join(' · ');
+  if(_refEl&&!_refEl.value){
+    if(nfTipo==='NFS-e'&&data.discriminacao){
+      // NFS-e: usar discriminação do serviço (truncado em 120 chars)
+      _refEl.value=data.discriminacao.replace(/\s+/g,' ').trim().slice(0,120);
+    }else if(data.itens&&data.itens.length){
+      // NF-e ou NFS-e com itens: agrupar por tipo de material/serviço
+      const _groups={};
+      data.itens.forEach(function(it){
+        const _t=matchMaterialTipo(it.descricao||'');
+        if(!_groups[_t]){_groups[_t]={qtd:0,un:it.unidade||'un',nome:(MATERIAL_TIPOS.find(function(m){return m.id===_t;})||{nome:it.descricao||'Serviço'}).nome.split(' ')[0]};}
+        _groups[_t].qtd+=(parseFloat(it.quantidade)||0);
+      });
+      const _parts=Object.entries(_groups).slice(0,3).map(function(e){
+        var g=e[1]; return g.nome+' '+g.qtd.toLocaleString('pt-BR',{maximumFractionDigits:2})+' '+g.un;
+      });
+      if(data.itens.length>3)_parts.push('+'+(data.itens.length-3)+' itens');
+      _refEl.value=_parts.join(' · ');
+    }
   }
 
   // Valores
@@ -9807,7 +9832,8 @@ function impRenderItens(itens,discriminacao,nfTipo){
 
   const wrap=document.getElementById("imp-itens-wrap");if(!wrap)return;
 
-  if(nfTipo==='NFS-e'||nfTipo==='Adiantamento'||nfTipo==='Sem nota'){
+  // NFS-e com itens → mostra tabela; sem itens → textarea de discriminação
+  if((nfTipo==='NFS-e'&&(!itens||!itens.length))||nfTipo==='Adiantamento'||nfTipo==='Sem nota'){
 
     const safe=(discriminacao||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
