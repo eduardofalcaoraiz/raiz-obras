@@ -52,6 +52,32 @@ C:\Users\eduardo.falcao\claude\raiz_obras\
 
 ---
 
+## 3b. Estrutura do Repositório GitHub
+
+```
+https://github.com/eduardofalcaoraiz/raiz-obras/
+├── index.html                              ← app completo (single-file)
+├── CONTEXT.md                              ← este arquivo (memória do projeto)
+├── README.md
+├── LOGO DA *.png                           ← logos das marcas
+├── scripts/
+│   ├── pre_deploy_check.py                 ← verificação obrigatória pré-deploy
+│   └── batch_read_nfs.py                   ← batch leitura de NFs via Gemini
+├── supabase/
+│   └── functions/
+│       └── read-invoice/
+│           └── index.ts                    ← Edge Function leitura de NF
+└── sql/
+    ├── auth_setup.sql                      ← trigger + policies (rodar 1x)
+    ├── auth_setup_patch.sql                ← correção de policies RLS
+    ├── capex_E_marca.sql                   ← adiciona coluna marca em capex_itens
+    ├── nossas_escolas_A.sql                ← insert das 48 escolas
+    ├── nossas_escolas_B.sql                ← normaliza nomes de unidades
+    └── update_escolas.sql                  ← CNPJs e endereços das escolas
+```
+
+---
+
 ## 4. Deploy (100% Automatizado)
 
 ### 4.1 Publicar index.html → GitHub → Vercel
@@ -767,6 +793,22 @@ Seções do `pane-resumo`:
 1. Abrir console do browser em https://raiz-obras.vercel.app
 2. Ver erro exato
 3. Se "doLogin não funciona": rodar pre_deploy_check.py → provavelmente duplicata const/let
+
+---
+
+---
+
+## 30. Checklist de Retomada (para qualquer AI assistant)
+
+Ao abrir este projeto pela primeira vez:
+
+1. **Ler este arquivo inteiro** antes de tocar em qualquer código
+2. Clonar ou baixar `index.html` do repositório — é o arquivo de trabalho
+3. Conferir seção 21 (24 Regras de Patch) — são os erros mais caros
+4. Antes de qualquer deploy: rodar `scripts/pre_deploy_check.py`
+5. Deploy = copiar para `index.html` + publicar via GitHub API (seção 4.1)
+6. **Nunca** usar `git push` diretamente — sempre via GitHub API com token
+7. Tokens estão em arquivos locais no Windows do Eduardo (seção 3), nunca no repo
 
 ---
 
