@@ -48,7 +48,11 @@ C:\Users\eduardo.falcao\claude\raiz_obras\
 └── *.sql                    ← scripts SQL de setup
 ```
 
-**REGRA CRÍTICA:** Sempre editar `raiz_index.html`. Antes de qualquer deploy, copiar para `index.html` e rodar `pre_deploy_check.py`.
+**Workflow de arquivos (CRÍTICO para entender):**
+- `raiz_index.html` = arquivo de **trabalho** local. Eduardo edita sempre aqui.
+- `index.html` = arquivo de **deploy**. Cópia idêntica do raiz_index.html, publicada no GitHub → Vercel.
+- **No GitHub só existe `index.html`.** Se você é um AI externo (Codex, etc.) e vai editar pelo GitHub, edite diretamente `index.html` — é o mesmo arquivo.
+- Antes de qualquer deploy: copiar `raiz_index.html` → `index.html` e rodar `scripts/pre_deploy_check.py`.
 
 ---
 
@@ -340,11 +344,12 @@ Set-Location "C:\Users\eduardo.falcao\claude\raiz_obras"
 
 ## 8. Edge Function: Leitura de NF
 
-**Arquivo:** `supabase/functions/read-invoice/index.ts`  
-**URL:** `https://hjccxfznojjosvanwztv.supabase.co/functions/v1/read-invoice`
+**Arquivo master local:** `edge_function_read_invoice.ts` (editar aqui)  
+**Arquivo de deploy:** `supabase/functions/read-invoice/index.ts` (copiar do master antes de deploy)  
+**URL em produção:** `https://hjccxfznojjosvanwztv.supabase.co/functions/v1/read-invoice`
 
 **Modelo de IA:** Gemini 2.5 Flash (`gemini-2.5-flash`)  
-**Chave:** Secret `GEMINI_API_KEY` no Supabase  
+**Chave:** Secret `GEMINI_API_KEY` no Supabase (ver seção 28 para detalhes)  
 **Parâmetros:** `maxOutputTokens: 8192, temperature: 0`
 
 **Como funciona:**
@@ -765,9 +770,22 @@ Seções do `pane-resumo`:
 - `.supabase_token`
 - Qualquer valor de API key direto no código (usar Supabase Secrets)
 
-**A chave Gemini está em:**
-- Supabase Secret: `GEMINI_API_KEY` (salva nos Secrets do Supabase, nunca no código)
-- Para rever/rotacionar: acessar https://aistudio.google.com → API Keys
+**Secrets necessários para o sistema funcionar:**
+
+| Secret | Onde fica | Como obter/rotacionar |
+|--------|-----------|----------------------|
+| `GEMINI_API_KEY` | Supabase → Edge Functions → Secrets | https://aistudio.google.com → API Keys |
+| `SUPABASE_ACCESS_TOKEN` | Arquivo local `.supabase_token` | https://supabase.com/dashboard/account/tokens |
+| GitHub PAT | Arquivo local `.github_token` | https://github.com/settings/tokens (escopo: repo) |
+
+**Recuperar a `GEMINI_API_KEY` atual:**
+1. Acessar https://supabase.com/dashboard/project/hjccxfznojjosvanwztv/functions
+2. Clicar em "read-invoice" → "Secrets"
+3. Se não aparecer o valor (Supabase oculta secrets existentes), gerar nova em aistudio.google.com e atualizar
+
+**Localização dos arquivos de token locais (Windows do Eduardo):**
+- `C:\Users\eduardo.falcao\claude\raiz_obras\.github_token`
+- `C:\Users\eduardo.falcao\claude\raiz_obras\.supabase_token`
 
 ---
 
