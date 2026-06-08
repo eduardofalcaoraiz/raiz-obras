@@ -1,0 +1,47 @@
+# Tokens e segredos — NUNCA publicar
+.github_token
+.supabase_token
+SECRETS.txt
+
+# Arquivos de trabalho local (versão de deploy é index.html)
+raiz_index.html
+
+# Scripts de patch históricos (não necessários para operação)
+patch_*.py
+fix_*.py
+rebuild_*.py
+extract_*.py
+compare_*.py
+diagnose*.py
+apply_*.py
+build_*.py
+restructure_*.py
+integrate_*.py
+safe_*.py
+find_*.py
+deep_*.py
+scan_*.py
+full_*.py
+update_brand_colors.py
+swap_fonts.py
+append_rules.py
+remove_subcats.py
+check_*.py
+add_rule*.py
+new_art*.py
+
+# Backups locais
+*.bak
+prev_*.html
+base_*.html
+good_*.html
+working_version.html
+
+# Supabase CLI e zips
+supabase_cli/
+supabase_cli.zip
+supabase/.temp/
+
+# Python cache
+__pycache__/
+*.pyc
