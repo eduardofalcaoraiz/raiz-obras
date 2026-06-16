@@ -64,12 +64,21 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json()
+    const rawText = String(body?.rawText || body?.text || '')
     const imageBase64 = String(body?.imageBase64 || '')
     const mediaType = String(body?.mediaType || 'application/pdf')
-    if (!imageBase64) throw new Error('imageBase64 ausente')
 
     const attempts: string[] = []
     const geminiKey = Deno.env.get('GEMINI_API_KEY') || ''
+
+    if (rawText.trim()) {
+      const normalized = await extractFromOcrText(rawText, geminiKey, 'client-text')
+      if (hasUsefulData(normalized)) return ok(normalized, attempts)
+      attempts.push('Texto enviado pelo cliente nao retornou dados uteis')
+      throw new Error('Nao foi possivel extrair dados suficientes do texto completo. Tentativas: ' + attempts.join(' | '))
+    }
+
+    if (!imageBase64) throw new Error('imageBase64 ou rawText ausente')
 
     if (geminiKey) {
       try {
@@ -118,18 +127,147 @@ Deno.serve(async (req: Request) => {
 
 async function extractFromOcrText(text: string, geminiKey: string, source: string) {
   if (!text.trim()) throw new Error('OCR sem texto extraido')
+  const heuristic = normalizeData(extractHeuristic(text), source + '+heuristic-full')
 
   if (geminiKey) {
-    try {
-      const raw = await callGeminiText(geminiKey, text)
-      const normalized = normalizeData(raw, source + '+gemini')
-      if (hasUsefulData(normalized)) return normalized
-    } catch {
-      // The heuristic below still gives a usable manual review draft.
+    const chunks = splitTextForGemini(text)
+    const chunkErrors: string[] = []
+    let merged: AnyRecord | null = null
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i]
+      if (!chunk.trim()) continue
+      try {
+        const raw = await callGeminiTextChunk(geminiKey, chunk, i + 1, chunks.length)
+        const normalized = normalizeData(raw, source + `+gemini-bloco-${i + 1}-de-${chunks.length}`)
+        merged = mergeNormalizedData(merged, normalized)
+      } catch (err) {
+        chunkErrors.push(`bloco ${i + 1}/${chunks.length}: ${errorMessage(err)}`)
+      }
+    }
+
+    if (merged && hasUsefulData(merged)) {
+      merged = mergeNormalizedData(merged, heuristic)
+      merged._meta = {
+        ...(merged._meta || {}),
+        source: source + (chunks.length > 1 ? '+gemini-blocos' : '+gemini'),
+        textLength: text.length,
+        textChunks: chunks.length,
+        chunkErrors: chunkErrors.slice(0, 5),
+      }
+      return merged
+    }
+
+    if (chunkErrors.length) {
+      heuristic._meta = {
+        ...(heuristic._meta || {}),
+        source: source + '+heuristic-full',
+        textLength: text.length,
+        textChunks: chunks.length,
+        geminiChunkErrors: chunkErrors.slice(0, 5),
+      }
     }
   }
 
-  return normalizeData(extractHeuristic(text), source + '+heuristic')
+  return heuristic
+}
+
+function splitTextForGemini(text: string, targetSize = 60000, overlap = 2500) {
+  const full = String(text || '')
+  if (full.length <= targetSize) return [full]
+  const chunks: string[] = []
+  let start = 0
+  while (start < full.length) {
+    let end = Math.min(full.length, start + targetSize)
+    if (end < full.length) {
+      const lineBreak = full.lastIndexOf('\n', end)
+      const space = full.lastIndexOf(' ', end)
+      const boundary = Math.max(lineBreak, space)
+      if (boundary > start + Math.floor(targetSize * 0.65)) end = boundary
+    }
+    chunks.push(full.slice(start, end))
+    if (end >= full.length) break
+    start = Math.max(start + 1, end - overlap)
+  }
+  return chunks
+}
+
+function mergeNormalizedData(primary: AnyRecord | null, secondary: AnyRecord | null) {
+  if (!secondary) return primary || {}
+  if (!primary) return JSON.parse(JSON.stringify(secondary))
+  const out: AnyRecord = JSON.parse(JSON.stringify(primary))
+  const fill = (key: string) => {
+    if (isBlank(out[key]) && !isBlank(secondary[key])) out[key] = secondary[key]
+  }
+  ;['tipo_documento', 'numero_nf', 'serie', 'data_emissao', 'data_vencimento', 'chave_acesso', 'linha_digitavel', 'codigo_barras', 'codigo_verificacao', 'discriminacao', 'observacoes'].forEach(fill)
+
+  out.emitente = { ...(out.emitente || {}) }
+  const secEmit = secondary.emitente || {}
+  if (isBlank(out.emitente.razao_social) && !isBlank(secEmit.razao_social)) out.emitente.razao_social = secEmit.razao_social
+  if (isBlank(out.emitente.cnpj) && !isBlank(secEmit.cnpj)) out.emitente.cnpj = secEmit.cnpj
+
+  out.valores = { ...(out.valores || {}) }
+  const secVal = secondary.valores || {}
+  ;['subtotal', 'desconto', 'frete'].forEach((key) => {
+    if (!num(out.valores[key]) && num(secVal[key])) out.valores[key] = secVal[key]
+  })
+  const totalA = num(out.valores.valor_total)
+  const totalB = num(secVal.valor_total)
+  if (totalB && (!totalA || totalB > totalA)) out.valores.valor_total = totalB
+
+  out.pagamento = { ...(out.pagamento || {}) }
+  const secPag = secondary.pagamento || {}
+  if ((out.pagamento.forma === 'A_VISTA' || isBlank(out.pagamento.forma)) && !isBlank(secPag.forma)) out.pagamento.forma = secPag.forma
+  out.pagamento.num_parcelas = Math.max(Number(out.pagamento.num_parcelas || 1), Number(secPag.num_parcelas || 1))
+  out.pagamento.parcelas = mergeParcelas(out.pagamento.parcelas || [], secPag.parcelas || [])
+
+  out.itens = mergeItems(out.itens || [], secondary.itens || [])
+  out._meta = { ...(out._meta || {}), ...(secondary._meta || {}) }
+  return out
+}
+
+function mergeItems(a: AnyRecord[], b: AnyRecord[]) {
+  const out = [...a]
+  const seen = new Set(out.map((it) => itemKey(it)).filter(Boolean))
+  for (const item of b) {
+    const key = itemKey(item)
+    if (!key || seen.has(key)) continue
+    out.push(item)
+    seen.add(key)
+  }
+  return out
+}
+
+function mergeParcelas(a: AnyRecord[], b: AnyRecord[]) {
+  const out = [...a]
+  const seen = new Set(out.map((p) => `${p.numero || ''}|${p.valor || ''}|${p.vencimento || ''}`))
+  for (const parcela of b) {
+    const key = `${parcela.numero || ''}|${parcela.valor || ''}|${parcela.vencimento || ''}`
+    if (seen.has(key)) continue
+    out.push(parcela)
+    seen.add(key)
+  }
+  return out
+}
+
+function itemKey(item: AnyRecord) {
+  return stripAccents(String(item?.descricao || '')).toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function isBlank(value: unknown) {
+  return value == null || value === '' || (Array.isArray(value) && value.length === 0)
+}
+
+async function callGeminiText(key: string, text: string) {
+  return callGeminiTextChunk(key, text, 1, 1)
+}
+
+async function callGeminiTextChunk(key: string, text: string, index: number, total: number) {
+  const chunkNote = total > 1
+    ? `\n\nThis is OCR/raw text chunk ${index} of ${total}. Extract every payment/invoice field visible in this chunk. The server will merge all chunks, so do not ignore line items, dates, totals, barcodes, or identifiers just because they look partial.`
+    : ''
+  const parts = [{ text: TEXT_PROMPT + chunkNote + '\n\nOCR_TEXT:\n' + text }]
+  return callGemini(key, parts, 'text')
 }
 
 async function callGeminiDocument(key: string, imageBase64: string, mediaType: string) {
@@ -138,12 +276,6 @@ async function callGeminiDocument(key: string, imageBase64: string, mediaType: s
     { text: DOCUMENT_PROMPT },
   ]
   return callGemini(key, parts, 'document')
-}
-
-async function callGeminiText(key: string, text: string) {
-  const safeText = text.slice(0, 90000)
-  const parts = [{ text: TEXT_PROMPT + '\n\nOCR_TEXT:\n' + safeText }]
-  return callGemini(key, parts, 'text')
 }
 
 async function callGemini(key: string, parts: AnyRecord[], mode: string) {
@@ -164,7 +296,7 @@ async function callGemini(key: string, parts: AnyRecord[], mode: string) {
           body: JSON.stringify({
             contents: [{ parts }],
             generationConfig: {
-              maxOutputTokens: 8192,
+              maxOutputTokens: 16384,
               temperature: 0,
               responseMimeType: 'application/json',
             },
@@ -306,7 +438,7 @@ function normalizeItems(items: AnyRecord[], tipo: string, total: number) {
       valor_unitario: round2(vu),
       valor_total: round2(vt),
     }
-  }).filter(Boolean).slice(0, 120)
+  }).filter(Boolean)
 }
 
 function normalizeParcelas(items: AnyRecord[], total: number) {
@@ -443,9 +575,9 @@ function findDescription(lines: string[], tipo: string) {
   for (let i = 0; i < lines.length; i++) {
     if (!labels.some((re) => re.test(stripAccents(lines[i])))) continue
     const same = cleanStr(lines[i].replace(/^(discriminacao|descricao|historico|referencia|servico|produto|competencia)\s*:?\s*/i, ''))
-    if (same.length > 6) return same.slice(0, 800)
+    if (same.length > 6) return same
     const next = cleanStr(lines[i + 1] || '')
-    if (next.length > 6) return next.slice(0, 800)
+    if (next.length > 6) return next
   }
   return tipo === 'Boleto' ? 'Cobranca por boleto bancario' : ''
 }
