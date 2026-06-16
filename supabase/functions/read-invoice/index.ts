@@ -96,15 +96,17 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const ocrSpaceKey = Deno.env.get('OCR_SPACE_API_KEY') || ''
-    if (ocrSpaceKey) {
+    const ocrSpaceKey = Deno.env.get('OCR_SPACE_API_KEY') || Deno.env.get('OCRSPACE_API_KEY') || 'helloworld'
+    if (Deno.env.get('OCR_SPACE_DISABLED') !== '1') {
       try {
+        const source = ocrSpaceKey === 'helloworld' ? 'ocr-space-free-demo' : 'ocr-space-free'
         const text = await callOcrSpace(ocrSpaceKey, imageBase64, mediaType)
-        const normalized = await extractFromOcrText(text, geminiKey, 'ocr-space')
+        const normalized = await extractFromOcrText(text, geminiKey, source)
         if (hasUsefulData(normalized)) return ok(normalized, attempts)
-        attempts.push('OCR.space retornou poucos dados uteis')
+        attempts.push(source + ' retornou poucos dados uteis')
       } catch (err) {
-        attempts.push('OCR.space: ' + errorMessage(err))
+        const hint = ocrSpaceKey === 'helloworld' ? ' (chave demo gratuita, limite bem baixo; configure OCR_SPACE_API_KEY gratuita para producao)' : ''
+        attempts.push('OCR.space gratuito' + hint + ': ' + errorMessage(err))
       }
     }
 
