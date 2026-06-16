@@ -1602,9 +1602,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         <div>
 
-          <label class="fl">Do que se trata este pagamento? <span style="color:var(--muted);font-weight:400">(obrigatório — aparece na planilha)</span></label>
+          <label class="fl">Do que se trata este pagamento? <span style="color:var(--muted);font-weight:400">(preenchimento manual obrigatório — aparece na planilha)</span></label>
 
-          <textarea class="fi" id="imp-ref" rows="2" style="height:auto;resize:vertical;min-height:60px;font-size:14px;line-height:1.6" placeholder="Descreva o que está sendo pago. Ex:
+          <textarea class="fi" id="imp-ref" rows="2" style="height:auto;resize:vertical;min-height:60px;font-size:14px;line-height:1.6" placeholder="Escreva a referência do pagamento. Ex:
 
 • Comissão pelo terreno da obra — Davelino Imóveis
 
@@ -1620,7 +1620,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <!-- 3. Itens / Serviços -->
 
-      <div class="imp-sec">
+      <div class="imp-sec" id="imp-itens-sec">
 
         <div class="imp-sec-hd" id="imp-itens-hd">Itens da Nota</div>
 
@@ -1721,15 +1721,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 
 
-      <!-- 7. Observações / Discriminação -->
-
-      <div class="imp-sec">
-
-        <div class="imp-sec-hd">Observações / Discriminação dos Serviços</div>
-
-        <textarea class="fi" id="imp-obs" rows="3" style="height:auto;resize:vertical;font-size:13.5px" placeholder="Informações adicionais extraídas da nota..."></textarea>
-
-      </div>
+      <textarea id="imp-obs" style="display:none"></textarea>
 
 
 
@@ -10021,29 +10013,11 @@ function showImportReview(data){
 
   // Itens
 
-  impRenderItens(data.itens||[],data.discriminacao||data.desc||'',nfTipo);
+  impRenderItens(data.itens||[], '', nfTipo);
 
-  // Auto-preencher referência a partir dos itens ou discriminação (se campo estiver vazio)
+  // A referência do pagamento é uma decisão humana: a IA não deve inferir esse texto.
   const _refEl=document.getElementById('imp-ref');
-  if(_refEl&&!_refEl.value){
-    if(['NFS-e','CT-e','Boleto','Fatura','Recibo','Guia'].includes(nfTipo)&&data.discriminacao){
-      // Serviços e cobranças: usar a discriminação completa encontrada no documento.
-      _refEl.value=data.discriminacao.replace(/\s+/g,' ').trim();
-    }else if(data.itens&&data.itens.length){
-      // NF-e ou NFS-e com itens: agrupar por tipo de material/serviço
-      const _groups={};
-      data.itens.forEach(function(it){
-        const _t=matchMaterialTipo(it.descricao||'');
-        if(!_groups[_t]){_groups[_t]={qtd:0,un:it.unidade||'un',nome:(MATERIAL_TIPOS.find(function(m){return m.id===_t;})||{nome:it.descricao||'Serviço'}).nome.split(' ')[0]};}
-        _groups[_t].qtd+=(parseFloat(it.quantidade)||0);
-      });
-      const _parts=Object.entries(_groups).slice(0,3).map(function(e){
-        var g=e[1]; return g.nome+' '+g.qtd.toLocaleString('pt-BR',{maximumFractionDigits:2})+' '+g.un;
-      });
-      if(data.itens.length>3)_parts.push('+'+(data.itens.length-3)+' itens');
-      _refEl.value=_parts.join(' · ');
-    }
-  }
+  if(_refEl)_refEl.value='';
 
   // Valores
 
@@ -10083,7 +10057,8 @@ function showImportReview(data){
 
   // Obs
 
-  document.getElementById("imp-obs").value=data.obs||data.discriminacao||data.desc||'';
+  const _obsEl=document.getElementById("imp-obs");
+  if(_obsEl)_obsEl.value='';
 
   // Categoria
 
@@ -10135,29 +10110,21 @@ function impNfTipoChanged(tipo){
 
   const hd=document.getElementById("imp-itens-hd");
 
-  if(hd)hd.textContent=isNFSe||tipo==='CT-e'?'Serviços Prestados':tipo==='Boleto'?'Dados do Boleto':tipo==='Fatura'?'Itens da Fatura':tipo==='Recibo'?'Descrição do Recibo':tipo==='Guia'?'Dados da Guia':tipo==='Adiantamento'?'Descrição do Adiantamento':tipo==='Sem nota'?'Motivo do Pagamento':'Itens da Nota';
+  if(hd)hd.textContent=tipo==='NF-e'||tipo==='NFC-e'?'Itens da Nota':'Referência manual';
 
-  // Tipos sem NF: exibe textarea no lugar da tabela de itens
+  const wrap=document.getElementById('imp-itens-wrap');
+  const itensSec=document.getElementById('imp-itens-sec');
+  const showItens=tipo==='NF-e'||tipo==='NFC-e';
 
-  if(!['NF-e','NFC-e','NFS-e','CT-e'].includes(tipo)){
+  if(itensSec)itensSec.style.display=showItens?'':'none';
 
-    const wrap=document.getElementById('imp-itens-wrap');
+  if(wrap&&!showItens){
 
-    if(wrap){
+    wrap.innerHTML='';
 
-      const ph=tipo==='Adiantamento'
+  }else if(wrap&&!wrap.querySelector('#imp-itens-tbl')){
 
-        ?'Descreva o adiantamento: para que é, qual fornecedor/serviço, prazo estimado para receber a nota fiscal...'
-
-        :tipo==='Boleto'?'Descreva a cobrança, beneficiário, vencimento e linha digitável...'
-        :tipo==='Fatura'?'Descreva a fatura/cobrança e seus itens...'
-        :tipo==='Recibo'?'Descreva o recibo, serviço/produto e responsável...'
-        :tipo==='Guia'?'Descreva a guia, tributo/taxa e competência...'
-        :'Descreva o motivo deste pagamento sem nota fiscal (ex: despesa avulsa, serviço informal, pequena compra)...';
-
-      wrap.innerHTML=`<textarea class="fi" id="imp-discriminacao" rows="3" style="height:auto;resize:vertical;font-size:13.5px" placeholder="${ph}"></textarea>`;
-
-    }
+    wrap.innerHTML='<p style="color:var(--muted);font-size:13px;text-align:center;padding:10px 0;margin:0">Nenhum item extraído. <button class="linkbtn" onclick="impAddItem()">＋ Adicionar manualmente</button></p>';
 
   }
 
@@ -10169,19 +10136,18 @@ function impRenderItens(itens,discriminacao,nfTipo){
 
   const wrap=document.getElementById("imp-itens-wrap");if(!wrap)return;
 
-  // Documentos de serviço/cobrança com itens → mostram tabela; sem itens → textarea de discriminação
-  const tableTipos=['NF-e','NFC-e','NFS-e','CT-e','Fatura'];
-  if((['NFS-e','CT-e','Fatura'].includes(nfTipo)&&(!itens||!itens.length))||!tableTipos.includes(nfTipo)||nfTipo==='Adiantamento'||nfTipo==='Sem nota'){
+  const tableTipos=['NF-e','NFC-e'];
+  const itensSec=document.getElementById('imp-itens-sec');
+  if(!tableTipos.includes(nfTipo)){
 
-    const safe=(discriminacao||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
-    const ph=nfTipo==='Adiantamento'?'Descreva o adiantamento: para que é, prazo para NF...':nfTipo==='Sem nota'?'Descreva o motivo deste pagamento sem nota...':nfTipo==='Boleto'?'Dados do boleto, linha digitável e cobrança...':nfTipo==='Recibo'?'Descrição do recibo...':nfTipo==='Guia'?'Dados da guia, tributo/taxa e competência...':'Discriminação dos serviços prestados...';
-
-    wrap.innerHTML=`<textarea class="fi" id="imp-discriminacao" rows="3" style="height:auto;resize:vertical;font-size:13.5px" placeholder="${ph}">${safe}</textarea>`;
+    if(itensSec)itensSec.style.display='none';
+    wrap.innerHTML='';
 
     return;
 
   }
+
+  if(itensSec)itensSec.style.display='';
 
   // Cores dos tipos de material
   const TIPO_COLOR={concreto:'#795548',aco:'#546E7A',alvenaria:'#BF360C',ceramica:'#6A1B9A',
@@ -10366,7 +10332,7 @@ async function confirmImport(){
 
   const forma=document.getElementById("imp-pag-forma").value;
 
-  const obs=document.getElementById("imp-obs").value.trim();
+  const obs=document.getElementById("imp-obs")?.value.trim()||'';
 
   const impContrSeq=document.getElementById("imp-contrato")?.value||'';
   const _impCrRow=document.getElementById('imp-constr-row');
@@ -10385,6 +10351,8 @@ async function confirmImport(){
   const matUnidade=document.getElementById('imp-mat-un')?.value||'';
 
   if(!ben){toast("Informe o beneficiário.");return;}
+
+  if(!ref){toast("Informe a referência do pagamento.");return;}
 
   if(!val){toast("Informe o valor.");return;}
 
@@ -10413,9 +10381,11 @@ async function confirmImport(){
   // Itens
 
   // Ler itens do DOM (usuário pode ter editado)
-  var _domItens=getImpItens();
-  if(_domItens.length)p.itens=_domItens;
-  else if(impReviewData&&impReviewData.itens&&impReviewData.itens.length)p.itens=impReviewData.itens;
+  if(['NF-e','NFC-e'].includes(nfTipo)){
+    var _domItens=getImpItens();
+    if(_domItens.length)p.itens=_domItens;
+    else if(impReviewData&&impReviewData.itens&&impReviewData.itens.length)p.itens=impReviewData.itens;
+  }
 
   if(impFile){
     try{
