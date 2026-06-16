@@ -8773,6 +8773,11 @@ function impMergeData(primary,secondary){
   return out;
 }
 
+function impMergeTrustedLocal(current,local){
+  if(local&&local.tipo==='NFS-e')return impMergeData(local,current||{});
+  return impMergeData(current||{},local||{});
+}
+
 function showImportErrorDetails(file,errors){
   const ov=document.getElementById('imp-error-overlay');
   const body=document.getElementById('imp-error-body');
@@ -8921,7 +8926,7 @@ async function readImportFile(inp){
       try{
         const aiTextData=await readInvoiceTextWithAI(text,file.name,_setImpStatus);
         if(impHasData(aiTextData)){
-          textData=impMergeData(aiTextData,textData||{});
+          textData=impMergeTrustedLocal(aiTextData,textData||{});
           showImportReview(textData);
           toast('Dados extraídos pela IA a partir do texto completo. Confira os campos.');
           if(!impIsComplete(textData))impShowPartialWarning(file,textData,errors);
@@ -8963,12 +8968,12 @@ async function readImportFile(inp){
       const pdfText=await extractPdfText(file,_setImpStatus);
       if(!pdfText.trim())throw new Error('PDF sem texto extraível. O sistema tentará OCR local nas páginas escaneadas.');
       localData=parseNFFromText(pdfText,pdfText.replace(/\D/g,''));
-      if(impHasData(localData)&&aiData)aiData=impMergeData(aiData,localData);
+      if(impHasData(localData)&&aiData)aiData=impMergeTrustedLocal(aiData,localData);
       if(pdfText.length>20&&(!impHasData(aiData)||!(aiData.itens&&aiData.itens.length))){
         try{
           _setImpStatus('Enviando texto completo do PDF para IA em blocos…');
           const textAiData=await readInvoiceTextWithAI(pdfText,file.name,_setImpStatus);
-          if(impHasData(textAiData))aiData=impMergeData(impMergeData(aiData||{},textAiData),localData||{});
+          if(impHasData(textAiData))aiData=impMergeTrustedLocal(impMergeData(aiData||{},textAiData),localData||{});
         }catch(textAiErr){
           console.warn('[NF Import] IA por texto completo falhou:',textAiErr.message);
           addErr('IA por texto completo do PDF',textAiErr);
@@ -8981,7 +8986,7 @@ async function readImportFile(inp){
   }
 
   if(impHasData(aiData)||impHasData(localData)){
-    aiData=impMergeData(aiData||{},localData||{});
+    aiData=impMergeTrustedLocal(aiData||{},localData||{});
     if(isPDF&&aiData.tipo==='NF-e'){
       try{
         const ab=await file.arrayBuffer();
@@ -9022,7 +9027,7 @@ async function readImportFile(inp){
     try{
       tessData=await readWithTesseract(file,_setImpStatus);
       if(impHasData(tessData)){
-        aiData=impMergeData(aiData||{},tessData);
+        aiData=impMergeTrustedLocal(aiData||{},tessData);
         if(impIsComplete(aiData)){
           showImportReview(aiData);
           toast('Dados completados pelo OCR local gratuito. Confira os campos.');
@@ -9468,6 +9473,54 @@ function parseNFFromText(text, digits){
   if(!digits)digits=text.replace(/\D/g,'');
   const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
   const norm=_norm(text);
+  const findSection=(starts,ends)=>{
+    let start=-1;
+    for(let i=0;i<lines.length;i++){
+      const n=_norm(lines[i]);
+      if(starts.some(re=>re.test(n))){start=i;break;}
+    }
+    if(start<0)return'';
+    let end=lines.length;
+    for(let i=start+1;i<lines.length;i++){
+      const n=_norm(lines[i]);
+      if(ends.some(re=>re.test(n))){end=i;break;}
+    }
+    return lines.slice(start,end).join('\n');
+  };
+  const cnpjFrom=s=>{
+    const m=String(s||'').match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/)||String(s||'').match(/(?:CNPJ|CPF\/CNPJ)[:\s]*([0-9.\-/]{14,18})/i);
+    const raw=m?(m[1]||m[0]):'';
+    const d=raw.replace(/\D/g,'');
+    return d.length===14?d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):'';
+  };
+  const findNameInLines=(arr,labels)=>{
+    const cleanCompanyName=raw=>String(raw||'').replace(/\s+/g,' ').trim()
+      .replace(/^(?:raz\S*o\s+social|raz[aã]o\s+social|nome\s+empresarial|nome\s*\/\s*raz\S*o\s+social|nome\s*\/\s*raz[aã]o\s+social)\s*:?\s*/i,'')
+      .replace(/^prestador\s*:\s*/i,'')
+      .replace(/^prestador\s+de\s+servi\S*\s*:?\s*/i,'')
+      .replace(/^(?:cnpj|cpf|cpf\s*\/\s*cnpj)\s*:?\s*[0-9.\-/ ]+/i,'')
+      .trim();
+    const validNameCandidate=raw=>{
+      const s=cleanCompanyName(raw);
+      const n=_norm(s);
+      if(s.length<5||/^\d/.test(s))return false;
+      if(/^(de\s+)?servi|^prestador(?:\s+de\s+servi\S*)?$|^dados\s+do\s+prestador$|^razao\s+social$|^nome\s+empresarial$|^tomador/.test(n))return false;
+      if(/cnpj|cpf|endere|telefone|email|municipio|inscricao|codigo/.test(n))return false;
+      return true;
+    };
+    for(let i=0;i<arr.length;i++){
+      const normLine=_norm(arr[i]);
+      const label=labels.find(re=>re.test(normLine));
+      if(!label)continue;
+      const same=arr[i].replace(label,'').replace(/[:\-]/,'').trim();
+      if(validNameCandidate(same))return cleanCompanyName(same);
+      for(let j=i+1;j<=Math.min(i+3,arr.length-1);j++){
+        const next=arr[j].trim();
+        if(validNameCandidate(next)&&!/^(cnpj|cpf|endere|tel|fone|inscri|ag[eê]ncia|c[oó]digo|munic[ií]pio|e-mail|email)/i.test(next)&&!/\d{2}\.\d{3}\.\d{3}/.test(next))return cleanCompanyName(next);
+      }
+    }
+    return'';
+  };
   const moneyRaw=s=>{
     const m=String(s||'').match(/R?\$?\s*([\d]{1,3}(?:\.[\d]{3})*,\d{2}|\d+,\d{2})/);
     return m?parseFloat(m[1].replace(/\./g,'').replace(',','.')):0;
@@ -9510,6 +9563,7 @@ function parseNFFromText(text, digits){
   else if(/fatura|invoice|cobran[çc]a|demonstrativo/i.test(text))tipo='Fatura';
   else if(/recibo|recibemos|recebi\b|rpa\b/i.test(text))tipo='Recibo';
   else if(/\b(darf|das|darm|gps|gnre|gare)\b|guia\s+(?:de|do)|tributo|taxa\s+municipal/i.test(text))tipo='Guia';
+  const prestadorBlock=tipo==='NFS-e'?findSection([/^\s*prestador(?:\s+de\s+servi\S*)?\s*:?\s*$/i,/^\s*dados\s+do\s+prestador/i],[/^\s*tomador\b/i,/^\s*intermediario\b/i,/^\s*discriminacao\b/i,/^\s*servicos\b/i,/^\s*valores\b/i]):'';
 
   const nfM=text.match(/n[º°\.]?\s*(?:da\s*)?nfs-?e\s*:?\s*(\d+)/i)
     ||text.match(/n[uú]mero\s*(?:da\s*)?(?:nota|nfs-?e|nf-?e|nfc-?e|ct-?e|documento|fatura|recibo|guia)\s*:?\s*([A-Z0-9.\-/]+)/i)
@@ -9525,19 +9579,22 @@ function parseNFFromText(text, digits){
     if(ld)linhaDigitavel=ld[1].replace(/\s+/g,' ').trim();
   }
 
-  const date=findDateNear([/data\s+de\s+emiss/i,/emiss[aã]o/i,/compet[eê]ncia/i])||findDateNear([/data/i])||(decoded?.date||'');
+  const date=findDateNear([/data\s+de\s+emiss/i,/emiss[aã]o/i,/compet[eê]ncia/i])||(tipo==='NFS-e'?'':findDateNear([/data/i]))||(decoded?.date||'');
   const venc=findDateNear([/vencimento/i,/venc\./i,/pagar\s+at[eé]/i,/data\s+limite/i]);
 
   let val=findMoneyNear([/valor\s+(?:total|do\s+documento|da\s+nota|dos?\s+servi[çc]os?|cobrado|a\s+pagar|liquido|l[ií]quido)/i,/total\s+(?:da\s+nota|a\s+pagar|geral|l[ií]quido)/i]);
   if(!val&&tipo==='Boleto')val=findMoneyNear([/valor\s+do\s+documento/i,/valor\s+cobrado/i,/valor\s+do\s+boleto/i]);
-  if(!val){
+  if(!val&&tipo!=='NFS-e'){
     const allAmts=[...text.matchAll(/R?\$?\s*([\d]{1,3}(?:\.[\d]{3})*,\d{2}|\d+,\d{2})/g)].map(m=>parseFloat(m[1].replace(/\./g,'').replace(',','.'))).filter(v=>v>0);
     if(allAmts.length)val=Math.max(...allAmts);
   }
 
   let ben='';
-  const labels=tipo==='Boleto'?[/(?:benefici[aá]rio|cedente|favorecido)/i]:tipo==='NFS-e'?[/prestador(?:\s+de\s+servi[çc]os?)?/i,/raz[aã]o\s*social/i]:[/emitente/i,/fornecedor/i,/benefici[aá]rio/i,/raz[aã]o\s*social/i,/empresa\s+prestadora/i];
-  for(let i=0;i<lines.length&&!ben;i++){
+  if(tipo==='NFS-e'&&prestadorBlock){
+    ben=findNameInLines(prestadorBlock.split('\n').map(l=>l.trim()).filter(Boolean),[/raz[aã]o\s*social/i,/nome\s*empresarial/i,/nome\/raz[aã]o\s*social/i,/prestador/i]);
+  }
+  const labels=tipo==='Boleto'?[/(?:benefici[aá]rio|cedente|favorecido)/i]:[/emitente/i,/fornecedor/i,/benefici[aá]rio/i,/raz[aã]o\s*social/i,/empresa\s+prestadora/i];
+  for(let i=0;i<lines.length&&!ben&&tipo!=='NFS-e';i++){
     if(labels.some(re=>re.test(lines[i]))){
       const same=lines[i].replace(labels.find(re=>re.test(lines[i])),'').replace(/[:\-]/,'').trim();
       if(same.length>4&&!/^\d/.test(same)&&!/cnpj|cpf/i.test(same))ben=same;
@@ -9547,7 +9604,7 @@ function parseNFFromText(text, digits){
       }
     }
   }
-  if(!ben){
+  if(!ben&&tipo!=='NFS-e'){
     for(const l of lines){
       const lt=l.trim();
       if(lt.length>8&&lt.length<120&&/^[A-ZÁÉÍÓÚÃÕÀÈÇ\s.&-]/.test(lt)&&lt===lt.toUpperCase()&&lt.split(/\s+/).length>=2&&!/^\d/.test(lt)&&!/^(nota|nfs|nf-e|nfc|ct-e|prefeitura|recibo|boleto|fatura|cnpj|data|valor|linha digit)/i.test(lt)){
@@ -9556,11 +9613,22 @@ function parseNFFromText(text, digits){
     }
   }
 
-  const finalCnpj=cnpj||(decoded?.cnpj)||'';
+  const finalCnpj=tipo==='NFS-e'?(cnpjFrom(prestadorBlock)||''):(cnpj||(decoded?.cnpj)||'');
   const prefix=impDocPrefix(tipo);
   const finalDoc=nfNum?`${prefix} ${nfNum}${decoded?.serie&&decoded.serie!=='1'?' série '+decoded.serie:''}`:'';
-  const descLine=lines.find(l=>/(servi[çc]o|refer[eê]ncia|descri[çc][aã]o|hist[oó]rico|discrimina[çc][aã]o)/i.test(l))||'';
-  const desc=descLine.replace(/^(servi[çc]o|refer[eê]ncia|descri[çc][aã]o|hist[oó]rico|discrimina[çc][aã]o)\s*:?\s*/i,'').trim();
+  const descIdx=lines.findIndex(l=>/(servi[çc]o|refer[eê]ncia|descri[çc][aã]o|hist[oó]rico|discrimina[çc][aã]o)/i.test(l));
+  let desc='';
+  if(descIdx>=0){
+    desc=lines[descIdx].replace(/^(servi[çc]o|refer[eê]ncia|descri[çc][aã]o|hist[oó]rico|discrimina[çc][aã]o)(?:\s+dos?\s+servi[çc]os?)?\s*:?\s*/i,'').trim();
+    if(desc.length<6){
+      const block=[];
+      for(let i=descIdx+1;i<Math.min(lines.length,descIdx+8);i++){
+        if(/^(valor|total|tomador|prestador|iss|inss|pis|cofins|ir|csll|c[oó]digo|n[uú]mero)/i.test(lines[i]))break;
+        if(lines[i].length>3)block.push(lines[i]);
+      }
+      desc=block.join(' ').trim();
+    }
+  }
   const codigo=linhaDigitavel||chave;
 
   return {ben,cnpj:finalCnpj,doc:finalDoc,val,date,venc,chave:codigo,desc,discriminacao:desc,tipo,itens:desc?[{descricao:desc,quantidade:1,unidade:tipo==='NF-e'||tipo==='NFC-e'?'UN':'Srv',valor_unitario:val,valor_total:val}]:[]};
