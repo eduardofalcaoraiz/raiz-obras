@@ -7037,7 +7037,7 @@ function csvHandleFile(inp){
 
       const lines=[];
 
-      for(let p=1;p<=Math.min(pdf.numPages,30);p++){
+      for(let p=1;p<=pdf.numPages;p++){
 
         const page=await pdf.getPage(p);const tc=await page.getTextContent();
 
@@ -8831,7 +8831,8 @@ async function readWithTesseract(file,onStatus){
     pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     const ab=await file.arrayBuffer();
     const pdf=await pdfjsLib.getDocument({data:new Uint8Array(ab)}).promise;
-    for(let pg=1;pg<=Math.min(pdf.numPages,2);pg++){
+    for(let pg=1;pg<=pdf.numPages;pg++){
+      if(onStatus)onStatus('OCR local gratuito: página '+pg+' de '+pdf.numPages+'…');
       const page=await pdf.getPage(pg);
       const vp=page.getViewport({scale:2});
       const canvas=document.createElement('canvas');
@@ -8873,8 +8874,9 @@ async function readImportFile(inp){
 
   if(['txt','html','htm'].includes(ext)){
     _setImpStatus('Lendo texto do documento…');
+    let text='';
     try{
-      const text=(await file.text()).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,' ');
+      text=(await file.text()).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,' ');
       const localData=parseNFFromText(text);
       if(impHasData(localData)){
         showImportReview(localData);
@@ -8883,6 +8885,20 @@ async function readImportFile(inp){
       }
       addErr('Parser de texto local','Texto lido, mas nenhum campo fiscal útil foi encontrado.');
     }catch(textErr){console.warn('[NF Import] Parser texto falhou:',textErr.message);addErr('Parser de texto local',textErr);}
+    if(text.trim()){
+      try{
+        const aiTextData=await readInvoiceTextWithAI(text,file.name,_setImpStatus);
+        if(impHasData(aiTextData)){
+          showImportReview(aiTextData);
+          toast('Dados extraídos pela IA a partir do texto completo. Confira os campos.');
+          return;
+        }
+        addErr('IA por texto completo','Servidor analisou o texto, mas não retornou campos úteis.');
+      }catch(aiTextErr){
+        console.warn('[NF Import] IA texto falhou:',aiTextErr.message);
+        addErr('IA por texto completo',aiTextErr);
+      }
+    }
     showImportErrorDetails(file,errors);showManualEntry();return;
   }
 
@@ -8905,8 +8921,20 @@ async function readImportFile(inp){
   if(isPDF){
     try{
       _setImpStatus(aiData?'Verificando PDF com parser local…':'Extraindo texto do PDF localmente…');
-      localData=await parseNFFromPDF(file);
+      const pdfText=await extractPdfText(file,_setImpStatus);
+      if(!pdfText.trim())throw new Error('PDF sem texto extraível. O sistema tentará OCR local nas páginas escaneadas.');
+      localData=parseNFFromText(pdfText,pdfText.replace(/\D/g,''));
       if(impHasData(localData)&&aiData)aiData=impMergeData(aiData,localData);
+      if(pdfText.length>20&&(!impHasData(aiData)||!(aiData.itens&&aiData.itens.length))){
+        try{
+          _setImpStatus('Enviando texto completo do PDF para IA em blocos…');
+          const textAiData=await readInvoiceTextWithAI(pdfText,file.name,_setImpStatus);
+          if(impHasData(textAiData))aiData=impMergeData(impMergeData(aiData||{},textAiData),localData||{});
+        }catch(textAiErr){
+          console.warn('[NF Import] IA por texto completo falhou:',textAiErr.message);
+          addErr('IA por texto completo do PDF',textAiErr);
+        }
+      }
     }catch(localErr){
       console.warn('[NF Import] Parser local falhou:',localErr.message);
       addErr('PDF.js + parser local',localErr);
@@ -8921,14 +8949,15 @@ async function readImportFile(inp){
         const _pdfCheck=await pdfjsLib.getDocument({data:new Uint8Array(ab)}).promise;
         if(_pdfCheck.numPages>1){
           _setImpStatus('Lendo páginas adicionais para itens…');
-          for(let pg=2;pg<=Math.min(_pdfCheck.numPages,4);pg++){
+          for(let pg=2;pg<=_pdfCheck.numPages;pg++){
             try{
+              _setImpStatus('Lendo página adicional '+pg+' de '+_pdfCheck.numPages+' para itens…');
               const _pgB64=await _renderPdfPage(file,pg,1.4);
               const _pgResp=await fetch(SUPA_URL+'/functions/v1/read-invoice',{
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_ANON,'apikey':SUPA_ANON},
                 body:JSON.stringify({imageBase64:_pgB64,mediaType:'image/jpeg'}),
-                signal:AbortSignal.timeout(30000)
+                signal:AbortSignal.timeout(45000)
               });
               if(_pgResp.ok){
                 const _pgJ=await _pgResp.json();
@@ -9051,6 +9080,76 @@ function cleanImpCodigo(raw,tipo){
   return s.replace(/\s+/g,' ').trim();
 }
 
+function mapEdgeInvoiceResult(result){
+  if(!result.ok){
+    const attempts=(result.attempts||[]).filter(Boolean).join(' | ');
+    throw new Error((result.error||'Erro desconhecido no servidor')+(attempts?' | Tentativas: '+attempts:''));
+  }
+  const d=result.data||{};
+  console.log('[NF Import] Dados extraídos pela IA:',d);
+  const ems=d.emitente||{};
+  const vals=d.valores||{};
+  const pag=d.pagamento||{};
+  const nfNum=d.numero_nf!=null?String(d.numero_nf):'';
+  const serieStr=d.serie&&String(d.serie)!=='1'?' série '+String(d.serie):'';
+  const tipoDoc=normalizeImpDocTipo(d.tipo_documento||d.tipo||'NF-e');
+  const docPrefix=impDocPrefix(tipoDoc);
+  const codigo=d.chave_acesso||d.linha_digitavel||d.codigo_barras||d.codigo_verificacao||'';
+  const venc=(d.data_vencimento||pag.vencimento||(pag.parcelas&&pag.parcelas[0]&&pag.parcelas[0].vencimento)||'');
+  return{
+    ben:ems.razao_social||d.razao_social||'',
+    cnpj:ems.cnpj||d.cnpj||'',
+    doc:nfNum?`${docPrefix} ${nfNum}${serieStr}`:'',
+    val:parseFloat(vals.valor_total||d.valor_total)||0,
+    date:d.data_emissao||'',
+    chave:cleanImpCodigo(codigo,tipoDoc),
+    tipo:tipoDoc,
+    itens:d.itens||[],
+    discriminacao:d.discriminacao||'',
+    desc:d.discriminacao||(d.itens&&d.itens[0]?d.itens[0].descricao:''),
+    subtotal:parseFloat(vals.subtotal)||0,
+    desconto:parseFloat(vals.desconto)||0,
+    frete:parseFloat(vals.frete)||0,
+    pagForma:pag.forma||'A_VISTA',
+    numParcelas:pag.num_parcelas||1,
+    parcelas:pag.parcelas||[],
+    venc,
+    obs:d.observacoes||'',
+    _meta:d._meta||null,
+    _attempts:result.attempts||[]
+  };
+}
+
+async function readInvoiceTextWithAI(rawText,sourceName,onStatus){
+  const text=String(rawText||'');
+  if(!text.trim())throw new Error('Texto vazio para análise por IA.');
+  if(onStatus)onStatus('Enviando texto completo para IA em blocos…');
+  const edgeUrl=SUPA_URL+'/functions/v1/read-invoice';
+  let resp;
+  try{
+    resp=await fetch(edgeUrl,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+SUPA_ANON,
+        'apikey':SUPA_ANON
+      },
+      body:JSON.stringify({rawText:text,mediaType:'text/plain',fileName:sourceName||''}),
+      signal:AbortSignal.timeout(120000)
+    });
+  }catch(fetchErr){
+    if(fetchErr.name==='TimeoutError'||fetchErr.name==='AbortError')
+      throw new Error('Tempo esgotado aguardando resposta da IA por texto completo (120s)');
+    throw new Error('Erro de rede ao conectar com servidor: '+fetchErr.message);
+  }
+  if(!resp.ok){
+    let msg='Servidor retornou HTTP '+resp.status;
+    try{const j=await resp.json();msg=j.error||msg;}catch{}
+    throw new Error(msg);
+  }
+  return mapEdgeInvoiceResult(await resp.json());
+}
+
 async function readInvoiceWithAI(file,onStatus){
 
   const ext=file.name.split('.').pop().toLowerCase();
@@ -9111,7 +9210,7 @@ async function readInvoiceWithAI(file,onStatus){
 
       body:JSON.stringify({imageBase64:imgB64,mediaType}),
 
-      signal:AbortSignal.timeout(60000)
+      signal:AbortSignal.timeout(120000)
 
     });
 
@@ -9119,7 +9218,7 @@ async function readInvoiceWithAI(file,onStatus){
 
     if(fetchErr.name==='TimeoutError'||fetchErr.name==='AbortError')
 
-      throw new Error('Tempo esgotado aguardando resposta da IA (60s)');
+      throw new Error('Tempo esgotado aguardando resposta da IA (120s)');
 
     throw new Error('Erro de rede ao conectar com servidor: '+fetchErr.message);
 
@@ -9139,80 +9238,7 @@ async function readInvoiceWithAI(file,onStatus){
 
 
 
-  const result=await resp.json();
-
-  if(!result.ok){
-    const attempts=(result.attempts||[]).filter(Boolean).join(' | ');
-    throw new Error((result.error||'Erro desconhecido no servidor')+(attempts?' | Tentativas: '+attempts:''));
-  }
-
-
-
-  const d=result.data;
-
-  console.log('[NF Import] Dados extraídos pela IA:',d);
-
-  const ems=d.emitente||{};
-
-  const vals=d.valores||{};
-
-  const pag=d.pagamento||{};
-
-  const nfNum=d.numero_nf!=null?String(d.numero_nf):'';
-
-  const serieStr=d.serie&&String(d.serie)!=='1'?' série '+String(d.serie):'';
-
-  const tipoDoc=normalizeImpDocTipo(d.tipo_documento||d.tipo||'NF-e');
-
-  const docPrefix=impDocPrefix(tipoDoc);
-
-  const codigo=d.chave_acesso||d.linha_digitavel||d.codigo_barras||d.codigo_verificacao||'';
-
-  const venc=(d.data_vencimento||pag.vencimento||(pag.parcelas&&pag.parcelas[0]&&pag.parcelas[0].vencimento)||'');
-
-  return{
-
-    ben:ems.razao_social||d.razao_social||'',
-
-    cnpj:ems.cnpj||d.cnpj||'',
-
-    doc:nfNum?`${docPrefix} ${nfNum}${serieStr}`:'',
-
-    val:parseFloat(vals.valor_total||d.valor_total)||0,
-
-    date:d.data_emissao||'',
-
-    chave:cleanImpCodigo(codigo,tipoDoc),
-
-    tipo:tipoDoc,
-
-    itens:d.itens||[],
-
-    discriminacao:d.discriminacao||'',
-
-    desc:d.discriminacao||(d.itens&&d.itens[0]?d.itens[0].descricao:''),
-
-    subtotal:parseFloat(vals.subtotal)||0,
-
-    desconto:parseFloat(vals.desconto)||0,
-
-    frete:parseFloat(vals.frete)||0,
-
-    pagForma:pag.forma||'A_VISTA',
-
-    numParcelas:pag.num_parcelas||1,
-
-    parcelas:pag.parcelas||[],
-
-    venc,
-
-    obs:d.observacoes||'',
-
-    _meta:d._meta||null,
-
-    _attempts:result.attempts||[]
-
-  };
+  return mapEdgeInvoiceResult(await resp.json());
 
 }
 
@@ -9341,72 +9367,36 @@ function parseNFeXML(xmlText){
 
 
 
-function parseNFFromPDF(file){
+async function extractPdfText(file,onStatus){
+  if(typeof pdfjsLib==='undefined')throw new Error('PDF.js não carregou. Verifique a conexão.');
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const ab=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:new Uint8Array(ab)}).promise;
+  const lines=[];
+  for(let pg=1;pg<=pdf.numPages;pg++){
+    if(onStatus)onStatus('Extraindo texto do PDF localmente: página '+pg+' de '+pdf.numPages+'…');
+    const page=await pdf.getPage(pg);
+    const tc=await page.getTextContent();
+    // Agrupa por Y com tolerância de 3pt para preservar linhas visuais de itens.
+    const yMap={};
+    tc.items.forEach(it=>{
+      const y=Math.round(it.transform[5]/3)*3;
+      if(!yMap[y])yMap[y]=[];
+      yMap[y].push({x:it.transform[4],s:(it.str||'').trim()});
+    });
+    Object.keys(yMap).map(Number).sort((a,b)=>b-a).forEach(y=>{
+      const ln=yMap[y].sort((a,b)=>a.x-b.x).map(i=>i.s).filter(s=>s).join(' ');
+      if(ln.trim())lines.push(ln.trim());
+    });
+  }
+  return lines.join('\n');
+}
 
-  return new Promise((resolve,reject)=>{
-
-    const rd=new FileReader();
-
-    rd.onload=async ev=>{
-
-      try{
-
-        if(typeof pdfjsLib==='undefined')throw new Error('PDF.js não carregou. Verifique a conexão.');
-
-        pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-        const pdf=await pdfjsLib.getDocument({data:new Uint8Array(ev.target.result)}).promise;
-
-        const lines=[];
-
-        for(let pg=1;pg<=Math.min(pdf.numPages,5);pg++){
-
-          const page=await pdf.getPage(pg);
-
-          const tc=await page.getTextContent();
-
-          // Agrupa por Y com tolerância de 3pt (itens na mesma linha visual)
-
-          const yMap={};
-
-          tc.items.forEach(it=>{
-
-            const y=Math.round(it.transform[5]/3)*3;
-
-            if(!yMap[y])yMap[y]=[];
-
-            yMap[y].push({x:it.transform[4],s:(it.str||'').trim()});
-
-          });
-
-          Object.keys(yMap).map(Number).sort((a,b)=>b-a).forEach(y=>{
-
-            const ln=yMap[y].sort((a,b)=>a.x-b.x).map(i=>i.s).filter(s=>s).join(' ');
-
-            if(ln.trim())lines.push(ln.trim());
-
-          });
-
-        }
-
-        if(!lines.length)throw new Error('PDF sem texto extraível. Use XML da NF-e ou preencha manualmente.');
-
-        const text=lines.join('\n');
-
-        // Concatenação só de dígitos — para achar a chave de acesso de 44 dígitos
-
-        const digits=text.replace(/\D/g,'');
-
-        resolve(parseNFFromText(text,digits));
-
-      }catch(err){reject(err);}
-
-    };
-
-    rd.readAsArrayBuffer(file);
-
-  });
-
+async function parseNFFromPDF(file,onStatus){
+  const text=await extractPdfText(file,onStatus);
+  if(!text.trim())throw new Error('PDF sem texto extraível. O sistema tentará OCR local nas páginas escaneadas.');
+  const digits=text.replace(/\D/g,'');
+  return parseNFFromText(text,digits);
 }
 
 
@@ -9908,8 +9898,8 @@ function showImportReview(data){
   const _refEl=document.getElementById('imp-ref');
   if(_refEl&&!_refEl.value){
     if(['NFS-e','CT-e','Boleto','Fatura','Recibo','Guia'].includes(nfTipo)&&data.discriminacao){
-      // Serviços e cobranças: usar discriminação do documento (truncado em 120 chars)
-      _refEl.value=data.discriminacao.replace(/\s+/g,' ').trim().slice(0,120);
+      // Serviços e cobranças: usar a discriminação completa encontrada no documento.
+      _refEl.value=data.discriminacao.replace(/\s+/g,' ').trim();
     }else if(data.itens&&data.itens.length){
       // NF-e ou NFS-e com itens: agrupar por tipo de material/serviço
       const _groups={};
