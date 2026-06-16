@@ -951,6 +951,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
 </head>
 
 <body>
@@ -2475,6 +2477,20 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
   <div class="mbody"><p id="confirm-msg" style="color:var(--muted);margin-bottom:22px"></p>
 
    <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn btn-ghost" onclick="closeConfirm()">Cancelar</button><button class="btn" id="confirm-ok" style="background:var(--danger);border-color:var(--danger);color:#fff"><span class="ic">🗑</span> Excluir</button></div></div>
+
+</div></div>
+
+
+
+<div class="overlay" id="imp-error-overlay"><div class="modal" style="max-width:620px">
+
+  <div class="mhead"><h2 style="font-size:18px">Falha na leitura automática</h2><button class="x" onclick="closeImportError()">×</button></div>
+
+  <div class="mbody">
+    <p style="color:var(--muted);font-size:13.5px;margin-bottom:12px">Tentamos ler o documento por múltiplos caminhos gratuitos. Veja o detalhe técnico para entender onde falhou.</p>
+    <div id="imp-error-body" style="max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);padding:12px;font-size:12.5px;line-height:1.55;color:var(--ink)"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px"><button class="btn btn-ghost" onclick="closeImportError()">Fechar</button><button class="btn btn-primary" onclick="closeImportError();showManualEntry()">Preencher manualmente</button></div>
+  </div>
 
 </div></div>
 
@@ -8699,83 +8715,161 @@ function _setImpStatus(msg,isErr){
 
 
 
+function impHasData(data){
+  return !!(data&&(data.ben||data.val||data.cnpj||data.chave||data.doc||(data.itens&&data.itens.length)||data.discriminacao||data.desc));
+}
+
+function impErrorText(err){
+  if(!err)return'Erro desconhecido';
+  if(typeof err==='string')return err;
+  return err.message||String(err);
+}
+
+function impMergeData(primary,secondary){
+  if(!secondary)return primary||{};
+  const out=Object.assign({},primary||{});
+  ['ben','cnpj','doc','date','venc','chave','tipo','discriminacao','desc','pagForma','obs'].forEach(k=>{
+    if(!out[k]&&secondary[k])out[k]=secondary[k];
+  });
+  ['val','subtotal','desconto','frete','numParcelas'].forEach(k=>{
+    if((!out[k]||parseFloat(out[k])===0)&&secondary[k])out[k]=secondary[k];
+  });
+  if((!out.parcelas||!out.parcelas.length)&&secondary.parcelas&&secondary.parcelas.length)out.parcelas=secondary.parcelas;
+  const itens=[...(out.itens||[])];
+  const seen=new Set(itens.map(it=>(it.descricao||'').toLowerCase().trim()).filter(Boolean));
+  (secondary.itens||[]).forEach(it=>{
+    const key=(it.descricao||'').toLowerCase().trim();
+    if(key&&!seen.has(key)){itens.push(it);seen.add(key);}
+  });
+  out.itens=itens;
+  return out;
+}
+
+function showImportErrorDetails(file,errors){
+  const ov=document.getElementById('imp-error-overlay');
+  const body=document.getElementById('imp-error-body');
+  if(!ov||!body){alert('Falha na leitura automática:\n'+errors.map(e=>e.etapa+': '+e.erro).join('\n'));return;}
+  const rows=(errors||[]).map((e,i)=>`
+    <div style="padding:10px 0;border-bottom:${i===errors.length-1?'0':'1px solid var(--line)'}">
+      <div style="font-weight:800;color:var(--danger);margin-bottom:3px">${i+1}. ${escHtml(e.etapa||'Tentativa')}</div>
+      <div style="white-space:pre-wrap;color:var(--ink)">${escHtml(e.erro||'Sem detalhe')}</div>
+    </div>`).join('');
+  body.innerHTML=`
+    <div style="margin-bottom:10px;color:var(--muted)"><b>Arquivo:</b> ${escHtml(file?.name||'')}</div>
+    ${rows||'<div>Nenhum detalhe técnico recebido.</div>'}
+    <div style="margin-top:12px;color:var(--muted);font-size:12px">O preenchimento manual permanece disponível; se o arquivo estiver cortado, escaneado em baixa qualidade ou protegido, tente reenviar em PDF nativo/XML quando possível.</div>`;
+  ov.classList.add('show');
+}
+
+function closeImportError(){
+  const ov=document.getElementById('imp-error-overlay');
+  if(ov)ov.classList.remove('show');
+}
+
+async function readWithTesseract(file,onStatus){
+  if(typeof Tesseract==='undefined')throw new Error('Tesseract.js não carregou. Verifique a conexão com o CDN.');
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  const texts=[];
+  const recognize=async(source,label)=>{
+    if(onStatus)onStatus('OCR local gratuito (Tesseract): '+label+'…');
+    const result=await Tesseract.recognize(source,'por+eng',{
+      logger:m=>{
+        if(onStatus&&m&&m.status&&typeof m.progress==='number'){
+          onStatus('OCR local gratuito: '+m.status+' '+Math.round(m.progress*100)+'%');
+        }
+      }
+    });
+    return (result&&result.data&&result.data.text)||'';
+  };
+  if(ext==='pdf'){
+    if(typeof pdfjsLib==='undefined')throw new Error('PDF.js não carregou para renderizar o PDF no OCR local.');
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const ab=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(ab)}).promise;
+    for(let pg=1;pg<=Math.min(pdf.numPages,2);pg++){
+      const page=await pdf.getPage(pg);
+      const vp=page.getViewport({scale:2});
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(vp.width);canvas.height=Math.round(vp.height);
+      await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+      texts.push(await recognize(canvas,'página '+pg));
+    }
+  }else{
+    const url=URL.createObjectURL(file);
+    try{texts.push(await recognize(url,'imagem'));}finally{URL.revokeObjectURL(url);}
+  }
+  const text=texts.join('\n').trim();
+  if(text.length<20)throw new Error('Tesseract não encontrou texto suficiente no documento.');
+  const data=parseNFFromText(text);
+  if(!impHasData(data))throw new Error('Tesseract extraiu texto, mas o parser não encontrou campos fiscais úteis.');
+  data._ocrTextLength=text.length;
+  return data;
+}
+
+
+
 async function readImportFile(inp){
-
   const file=inp.files[0]; if(!file)return;
-
   impFile=file; inp.value='';
-
   document.getElementById('imp-upload').style.display='none';
-
   document.getElementById('imp-reading').style.display='block';
-
   document.getElementById('imp-review').style.display='none';
 
   const ext=file.name.split('.').pop().toLowerCase();
-
-
-
-  // XML: parser local 100% confiável
+  const isPDF=ext==='pdf';
+  const errors=[];
+  const addErr=(etapa,err)=>errors.push({etapa,erro:impErrorText(err)});
 
   if(ext==='xml'){
-
-    _setImpStatus('Lendo XML da nota fiscal…');
-
+    _setImpStatus('Lendo XML fiscal localmente…');
     try{const data=parseNFeXML(await file.text());showImportReview(data);return;}
-
-    catch(err){toast('❌ Erro no XML: '+err.message);showManualEntry();return;}
-
+    catch(err){addErr('Parser XML fiscal local',err);showImportErrorDetails(file,errors);showManualEntry();return;}
   }
 
   if(['txt','html','htm'].includes(ext)){
-
     _setImpStatus('Lendo texto do documento…');
-
     try{
       const text=(await file.text()).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,' ');
       const localData=parseNFFromText(text);
-      if(localData.ben||localData.val||localData.cnpj||localData.chave||localData.doc){
+      if(impHasData(localData)){
         showImportReview(localData);
         toast('Dados extraídos do texto. Confira os campos.');
         return;
       }
-    }catch(textErr){console.warn('[NF Import] Parser texto falhou:',textErr.message);}
-
-    showManualEntry();return;
-
+      addErr('Parser de texto local','Texto lido, mas nenhum campo fiscal útil foi encontrado.');
+    }catch(textErr){console.warn('[NF Import] Parser texto falhou:',textErr.message);addErr('Parser de texto local',textErr);}
+    showImportErrorDetails(file,errors);showManualEntry();return;
   }
-
-
-
-  const isPDF=ext==='pdf';
 
   let aiData=null;
-
   let aiError=null;
-
-
-
-  // Tentativa 1: IA via Supabase Edge Function
+  let localData=null;
+  let tessData=null;
 
   try{
-
+    _setImpStatus('Rodando cascata gratuita no servidor…');
     aiData=await readInvoiceWithAI(file,_setImpStatus);
-
+    if(aiData&&aiData._attempts&&aiData._attempts.length)console.info('[NF Import] Tentativas do servidor:',aiData._attempts);
   }catch(err){
-
     aiError=err.message;
-
-    _setImpStatus('IA indisponível: '+err.message,true);
-
+    addErr('Cascata IA no servidor',err);
+    _setImpStatus('Cascata do servidor falhou: '+err.message,true);
     console.warn('[NF Import] IA falhou:',err.message);
-
   }
 
+  if(isPDF){
+    try{
+      _setImpStatus(aiData?'Verificando PDF com parser local…':'Extraindo texto do PDF localmente…');
+      localData=await parseNFFromPDF(file);
+      if(impHasData(localData)&&aiData)aiData=impMergeData(aiData,localData);
+    }catch(localErr){
+      console.warn('[NF Import] Parser local falhou:',localErr.message);
+      addErr('PDF.js + parser local',localErr);
+    }
+  }
 
-
-  if(aiData&&(aiData.ben||aiData.val||aiData.cnpj||aiData.chave)){
-
-    // Para PDFs com mais de 1 página: ler páginas adicionais para capturar itens extras
+  if(impHasData(aiData)||impHasData(localData)){
+    aiData=impMergeData(aiData||{},localData||{});
     if(isPDF&&aiData.tipo==='NF-e'){
       try{
         const ab=await file.arrayBuffer();
@@ -8794,7 +8888,6 @@ async function readImportFile(inp){
               if(_pgResp.ok){
                 const _pgJ=await _pgResp.json();
                 if(_pgJ.ok&&_pgJ.data&&_pgJ.data.itens&&_pgJ.data.itens.length){
-                  // Adicionar apenas itens novos (evitar duplicatas)
                   const _existDesc=new Set((aiData.itens||[]).map(x=>x.descricao));
                   const _novos=_pgJ.data.itens.filter(x=>x.descricao&&!_existDesc.has(x.descricao));
                   if(_novos.length){aiData.itens=[...(aiData.itens||[]),..._novos];console.log('[NF pg'+pg+']',_novos.length,'itens extras');}
@@ -8805,57 +8898,29 @@ async function readImportFile(inp){
         }
       }catch(pgCheckErr){console.warn('[NF multi-pg]',pgCheckErr.message);}
     }
-
     showImportReview(aiData);
-
-    if(!aiData.val)toast('⚠ IA não encontrou o valor total — preencha manualmente.');
-
+    if(!aiData.val)toast('⚠ A cascata não encontrou o valor total — preencha manualmente.');
     return;
-
   }
 
-
-
-  // Tentativa 2: extração de texto local (só para PDF)
-
-  if(isPDF){
-
-    _setImpStatus('Extraindo texto do PDF localmente…');
-
+  if(['pdf','jpg','jpeg','png','webp'].includes(ext)){
     try{
-
-      const localData=await parseNFFromPDF(file);
-
-      if(localData.ben||localData.val||localData.cnpj||localData.chave){
-
-        showImportReview(localData);
-
-        const note=aiError?` (IA: ${aiError})`:'';
-
-        toast('⚠ Dados extraídos sem IA'+note+'. Confira os campos.');
-
+      tessData=await readWithTesseract(file,_setImpStatus);
+      if(impHasData(tessData)){
+        showImportReview(tessData);
+        toast('⚠ Dados extraídos pelo OCR local gratuito. Confira os campos.');
         return;
-
       }
-
-    }catch(localErr){
-
-      console.warn('[NF Import] Parser local falhou:',localErr.message);
-
+      addErr('OCR local Tesseract','OCR terminou sem campos fiscais úteis.');
+    }catch(tessErr){
+      console.warn('[NF Import] Tesseract falhou:',tessErr.message);
+      addErr('OCR local Tesseract',tessErr);
     }
-
   }
 
-
-
-  // Tudo falhou
-
-  const errDetail=aiError?'\nIA: '+aiError:'';
-
-  toast('❌ Não foi possível ler o arquivo automaticamente.'+errDetail+'\nPreencha os dados manualmente.');
-
+  toast('❌ Não foi possível ler automaticamente. Veja o pop-up com os detalhes.');
+  showImportErrorDetails(file,errors.length?errors:[{etapa:'Leitura automática',erro:aiError||'Nenhuma tentativa retornou dados úteis.'}]);
   showManualEntry();
-
 }
 
 
@@ -9031,7 +9096,10 @@ async function readInvoiceWithAI(file,onStatus){
 
   const result=await resp.json();
 
-  if(!result.ok)throw new Error(result.error||'Erro desconhecido no servidor');
+  if(!result.ok){
+    const attempts=(result.attempts||[]).filter(Boolean).join(' | ');
+    throw new Error((result.error||'Erro desconhecido no servidor')+(attempts?' | Tentativas: '+attempts:''));
+  }
 
 
 
@@ -9093,7 +9161,11 @@ async function readInvoiceWithAI(file,onStatus){
 
     venc,
 
-    obs:d.observacoes||''
+    obs:d.observacoes||'',
+
+    _meta:d._meta||null,
+
+    _attempts:result.attempts||[]
 
   };
 
