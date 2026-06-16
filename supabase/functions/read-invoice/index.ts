@@ -70,11 +70,22 @@ Deno.serve(async (req: Request) => {
 
     const attempts: string[] = []
     const geminiKey = Deno.env.get('GEMINI_API_KEY') || ''
+    let merged: AnyRecord | null = null
+    const consider = (stage: string, normalized: AnyRecord) => {
+      if (!hasUsefulData(normalized)) {
+        attempts.push(stage + ': sem campos uteis')
+        return false
+      }
+      merged = mergeNormalizedData(merged, normalized)
+      const missing = missingPaymentFields(merged)
+      attempts.push(stage + ': leu ' + describeFoundFields(normalized) + '; faltando ' + (missing.length ? missing.join(', ') : 'nada'))
+      return missing.length === 0
+    }
 
     if (rawText.trim()) {
       const normalized = await extractFromOcrText(rawText, geminiKey, 'client-text')
-      if (hasUsefulData(normalized)) return ok(normalized, attempts)
-      attempts.push('Texto enviado pelo cliente nao retornou dados uteis')
+      if (consider('Texto completo do cliente', normalized)) return ok(merged || {}, attempts)
+      if (merged && hasUsefulData(merged)) return ok(merged, attempts)
       throw new Error('Nao foi possivel extrair dados suficientes do texto completo. Tentativas: ' + attempts.join(' | '))
     }
 
@@ -84,8 +95,7 @@ Deno.serve(async (req: Request) => {
       try {
         const raw = await callGeminiDocument(geminiKey, imageBase64, mediaType)
         const normalized = normalizeData(raw, 'gemini-direct')
-        if (hasUsefulData(normalized)) return ok(normalized, attempts)
-        attempts.push('Gemini direto retornou poucos dados uteis')
+        if (consider('Gemini direto', normalized)) return ok(merged || {}, attempts)
       } catch (err) {
         attempts.push('Gemini direto: ' + errorMessage(err))
       }
@@ -98,8 +108,7 @@ Deno.serve(async (req: Request) => {
       try {
         const text = await callMistralOcr(mistralKey, imageBase64, mediaType)
         const normalized = await extractFromOcrText(text, geminiKey, 'mistral-ocr')
-        if (hasUsefulData(normalized)) return ok(normalized, attempts)
-        attempts.push('Mistral OCR retornou poucos dados uteis')
+        if (consider('Mistral OCR + IA', normalized)) return ok(merged || {}, attempts)
       } catch (err) {
         attempts.push('Mistral OCR: ' + errorMessage(err))
       }
@@ -111,14 +120,14 @@ Deno.serve(async (req: Request) => {
         const source = ocrSpaceKey === 'helloworld' ? 'ocr-space-free-demo' : 'ocr-space-free'
         const text = await callOcrSpace(ocrSpaceKey, imageBase64, mediaType)
         const normalized = await extractFromOcrText(text, geminiKey, source)
-        if (hasUsefulData(normalized)) return ok(normalized, attempts)
-        attempts.push(source + ' retornou poucos dados uteis')
+        if (consider('OCR.space + IA', normalized)) return ok(merged || {}, attempts)
       } catch (err) {
         const hint = ocrSpaceKey === 'helloworld' ? ' (chave demo gratuita, limite bem baixo; configure OCR_SPACE_API_KEY gratuita para producao)' : ''
         attempts.push('OCR.space gratuito' + hint + ': ' + errorMessage(err))
       }
     }
 
+    if (merged && hasUsefulData(merged)) return ok(merged, attempts)
     throw new Error('Nao foi possivel extrair dados suficientes. Tentativas: ' + attempts.join(' | '))
   } catch (err) {
     return json({ ok: false, error: errorMessage(err) })
@@ -200,6 +209,7 @@ function mergeNormalizedData(primary: AnyRecord | null, secondary: AnyRecord | n
     if (isBlank(out[key]) && !isBlank(secondary[key])) out[key] = secondary[key]
   }
   ;['tipo_documento', 'numero_nf', 'serie', 'data_emissao', 'data_vencimento', 'chave_acesso', 'linha_digitavel', 'codigo_barras', 'codigo_verificacao', 'discriminacao', 'observacoes'].forEach(fill)
+  if (secondary.tipo_documento && (!out.tipo_documento || (out.tipo_documento === 'NF-e' && secondary.tipo_documento !== 'NF-e'))) out.tipo_documento = secondary.tipo_documento
 
   out.emitente = { ...(out.emitente || {}) }
   const secEmit = secondary.emitente || {}
@@ -633,6 +643,53 @@ function hasUsefulData(data: AnyRecord) {
   return Boolean(data?.emitente?.razao_social || data?.emitente?.cnpj || data?.numero_nf || data?.chave_acesso || data?.linha_digitavel || total > 0 || data?.itens?.length)
 }
 
+function missingPaymentFields(data: AnyRecord | null) {
+  const d = data || {}
+  const emit = d.emitente || {}
+  const valores = d.valores || {}
+  const total = num(valores.valor_total)
+  const missing: string[] = []
+  if (isBlank(emit.razao_social)) missing.push('emitente/beneficiario')
+  if (isBlank(emit.cnpj)) missing.push('CNPJ')
+  if (!total) missing.push('valor total')
+  if (isBlank(d.numero_nf) && isBlank(d.chave_acesso) && isBlank(d.linha_digitavel) && isBlank(d.codigo_barras) && isBlank(d.codigo_verificacao)) missing.push('numero/codigo do documento')
+  if (isBlank(d.data_emissao) && isBlank(d.data_vencimento)) missing.push('data')
+  if ((!Array.isArray(d.itens) || d.itens.length === 0) && isBlank(d.discriminacao)) missing.push('descricao/itens')
+  return missing
+}
+
+function completenessScore(data: AnyRecord | null) {
+  const required = 6
+  return Math.max(0, required - missingPaymentFields(data).length)
+}
+
+function describeFoundFields(data: AnyRecord | null) {
+  const d = data || {}
+  const emit = d.emitente || {}
+  const valores = d.valores || {}
+  const found: string[] = []
+  if (!isBlank(emit.razao_social)) found.push('emitente')
+  if (!isBlank(emit.cnpj)) found.push('CNPJ')
+  if (num(valores.valor_total)) found.push('valor')
+  if (!isBlank(d.numero_nf) || !isBlank(d.chave_acesso) || !isBlank(d.linha_digitavel) || !isBlank(d.codigo_barras) || !isBlank(d.codigo_verificacao)) found.push('documento/codigo')
+  if (!isBlank(d.data_emissao) || !isBlank(d.data_vencimento)) found.push('data')
+  if ((Array.isArray(d.itens) && d.itens.length) || !isBlank(d.discriminacao)) found.push('descricao/itens')
+  return found.length ? found.join(', ') : 'nenhum campo principal'
+}
+
+function enrichDataForReturn(data: AnyRecord | null, attempts: string[]) {
+  const out: AnyRecord = JSON.parse(JSON.stringify(data || {}))
+  const missing = missingPaymentFields(out)
+  out._meta = {
+    ...(out._meta || {}),
+    completenessScore: completenessScore(out),
+    completeForPayment: missing.length === 0,
+    missingFields: missing,
+    cascadeAttempts: attempts.length,
+  }
+  return out
+}
+
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
@@ -644,7 +701,13 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
 }
 
 function ok(data: AnyRecord, attempts: string[]) {
-  return json({ ok: true, data, attempts })
+  const enriched = enrichDataForReturn(data, attempts)
+  return json({
+    ok: true,
+    data: enriched,
+    attempts,
+    warnings: enriched._meta?.missingFields?.length ? ['Campos ainda nao encontrados: ' + enriched._meta.missingFields.join(', ')] : [],
+  })
 }
 
 function json(payload: AnyRecord) {
