@@ -25,6 +25,9 @@ Critical rules:
 6. Extract every product/service line item that is visible. Do not invent missing items.
 7. Dates must be YYYY-MM-DD. Numbers must be plain decimals with dot separator.
 8. Unknown fields must be null, empty arrays, or zero. Return only valid JSON.
+9. Evidence first: if OCR is unclear, fragmented, or ambiguous, return null/0 for that field instead of guessing.
+10. Do not infer totals from the largest number on the page. Use only values explicitly labeled as total, valor da nota, valor liquido, valor dos servicos, valor do documento, or valor a pagar.
+11. Do not infer company names from arbitrary uppercase lines. For NFS-e, emitente must come from the PRESTADOR/provider block only.
 
 Issuer/provider self-check:
 - NF-e/NFC-e/CT-e: emitente is the company in EMITENTE/REMETENTE, never DESTINATARIO.
@@ -55,7 +58,8 @@ Return this JSON shape:
 
 const TEXT_PROMPT = DOCUMENT_PROMPT + `
 
-The input below is OCR/raw text extracted from the document. Preserve all useful details and return only the same JSON shape.`
+The input below is OCR/raw text extracted from the document. Preserve all useful details and return only the same JSON shape.
+OCR text may contain recognition errors. Never "repair" a field by imagination. Only fill values that are explicitly present in the OCR text.`
 
 type AnyRecord = Record<string, any>
 
@@ -76,7 +80,8 @@ Deno.serve(async (req: Request) => {
         attempts.push(stage + ': sem campos uteis')
         return false
       }
-      merged = mergeNormalizedData(merged, normalized)
+      const preferNew = normalized?.tipo_documento === 'NFS-e' && stage !== 'Gemini direto'
+      merged = preferNew ? mergeNormalizedData(normalized, merged) : mergeNormalizedData(merged, normalized)
       const missing = missingPaymentFields(merged)
       attempts.push(stage + ': leu ' + describeFoundFields(normalized) + '; faltando ' + (missing.length ? missing.join(', ') : 'nada'))
       return missing.length === 0
@@ -95,7 +100,8 @@ Deno.serve(async (req: Request) => {
       try {
         const raw = await callGeminiDocument(geminiKey, imageBase64, mediaType)
         const normalized = normalizeData(raw, 'gemini-direct')
-        if (consider('Gemini direto', normalized)) return ok(merged || {}, attempts)
+        if (consider('Gemini direto', normalized) && normalized.tipo_documento !== 'NFS-e') return ok(merged || {}, attempts)
+        if (normalized.tipo_documento === 'NFS-e') attempts.push('Gemini direto NFS-e exige confirmacao por texto/OCR antes de encerrar')
       } catch (err) {
         attempts.push('Gemini direto: ' + errorMessage(err))
       }
@@ -136,7 +142,7 @@ Deno.serve(async (req: Request) => {
 
 async function extractFromOcrText(text: string, geminiKey: string, source: string) {
   if (!text.trim()) throw new Error('OCR sem texto extraido')
-  const heuristic = normalizeData(extractHeuristic(text), source + '+heuristic-full')
+  const strictLocal = normalizeData(extractStrictText(text), source + '+regex-estrito')
 
   if (geminiKey) {
     const chunks = splitTextForGemini(text)
@@ -148,7 +154,7 @@ async function extractFromOcrText(text: string, geminiKey: string, source: strin
       if (!chunk.trim()) continue
       try {
         const raw = await callGeminiTextChunk(geminiKey, chunk, i + 1, chunks.length)
-        const normalized = normalizeData(raw, source + `+gemini-bloco-${i + 1}-de-${chunks.length}`)
+        const normalized = validateDataAgainstText(normalizeData(raw, source + `+gemini-bloco-${i + 1}-de-${chunks.length}`), chunk)
         merged = mergeNormalizedData(merged, normalized)
       } catch (err) {
         chunkErrors.push(`bloco ${i + 1}/${chunks.length}: ${errorMessage(err)}`)
@@ -156,7 +162,7 @@ async function extractFromOcrText(text: string, geminiKey: string, source: strin
     }
 
     if (merged && hasUsefulData(merged)) {
-      merged = mergeNormalizedData(merged, heuristic)
+      merged = mergeNormalizedData(strictLocal, merged)
       merged._meta = {
         ...(merged._meta || {}),
         source: source + (chunks.length > 1 ? '+gemini-blocos' : '+gemini'),
@@ -168,9 +174,9 @@ async function extractFromOcrText(text: string, geminiKey: string, source: strin
     }
 
     if (chunkErrors.length) {
-      heuristic._meta = {
-        ...(heuristic._meta || {}),
-        source: source + '+heuristic-full',
+      strictLocal._meta = {
+        ...(strictLocal._meta || {}),
+        source: source + '+regex-estrito',
         textLength: text.length,
         textChunks: chunks.length,
         geminiChunkErrors: chunkErrors.slice(0, 5),
@@ -178,7 +184,7 @@ async function extractFromOcrText(text: string, geminiKey: string, source: strin
     }
   }
 
-  return heuristic
+  return strictLocal
 }
 
 function splitTextForGemini(text: string, targetSize = 60000, overlap = 2500) {
@@ -213,7 +219,7 @@ function mergeNormalizedData(primary: AnyRecord | null, secondary: AnyRecord | n
 
   out.emitente = { ...(out.emitente || {}) }
   const secEmit = secondary.emitente || {}
-  if (isBlank(out.emitente.razao_social) && !isBlank(secEmit.razao_social)) out.emitente.razao_social = secEmit.razao_social
+  if (isBlank(out.emitente.razao_social) && !isBlank(secEmit.razao_social)) out.emitente.razao_social = cleanCompanyName(secEmit.razao_social)
   if (isBlank(out.emitente.cnpj) && !isBlank(secEmit.cnpj)) out.emitente.cnpj = secEmit.cnpj
 
   out.valores = { ...(out.valores || {}) }
@@ -221,9 +227,8 @@ function mergeNormalizedData(primary: AnyRecord | null, secondary: AnyRecord | n
   ;['subtotal', 'desconto', 'frete'].forEach((key) => {
     if (!num(out.valores[key]) && num(secVal[key])) out.valores[key] = secVal[key]
   })
-  const totalA = num(out.valores.valor_total)
   const totalB = num(secVal.valor_total)
-  if (totalB && (!totalA || totalB > totalA)) out.valores.valor_total = totalB
+  if (!num(out.valores.valor_total) && totalB) out.valores.valor_total = totalB
 
   out.pagamento = { ...(out.pagamento || {}) }
   const secPag = secondary.pagamento || {}
@@ -234,6 +239,85 @@ function mergeNormalizedData(primary: AnyRecord | null, secondary: AnyRecord | n
   out.itens = mergeItems(out.itens || [], secondary.itens || [])
   out._meta = { ...(out._meta || {}), ...(secondary._meta || {}) }
   return out
+}
+
+function validateDataAgainstText(data: AnyRecord, text: string) {
+  const out: AnyRecord = JSON.parse(JSON.stringify(data || {}))
+  const full = String(text || '')
+  const norm = stripAccents(full).toLowerCase()
+  const digits = onlyDigits(full)
+  const tipo = normalizeTipo(out.tipo_documento)
+  out.emitente = { ...(out.emitente || {}) }
+  out.valores = { ...(out.valores || {}) }
+
+  if (tipo === 'NFS-e') {
+    const prestadorBlock = findSection(full, [/^\s*prestador(?:\s+de\s+servi\S*)?\s*:?\s*$/i, /^\s*dados\s+do\s+prestador/i], [/^\s*tomador\b/i, /^\s*intermediario\b/i, /^\s*discriminacao\b/i, /^\s*servicos\b/i, /^\s*valores\b/i])
+    const prestadorNorm = stripAccents(prestadorBlock).toLowerCase()
+    const emitName = cleanStr(out.emitente?.razao_social)
+    const emitCnpj = onlyDigits(out.emitente?.cnpj || '')
+    if (emitName && !containsLoose(prestadorNorm, emitName)) out.emitente.razao_social = null
+    if (emitCnpj && !onlyDigits(prestadorBlock).includes(emitCnpj)) out.emitente.cnpj = null
+  }
+
+  const emitCnpj = onlyDigits(out.emitente?.cnpj || '')
+  if (emitCnpj && !digits.includes(emitCnpj)) out.emitente.cnpj = null
+
+  const numeroDigits = onlyDigits(out.numero_nf || '')
+  if (numeroDigits && numeroDigits.length >= 3 && !digits.includes(numeroDigits)) out.numero_nf = null
+
+  const chave = onlyDigits(out.chave_acesso || '')
+  if (chave && !digits.includes(chave)) out.chave_acesso = null
+
+  const linha = onlyDigits(out.linha_digitavel || '')
+  if (linha && !digits.includes(linha)) out.linha_digitavel = null
+
+  const codBar = onlyDigits(out.codigo_barras || '')
+  if (codBar && !digits.includes(codBar)) out.codigo_barras = null
+
+  const valor = num(out.valores?.valor_total)
+  if (valor && !moneyAppears(full, valor)) {
+    out.valores.valor_total = 0
+    if (num(out.valores.subtotal) === valor) out.valores.subtotal = 0
+  }
+
+  if (out.data_emissao && !dateAppears(full, out.data_emissao)) out.data_emissao = null
+  if (out.data_vencimento && !dateAppears(full, out.data_vencimento)) out.data_vencimento = null
+
+  if (out.discriminacao && !containsLoose(norm, out.discriminacao) && String(out.discriminacao).length > 30) out.discriminacao = null
+  out.itens = Array.isArray(out.itens)
+    ? out.itens.filter((it: AnyRecord) => !it?.descricao || containsLoose(norm, it.descricao) || String(it.descricao).length <= 30)
+    : []
+
+  out._meta = { ...(out._meta || {}), evidenceChecked: true }
+  return out
+}
+
+function containsLoose(normalizedHaystack: string, rawNeedle: unknown) {
+  const needle = stripAccents(String(rawNeedle || '')).toLowerCase().replace(/[^\w]+/g, ' ').trim()
+  if (!needle) return false
+  const hay = normalizedHaystack.replace(/[^\w]+/g, ' ')
+  if (hay.includes(needle)) return true
+  const tokens = needle.split(/\s+/).filter((t) => t.length > 2)
+  if (tokens.length < 2) return false
+  return tokens.filter((t) => hay.includes(t)).length >= Math.min(tokens.length, 3)
+}
+
+function moneyAppears(text: string, value: number) {
+  const rounded = round2(value)
+  const br = rounded.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const plainBr = br.replace(/\./g, '')
+  const us = rounded.toFixed(2)
+  const candidates = [br, plainBr, us, us.replace('.', ',')]
+  return candidates.some((c) => String(text || '').includes(c))
+}
+
+function dateAppears(text: string, iso: string) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return false
+  const [, y, mo, d] = m
+  const yy = y.slice(2)
+  const candidates = [`${d}/${mo}/${y}`, `${d}-${mo}-${y}`, `${d}/${mo}/${yy}`, `${d}-${mo}-${yy}`, `${y}-${mo}-${d}`]
+  return candidates.some((c) => String(text || '').includes(c))
 }
 
 function mergeItems(a: AnyRecord[], b: AnyRecord[]) {
@@ -389,10 +473,12 @@ async function callOcrSpace(key: string, imageBase64: string, mediaType: string)
 }
 
 function normalizeData(input: AnyRecord, source: string) {
-  const emit = input?.emitente || input?.prestador || input?.beneficiario || {}
   const valores = input?.valores || {}
   const pagamento = input?.pagamento || {}
   const tipo = normalizeTipo(input?.tipo_documento || input?.tipo || input?.document_type)
+  const emit = tipo === 'NFS-e'
+    ? (input?.emitente || input?.prestador || {})
+    : (input?.emitente || input?.prestador || input?.beneficiario || {})
   const total = num(valores.valor_total ?? input.valor_total ?? input.total ?? input.valor)
   const subtotal = num(valores.subtotal ?? valores.valor_servicos ?? input.subtotal) || total
   const desconto = num(valores.desconto ?? input.desconto)
@@ -416,7 +502,7 @@ function normalizeData(input: AnyRecord, source: string) {
     codigo_barras: barcode || null,
     codigo_verificacao: codVer || (tipo === 'NFS-e' && chave ? chave : null),
     emitente: {
-      razao_social: cleanStr(emit.razao_social || emit.nome || input.razao_social || input.ben || input.beneficiario) || null,
+      razao_social: cleanCompanyName(emit.razao_social || emit.nome || input.razao_social || input.ben || input.beneficiario) || null,
       cnpj: formatCnpj(emit.cnpj || input.cnpj) || null,
     },
     itens,
@@ -460,7 +546,7 @@ function normalizeParcelas(items: AnyRecord[], total: number) {
   })).filter((p) => p.valor || p.vencimento)
 }
 
-function extractHeuristic(rawText: string) {
+function extractStrictText(rawText: string) {
   const text = String(rawText || '').replace(/\r/g, '\n').replace(/[ \t]+/g, ' ')
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
   const norm = stripAccents(text).toLowerCase()
@@ -477,12 +563,13 @@ function extractHeuristic(rawText: string) {
   else if (/recibo|recibemos|recebi\b|rpa\b/.test(norm)) tipo = 'Recibo'
   else if (/\b(darf|das|darm|gps|gnre|gare)\b|guia de|tributo|taxa municipal/.test(norm)) tipo = 'Guia'
 
+  const prestadorBlock = tipo === 'NFS-e' ? findSection(text, [/^\s*prestador(?:\s+de\s+servi\S*)?\s*:?\s*$/i, /^\s*dados\s+do\s+prestador/i], [/^\s*tomador\b/i, /^\s*intermediario\b/i, /^\s*discriminacao\b/i, /^\s*servicos\b/i, /^\s*valores\b/i]) : ''
   const linhaDigitavel = tipo === 'Boleto' ? findLinhaDigitavel(text) : ''
   const numero = findDocNumber(text, tipo) || decoded?.numero || ''
   const dataEmissao = findDateNear(lines, [/emiss/i, /compet/i, /data do documento/i]) || decoded?.date || ''
   const dataVenc = findDateNear(lines, [/venc/i, /pagar ate/i, /data limite/i])
-  const cnpj = firstCnpj(text) || decoded?.cnpj || ''
-  const razao = findName(lines, tipo)
+  const cnpj = tipo === 'NFS-e' ? (firstCnpj(prestadorBlock) || '') : (firstCnpj(text) || decoded?.cnpj || '')
+  const razao = findName(lines, tipo, prestadorBlock)
   const total = findValue(text, lines, tipo)
   const desc = findDescription(lines, tipo)
 
@@ -496,7 +583,7 @@ function extractHeuristic(rawText: string) {
     linha_digitavel: linhaDigitavel || null,
     codigo_barras: null,
     codigo_verificacao: null,
-    emitente: { razao_social: razao || null, cnpj: cnpj || null },
+    emitente: { razao_social: cleanCompanyName(razao) || null, cnpj: cnpj || null },
     itens: desc ? [{ descricao: desc, quantidade: 1, unidade: ['NF-e', 'NFC-e'].includes(tipo) ? 'UN' : 'Srv', valor_unitario: total, valor_total: total }] : [],
     discriminacao: desc || null,
     valores: { subtotal: total, desconto: 0, frete: 0, valor_total: total },
@@ -512,6 +599,18 @@ function findLinhaDigitavel(text: string) {
 }
 
 function findDocNumber(text: string, tipo: string) {
+  if (tipo === 'NFS-e') {
+    const lines = String(text || '').split('\n').map((l) => l.trim()).filter(Boolean)
+    for (let i = 0; i < lines.length; i++) {
+      const line = stripAccents(lines[i])
+      if (!/(numero|n[roºo.]|nota fiscal|nfs)/i.test(line)) continue
+      const m = line.match(/(?:numero(?:\s+da\s+nota)?|n[roºo.]?\s*(?:da\s+nota)?|nota\s+fiscal(?:\s+de\s+servicos)?|nfs-?e)\s*:?\s*([0-9][0-9.\-/]{0,20})/i)
+      if (m) return cleanStr(m[1]).replace(/[^\d.\-/]/g, '')
+      const next = lines[i + 1] || ''
+      if (/^\d{1,20}$/.test(next.replace(/\D/g, ''))) return next.replace(/\D/g, '')
+    }
+    return ''
+  }
   const re = tipo === 'Boleto'
     ? /(?:nosso numero|documento|boleto)\s*:?\s*([A-Z0-9.\-/]{3,30})/i
     : /(?:numero|n(?:ro|o)?\.?|nf-?e|nfs-?e|nfc-?e|ct-?e|fatura|recibo|documento)\s*(?:da nota)?\s*:?\s*([A-Z0-9.\-/]{2,30})/i
@@ -549,28 +648,21 @@ function findValue(text: string, lines: string[], tipo: string) {
     }
   }
 
-  const all = [...text.matchAll(/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})/g)]
-    .map((m) => num(m[1]))
-    .filter((v) => v > 0)
-  return all.length ? Math.max(...all) : 0
+  return 0
 }
 
-function findName(lines: string[], tipo: string) {
+function findName(lines: string[], tipo: string, trustedBlock = '') {
+  if (tipo === 'NFS-e') {
+    const blockLines = String(trustedBlock || '').split('\n').map((l) => l.trim()).filter(Boolean)
+    const fromBlock = findNameInLines(blockLines, [/razao social/i, /nome empresarial/i, /nome\/razao social/i, /prestador/i])
+    return fromBlock
+  }
   const labels = tipo === 'Boleto'
     ? [/beneficiario/i, /cedente/i, /favorecido/i]
-    : tipo === 'NFS-e'
-      ? [/prestador/i, /razao social/i]
-      : [/emitente/i, /fornecedor/i, /beneficiario/i, /razao social/i, /empresa prestadora/i]
+    : [/emitente/i, /fornecedor/i, /beneficiario/i, /razao social/i, /empresa prestadora/i]
 
-  for (let i = 0; i < lines.length; i++) {
-    const norm = stripAccents(lines[i])
-    const label = labels.find((re) => re.test(norm))
-    if (!label) continue
-    const same = cleanStr(lines[i].replace(label, '').replace(/[:\-]/g, ' '))
-    if (same.length > 4 && !/^\d/.test(same) && !/cnpj|cpf/i.test(same)) return same
-    const next = cleanStr(lines[i + 1] || '')
-    if (next.length > 4 && !/^(cnpj|cpf|endere|tel|fone|inscri|agencia|codigo)/i.test(stripAccents(next))) return next
-  }
+  const anchored = findNameInLines(lines, labels)
+  if (anchored) return anchored
 
   for (const line of lines) {
     const s = cleanStr(line)
@@ -578,6 +670,53 @@ function findName(lines: string[], tipo: string) {
     if (s.length > 8 && s.length < 120 && /^[A-Z0-9 .&/-]+$/.test(stripAccents(s)) && s.split(/\s+/).length >= 2 && !/^(nota|nfs|nf-e|nfc|ct-e|prefeitura|recibo|boleto|fatura|cnpj|data|valor)/.test(norm)) return s
   }
   return ''
+}
+
+function findNameInLines(lines: string[], labels: RegExp[]) {
+  for (let i = 0; i < lines.length; i++) {
+    const norm = stripAccents(lines[i])
+    const label = labels.find((re) => re.test(norm))
+    if (!label) continue
+    const same = cleanStr(lines[i].replace(label, '').replace(/[:\-]/g, ' '))
+    if (isValidCompanyNameCandidate(same)) return same
+    for (let j = i + 1; j <= Math.min(i + 3, lines.length - 1); j++) {
+      const next = cleanStr(lines[j] || '')
+      const nextNorm = stripAccents(next).toLowerCase()
+      if (isValidCompanyNameCandidate(next) && !/^(cnpj|cpf|endere|tel|fone|inscri|agencia|codigo|municipio|telefone|email)/i.test(nextNorm) && !/\d{2}\.\d{3}\.\d{3}/.test(next)) return next
+    }
+  }
+  return ''
+}
+
+function isValidCompanyNameCandidate(raw: unknown) {
+  const s = cleanStr(raw)
+  const n = stripAccents(s).toLowerCase()
+  if (s.length < 5 || /^\d/.test(s)) return false
+  if (/^(de\s+)?servi|^prestador(?:\s+de\s+servi\S*)?$|^dados\s+do\s+prestador$|^razao\s+social$|^nome\s+empresarial$|^tomador/.test(n)) return false
+  if (/cnpj|cpf|endere|telefone|email|municipio|inscricao|codigo/.test(n)) return false
+  return true
+}
+
+function findSection(text: string, starts: RegExp[], ends: RegExp[]) {
+  const lines = String(text || '').split('\n')
+  let start = -1
+  for (let i = 0; i < lines.length; i++) {
+    const n = stripAccents(lines[i])
+    if (starts.some((re) => re.test(n))) {
+      start = i
+      break
+    }
+  }
+  if (start < 0) return ''
+  let end = lines.length
+  for (let i = start + 1; i < lines.length; i++) {
+    const n = stripAccents(lines[i])
+    if (ends.some((re) => re.test(n))) {
+      end = i
+      break
+    }
+  }
+  return lines.slice(start, end).join('\n')
 }
 
 function findDescription(lines: string[], tipo: string) {
@@ -783,6 +922,15 @@ function sumItems(items: AnyRecord[]) {
 
 function cleanStr(raw: unknown) {
   return String(raw ?? '').replace(/\s+/g, ' ').trim()
+}
+
+function cleanCompanyName(raw: unknown) {
+  return cleanStr(raw)
+    .replace(/^(?:raz\S*o\s+social|nome\s+empresarial|nome\s*\/\s*raz\S*o\s+social)\s*:?\s*/i, '')
+    .replace(/^prestador\s*:\s*/i, '')
+    .replace(/^prestador\s+de\s+servi\S*\s*:?\s*/i, '')
+    .replace(/^(?:cnpj|cpf|cpf\s*\/\s*cnpj)\s*:?\s*[0-9.\-/ ]+/i, '')
+    .trim()
 }
 
 function onlyDigits(raw: unknown) {
