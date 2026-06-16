@@ -8719,6 +8719,34 @@ function impHasData(data){
   return !!(data&&(data.ben||data.val||data.cnpj||data.chave||data.doc||(data.itens&&data.itens.length)||data.discriminacao||data.desc));
 }
 
+function impMissingFields(data){
+  const d=data||{};
+  const missing=[];
+  if(!d.ben)missing.push('emitente/beneficiário');
+  if(!d.cnpj)missing.push('CNPJ');
+  if(!(parseFloat(d.val)||0))missing.push('valor total');
+  if(!d.doc&&!d.chave)missing.push('número/código do documento');
+  if(!d.date&&!d.venc)missing.push('data');
+  if((!d.itens||!d.itens.length)&&!d.discriminacao&&!d.desc)missing.push('descrição/itens');
+  return missing;
+}
+
+function impIsComplete(data){
+  return impHasData(data)&&impMissingFields(data).length===0;
+}
+
+function impShowPartialWarning(file,data,errors){
+  const missing=impMissingFields(data);
+  const serverMissing=data&&data._meta&&Array.isArray(data._meta.missingFields)?data._meta.missingFields:[];
+  const all=[...new Set([...missing,...serverMissing])].filter(Boolean);
+  if(!all.length)return;
+  toast('⚠ Leitura parcial: confira os campos que faltaram.');
+  showImportErrorDetails(file,[...(errors||[]),{
+    etapa:'Campos ainda não encontrados',
+    erro:'A cascata tentou os métodos disponíveis e ainda faltam: '+all.join(', ')+'. O formulário foi preenchido com tudo que foi encontrado para revisão manual.'
+  }]);
+}
+
 function impErrorText(err){
   if(!err)return'Erro desconhecido';
   if(typeof err==='string')return err;
@@ -8875,22 +8903,28 @@ async function readImportFile(inp){
   if(['txt','html','htm'].includes(ext)){
     _setImpStatus('Lendo texto do documento…');
     let text='';
+    let textData=null;
     try{
       text=(await file.text()).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,' ');
       const localData=parseNFFromText(text);
-      if(impHasData(localData)){
+      if(impIsComplete(localData)){
         showImportReview(localData);
         toast('Dados extraídos do texto. Confira os campos.');
         return;
       }
-      addErr('Parser de texto local','Texto lido, mas nenhum campo fiscal útil foi encontrado.');
+      if(impHasData(localData)){
+        textData=localData;
+        addErr('Parser de texto local','Leitura parcial; faltando: '+impMissingFields(localData).join(', '));
+      }else addErr('Parser de texto local','Texto lido, mas nenhum campo fiscal útil foi encontrado.');
     }catch(textErr){console.warn('[NF Import] Parser texto falhou:',textErr.message);addErr('Parser de texto local',textErr);}
     if(text.trim()){
       try{
         const aiTextData=await readInvoiceTextWithAI(text,file.name,_setImpStatus);
         if(impHasData(aiTextData)){
-          showImportReview(aiTextData);
+          textData=impMergeData(aiTextData,textData||{});
+          showImportReview(textData);
           toast('Dados extraídos pela IA a partir do texto completo. Confira os campos.');
+          if(!impIsComplete(textData))impShowPartialWarning(file,textData,errors);
           return;
         }
         addErr('IA por texto completo','Servidor analisou o texto, mas não retornou campos úteis.');
@@ -8898,6 +8932,11 @@ async function readImportFile(inp){
         console.warn('[NF Import] IA texto falhou:',aiTextErr.message);
         addErr('IA por texto completo',aiTextErr);
       }
+    }
+    if(impHasData(textData)){
+      showImportReview(textData);
+      impShowPartialWarning(file,textData,errors);
+      return;
     }
     showImportErrorDetails(file,errors);showManualEntry();return;
   }
@@ -8972,24 +9011,45 @@ async function readImportFile(inp){
         }
       }catch(pgCheckErr){console.warn('[NF multi-pg]',pgCheckErr.message);}
     }
-    showImportReview(aiData);
-    if(!aiData.val)toast('⚠ A cascata não encontrou o valor total — preencha manualmente.');
-    return;
+    if(impIsComplete(aiData)){
+      showImportReview(aiData);
+      return;
+    }
+    addErr('Cascata parcial','Dados encontrados, mas ainda faltam: '+impMissingFields(aiData).join(', ')+'. Continuando para OCR local.');
   }
 
   if(['pdf','jpg','jpeg','png','webp'].includes(ext)){
     try{
       tessData=await readWithTesseract(file,_setImpStatus);
       if(impHasData(tessData)){
-        showImportReview(tessData);
-        toast('⚠ Dados extraídos pelo OCR local gratuito. Confira os campos.');
-        return;
+        aiData=impMergeData(aiData||{},tessData);
+        if(impIsComplete(aiData)){
+          showImportReview(aiData);
+          toast('Dados completados pelo OCR local gratuito. Confira os campos.');
+          return;
+        }
+        addErr('OCR local Tesseract','Leitura parcial; faltando: '+impMissingFields(aiData).join(', '));
+      }else{
+        addErr('OCR local Tesseract','OCR terminou sem campos fiscais úteis.');
       }
-      addErr('OCR local Tesseract','OCR terminou sem campos fiscais úteis.');
     }catch(tessErr){
       console.warn('[NF Import] Tesseract falhou:',tessErr.message);
       addErr('OCR local Tesseract',tessErr);
     }
+  }
+
+  if(impHasData(aiData)){
+    showImportReview(aiData);
+    impShowPartialWarning(file,aiData,errors);
+    if(!aiData.val)toast('⚠ A cascata não encontrou o valor total — preencha manualmente.');
+    return;
+  }
+
+  if(impHasData(tessData)){
+    showImportReview(tessData);
+    impShowPartialWarning(file,tessData,errors);
+    toast('⚠ Dados extraídos pelo OCR local gratuito. Confira os campos.');
+    return;
   }
 
   toast('❌ Não foi possível ler automaticamente. Veja o pop-up com os detalhes.');
@@ -9116,7 +9176,8 @@ function mapEdgeInvoiceResult(result){
     venc,
     obs:d.observacoes||'',
     _meta:d._meta||null,
-    _attempts:result.attempts||[]
+    _attempts:result.attempts||[],
+    _warnings:result.warnings||[]
   };
 }
 
