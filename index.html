@@ -8766,6 +8766,42 @@ function closeImportError(){
   if(ov)ov.classList.remove('show');
 }
 
+function makeOcrPreprocessedCanvas(srcCanvas){
+  const canvas=document.createElement('canvas');
+  canvas.width=srcCanvas.width;canvas.height=srcCanvas.height;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(srcCanvas,0,0);
+  const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+  const d=img.data;
+  for(let i=0;i<d.length;i+=4){
+    let g=d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114;
+    g=(g-128)*1.55+128;
+    g=g>170?255:g<90?0:g;
+    d[i]=d[i+1]=d[i+2]=Math.max(0,Math.min(255,g));
+  }
+  ctx.putImageData(img,0,0);
+  return canvas;
+}
+
+function loadImageCanvas(file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      const maxSide=2200;
+      const scale=Math.min(1,maxSide/Math.max(img.width,img.height));
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.max(1,Math.round(img.width*scale));
+      canvas.height=Math.max(1,Math.round(img.height*scale));
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Não foi possível carregar a imagem para OCR local.'));};
+    img.src=url;
+  });
+}
+
 async function readWithTesseract(file,onStatus){
   if(typeof Tesseract==='undefined')throw new Error('Tesseract.js não carregou. Verifique a conexão com o CDN.');
   const ext=(file.name.split('.').pop()||'').toLowerCase();
@@ -8781,6 +8817,15 @@ async function readWithTesseract(file,onStatus){
     });
     return (result&&result.data&&result.data.text)||'';
   };
+  const recognizeCanvas=async(canvas,label)=>{
+    let text=await recognize(canvas,label);
+    if(text.replace(/\s+/g,'').length<80){
+      const enhanced=makeOcrPreprocessedCanvas(canvas);
+      const text2=await recognize(enhanced,label+' com alto contraste');
+      text=(text+'\n'+text2).trim();
+    }
+    return text;
+  };
   if(ext==='pdf'){
     if(typeof pdfjsLib==='undefined')throw new Error('PDF.js não carregou para renderizar o PDF no OCR local.');
     pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -8792,11 +8837,11 @@ async function readWithTesseract(file,onStatus){
       const canvas=document.createElement('canvas');
       canvas.width=Math.round(vp.width);canvas.height=Math.round(vp.height);
       await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
-      texts.push(await recognize(canvas,'página '+pg));
+      texts.push(await recognizeCanvas(canvas,'página '+pg));
     }
   }else{
-    const url=URL.createObjectURL(file);
-    try{texts.push(await recognize(url,'imagem'));}finally{URL.revokeObjectURL(url);}
+    const canvas=await loadImageCanvas(file);
+    texts.push(await recognizeCanvas(canvas,'imagem'));
   }
   const text=texts.join('\n').trim();
   if(text.length<20)throw new Error('Tesseract não encontrou texto suficiente no documento.');
