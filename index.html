@@ -1390,17 +1390,17 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:8px 0">
 
-          <span class="badge b-ok">NF-e XML</span><span class="badge b-info">NFS-e XML</span><span class="badge b-neutral">PDF / DANFE</span><span class="badge b-neutral">Imagem JPG/PNG</span>
+          <span class="badge b-ok">NF-e/NFC-e XML</span><span class="badge b-info">NFS-e XML</span><span class="badge b-neutral">PDF / DANFE</span><span class="badge b-neutral">Boletos, faturas e recibos</span>
 
         </div>
 
-        <p style="color:var(--muted);font-size:12px;margin:4px 0 10px">XML lê todos os campos. PDF e imagem usam IA para extração.</p>
+        <p style="color:var(--muted);font-size:12px;margin:4px 0 10px">XML lê todos os campos. PDF, imagem e texto usam IA e fallback local para extração.</p>
 
         <button class="btn btn-ink" type="button">Selecionar arquivo</button>
 
       </div>
 
-      <input type="file" id="imp-file" style="display:none" accept=".xml,.pdf,.jpg,.jpeg,.png,.XML,.PDF,.JPG,.JPEG,.PNG" onchange="readImportFile(this)">
+      <input type="file" id="imp-file" style="display:none" accept=".xml,.pdf,.jpg,.jpeg,.png,.webp,.txt,.html,.htm,.XML,.PDF,.JPG,.JPEG,.PNG,.WEBP,.TXT,.HTML,.HTM" onchange="readImportFile(this)">
 
       <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
 
@@ -1506,7 +1506,19 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
               <option value="NF-e">NF-e — Nota Fiscal de Produtos (DANFE)</option>
 
+              <option value="NFC-e">NFC-e — Cupom Fiscal Eletrônico</option>
+
               <option value="NFS-e">NFS-e — Nota Fiscal de Serviços</option>
+
+              <option value="CT-e">CT-e — Conhecimento de Transporte</option>
+
+              <option value="Boleto">Boleto bancário</option>
+
+              <option value="Fatura">Fatura / cobrança</option>
+
+              <option value="Recibo">Recibo</option>
+
+              <option value="Guia">Guia / tributo</option>
 
               <option value="Adiantamento">💸 Adiantamento — NF a receber depois</option>
 
@@ -1523,7 +1535,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
           <div class="frow"><label class="fl">Data de emissão da nota</label><input class="fi" id="imp-date" type="date"></div>
           <div class="frow"><label class="fl">Previsão de pagamento <span style="font-weight:400;color:var(--muted)">(vencimento)</span></label><input class="fi" id="imp-venc" type="date"></div>
 
-          <div class="full"><label class="fl">Chave de acesso — 44 dígitos</label><input class="fi mono" id="imp-chave" style="font-size:11px;letter-spacing:.4px" placeholder="44 dígitos numéricos" oninput="impChaveChanged(this.value)"></div>
+          <div class="full"><label class="fl">Chave de acesso / código do documento</label><input class="fi mono" id="imp-chave" style="font-size:11px;letter-spacing:.4px" placeholder="Chave, código de verificação ou linha digitável" oninput="impChaveChanged(this.value)"></div>
 
         </div>
 
@@ -1917,7 +1929,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
           <span>Documento fiscal</span>
           <button id="pm-ler-nf-btn" type="button" onclick="closePagModal();openImport()" style="display:none;font-size:11.5px;color:var(--accent);font-weight:600;background:none;border:0;cursor:pointer;padding:0">📄 Ler nota automaticamente →</button>
         </label>
-        <select class="fi" id="pm-nf" onchange="pmNfChange()"><option>Sem nota</option><option>NF-e</option><option>NFS-e</option><option value="Adiantamento">Adiantamento</option><option>Recibo</option><option>Guia</option></select>
+        <select class="fi" id="pm-nf" onchange="pmNfChange()"><option>Sem nota</option><option>NF-e</option><option>NFC-e</option><option>NFS-e</option><option>CT-e</option><option>Boleto</option><option>Fatura</option><option value="Adiantamento">Adiantamento</option><option>Recibo</option><option>Guia</option></select>
       </div>
       <div class="frow" id="pm-emissao-row" style="display:none"><label class="fl">Data de emissão da nota</label><input class="fi" id="pm-emissao" type="date"></div>
     </div>
@@ -1926,7 +1938,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div class="frow" id="pm-pago-em-row" style="display:none"><label class="fl">Data efetiva do pagamento</label><input class="fi" id="pm-pago-em" type="date"></div>
     </div>
 
-    <div class="frow" id="pm-nfnum-row" style="display:none"><label class="fl">Nº do documento fiscal</label><input class="fi mono" id="pm-nfnum" placeholder="NF-e nº 12345 ou NFS-e nº 67890"></div>
+    <div class="frow" id="pm-nfnum-row" style="display:none"><label class="fl">Nº do documento fiscal</label><input class="fi mono" id="pm-nfnum" placeholder="NF-e, NFS-e, boleto, fatura, recibo..."></div>
 
     <div class="fgrid"><div class="frow"><label class="fl">Pago por</label><select class="fi" id="pm-pag"></select></div><div class="frow"><label class="fl">Status</label><select class="fi" id="pm-st" onchange="pmStChange()"><option>PAGO</option><option>PENDENTE</option><option>Cancelado</option></select></div></div>
 
@@ -2768,9 +2780,9 @@ function matchMaterialTipo(text){
 
 function classifyPagamento(p){
 
-  if(p.nfTipo==='NF-e')return'material';
+  if(p.nfTipo==='NF-e'||p.nfTipo==='NFC-e')return'material';
 
-  if(p.nfTipo==='NFS-e')return'servico';
+  if(p.nfTipo==='NFS-e'||p.nfTipo==='CT-e')return'servico';
 
   if(p.nfTipo==='Adiantamento')return'';
 
@@ -7323,7 +7335,9 @@ function pmNfChange(){
   if(r)r.style.display=(t&&t!=='Sem nota'&&t!=='Adiantamento')?'':'none';
   const er=document.getElementById('pm-emissao-row');
   if(er)er.style.display=(t&&t!=='Sem nota')?'':'none';
-  // Mostra botão "Ler nota automaticamente" quando NF-e ou NFS-e
+  const btn=document.getElementById('pm-ler-nf-btn');
+  if(btn)btn.style.display=(t&&t!=='Sem nota'&&t!=='Adiantamento')?'inline':'none';
+  // Mostra botão "Ler nota automaticamente" para documentos que podem ser anexados/lidos
 
 }
 function impSetEscopo(v){
@@ -8713,6 +8727,24 @@ async function readImportFile(inp){
 
   }
 
+  if(['txt','html','htm'].includes(ext)){
+
+    _setImpStatus('Lendo texto do documento…');
+
+    try{
+      const text=(await file.text()).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,' ');
+      const localData=parseNFFromText(text);
+      if(localData.ben||localData.val||localData.cnpj||localData.chave||localData.doc){
+        showImportReview(localData);
+        toast('Dados extraídos do texto. Confira os campos.');
+        return;
+      }
+    }catch(textErr){console.warn('[NF Import] Parser texto falhou:',textErr.message);}
+
+    showManualEntry();return;
+
+  }
+
 
 
   const isPDF=ext==='pdf';
@@ -8723,7 +8755,7 @@ async function readImportFile(inp){
 
 
 
-  // Tentativa 1: IA via Supabase Edge Function (chave Groq fica no servidor)
+  // Tentativa 1: IA via Supabase Edge Function
 
   try{
 
@@ -8880,6 +8912,35 @@ async function pdfPageToJpeg(file,scale){
 }
 
 
+function normalizeImpDocTipo(raw){
+  const t=String(raw||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if(/NFC/.test(t)||/CUPOM/.test(t))return'NFC-e';
+  if(/NFS|SERV/.test(t))return'NFS-e';
+  if(/CTE|CT-E|CONHECIMENTO\s+DE\s+TRANSPORTE|DACTE/.test(t))return'CT-e';
+  if(/BOLETO|LINHA\s+DIGITAVEL/.test(t))return'Boleto';
+  if(/FATURA|COBRANCA|COBRANCA/.test(t))return'Fatura';
+  if(/RECIBO|RPA/.test(t))return'Recibo';
+  if(/GUIA|DARF|DAS|DARM|GNRE|GPS|TRIBUTO/.test(t))return'Guia';
+  if(/SEM\s+NOTA/.test(t))return'Sem nota';
+  if(/ADIANT/.test(t))return'Adiantamento';
+  return'NF-e';
+}
+
+function impDocPrefix(tipo){
+  const m={'NF-e':'NF-e nº','NFC-e':'NFC-e nº','NFS-e':'NFS-e nº','CT-e':'CT-e nº','Boleto':'Boleto nº','Fatura':'Fatura nº','Recibo':'Recibo nº','Guia':'Guia nº'};
+  return m[tipo]||'Documento nº';
+}
+
+function cleanImpCodigo(raw,tipo){
+  const s=String(raw||'').trim();
+  if(!s)return'';
+  if(['NF-e','NFC-e','CT-e'].includes(tipo)){
+    const d=s.replace(/\D/g,'');
+    return d.length>=44?d.slice(0,44):d;
+  }
+  return s.replace(/\s+/g,' ').trim();
+}
+
 async function readInvoiceWithAI(file,onStatus){
 
   const ext=file.name.split('.').pop().toLowerCase();
@@ -8916,7 +8977,7 @@ async function readInvoiceWithAI(file,onStatus){
 
 
 
-  // Chama a Supabase Edge Function — a chave Groq fica nos secrets do servidor, nunca no browser
+  // Chama a Supabase Edge Function — chaves de IA ficam nos secrets do servidor, nunca no browser
 
   const edgeUrl=SUPA_URL+'/functions/v1/read-invoice';
 
@@ -8988,9 +9049,13 @@ async function readInvoiceWithAI(file,onStatus){
 
   const serieStr=d.serie&&String(d.serie)!=='1'?' série '+String(d.serie):'';
 
-  const tipoDoc=(d.tipo_documento||'').toUpperCase().includes('NFS')?'NFS-e':'NF-e';
+  const tipoDoc=normalizeImpDocTipo(d.tipo_documento||d.tipo||'NF-e');
 
-  const docPrefix=tipoDoc==='NFS-e'?'NFS-e nº':'NF-e nº';
+  const docPrefix=impDocPrefix(tipoDoc);
+
+  const codigo=d.chave_acesso||d.linha_digitavel||d.codigo_barras||d.codigo_verificacao||'';
+
+  const venc=(d.data_vencimento||pag.vencimento||(pag.parcelas&&pag.parcelas[0]&&pag.parcelas[0].vencimento)||'');
 
   return{
 
@@ -9004,7 +9069,7 @@ async function readInvoiceWithAI(file,onStatus){
 
     date:d.data_emissao||'',
 
-    chave:(d.chave_acesso||'').replace(/\D/g,''),
+    chave:cleanImpCodigo(codigo,tipoDoc),
 
     tipo:tipoDoc,
 
@@ -9026,6 +9091,8 @@ async function readInvoiceWithAI(file,onStatus){
 
     parcelas:pag.parcelas||[],
 
+    venc,
+
     obs:d.observacoes||''
 
   };
@@ -9036,182 +9103,122 @@ async function readInvoiceWithAI(file,onStatus){
 
 function parseNFeXML(xmlText){
 
-  // Extrai conteúdo da primeira tag encontrada (suporta namespace e atributos)
-
-  const getTag=(text,tag)=>{const m=text.match(new RegExp('<(?:[\\w:]+:)?'+tag+'[^>]*>([\\s\\S]*?)<\\/(?:[\\w:]+:)?'+tag+'>','i'));return m?m[1].replace(/<[^>]+>/g,'').trim():'';};
-
-  // Extrai bloco completo da primeira tag encontrada (tag de abertura + conteúdo + tag de fechamento)
-
-  const getBlock=(text,tag)=>{const m=text.match(new RegExp('<(?:[\\w:]+:)?'+tag+'[^>]*>[\\s\\S]*?<\\/(?:[\\w:]+:)?'+tag+'>','i'));return m?m[0]:'';};
-
-  // Formata CNPJ: aceita 14 dígitos brutos ou CNPJ já formatado
-
+  const getTag=(text,tag)=>{
+    const m=String(text||'').match(new RegExp('<(?:[\\w:]+:)?'+tag+'[^>]*>([\\s\\S]*?)<\\/(?:[\\w:]+:)?'+tag+'>','i'));
+    return m?m[1].replace(/<[^>]+>/g,'').trim():'';
+  };
+  const getBlock=(text,tag)=>{
+    const m=String(text||'').match(new RegExp('<(?:[\\w:]+:)?'+tag+'[^>]*>[\\s\\S]*?<\\/(?:[\\w:]+:)?'+tag+'>','i'));
+    return m?m[0]:'';
+  };
+  const money=v=>parseFloat(String(v||'').replace(',','.'))||0;
   const fmtCnpj=r=>{const d=(r||'').replace(/\D/g,'');return d.length===14?d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):r||'';};
 
+  const isCTe=/<(?:[\w:]+:)?(?:cteProc|CTe|infCte)\b/i.test(xmlText)||/<(?:[\w:]+:)?vTPrest\b/i.test(xmlText);
+  if(isCTe){
+    const emitBlock=getBlock(xmlText,'emit');
+    const prestBlock=getBlock(xmlText,'vPrest');
+    const ideBlock=getBlock(xmlText,'ide');
+    const ben=getTag(emitBlock,'xNome')||getTag(xmlText,'xNome');
+    const cnpjRaw=getTag(emitBlock,'CNPJ')||getTag(emitBlock,'Cnpj');
+    const val=money(getTag(prestBlock,'vTPrest')||getTag(prestBlock,'vRec')||getTag(xmlText,'vTPrest'));
+    const nCT=getTag(ideBlock,'nCT')||getTag(xmlText,'nCT');
+    const serie=getTag(ideBlock,'serie')||getTag(xmlText,'serie');
+    const dEmiRaw=getTag(ideBlock,'dhEmi')||getTag(xmlText,'dhEmi')||getTag(xmlText,'dEmi');
+    const chave=getTag(xmlText,'chCTe')||((xmlText.match(/Id="CTe(\d{44})"/)||[])[1]||'');
+    const desc=getTag(xmlText,'xProd')||getTag(xmlText,'xMunEnv')||'Transporte / frete';
+    if(!ben&&!val)throw new Error('XML não reconhecido como CT-e.');
+    return{ben,cnpj:fmtCnpj(cnpjRaw),doc:nCT?`CT-e nº ${nCT}${serie?' série '+serie:''}`:'',val,subtotal:val,desconto:0,frete:0,date:dEmiRaw.slice(0,10),chave,discriminacao:desc,desc,itens:[{descricao:desc,quantidade:1,unidade:'Srv',valor_unitario:val,valor_total:val}],pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:'',tipo:'CT-e'};
+  }
 
-
-  // Detecta NFS-e (nota de serviço municipal) vs NF-e (nota de produto federal)
-
-  const isNFSe=
-
-    /<(?:[\w:]+:)?(?:CompNfse|InfNfse|GerarNfse|ConsultarNfse|NfseCancelamento|ListaNfse|NFSe|Nfse)\b/i.test(xmlText)
-
+  const isNFSe=/<(?:[\w:]+:)?(?:CompNfse|InfNfse|GerarNfse|ConsultarNfse|NfseCancelamento|ListaNfse|NFSe|Nfse)\b/i.test(xmlText)
     ||/<(?:[\w:]+:)?PrestadorServico[^>]*>/i.test(xmlText)
-
     ||/<(?:[\w:]+:)?ValorLiquidoNfse[^>]*>/i.test(xmlText)
-
     ||/xmlns[^=]*=["'][^"']*(?:nfse|abrasf)/i.test(xmlText);
 
-
-
   if(isNFSe){
-
-    // NFS-e: extrai bloco do prestador para garantir CNPJ correto (não confundir com tomador)
-
     const prestBlock=getBlock(xmlText,'PrestadorServico')||getBlock(xmlText,'Prestador');
-
-    // CNPJ: desce até IdentificacaoPrestador → CpfCnpj → Cnpj se necessário
-
     let cnpjRaw='';
-
     if(prestBlock){
-
       const identBlock=getBlock(prestBlock,'IdentificacaoPrestador')||prestBlock;
-
       const cpfCnpjBlock=getBlock(identBlock,'CpfCnpj')||identBlock;
-
-      cnpjRaw=getTag(cpfCnpjBlock,'Cnpj')||getTag(cpfCnpjBlock,'CNPJ')
-
-        ||getTag(identBlock,'Cnpj')||getTag(identBlock,'CNPJ')
-
-        ||getTag(prestBlock,'Cnpj')||getTag(prestBlock,'CNPJ');
-
+      cnpjRaw=getTag(cpfCnpjBlock,'Cnpj')||getTag(cpfCnpjBlock,'CNPJ')||getTag(identBlock,'Cnpj')||getTag(identBlock,'CNPJ')||getTag(prestBlock,'Cnpj')||getTag(prestBlock,'CNPJ');
     }
-
     if(!cnpjRaw)cnpjRaw=getTag(xmlText,'Cnpj')||getTag(xmlText,'CNPJ');
-
-    const ben=getTag(prestBlock,'RazaoSocial')||getTag(xmlText,'RazaoSocial');
-
-    const valLiq=parseFloat(getTag(xmlText,'ValorLiquidoNfse'))||0;
-
-    const valServ=parseFloat(getTag(xmlText,'ValorServicos'))||0;
-
-    const valTot=parseFloat(getTag(xmlText,'ValorTotal'))||0;
-
+    const ben=getTag(prestBlock,'RazaoSocial')||getTag(xmlText,'RazaoSocial')||getTag(prestBlock,'NomeFantasia');
+    const valoresBlock=getBlock(xmlText,'Valores')||xmlText;
+    const valLiq=money(getTag(valoresBlock,'ValorLiquidoNfse'));
+    const valServ=money(getTag(valoresBlock,'ValorServicos'));
+    const valTot=money(getTag(valoresBlock,'ValorTotal'));
+    const desconto=money(getTag(valoresBlock,'DescontoIncondicionado')||getTag(valoresBlock,'DescontoCondicionado'));
     const val=valLiq||valServ||valTot;
-
-    const nNF=getTag(xmlText,'Numero')||getTag(xmlText,'NumeroNfse')||getTag(xmlText,'NumeroRps');
-
-    const dEmiRaw=getTag(xmlText,'DataEmissao')||getTag(xmlText,'DataEmissaoNfse')||getTag(xmlText,'Competencia');
-
-    const dEmi=dEmiRaw.slice(0,10);
-
-    const codVerif=getTag(xmlText,'CodigoVerificacao')||'';
-
-    const discriminacao=getTag(xmlText,'Discriminacao')||'';
-
+    const infBlock=getBlock(xmlText,'InfNfse')||xmlText;
+    const nNF=getTag(infBlock,'Numero')||getTag(xmlText,'NumeroNfse')||getTag(xmlText,'NumeroRps');
+    const dEmiRaw=getTag(infBlock,'DataEmissao')||getTag(xmlText,'DataEmissaoNfse')||getTag(xmlText,'Competencia');
+    const codVerif=getTag(infBlock,'CodigoVerificacao')||getTag(xmlText,'CodigoVerificacao')||'';
+    const discriminacao=getTag(xmlText,'Discriminacao')||getTag(xmlText,'DescricaoServico')||'';
     if(!ben&&!val)throw new Error('XML não reconhecido como NFS-e.');
 
-    // Tentar extrair itens de serviço de estruturas ABRASF e variações municipais
     const itensNFSe=[];
-    // Padrão ABRASF: ItemListaServico, Servico com Discriminacao individual
-    const itemRe=/<(?:[\w:]+:)?(?:ItemListaServico|Servico|ItemServico|Item)\b[^>]*>([\s\S]*?)<\/(?:[\w:]+:)?(?:ItemListaServico|Servico|ItemServico|Item)>/gi;
+    const itemRe=/<(?:[\w:]+:)?(?:ItemServico|Item|Servico)\b[^>]*>([\s\S]*?)<\/(?:[\w:]+:)?(?:ItemServico|Item|Servico)>/gi;
     let im;
     while((im=itemRe.exec(xmlText))!==null){
       const blk=im[1];
       const desc=getTag(blk,'Discriminacao')||getTag(blk,'Descricao')||getTag(blk,'xServ')||'';
-      if(!desc||desc===discriminacao)continue; // evitar duplicar discriminacao principal
-      const qtd=parseFloat(getTag(blk,'Quantidade')||getTag(blk,'qServ')||'1')||1;
-      const vUnit=parseFloat(getTag(blk,'ValorUnitario')||getTag(blk,'vUnit')||'0')||0;
-      const vTot=parseFloat(getTag(blk,'ValorTotal')||getTag(blk,'vServ')||'0')||vUnit*qtd;
-      if(desc)itensNFSe.push({descricao:desc,quantidade:qtd,unidade:'Srv',valor_unitario:vUnit||vTot,valor_total:vTot||val});
+      if(!desc||desc===discriminacao)continue;
+      const qtd=money(getTag(blk,'Quantidade')||getTag(blk,'qServ')||'1')||1;
+      const vUnit=money(getTag(blk,'ValorUnitario')||getTag(blk,'vUnit')||'0');
+      const vTot=money(getTag(blk,'ValorTotal')||getTag(blk,'vServ')||'0')||vUnit*qtd;
+      itensNFSe.push({descricao:desc,quantidade:qtd,unidade:'Srv',valor_unitario:vUnit||vTot,valor_total:vTot||val});
     }
-    // Fallback: criar 1 item a partir da discriminação global (serviço não detalhado)
-    if(itensNFSe.length===0&&discriminacao){
-      itensNFSe.push({descricao:discriminacao,quantidade:1,unidade:'Srv',valor_unitario:val,valor_total:val});
-    }
+    if(itensNFSe.length===0&&discriminacao)itensNFSe.push({descricao:discriminacao,quantidade:1,unidade:'Srv',valor_unitario:val,valor_total:val});
 
-    return{ben,cnpj:fmtCnpj(cnpjRaw),doc:nNF?`NFS-e nº ${nNF}`:'',val,
-
-      subtotal:valServ||val,desconto:0,frete:0,
-
-      date:dEmi,chave:codVerif,discriminacao,desc:discriminacao,
-
-      itens:itensNFSe,pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:'',tipo:'NFS-e'};
-
+    return{ben,cnpj:fmtCnpj(cnpjRaw),doc:nNF?`NFS-e nº ${nNF}`:'',val,subtotal:valServ||val,desconto,frete:0,date:dEmiRaw.slice(0,10),chave:codVerif,discriminacao,desc:discriminacao,itens:itensNFSe,pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:'',tipo:'NFS-e'};
   }
 
-
-
-  // NF-e (produto/mercadoria — padrão federal SEFAZ 4.00)
-
   const emitBlock=getBlock(xmlText,'emit');
-
+  const ideBlock=getBlock(xmlText,'ide');
+  const totalBlock=getBlock(getBlock(xmlText,'total'),'ICMSTot')||getBlock(xmlText,'ICMSTot')||xmlText;
+  const mod=getTag(ideBlock,'mod')||getTag(xmlText,'mod');
+  const tipo=mod==='65'?'NFC-e':'NF-e';
   const ben=getTag(emitBlock,'xNome')||getTag(xmlText,'xNome');
-
   const cnpjRaw=getTag(emitBlock,'CNPJ')||getTag(emitBlock,'Cnpj')||getTag(emitBlock,'CPF');
-
-  const val=parseFloat(getTag(xmlText,'vNF'))||0;
-
-  const nNF=getTag(xmlText,'nNF');
-
-  const serie=getTag(xmlText,'serie');
-
-  const dEmiRaw=getTag(xmlText,'dEmi')||getTag(xmlText,'dhEmi');
-
-  const dEmi=dEmiRaw.slice(0,10);
-
+  const val=money(getTag(totalBlock,'vNF'));
+  const nNF=getTag(ideBlock,'nNF')||getTag(xmlText,'nNF');
+  const serie=getTag(ideBlock,'serie')||getTag(xmlText,'serie');
+  const dEmiRaw=getTag(ideBlock,'dEmi')||getTag(ideBlock,'dhEmi')||getTag(xmlText,'dhEmi');
   const chaveTag=getTag(xmlText,'chNFe');
-
   const chaveAttr=(xmlText.match(/Id="NFe(\d{44})"/))||[];
-
   const chave=chaveTag||(chaveAttr[1]||'');
-
-  // Valores financeiros detalhados
-
-  const subtotal=parseFloat(getTag(xmlText,'vProd'))||val;
-
-  const desconto=parseFloat(getTag(xmlText,'vDesc'))||0;
-
-  const frete=parseFloat(getTag(xmlText,'vFrete'))||0;
-
-  // Extrai todos os itens dos blocos <det>
+  const subtotal=money(getTag(totalBlock,'vProd'))||val;
+  const desconto=money(getTag(totalBlock,'vDesc'));
+  const frete=money(getTag(totalBlock,'vFrete'));
 
   const itens=[];
-
   const detRe=/<(?:[\w:]+:)?det[^>]*>([\s\S]*?)<\/(?:[\w:]+:)?det>/gi;
-
   let dm;
-
   while((dm=detRe.exec(xmlText))!==null){
-
     const pb=getBlock(dm[1],'prod');
-
     if(!pb)continue;
-
     const descricao=getTag(pb,'xProd');
-
-    const quantidade=parseFloat(getTag(pb,'qCom'))||parseFloat(getTag(pb,'qTrib'))||1;
-
+    const quantidade=money(getTag(pb,'qCom'))||money(getTag(pb,'qTrib'))||1;
     const unidade=getTag(pb,'uCom')||getTag(pb,'uTrib')||'UN';
-
-    const valor_unitario=parseFloat(getTag(pb,'vUnCom'))||0;
-
-    const valor_total=parseFloat(getTag(pb,'vProd'))||0;
-
+    const valor_unitario=money(getTag(pb,'vUnCom'))||money(getTag(pb,'vUnTrib'));
+    const valor_total=money(getTag(pb,'vProd'));
     if(descricao)itens.push({descricao,quantidade,unidade,valor_unitario,valor_total});
+  }
 
+  const parcelas=[];
+  const dupRe=/<(?:[\w:]+:)?dup[^>]*>([\s\S]*?)<\/(?:[\w:]+:)?dup>/gi;
+  let pm;
+  while((pm=dupRe.exec(xmlText))!==null){
+    const b=pm[1];
+    parcelas.push({numero:+(getTag(b,'nDup')||parcelas.length+1),valor:money(getTag(b,'vDup')),vencimento:getTag(b,'dVenc')});
   }
 
   const desc=itens.length?itens[0].descricao:getTag(xmlText,'xProd')||'';
-
-  if(!ben&&!val)throw new Error('XML não reconhecido como nota fiscal. Verifique se o arquivo é um XML de NF-e ou NFS-e.');
-
-  return{ben,cnpj:fmtCnpj(cnpjRaw),doc:nNF?`NF-e nº ${nNF}${serie?' série '+serie:''}` :'',
-
-    val,subtotal,desconto,frete,date:dEmi,chave,
-
-    itens,discriminacao:'',desc,pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:'',tipo:'NF-e'};
+  if(!ben&&!val)throw new Error('XML não reconhecido como nota fiscal. Verifique se o arquivo é XML de NF-e, NFC-e, NFS-e ou CT-e.');
+  return{ben,cnpj:fmtCnpj(cnpjRaw),doc:nNF?`${tipo} nº ${nNF}${serie?' série '+serie:''}`:'',val,subtotal,desconto,frete,date:dEmiRaw.slice(0,10),chave,itens,discriminacao:'',desc,pagForma:parcelas.length>1?'PARCELADO':'A_VISTA',numParcelas:parcelas.length||1,parcelas,obs:'',tipo};
 
 }
 
@@ -9289,167 +9296,106 @@ function parseNFFromPDF(file){
 
 function parseNFFromText(text, digits){
 
+  text=String(text||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n').replace(/[ \t]+/g,' ');
   if(!digits)digits=text.replace(/\D/g,'');
-
-  const lines=text.split('\n');
-
-
-
-  // Detecta tipo: NFS-e tem indicadores específicos
-
-  const isNFSe=/NFS-?e|nota\s+fiscal\s+de\s+servi[çc]os?|prestador\s+de\s+servi[çc]os?/i.test(text);
-
-  const tipo=isNFSe?'NFS-e':'NF-e';
-
-
-
-  // CNPJ: XX.XXX.XXX/XXXX-XX  — padrão muito confiável
-
+  const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const norm=_norm(text);
+  const moneyRaw=s=>{
+    const m=String(s||'').match(/R?\$?\s*([\d]{1,3}(?:\.[\d]{3})*,\d{2}|\d+,\d{2})/);
+    return m?parseFloat(m[1].replace(/\./g,'').replace(',','.')):0;
+  };
+  const findMoneyNear=labels=>{
+    for(let i=0;i<lines.length;i++){
+      if(labels.some(re=>re.test(lines[i]))){
+        for(let j=i;j<=Math.min(i+4,lines.length-1);j++){
+          const v=moneyRaw(lines[j]);
+          if(v)return v;
+        }
+      }
+    }
+    return 0;
+  };
+  const findDateNear=labels=>{
+    for(let i=0;i<lines.length;i++){
+      if(labels.some(re=>re.test(lines[i]))){
+        for(let j=i;j<=Math.min(i+3,lines.length-1);j++){
+          const m=lines[j].match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
+          if(m)return _parseDate(m[1]);
+        }
+      }
+    }
+    return '';
+  };
+  const cnpjFmt=d=>d&&d.length===14?d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):'';
   const cnpjs=[...text.matchAll(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g)].map(m=>m[0]);
-
-  const cnpj=cnpjs[0]||'';
-
-
-
-  // Chave de acesso: 44 dígitos consecutivos no stream de dígitos (NF-e)
-
+  const rawCnpj=(text.match(/(?:CNPJ|CPF\/CNPJ)[:\s]*([0-9.\-/]{14,18})/i)||[])[1];
+  const cnpj=cnpjs[0]||cnpjFmt((rawCnpj||'').replace(/\D/g,''));
   const chaveM=digits.match(/\d{44}/);
-
   const chave=chaveM?chaveM[0]:'';
-
-
-
-  // Número do documento — cobre NF-e, NFS-e, RPS, Nota, Número
-
-  const nfM=
-
-    text.match(/n[º°\.]?\s*(?:da\s*)?nfs-?e\s*:?\s*(\d+)/i)                        // Nº da NFS-e
-
-    ||text.match(/n[uú]mero\s*(?:da\s*)?(?:nota|nfs-?e|nf-?e)\s*:?\s*(\d+)/i)      // Número da Nota
-
-    ||text.match(/[Nn]\.?\s*[Ff]\.?[Ee]?\s*[nN][º°\.]\s*:?\s*(\d+(?:[.\/ ]\d+)*)/i)// NF-e nº
-
-    ||text.match(/\bnota\s+n[º°\.]?\s*:?\s*(\d+)/i)                                  // Nota nº
-
-    ||text.match(/\bnum(?:ero)?\s*:?\s*(\d{1,10})\b/i);                              // Num: 123
-
-  const nfNum=nfM?nfM[1].replace(/[.\/ ]/g,''):'';
-
-
-
-  // Data: dd/mm/yyyy
-
-  const dateM=[...text.matchAll(/(\d{2}\/\d{2}\/\d{4})/g)];
-
-  const date=dateM.length?_parseDate(dateM[0][1]):'';
-
-
-
-  // Valor total: rótulos variados (NF-e produto + NFS-e serviço)
-
-  let val=0;
-
-  const totalRe=/valor\s*total\s*(?:da\s*nota|dos?\s*servi[çc]os?|geral)?|total\s*(?:da\s*nota|dos?\s*servi[çc]os?|geral|l[íi]quido)?|valor\s*l[íi]quido|valor\s*(?:dos?\s*)?servi[çc]os?|total\s*(?:a\s*pagar|nfse)/i;
-
-  for(let i=0;i<lines.length&&!val;i++){
-
-    if(totalRe.test(lines[i])){
-
-      for(let j=i;j<=Math.min(i+4,lines.length-1)&&!val;j++){
-
-        // Aceita R$ 1.234,56 e 1234.56 e 1.234,56
-
-        const mV=lines[j].match(/R?\$?\s*([\d]{1,3}(?:\.[\d]{3})*,\d{2})/);
-
-        if(mV)val=parseFloat(mV[1].replace(/\./g,'').replace(',','.'));
-
-      }
-
-    }
-
-  }
-
-  // Fallback: maior valor monetário no documento
-
-  if(!val){
-
-    const allAmts=[...text.matchAll(/R?\$?\s*([\d]{1,3}(?:\.[\d]{3})+,\d{2})/g)]
-
-      .map(m=>parseFloat(m[1].replace(/\./g,'').replace(',','.')));
-
-    if(allAmts.length)val=Math.max(...allAmts);
-
-  }
-
-
-
-  // Nome do emitente / prestador
-
-  let ben='';
-
-  // NFS-e: seção "PRESTADOR" ou "PRESTADOR DE SERVIÇOS"
-
-  // NF-e: seção "EMITENTE" ou "RAZÃO SOCIAL"
-
-  const emitRe=/prestador(?:\s+de\s+servi[çc]os?)?|emitente|raz[aã]o\s*social|empresa\s+prestadora/i;
-
-  for(let i=0;i<lines.length&&!ben;i++){
-
-    if(emitRe.test(lines[i])){
-
-      const same=lines[i].replace(emitRe,'').replace(/[:\-]/,'').trim();
-
-      if(same.length>4&&!/^\d/.test(same))ben=same;
-
-      else if(i+1<lines.length){
-
-        const next=lines[i+1].trim();
-
-        if(next.length>4&&!/^(cnpj|cpf|endere|tel|fone|inscri)/i.test(next))ben=next;
-
-      }
-
-    }
-
-  }
-
-  // Fallback: primeira linha em MAIÚSCULAS com 2+ palavras (DANFE ou cabeçalho NFS-e)
-
-  if(!ben){
-
-    for(const l of lines){
-
-      const lt=l.trim();
-
-      if(lt.length>8&&lt.length<120&&/^[A-ZÁÉÍÓÚÃÕÀÈÇ\s]/.test(lt)&&lt===lt.toUpperCase()&&lt.split(/\s+/).length>=2&&!/^\d/.test(lt)&&!/^(nota|nfs|nf-e|prefeitura|recibo|cnpj|data|valor)/i.test(lt)){
-
-        ben=lt;break;
-
-      }
-
-    }
-
-  }
-
-
-
-  // Decodifica chave NF-e para preencher campos faltantes
-
   const decoded=chave?decodeChave(chave):null;
 
+  let tipo='NF-e';
+  if(/nfc-?e|cupom\s+fiscal\s+eletr[oô]nico|danfe\s+nfc/i.test(text)||decoded?.mod==='65')tipo='NFC-e';
+  else if(/nfs-?e|nota\s+fiscal\s+de\s+servi[çc]os?|prestador\s+de\s+servi[çc]os?/i.test(text))tipo='NFS-e';
+  else if(/ct-?e|dacte|conhecimento\s+de\s+transporte/i.test(text)||decoded?.mod==='57')tipo='CT-e';
+  else if(/boleto|linha\s+digit[aá]vel|cedente|sacado|nosso\s+n[uú]mero/i.test(text))tipo='Boleto';
+  else if(/fatura|invoice|cobran[çc]a|demonstrativo/i.test(text))tipo='Fatura';
+  else if(/recibo|recibemos|recebi\b|rpa\b/i.test(text))tipo='Recibo';
+  else if(/\b(darf|das|darm|gps|gnre|gare)\b|guia\s+(?:de|do)|tributo|taxa\s+municipal/i.test(text))tipo='Guia';
+
+  const nfM=text.match(/n[º°\.]?\s*(?:da\s*)?nfs-?e\s*:?\s*(\d+)/i)
+    ||text.match(/n[uú]mero\s*(?:da\s*)?(?:nota|nfs-?e|nf-?e|nfc-?e|ct-?e|documento|fatura|recibo|guia)\s*:?\s*([A-Z0-9.\-/]+)/i)
+    ||text.match(/[Nn]\.?\s*[Ff]\.?[Ee]?\s*[nN][º°\.]\s*:?\s*(\d+(?:[.\/ ]\d+)*)/i)
+    ||text.match(/\b(?:nota|fatura|recibo|documento|nosso\s+n[uú]mero)\s+n[º°\.]?\s*:?\s*([A-Z0-9.\-/]+)/i)
+    ||text.match(/\bnum(?:ero)?\s*:?\s*(\d{1,12})\b/i);
+  const nfNum=nfM?String(nfM[1]).replace(/[ ]/g,''):(decoded?.nfNum||'');
+
+  let linhaDigitavel='';
+  if(tipo==='Boleto'){
+    const ld=text.match(/(?:linha\s+digit[aá]vel|c[oó]digo\s+de\s+barras)[^\d]*(\d[\d .-]{30,70}\d)/i)
+      || text.match(/\b(\d{5}\.?\d{5}\s+\d{5}\.?\d{6}\s+\d{5}\.?\d{6}\s+\d\s+\d{14})\b/);
+    if(ld)linhaDigitavel=ld[1].replace(/\s+/g,' ').trim();
+  }
+
+  const date=findDateNear([/data\s+de\s+emiss/i,/emiss[aã]o/i,/compet[eê]ncia/i])||findDateNear([/data/i])||(decoded?.date||'');
+  const venc=findDateNear([/vencimento/i,/venc\./i,/pagar\s+at[eé]/i,/data\s+limite/i]);
+
+  let val=findMoneyNear([/valor\s+(?:total|do\s+documento|da\s+nota|dos?\s+servi[çc]os?|cobrado|a\s+pagar|liquido|l[ií]quido)/i,/total\s+(?:da\s+nota|a\s+pagar|geral|l[ií]quido)/i]);
+  if(!val&&tipo==='Boleto')val=findMoneyNear([/valor\s+do\s+documento/i,/valor\s+cobrado/i,/valor\s+do\s+boleto/i]);
+  if(!val){
+    const allAmts=[...text.matchAll(/R?\$?\s*([\d]{1,3}(?:\.[\d]{3})*,\d{2}|\d+,\d{2})/g)].map(m=>parseFloat(m[1].replace(/\./g,'').replace(',','.'))).filter(v=>v>0);
+    if(allAmts.length)val=Math.max(...allAmts);
+  }
+
+  let ben='';
+  const labels=tipo==='Boleto'?[/(?:benefici[aá]rio|cedente|favorecido)/i]:tipo==='NFS-e'?[/prestador(?:\s+de\s+servi[çc]os?)?/i,/raz[aã]o\s*social/i]:[/emitente/i,/fornecedor/i,/benefici[aá]rio/i,/raz[aã]o\s*social/i,/empresa\s+prestadora/i];
+  for(let i=0;i<lines.length&&!ben;i++){
+    if(labels.some(re=>re.test(lines[i]))){
+      const same=lines[i].replace(labels.find(re=>re.test(lines[i])),'').replace(/[:\-]/,'').trim();
+      if(same.length>4&&!/^\d/.test(same)&&!/cnpj|cpf/i.test(same))ben=same;
+      else if(i+1<lines.length){
+        const next=lines[i+1].trim();
+        if(next.length>4&&!/^(cnpj|cpf|endere|tel|fone|inscri|ag[eê]ncia|c[oó]digo)/i.test(next))ben=next;
+      }
+    }
+  }
+  if(!ben){
+    for(const l of lines){
+      const lt=l.trim();
+      if(lt.length>8&&lt.length<120&&/^[A-ZÁÉÍÓÚÃÕÀÈÇ\s.&-]/.test(lt)&&lt===lt.toUpperCase()&&lt.split(/\s+/).length>=2&&!/^\d/.test(lt)&&!/^(nota|nfs|nf-e|nfc|ct-e|prefeitura|recibo|boleto|fatura|cnpj|data|valor|linha digit)/i.test(lt)){
+        ben=lt;break;
+      }
+    }
+  }
+
   const finalCnpj=cnpj||(decoded?.cnpj)||'';
+  const prefix=impDocPrefix(tipo);
+  const finalDoc=nfNum?`${prefix} ${nfNum}${decoded?.serie&&decoded.serie!=='1'?' série '+decoded.serie:''}`:'';
+  const descLine=lines.find(l=>/(servi[çc]o|refer[eê]ncia|descri[çc][aã]o|hist[oó]rico|discrimina[çc][aã]o)/i.test(l))||'';
+  const desc=descLine.replace(/^(servi[çc]o|refer[eê]ncia|descri[çc][aã]o|hist[oó]rico|discrimina[çc][aã]o)\s*:?\s*/i,'').trim();
+  const codigo=linhaDigitavel||chave;
 
-  const finalNfNum=nfNum||(decoded?.nfNum)||'';
-
-  const finalDate=date||(decoded?.date)||'';
-
-  const docPrefix=tipo==='NFS-e'?'NFS-e nº':'NF-e nº';
-
-  const finalDoc=finalNfNum?`${docPrefix} ${finalNfNum}${decoded?.serie&&decoded.serie!=='1'?' série '+decoded.serie:''}` :'';
-
-
-
-  return {ben,cnpj:finalCnpj,doc:finalDoc,val,date:finalDate,chave,desc:'',tipo};
+  return {ben,cnpj:finalCnpj,doc:finalDoc,val,date,venc,chave:codigo,desc,discriminacao:desc,tipo,itens:desc?[{descricao:desc,quantidade:1,unidade:tipo==='NF-e'||tipo==='NFC-e'?'UN':'Srv',valor_unitario:val,valor_total:val}]:[]};
 
 }
 
@@ -9469,6 +9415,8 @@ function decodeChave(raw){
 
   const cnpjRaw=c.slice(6,20);
 
+  const mod=c.slice(20,22);
+
   const serie=parseInt(c.slice(22,25),10);
 
   const nNF=parseInt(c.slice(25,34),10);
@@ -9481,7 +9429,9 @@ function decodeChave(raw){
 
   const cnpj=cnpjRaw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
 
-  return {cnpj,nfNum:nNF.toString(),serie:serie.toString(),date:`${year}-${month}-01`,uf:UFS[cUF]||cUF};
+  const tipo=mod==='65'?'NFC-e':mod==='57'?'CT-e':'NF-e';
+
+  return {cnpj,nfNum:nNF.toString(),serie:serie.toString(),date:`${year}-${month}-01`,uf:UFS[cUF]||cUF,mod,tipo};
 
 }
 
@@ -9503,9 +9453,9 @@ async function decodePastedChave(){
 
     ben:'',cnpj:d.cnpj,
 
-    doc:`NF-e nº ${d.nfNum}${d.serie&&d.serie!=='1'?' série '+d.serie:''}`,
+    doc:`${impDocPrefix(d.tipo)} ${d.nfNum}${d.serie&&d.serie!=='1'?' série '+d.serie:''}`,
 
-    val:0,date:d.date,chave:c,desc:'',tipo:'NF-e'
+    val:0,date:d.date,chave:c,desc:'',tipo:d.tipo||'NF-e'
 
   });
 
@@ -9775,7 +9725,9 @@ function impChaveChanged(raw){
 
   if(!document.getElementById('imp-doc').value)
 
-    document.getElementById('imp-doc').value=`NF-e nº ${d.nfNum}${d.serie&&d.serie!=='1'?' série '+d.serie:''}`;
+    document.getElementById('imp-doc').value=`${impDocPrefix(d.tipo)} ${d.nfNum}${d.serie&&d.serie!=='1'?' série '+d.serie:''}`;
+
+  if(document.getElementById('imp-nftipo')){document.getElementById('imp-nftipo').value=d.tipo||'NF-e';impNfTipoChanged(d.tipo||'NF-e');}
 
   if(!document.getElementById('imp-date').value)
 
@@ -9803,6 +9755,10 @@ function showImportReview(data){
 
   const nfTipo=data.tipo||'NF-e';
 
+  const nfSel=document.getElementById("imp-nftipo");
+
+  if(nfSel&&![...nfSel.options].some(o=>o.value===nfTipo))nfSel.add(new Option(nfTipo,nfTipo));
+
   document.getElementById("imp-nftipo").value=nfTipo;
 
   impNfTipoChanged(nfTipo);
@@ -9814,6 +9770,8 @@ function showImportReview(data){
   document.getElementById("imp-doc").value=data.doc||'';
 
   document.getElementById("imp-date").value=data.date||new Date().toISOString().slice(0,10);
+
+  if(document.getElementById("imp-venc"))document.getElementById("imp-venc").value=data.venc||'';
 
   document.getElementById("imp-chave").value=data.chave||'';
 
@@ -9832,8 +9790,8 @@ function showImportReview(data){
   // Auto-preencher referência a partir dos itens ou discriminação (se campo estiver vazio)
   const _refEl=document.getElementById('imp-ref');
   if(_refEl&&!_refEl.value){
-    if(nfTipo==='NFS-e'&&data.discriminacao){
-      // NFS-e: usar discriminação do serviço (truncado em 120 chars)
+    if(['NFS-e','CT-e','Boleto','Fatura','Recibo','Guia'].includes(nfTipo)&&data.discriminacao){
+      // Serviços e cobranças: usar discriminação do documento (truncado em 120 chars)
       _refEl.value=data.discriminacao.replace(/\s+/g,' ').trim().slice(0,120);
     }else if(data.itens&&data.itens.length){
       // NF-e ou NFS-e com itens: agrupar por tipo de material/serviço
@@ -9909,7 +9867,9 @@ function impNfTipoChanged(tipo){
 
   const isNFSe=tipo==='NFS-e';
 
-  const isNFDoc=tipo==='NF-e'||tipo==='NFS-e';
+  const isNFDoc=['NF-e','NFC-e','NFS-e','CT-e','Boleto','Fatura','Recibo','Guia'].includes(tipo);
+
+  const hasAccessCode=['NF-e','NFC-e','NFS-e','CT-e','Boleto','Guia'].includes(tipo);
 
   const badge=document.getElementById("imp-nf-badge");
 
@@ -9917,19 +9877,19 @@ function impNfTipoChanged(tipo){
 
     badge.textContent=tipo;
 
-    badge.className=tipo==='NFS-e'?'badge b-info':tipo==='Adiantamento'?'badge b-warn':tipo==='Sem nota'?'badge b-neutral':'badge b-ok';
+    badge.className=tipo==='NFS-e'||tipo==='CT-e'?'badge b-info':tipo==='Adiantamento'?'badge b-warn':tipo==='Sem nota'?'badge b-neutral':'badge b-ok';
 
   }
 
   // Frete: só NF-e de produto
 
-  const fr=document.getElementById("imp-frete-row");if(fr)fr.style.display=tipo==='NF-e'?'':'none';
+  const fr=document.getElementById("imp-frete-row");if(fr)fr.style.display=tipo==='NF-e'||tipo==='NFC-e'?'':'none';
 
   // Chave de acesso + Nº do documento: apenas para notas fiscais reais
 
   const chaveRow=document.getElementById("imp-chave")?.closest('.full');
 
-  if(chaveRow)chaveRow.style.display=isNFDoc?'':'none';
+  if(chaveRow)chaveRow.style.display=hasAccessCode?'':'none';
 
   const docRow=document.getElementById("imp-doc")?.closest('.frow');
 
@@ -9939,11 +9899,11 @@ function impNfTipoChanged(tipo){
 
   const hd=document.getElementById("imp-itens-hd");
 
-  if(hd)hd.textContent=isNFSe?'Serviços Prestados':tipo==='Adiantamento'?'Descrição do Adiantamento':tipo==='Sem nota'?'Motivo do Pagamento':'Itens da Nota';
+  if(hd)hd.textContent=isNFSe||tipo==='CT-e'?'Serviços Prestados':tipo==='Boleto'?'Dados do Boleto':tipo==='Fatura'?'Itens da Fatura':tipo==='Recibo'?'Descrição do Recibo':tipo==='Guia'?'Dados da Guia':tipo==='Adiantamento'?'Descrição do Adiantamento':tipo==='Sem nota'?'Motivo do Pagamento':'Itens da Nota';
 
   // Tipos sem NF: exibe textarea no lugar da tabela de itens
 
-  if(!isNFDoc){
+  if(!['NF-e','NFC-e','NFS-e','CT-e'].includes(tipo)){
 
     const wrap=document.getElementById('imp-itens-wrap');
 
@@ -9953,6 +9913,10 @@ function impNfTipoChanged(tipo){
 
         ?'Descreva o adiantamento: para que é, qual fornecedor/serviço, prazo estimado para receber a nota fiscal...'
 
+        :tipo==='Boleto'?'Descreva a cobrança, beneficiário, vencimento e linha digitável...'
+        :tipo==='Fatura'?'Descreva a fatura/cobrança e seus itens...'
+        :tipo==='Recibo'?'Descreva o recibo, serviço/produto e responsável...'
+        :tipo==='Guia'?'Descreva a guia, tributo/taxa e competência...'
         :'Descreva o motivo deste pagamento sem nota fiscal (ex: despesa avulsa, serviço informal, pequena compra)...';
 
       wrap.innerHTML=`<textarea class="fi" id="imp-discriminacao" rows="3" style="height:auto;resize:vertical;font-size:13.5px" placeholder="${ph}"></textarea>`;
@@ -9969,12 +9933,13 @@ function impRenderItens(itens,discriminacao,nfTipo){
 
   const wrap=document.getElementById("imp-itens-wrap");if(!wrap)return;
 
-  // NFS-e com itens → mostra tabela; sem itens → textarea de discriminação
-  if((nfTipo==='NFS-e'&&(!itens||!itens.length))||nfTipo==='Adiantamento'||nfTipo==='Sem nota'){
+  // Documentos de serviço/cobrança com itens → mostram tabela; sem itens → textarea de discriminação
+  const tableTipos=['NF-e','NFC-e','NFS-e','CT-e','Fatura'];
+  if((['NFS-e','CT-e','Fatura'].includes(nfTipo)&&(!itens||!itens.length))||!tableTipos.includes(nfTipo)||nfTipo==='Adiantamento'||nfTipo==='Sem nota'){
 
     const safe=(discriminacao||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    const ph=nfTipo==='Adiantamento'?'Descreva o adiantamento: para que é, prazo para NF...':nfTipo==='Sem nota'?'Descreva o motivo deste pagamento sem nota...':'Discriminação dos serviços prestados...';
+    const ph=nfTipo==='Adiantamento'?'Descreva o adiantamento: para que é, prazo para NF...':nfTipo==='Sem nota'?'Descreva o motivo deste pagamento sem nota...':nfTipo==='Boleto'?'Dados do boleto, linha digitável e cobrança...':nfTipo==='Recibo'?'Descrição do recibo...':nfTipo==='Guia'?'Dados da guia, tributo/taxa e competência...':'Discriminação dos serviços prestados...';
 
     wrap.innerHTML=`<textarea class="fi" id="imp-discriminacao" rows="3" style="height:auto;resize:vertical;font-size:13.5px" placeholder="${ph}">${safe}</textarea>`;
 
