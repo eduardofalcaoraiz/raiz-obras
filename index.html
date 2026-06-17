@@ -2614,23 +2614,23 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 <div class="overlay" id="capex-saldo-overlay"><div class="modal" style="max-width:560px">
 
-  <div class="mhead"><h2>Saldo CAPEX autorizado</h2><button class="x" onclick="closeCapexSaldoModal()">×</button></div>
+  <div class="mhead"><h2 id="cs-modal-title">CAPEX disponibilizado</h2><button class="x" onclick="closeCapexSaldoModal()">×</button></div>
 
   <div class="mbody">
 
     <div class="capex-form-card">
-      <div class="capex-form-title">Verba liberada pelo CEO</div>
+      <div class="capex-form-title">Valor disponibilizado pelo CEO</div>
       <div class="fgrid">
         <div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="cs-m-ano" onchange="syncCapexSaldoExisting()"></select></div>
         <div class="frow"><label class="fl">Unidade / escola</label><select class="fi" id="cs-m-unidade" onchange="syncCapexSaldoExisting()"></select></div>
       </div>
-      <div class="frow"><label class="fl">Valor autorizado para gastar (R$)</label><input class="fi num" id="cs-m-valor" inputmode="decimal" onblur="fmtCurrencyBlur(this);updateCapexSaldoPreview()" placeholder="0,00"></div>
-      <div class="frow" style="margin-bottom:0"><label class="fl">Observação</label><textarea class="fi" id="cs-m-obs" rows="2" style="resize:vertical" placeholder="Ex.: Verba liberada pelo CEO para melhorias do ciclo"></textarea></div>
+      <div class="frow"><label class="fl">CAPEX disponibilizado (R$)</label><input class="fi num" id="cs-m-valor" inputmode="decimal" onblur="fmtCurrencyBlur(this);updateCapexSaldoPreview()" placeholder="0,00"></div>
+      <div class="frow" style="margin-bottom:0"><label class="fl">Observação</label><textarea class="fi" id="cs-m-obs" rows="2" style="resize:vertical" placeholder="Ex.: Valor disponibilizado pelo CEO para melhorias do ciclo"></textarea></div>
     </div>
 
     <div id="cs-m-preview" class="capex-budget-band" style="margin-bottom:16px"></div>
 
-    <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn btn-ghost" onclick="closeCapexSaldoModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCapexSaldo()"><span class="ic">✓</span> Salvar saldo</button></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn btn-ghost" onclick="closeCapexSaldoModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCapexSaldo()"><span class="ic">✓</span> Salvar CAPEX disponibilizado</button></div>
 
   </div>
 
@@ -4124,7 +4124,7 @@ function renderGeral(){
   const riskRows=[
     {title:'Pagamentos em atraso',sub:`${atr.length} lançamento(s), ${fmt(atrTotal)}`,color:atr.length?'var(--danger)':'var(--ok)'},
     {title:'Obras acima do contratado',sub:`${estouro.length} obra(s) com saldo negativo`,color:estouro.length?'var(--danger)':'var(--ok)'},
-    {title:'Saldo CAPEX',sub:`${fmt(capexBudget.saldo)} disponivel de ${fmt(capexBudget.autorizado)} autorizado`,color:capexBudget.saldo<0?'var(--danger)':(capexBudget.autorizado?'var(--ok)':'var(--warn)')},
+    {title:'CAPEX disponibilizado',sub:`${fmt(capexBudget.saldo)} disponível de ${fmt(capexBudget.autorizado)} disponibilizado`,color:capexBudget.saldo<0?'var(--danger)':(capexBudget.autorizado?'var(--ok)':'var(--warn)')},
     {title:'CAPEX sem orçamento',sub:`${capexSemOrc} pedido(s) precisam de valor estimado`,color:capexSemOrc?'var(--warn)':'var(--ok)'},
     {title:'Unidades sem documentos',sub:`${unidadesSemDoc} unidade(s) sem arquivo carregado`,color:unidadesSemDoc?'var(--info)':'var(--ok)'}
   ];
@@ -4190,7 +4190,7 @@ function renderEsfera(){
 
     document.getElementById('esf-alert').innerHTML='';
 
-    document.getElementById('esf-acts').innerHTML='<button class="btn btn-primary btn-sm" onclick="openCapexItemModal(null)"><span class="ic">＋</span> Novo pedido</button>';
+    document.getElementById('esf-acts').innerHTML=`<button class="btn btn-ghost btn-sm" onclick="openCapexSaldoModal(capexDrillYear||new Date().getFullYear(),capexDrillUnidade||'',capexDrillMarca||'')"><span class="ic">＋</span> CAPEX disponibilizado</button><button class="btn btn-primary btn-sm" onclick="openCapexItemModal(null)"><span class="ic">＋</span> Novo pedido</button>`;
 
     capexTab='dashboard';capexShowEmpty=false;capexDrillYear=null;capexDrillMarca=null;capexDrillUnidade=null;
 
@@ -4725,18 +4725,24 @@ function capexBudgetSummary(stats,accent,actionHtml){
   const usedWidth=stats.autorizado>0?Math.min(Math.max(stats.usado,0),100):(stats.comprometido>0?100:0);
   const barColor=stats.saldo<0?'var(--danger)':(accent||'var(--accent)');
   return`<div class="capex-budget-band">
-    <div class="capex-budget-cell"><span>Autorizado CEO</span><b style="color:${accent||'var(--accent)'}">${fmt(stats.autorizado)}</b></div>
+    <div class="capex-budget-cell"><span>CAPEX disponibilizado</span><b style="color:${accent||'var(--accent)'}">${fmt(stats.autorizado)}</b></div>
     <div class="capex-budget-cell"><span>Comprometido</span><b>${fmt(stats.comprometido)}</b></div>
-    <div class="capex-budget-cell"><span>Saldo disponivel</span><b style="color:${stats.color}">${fmt(stats.saldo)}</b></div>
+    <div class="capex-budget-cell"><span>Saldo disponível</span><b style="color:${stats.color}">${fmt(stats.saldo)}</b></div>
     <div class="capex-budget-cell"><span>Uso da verba</span><b style="color:${barColor}">${stats.autorizado>0?stats.usado+'%':'sem saldo'}</b></div>
     <div class="capex-budget-progress"><i style="width:${usedWidth}%;background:${barColor}"></i></div>
     ${actionHtml?`<div class="capex-budget-actions">${actionHtml}</div>`:''}
   </div>`;
 }
 
-function capexBudgetAction(ano,unidade,label){
+function capexBudgetAction(ano,unidade,label,marca,variant){
   if(!capexSaldoCanEdit())return'';
-  return`<button class="btn btn-primary btn-sm" onclick="openCapexSaldoModal(${+ano||new Date().getFullYear()},'${capexJs(unidade)}')">${escHtml(label||'Editar saldo')}</button>`;
+  const y=+ano||new Date().getFullYear();
+  const u=unidade||'';
+  const row=u?capexSaldoRow(y,u):null;
+  const text=label||(row?'Editar CAPEX disponibilizado':'Adicionar CAPEX disponibilizado');
+  const cls=variant==='ghost'?'btn btn-ghost btn-sm':'btn btn-primary btn-sm';
+  const icon=row?'✎':'＋';
+  return`<button class="${cls}" onclick="event.stopPropagation();openCapexSaldoModal(${y},'${capexJs(u)}','${capexJs(marca||'')}')"><span class="ic">${icon}</span> ${escHtml(text)}</button>`;
 }
 
 function capexLegacyUnits(){
@@ -4770,8 +4776,8 @@ function renderCapexOverview(){
     color:_ciStatusColor(i.situacao)
   }));
   const qualityRows=[
-    {label:'Autorizado CEO',value:fmt(budget.autorizado),color:'var(--accent)'},
-    {label:'Saldo disponivel',value:fmt(budget.saldo),color:budget.color},
+    {label:'CAPEX disponibilizado',value:fmt(budget.autorizado),color:'var(--accent)'},
+    {label:'Saldo disponível',value:fmt(budget.saldo),color:budget.color},
     {label:'Pedidos em andamento',value:abertas.length,color:'var(--info)'},
     {label:'Pedidos sem orçamento',value:semOrc.length,color:'var(--danger)'},
     {label:'Pedidos em andamento',value:k.ea,color:'var(--info)'},
@@ -4835,7 +4841,8 @@ function renderCapexScopedDashboard(){
     const k=_ciKpis(its);
 
     html+=capexNavLine(`CAPEX ${capexDrillYear}`,'Dashboard do ano selecionado. Use a aba Pedidos de CAPEX para abrir marcas.',{
-      backTitle:'Voltar aos anos'
+      backTitle:'Voltar aos anos',
+      right:capexBudgetAction(capexDrillYear,'','Adicionar CAPEX disponibilizado','','ghost')
     });
 
     html+=renderCapexDashboard(its,{
@@ -4859,7 +4866,8 @@ function renderCapexScopedDashboard(){
     const bc=brandColor(capexDrillMarca);
 
     html+=capexNavLine(`${capexDrillMarca} · ${capexDrillYear}`,'Dashboard da marca selecionada. Use a aba Pedidos de CAPEX para abrir unidades.',{
-      backTitle:'Voltar às marcas'
+      backTitle:'Voltar às marcas',
+      right:capexBudgetAction(capexDrillYear,'','Adicionar CAPEX disponibilizado',capexDrillMarca,'ghost')
     });
 
     html+=renderCapexDashboard(its,{
@@ -4883,7 +4891,8 @@ function renderCapexScopedDashboard(){
     const bc=brandColor(capexDrillMarca);
 
     html+=capexNavLine(capexDrillUnidade,`${capexDrillMarca} · ${capexDrillYear}. Dashboard da unidade selecionada.`,{
-      backTitle:'Voltar às unidades'
+      backTitle:'Voltar às unidades',
+      right:capexBudgetAction(capexDrillYear,capexDrillUnidade,null,capexDrillMarca,'ghost')
     });
 
     html+=renderCapexDashboard(its,{
@@ -4891,7 +4900,7 @@ function renderCapexScopedDashboard(){
       sub:`${capexDrillUnidade} · ${capexDrillMarca} · ${capexDrillYear}`,
       accent:bc,
       budgetScope:{ano:capexDrillYear,marca:capexDrillMarca,unidade:capexDrillUnidade},
-      budgetAction:capexBudgetAction(capexDrillYear,capexDrillUnidade,'Atualizar verba autorizada'),
+      budgetAction:capexBudgetAction(capexDrillYear,capexDrillUnidade),
       groupA:i=>_ciSit(i),
       groupALabel:'Pedidos por situação',
       groupASub:'Estado atual da execução nesta escola.',
@@ -5033,7 +5042,7 @@ function _ciMiniDash(its,accent,scope){
     const saldoColor=b.saldo<0?'var(--danger)':(b.autorizado>0?'var(--ok)':'var(--warn)');
     return`<div class="capex-card-dash">
       <div class="mini"><span>Pedidos</span><b>${k.total}</b></div>
-      <div class="mini"><span>Autorizado</span><b style="color:${accent}">${fmt(b.autorizado)}</b></div>
+      <div class="mini"><span>Disponib.</span><b style="color:${accent}">${fmt(b.autorizado)}</b></div>
       <div class="mini"><span>Comprom.</span><b>${fmt(b.comprometido)}</b></div>
       <div class="mini"><span>Saldo</span><b style="color:${saldoColor}">${fmt(b.saldo)}</b></div>
     </div>${_ciStatusTrack(k)}`;
@@ -5239,7 +5248,7 @@ function renderCapexBrands(){
 
   html+=capexNavLine(`CAPEX ${capexDrillYear}`,'Pedidos por marca neste ciclo.',{
     backTitle:'Voltar à seleção de anos',
-    right:`<button class="capex-empty-toggle ${capexShowEmpty?'active':''}" onclick="toggleCapexEmpty()">${capexShowEmpty?'Ocultar':'Mostrar'} marcas sem pedido</button>`
+    right:`${capexBudgetAction(capexDrillYear,'','Adicionar CAPEX disponibilizado','','ghost')}<button class="capex-empty-toggle ${capexShowEmpty?'active':''}" onclick="toggleCapexEmpty()">${capexShowEmpty?'Ocultar':'Mostrar'} marcas sem pedido</button>`
   });
 
   html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Marcas com pedidos</h2><span style="font-size:12px;color:var(--muted)">Clique no card para abrir o dashboard da marca</span></div><div class="pgrid">`;
@@ -5334,7 +5343,7 @@ function renderCapexUnidades(){
 
   html+=capexNavLine(`${capexDrillMarca} · ${capexDrillYear}`,'Pedidos por unidade nesta marca.',{
     backTitle:'Voltar às marcas',
-    right:`<button class="capex-empty-toggle ${capexShowEmpty?'active':''}" onclick="toggleCapexEmpty()">${capexShowEmpty?'Ocultar':'Mostrar'} unidades sem pedido</button>`
+    right:`${capexBudgetAction(capexDrillYear,'','Adicionar CAPEX disponibilizado',capexDrillMarca,'ghost')}<button class="capex-empty-toggle ${capexShowEmpty?'active':''}" onclick="toggleCapexEmpty()">${capexShowEmpty?'Ocultar':'Mostrar'} unidades sem pedido</button>`
   });
 
   html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Unidades com pedidos</h2><span style="font-size:12px;color:var(--muted)">Clique no card para abrir o dashboard da unidade</span></div><div class="pgrid">`;
@@ -5346,6 +5355,9 @@ function renderCapexUnidades(){
     const pct=ui.length?Math.round(uc.res/ui.length*100):0;
 
     const us=uni.replace(/'/g,"\\'");
+    const ub=capexBudgetStats(ui,{ano:capexDrillYear,marca:capexDrillMarca,unidade:uni});
+    const hasBudget=!!capexSaldoRow(capexDrillYear,uni);
+    const budgetBtn=capexBudgetAction(capexDrillYear,uni,hasBudget?'Editar CAPEX disponibilizado':'Adicionar CAPEX disponibilizado',capexDrillMarca,'ghost');
 
     html+=`<div class="pcard" onclick="drillCapex(${capexDrillYear},'${ms}','${us}')" style="padding:0;overflow:hidden;border:none;box-shadow:0 2px 16px rgba(0,0,0,.1)">
 
@@ -5369,7 +5381,11 @@ function renderCapexUnidades(){
 
         ${_ciMiniDash(ui,bc,{ano:capexDrillYear,marca:capexDrillMarca,unidade:uni})}
 
-        <div style="font-size:11px;color:var(--soft);margin-top:4px;text-align:right">${pct}% resolvido · ${ui.length} pedido${ui.length!==1?'s':''}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;flex-wrap:wrap">
+          <div style="font-size:11px;color:var(--soft)">${pct}% resolvido · ${ui.length} pedido${ui.length!==1?'s':''}</div>
+          <div class="num" style="font-size:11.5px;color:${ub.saldo<0?'var(--danger)':(ub.autorizado>0?'var(--ok)':'var(--warn)')};font-weight:700">${fmt(ub.saldo)} saldo</div>
+        </div>
+        ${budgetBtn?`<div style="margin-top:10px;display:flex;justify-content:flex-end" onclick="event.stopPropagation()">${budgetBtn}</div>`:''}
 
       </div>
 
@@ -5394,12 +5410,13 @@ function renderCapexUnitItems(){
   let html=renderCapexTabs();
 
   html+=capexNavLine(capexDrillUnidade,`${capexDrillMarca} · ${capexDrillYear}. Volte para comparar outras unidades.`,{
-    backTitle:'Voltar às unidades'
+    backTitle:'Voltar às unidades',
+    right:capexBudgetAction(capexDrillYear,capexDrillUnidade,null,capexDrillMarca,'ghost')
   });
 
   html+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Lançamentos da unidade</h2></div>`;
 
-  html+=capexBudgetSummary(capexBudgetStats(its,{ano:capexDrillYear,marca:capexDrillMarca,unidade:capexDrillUnidade}),brandColor(capexDrillMarca),capexBudgetAction(capexDrillYear,capexDrillUnidade,'Editar saldo autorizado'));
+  html+=capexBudgetSummary(capexBudgetStats(its,{ano:capexDrillYear,marca:capexDrillMarca,unidade:capexDrillUnidade}),brandColor(capexDrillMarca),capexBudgetAction(capexDrillYear,capexDrillUnidade));
 
   if(!its.length){html+='<p class="empty">Nenhum pedido para esta unidade ainda.</p>';}
 
@@ -5613,7 +5630,7 @@ function updateCapexUnitHint(){
 
   const budget=capexBudgetStats(its,{ano:+ano,marca,unidade});
 
-  const saldoTxt=budget.autorizado?`Saldo: ${fmt(budget.saldo)} de ${fmt(budget.autorizado)}`:'Sem saldo autorizado cadastrado';
+  const saldoTxt=budget.autorizado?`Saldo: ${fmt(budget.saldo)} de ${fmt(budget.autorizado)} disponibilizado`:'Sem CAPEX disponibilizado cadastrado';
 
   ctx.innerHTML=`<div class="capex-context-logo" style="border-color:${bc}44">${brandLogoImg(marca,'height:28px;width:52px;object-fit:contain')}</div>
     <div style="min-width:0">
@@ -5645,10 +5662,12 @@ function capexSaldoUnits(){
     .sort((a,b)=>(a.marca||'').localeCompare(b.marca||'','pt-BR')||a.nome.localeCompare(b.nome,'pt-BR'));
 }
 
-function openCapexSaldoModal(ano,unidade){
-  if(!capexSaldoCanEdit()){toast('Sem permissao para editar saldo CAPEX.');return;}
+function openCapexSaldoModal(ano,unidade,marca){
+  if(!capexSaldoCanEdit()){toast('Sem permissão para editar CAPEX disponibilizado.');return;}
   const y=+(ano||capexDrillYear||new Date().getFullYear());
-  const units=capexSaldoUnits();
+  const scopeMarca=marca||capexDrillMarca||'';
+  let units=capexSaldoUnits();
+  if(scopeMarca)units=units.filter(u=>(u.marca||computeCapexMarca(u.nome))===scopeMarca);
   const preferred=unidade||capexDrillUnidade||units[0]?.nome||'';
   const ySel=document.getElementById('cs-m-ano');
   const uSel=document.getElementById('cs-m-unidade');
@@ -5672,6 +5691,8 @@ function capexSaldoModalScope(){
 function syncCapexSaldoExisting(){
   const scope=capexSaldoModalScope();
   const row=capexSaldoRow(scope.ano,scope.unidade);
+  const title=document.getElementById('cs-modal-title');
+  if(title)title.textContent=row?'Editar CAPEX disponibilizado':'Adicionar CAPEX disponibilizado';
   setCurrencyValue('cs-m-valor',row?.valor||0);
   document.getElementById('cs-m-obs').value=row?.observacoes||'';
   updateCapexSaldoPreview();
@@ -5689,7 +5710,7 @@ function updateCapexSaldoPreview(){
 }
 
 async function saveCapexSaldo(){
-  if(!capexSaldoCanEdit()){toast('Sem permissao para editar saldo CAPEX.');return;}
+  if(!capexSaldoCanEdit()){toast('Sem permissão para editar CAPEX disponibilizado.');return;}
   const scope=capexSaldoModalScope();
   if(!scope.unidade){toast('Selecione a unidade.');return;}
   const valor=parseCurrency(document.getElementById('cs-m-valor').value);
@@ -5704,7 +5725,7 @@ async function saveCapexSaldo(){
   closeCapexSaldoModal();
   renderCapexView();
   if(document.getElementById('view-geral')?.classList.contains('active'))renderGeral();
-  toast('Saldo CAPEX atualizado.');
+  toast('CAPEX disponibilizado atualizado.');
 }
 
 
