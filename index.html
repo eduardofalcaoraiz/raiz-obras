@@ -2600,7 +2600,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <div class="capex-form-card">
       <div class="capex-form-title">Status financeiro e execução</div>
-      <div class="fgrid"><div class="frow"><label class="fl">Situação</label><select class="fi" id="ci-m-sit"><option>Pendente</option><option>Em Andamento</option><option>Resolvido</option><option>Cancelado</option></select></div><div class="frow"><label class="fl">Orçamento (R$)</label><input class="fi num" id="ci-m-orc" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div></div>
+      <div class="fgrid"><div class="frow"><label class="fl">Situação</label><select class="fi" id="ci-m-sit"><option>Em Andamento</option><option>Resolvido</option><option>Cancelado</option></select></div><div class="frow"><label class="fl">Orçamento (R$)</label><input class="fi num" id="ci-m-orc" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div></div>
 
       <div class="fgrid"><label class="capex-flag"><input type="checkbox" id="ci-m-real"> Realizado</label></div>
     </div>
@@ -2655,6 +2655,23 @@ const SUPA_URL='https://hjccxfznojjosvanwztv.supabase.co';
 const SUPA_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqY2N4Znpub2pqb3N2YW53enR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NzQ0MzUsImV4cCI6MjA5NTQ1MDQzNX0.sdOyn4CdxhSAb_6G6TdUwd5Yv3diQEuTbNoay7uHko8';
 
 const db=supabase.createClient(SUPA_URL,SUPA_ANON);
+
+async function selectAllRows(table,opts){
+  opts=opts||{};
+  const pageSize=opts.pageSize||1000;
+  let from=0,rows=[];
+  while(true){
+    let q=db.from(table).select(opts.columns||'*');
+    if(opts.order)q=q.order(opts.order,{ascending:opts.ascending!==false});
+    q=q.range(from,from+pageSize-1);
+    const{data,error}=await q;
+    if(error)return{data:rows,error};
+    rows=rows.concat(data||[]);
+    if(!data||data.length<pageSize)break;
+    from+=pageSize;
+  }
+  return{data:rows,error:null};
+}
 
 // FONTES removido — pagantes são escolas e investidores cadastrados na plataforma
 
@@ -4221,7 +4238,7 @@ function renderEsfera(){
 
 /* CAPEX — DRILL-DOWN HIERÁRQUICO */
 
-const _ciSitClass={'Resolvido':'b-ok','Em Andamento':'b-info','Cancelado':'b-neutral','Pendente':'b-warn'};
+const _ciSitClass={'Resolvido':'b-ok','Em Andamento':'b-info','Cancelado':'b-neutral'};
 
 let capexDrillYear=null,capexDrillMarca=null,capexDrillUnidade=null,capexTab='dashboard',capexShowEmpty=false;
 
@@ -4744,7 +4761,7 @@ function renderCapexOverview(){
   const budget=capexBudgetStats(capexItens,{});
   const semOrc=capexItens.filter(i=>!(+i.orcamento||0)&&_ciSit(i)!=='Cancelado');
   const semFonte=capexItens.filter(i=>!(i.fonte||'').trim()||(i.fonte||'').trim()==='-');
-  const abertas=capexItens.filter(i=>['Pendente','Em Andamento'].includes(_ciSit(i)));
+  const abertas=capexItens.filter(i=>_ciSit(i)==='Em Andamento');
   const legado=capexLegacyUnits();
 
   const topOpen=abertas.slice().sort((a,b)=>(+b.orcamento||0)-(+a.orcamento||0)).slice(0,8).map(i=>({
@@ -4755,7 +4772,7 @@ function renderCapexOverview(){
   const qualityRows=[
     {label:'Autorizado CEO',value:fmt(budget.autorizado),color:'var(--accent)'},
     {label:'Saldo disponivel',value:fmt(budget.saldo),color:budget.color},
-    {label:'Pedidos abertos',value:abertas.length,color:'var(--warn)'},
+    {label:'Pedidos em andamento',value:abertas.length,color:'var(--info)'},
     {label:'Pedidos sem orçamento',value:semOrc.length,color:'var(--danger)'},
     {label:'Pedidos em andamento',value:k.ea,color:'var(--info)'},
     {label:'Resolvidos',value:`${k.res} · ${k.pctRes}%`,color:'var(--ok)'}
@@ -4875,7 +4892,7 @@ function renderCapexScopedDashboard(){
       accent:bc,
       budgetScope:{ano:capexDrillYear,marca:capexDrillMarca,unidade:capexDrillUnidade},
       budgetAction:capexBudgetAction(capexDrillYear,capexDrillUnidade,'Atualizar verba autorizada'),
-      groupA:i=>i.situacao||'Pendente',
+      groupA:i=>_ciSit(i),
       groupALabel:'Pedidos por situação',
       groupASub:'Estado atual da execução nesta escola.',
       groupB:i=>i.fonte||'Sem fonte',
@@ -4908,7 +4925,10 @@ function renderCapexDrill(){
 
 
 
-function _ciSit(i){return i?.situacao||'Pendente';}
+function _ciSit(i){
+  const s=(i?.situacao||'Em Andamento').trim();
+  return(!s||s==='Pendente'||s==='-')?'Em Andamento':s;
+}
 
 function _ciKpis(its){
 
@@ -4916,7 +4936,7 @@ function _ciKpis(its){
 
   const ea=its.filter(i=>_ciSit(i)==='Em Andamento').length;
 
-  const pend=its.filter(i=>_ciSit(i)==='Pendente').length;
+  const pend=0;
 
   const canc=its.filter(i=>_ciSit(i)==='Cancelado').length;
 
@@ -4928,11 +4948,13 @@ function _ciKpis(its){
 
   const unidadesQtd=[...new Set(its.map(i=>i.unidade).filter(Boolean))].length;
 
-  return{res,ea,pend,canc,orc,total:its.length,aberto:ea+pend,realizado,marcas,unidades:unidadesQtd,pctRes:its.length?Math.round(res/its.length*100):0,pctReal:its.length?Math.round(realizado/its.length*100):0};
+  return{res,ea,pend,canc,orc,total:its.length,aberto:ea,realizado,marcas,unidades:unidadesQtd,pctRes:its.length?Math.round(res/its.length*100):0,pctReal:its.length?Math.round(realizado/its.length*100):0};
 
 }
 
 function _ciStatusColor(s){
+
+  s=_ciSit({situacao:s});
 
   return s==='Resolvido'?'var(--ok)':s==='Em Andamento'?'var(--info)':s==='Cancelado'?'var(--soft)':'var(--warn)';
 
@@ -4947,7 +4969,6 @@ function _ciStatusTrack(k){
   return`<div class="capex-status-track" title="${k.pctRes}% resolvido">
     <i style="width:${k.res/total*100}%;background:var(--ok)"></i>
     <i style="width:${k.ea/total*100}%;background:var(--info)"></i>
-    <i style="width:${k.pend/total*100}%;background:var(--warn)"></i>
     <i style="width:${k.canc/total*100}%;background:var(--soft)"></i>
   </div>`;
 
@@ -4958,7 +4979,6 @@ function _ciStatusPills(k){
   return`<div class="capex-chipline">
     <span class="capex-chip" style="color:var(--ok)">● ${k.res} resolvidos</span>
     <span class="capex-chip" style="color:var(--info)">● ${k.ea} andamento</span>
-    <span class="capex-chip" style="color:var(--warn)">● ${k.pend} pendentes</span>
     ${k.canc?`<span class="capex-chip">● ${k.canc} cancelados</span>`:''}
   </div>`;
 
@@ -4980,7 +5000,7 @@ function _ciGroupStats(its,keyFn){
 
     if(_ciSit(i)==='Resolvido')map[key].res++;
 
-    if(_ciSit(i)==='Pendente'||_ciSit(i)==='Em Andamento')map[key].aberto++;
+    if(_ciSit(i)==='Em Andamento')map[key].aberto++;
 
     if(i.realizado)map[key].realizado++;
 
@@ -5021,7 +5041,7 @@ function _ciMiniDash(its,accent,scope){
 
   return`<div class="capex-card-dash">
     <div class="mini"><span>Pedidos</span><b>${k.total}</b></div>
-    <div class="mini"><span>Aberto</span><b style="color:var(--warn)">${k.aberto}</b></div>
+    <div class="mini"><span>Andamento</span><b style="color:var(--info)">${k.aberto}</b></div>
     <div class="mini"><span>Orçado</span><b style="color:${accent}">${fmt(k.orc)}</b></div>
   </div>${_ciStatusTrack(k)}`;
 
@@ -5045,7 +5065,7 @@ function renderCapexDashboard(its,opt){
 
   const groupCat=_ciGroupStats(its,(i)=>capexCategoriaNome(i)).sort((a,b)=>b.orc-a.orc||b.total-a.total||a.key.localeCompare(b.key,'pt-BR')).slice(0,opt.limitCat||8);
 
-  const open=its.filter(i=>i.situacao==='Pendente'||i.situacao==='Em Andamento').slice().sort((a,b)=>(+b.orcamento||0)-(+a.orcamento||0)).slice(0,4);
+  const open=its.filter(i=>_ciSit(i)==='Em Andamento').slice().sort((a,b)=>(+b.orcamento||0)-(+a.orcamento||0)).slice(0,4);
 
   return`<div class="capex-dashboard">
     <div class="capex-panel">
@@ -5055,7 +5075,7 @@ function renderCapexDashboard(its,opt){
       ${opt.hideSummary?'':`
       <div class="capex-mini-grid">
         <div class="capex-mini"><div class="lab">Pedidos</div><div class="val">${k.total}</div></div>
-        <div class="capex-mini"><div class="lab">Aberto</div><div class="val" style="color:var(--warn)">${k.aberto}</div></div>
+        <div class="capex-mini"><div class="lab">Em andamento</div><div class="val" style="color:var(--info)">${k.aberto}</div></div>
         <div class="capex-mini"><div class="lab">Realizado</div><div class="val" style="color:var(--ok)">${k.realizado}</div></div>
         <div class="capex-mini"><div class="lab">Orçamento</div><div class="val" style="color:${accent}">${fmt(k.orc)}</div></div>
       </div>`}
@@ -5411,8 +5431,6 @@ function renderCapexUnitItems(){
 
               <select class="badge-select ${_ciSitClass[sit]||'b-neutral'}" onchange="updateCapexSituacao(${it.id},this.value,this)">
 
-                <option ${sit==='Pendente'?'selected':''}>Pendente</option>
-
                 <option ${sit==='Em Andamento'?'selected':''}>Em Andamento</option>
 
                 <option ${sit==='Resolvido'?'selected':''}>Resolvido</option>
@@ -5715,7 +5733,7 @@ function openCapexItemModal(id){
 
   document.getElementById('ci-m-setor').value=it?.setor||'';
 
-  document.getElementById('ci-m-sit').value=it?.situacao||'Pendente';
+  document.getElementById('ci-m-sit').value=_ciSit(it);
 
   setCurrencyValue('ci-m-orc',it?.orcamento);
 
@@ -9424,7 +9442,7 @@ async function loadFromDB(){
 
   try{
 
-    const{data:od,error}=await db.from('obras').select('*');
+    const{data:od,error}=await selectAllRows('obras',{order:'id'});
 
     if(error)throw error;
 
@@ -9432,19 +9450,19 @@ async function loadFromDB(){
 
     const[pagR,aprR,cntrR,catR,uniR,cnpjR,docR]=await Promise.all([
 
-      db.from('pagamentos').select('*'),
+      selectAllRows('pagamentos',{order:'id'}),
 
-      db.from('aportes').select('*'),
+      selectAllRows('aportes',{order:'id'}),
 
-      db.from('contratos').select('*'),
+      selectAllRows('contratos',{order:'id'}),
 
-      db.from('categorias').select('*'),
+      selectAllRows('categorias',{order:'id'}),
 
-      db.from('unidades').select('*'),
+      selectAllRows('unidades',{order:'id'}),
 
-      db.from('fornecedores_cnpj').select('*'),
+      selectAllRows('fornecedores_cnpj'),
 
-      db.from('documentos_unidade').select('*')
+      selectAllRows('documentos_unidade',{order:'id'})
 
     ]);
 
@@ -9508,11 +9526,11 @@ async function loadFromDB(){
 
     if(cnpjR.data)cnpjR.data.forEach(r=>{CNPJS[r.nome]=r.cnpj;if(r.cnpj)FORN_DATA[r.cnpj.replace(/\D/g,'')]={nome:r.nome,email:r.email||'',telefone:r.telefone||'',municipio:r.municipio||'',uf:r.uf||'',atividade:r.atividade||'',porte:r.porte||'',endereco:r.endereco||''};});
 
-    const{data:ciR}=await db.from('capex_itens').select('*').order('id',{ascending:false});
+    const{data:ciR,error:ciErr}=await selectAllRows('capex_itens',{order:'id',ascending:false});
 
-    capexItens=ciR||[];
+    if(ciErr){console.error('loadFromDB capex_itens error:',ciErr);capexItens=[];}else capexItens=ciR||[];
 
-    const{data:csR,error:csErr}=await db.from('capex_saldos').select('*').order('ano',{ascending:false});
+    const{data:csR,error:csErr}=await selectAllRows('capex_saldos',{order:'ano',ascending:false});
 
     if(csErr){console.warn('loadFromDB capex_saldos error:',csErr);capexSaldos=[];}else capexSaldos=(csR||[]).map(r=>({...r,ano:+r.ano||new Date().getFullYear(),valor:+r.valor||0}));
 
