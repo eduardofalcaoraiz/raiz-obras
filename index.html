@@ -219,7 +219,7 @@ button{font-family:inherit;cursor:pointer}
 .capex-item-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:10px}
 .capex-item-title{font-size:15px;line-height:1.5;color:var(--ink);font-weight:600}
 .capex-item-meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
-.capex-inline-grid{display:grid;grid-template-columns:minmax(130px,180px) repeat(2,minmax(115px,1fr));gap:10px;align-items:end;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.capex-inline-grid{display:grid;grid-template-columns:minmax(130px,180px) minmax(115px,1fr);gap:10px;align-items:end;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .capex-flag{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:8px 10px;font-size:12.5px;color:var(--muted)}
 .capex-flag input{width:17px;height:17px}
 .capex-form-card{border:1px solid var(--line);background:var(--surface-2);border-radius:var(--r);padding:14px 16px;margin-bottom:14px}
@@ -228,8 +228,16 @@ button{font-family:inherit;cursor:pointer}
 .capex-context-logo{width:62px;height:38px;border-radius:8px;background:white;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:4px;overflow:hidden;flex-shrink:0}
 .capex-context-title{font-weight:700;font-size:14px;line-height:1.25}
 .capex-context-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.capex-tabs{margin:4px 0 18px}
+.capex-exec-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;margin-bottom:18px}
+.capex-insight-list{display:flex;flex-direction:column;gap:8px}
+.capex-insight{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:9px 11px;font-size:12.5px}
+.capex-insight b{color:var(--ink)}
+.capex-insight .num{font-weight:700;white-space:nowrap}
+.capex-empty-toggle{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer}
+.capex-empty-toggle.active{border-color:var(--accent);color:var(--accent);background:var(--brand-cur-light)}
 
-@media(max-width:900px){.capex-dashboard{grid-template-columns:1fr}.capex-mini-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.capex-dashboard,.capex-exec-grid{grid-template-columns:1fr}.capex-mini-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:620px){.capex-card-dash,.capex-inline-grid{grid-template-columns:1fr}.capex-item-head{flex-direction:column}.capex-bar-row{grid-template-columns:1fr}.capex-bar-row .val{text-align:left}.capex-context{align-items:flex-start}}
 
 .crumb-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;margin-bottom:6px;padding:0}
@@ -2556,7 +2564,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div class="capex-form-title">Status financeiro e execução</div>
       <div class="fgrid"><div class="frow"><label class="fl">Situação</label><select class="fi" id="ci-m-sit"><option>Pendente</option><option>Em Andamento</option><option>Resolvido</option><option>Cancelado</option></select></div><div class="frow"><label class="fl">Orçamento (R$)</label><input class="fi num" id="ci-m-orc" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div></div>
 
-      <div class="fgrid"><label class="capex-flag"><input type="checkbox" id="ci-m-aprov"> Aprovado</label><label class="capex-flag"><input type="checkbox" id="ci-m-real"> Realizado</label></div>
+      <div class="fgrid"><label class="capex-flag"><input type="checkbox" id="ci-m-real"> Realizado</label></div>
     </div>
 
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px"><button class="btn btn-ghost" onclick="closeCapexItemModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCapexItem()"><span class="ic">✓</span> Salvar</button></div>
@@ -3935,7 +3943,7 @@ function renderEsfera(){
 
   if(curEsfera==='capex'){
 
-    document.getElementById('esf-desc').textContent='Pedidos de compras e melhorias — navegue por ano, marca e unidade.';
+    document.getElementById('esf-desc').textContent='Controle de pedidos de melhoria por ano, marca e unidade, com dashboard consolidado.';
 
     document.getElementById('esf-obras-section').style.display='none';
 
@@ -3945,9 +3953,9 @@ function renderEsfera(){
 
     document.getElementById('esf-acts').innerHTML='<button class="btn btn-primary btn-sm" onclick="openCapexItemModal(null)"><span class="ic">＋</span> Novo pedido</button>';
 
-    capexDrillYear=null;capexDrillMarca=null;capexDrillUnidade=null;
+    capexTab='dashboard';capexShowEmpty=false;capexDrillYear=null;capexDrillMarca=null;capexDrillUnidade=null;
 
-    renderCapexDrill();
+    renderCapexView();
 
     return;
 
@@ -3993,7 +4001,7 @@ function renderEsfera(){
 
 const _ciSitClass={'Resolvido':'b-ok','Em Andamento':'b-info','Cancelado':'b-neutral','Pendente':'b-warn'};
 
-let capexDrillYear=null,capexDrillMarca=null,capexDrillUnidade=null;
+let capexDrillYear=null,capexDrillMarca=null,capexDrillUnidade=null,capexTab='dashboard',capexShowEmpty=false;
 
 
 
@@ -4185,6 +4193,8 @@ function extractMarca(it){
 
 function drillCapex(year,marca,unidade){
 
+  capexTab='pedidos';
+
   capexDrillYear=year;capexDrillMarca=marca;capexDrillUnidade=unidade;
 
   renderCapexDrill();
@@ -4219,6 +4229,106 @@ function renderCapexCrumb(){
 
 }
 
+function renderCapexTabs(){
+  return`<div class="tabs capex-tabs">
+    <button class="tabbtn ${capexTab==='dashboard'?'active':''}" data-capex-tab="dashboard" onclick="showCapexTab('dashboard')">Dashboard geral</button>
+    <button class="tabbtn ${capexTab==='pedidos'?'active':''}" data-capex-tab="pedidos" onclick="showCapexTab('pedidos')">Pedidos de melhorias</button>
+  </div>`;
+}
+
+function showCapexTab(tab){
+  capexTab=tab==='pedidos'?'pedidos':'dashboard';
+  if(capexTab==='dashboard')document.getElementById('esf-crumb').style.display='none';
+  renderCapexView();
+}
+
+function renderCapexView(){
+  if(capexTab==='dashboard')renderCapexOverview();
+  else renderCapexDrill();
+}
+
+function toggleCapexEmpty(){
+  capexShowEmpty=!capexShowEmpty;
+  renderCapexDrill();
+}
+
+function capexActiveItems(its){
+  return(its||[]).filter(i=>_ciSit(i)!=='Cancelado');
+}
+
+function capexLegacyUnits(){
+  const reg=new Set(unidades.map(u=>(u.nome||'').trim().toLowerCase()).filter(Boolean));
+  const map={};
+  capexItens.forEach(i=>{
+    const uni=(i.unidade||'').trim();
+    if(uni&&!reg.has(uni.toLowerCase()))map[uni]=(map[uni]||0)+1;
+  });
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'pt-BR'));
+}
+
+function capexInsightRows(rows,emptyMsg){
+  if(!rows.length)return`<p class="empty" style="padding:0;margin:0">${emptyMsg||'Sem pontos de atenção neste recorte.'}</p>`;
+  return`<div class="capex-insight-list">${rows.map(r=>`<div class="capex-insight"><b>${escHtml(r.label)}</b><span class="num" style="color:${r.color||'var(--ink)'}">${r.value}</span></div>`).join('')}</div>`;
+}
+
+function renderCapexOverview(){
+  document.getElementById('esf-crumb').style.display='none';
+  const k=_ciKpis(capexItens);
+  const semOrc=capexItens.filter(i=>!(+i.orcamento||0)&&_ciSit(i)!=='Cancelado');
+  const semFonte=capexItens.filter(i=>!(i.fonte||'').trim()||(i.fonte||'').trim()==='-');
+  const abertas=capexItens.filter(i=>['Pendente','Em Andamento'].includes(_ciSit(i)));
+  const legado=capexLegacyUnits();
+  document.getElementById('esf-kpis').innerHTML=`
+    <div class="kpi"><div class="lab">Pedidos registrados</div><div class="val">${k.total}</div></div>
+    <div class="kpi"><div class="lab">Em aberto</div><div class="val" style="color:var(--warn)">${k.aberto}</div></div>
+    <div class="kpi"><div class="lab">Resolvidos</div><div class="val ok">${k.res}</div></div>
+    <div class="kpi"><div class="lab">Orçamento mapeado</div><div class="val acc">${fmt(k.orc)}</div></div>`;
+
+  const topOpen=abertas.slice().sort((a,b)=>(+b.orcamento||0)-(+a.orcamento||0)).slice(0,8).map(i=>({
+    label:`${i.pedido||'Pedido'} · ${i.unidade||'Sem unidade'}`,
+    value:(+i.orcamento||0)>0?fmt(i.orcamento):_ciSit(i),
+    color:_ciStatusColor(i.situacao)
+  }));
+  const qualityRows=[
+    {label:'Pedidos sem orçamento',value:semOrc.length,color:'var(--warn)'},
+    {label:'Pedidos sem fonte solicitante',value:semFonte.length,color:'var(--info)'},
+    {label:'Nomes de unidade fora do cadastro',value:legado.length,color:'var(--danger)'},
+    {label:'Cancelados preservados no histórico',value:k.canc,color:'var(--soft)'}
+  ];
+  const legacyRows=legado.slice(0,8).map(([label,value])=>({label,value,color:'var(--danger)'}));
+  let html=renderCapexTabs();
+  html+=renderCapexDashboard(capexItens,{
+    title:'Dashboard geral do CAPEX',
+    sub:`Consolidado de ${k.total} pedidos em ${k.marcas} marcas e ${k.unidades} unidades registradas.`,
+    groupA:i=>String(i.ano||'Sem ano'),
+    groupALabel:'Pedidos por ano',
+    groupASub:'Comparativo entre os ciclos de CAPEX.',
+    groupB:i=>extractMarca(i),
+    groupBLabel:'Marcas mais demandadas',
+    groupBSub:'Onde os pedidos se concentram no grupo.',
+    sideTitle:'Maiores pendências',
+    hideSummary:true
+  });
+  html+=`<div class="capex-exec-grid">
+    <div class="capex-panel">
+      <h3>Pontos de atenção</h3>
+      <div class="sub">Itens que precisam de saneamento ou acompanhamento operacional.</div>
+      ${capexInsightRows(qualityRows)}
+    </div>
+    <div class="capex-panel">
+      <h3>Unidades para normalizar</h3>
+      <div class="sub">Nomes legados que podem duplicar cards e distorcer os dashboards.</div>
+      ${capexInsightRows(legacyRows,'Todas as unidades batem com o cadastro central.')}
+    </div>
+  </div>
+  <div class="capex-panel">
+    <h3>Fila operacional</h3>
+    <div class="sub">Maiores pedidos pendentes ou em andamento para acompanhamento.</div>
+    ${capexInsightRows(topOpen,'Nenhum pedido aberto no momento.')}
+  </div>`;
+  document.getElementById('esf-capex-drill').innerHTML=html;
+}
+
 
 
 function renderCapexDrill(){
@@ -4251,15 +4361,13 @@ function _ciKpis(its){
 
   const orc=its.reduce((a,i)=>a+(+i.orcamento||0),0);
 
-  const aprovado=its.filter(i=>!!i.aprovado).length;
-
   const realizado=its.filter(i=>!!i.realizado).length;
 
   const marcas=[...new Set(its.map(i=>extractMarca(i)).filter(Boolean))].length;
 
   const unidadesQtd=[...new Set(its.map(i=>i.unidade).filter(Boolean))].length;
 
-  return{res,ea,pend,canc,orc,total:its.length,aberto:ea+pend,aprovado,realizado,marcas,unidades:unidadesQtd,pctRes:its.length?Math.round(res/its.length*100):0,pctReal:its.length?Math.round(realizado/its.length*100):0};
+  return{res,ea,pend,canc,orc,total:its.length,aberto:ea+pend,realizado,marcas,unidades:unidadesQtd,pctRes:its.length?Math.round(res/its.length*100):0,pctReal:its.length?Math.round(realizado/its.length*100):0};
 
 }
 
@@ -4303,7 +4411,7 @@ function _ciGroupStats(its,keyFn){
 
     const key=(keyFn(i)||'Sem informação').trim();
 
-    if(!map[key])map[key]={key,total:0,orc:0,res:0,aberto:0,aprovado:0,realizado:0};
+    if(!map[key])map[key]={key,total:0,orc:0,res:0,aberto:0,realizado:0};
 
     map[key].total++;
 
@@ -4312,8 +4420,6 @@ function _ciGroupStats(its,keyFn){
     if(_ciSit(i)==='Resolvido')map[key].res++;
 
     if(_ciSit(i)==='Pendente'||_ciSit(i)==='Em Andamento')map[key].aberto++;
-
-    if(i.aprovado)map[key].aprovado++;
 
     if(i.realizado)map[key].realizado++;
 
@@ -4367,12 +4473,13 @@ function renderCapexDashboard(its,opt){
     <div class="capex-panel">
       <h3>${opt.title||'Dashboard CAPEX'}</h3>
       <div class="sub">${opt.sub||'Leitura consolidada dos lançamentos selecionados.'}</div>
+      ${opt.hideSummary?'':`
       <div class="capex-mini-grid">
         <div class="capex-mini"><div class="lab">Pedidos</div><div class="val">${k.total}</div></div>
         <div class="capex-mini"><div class="lab">Aberto</div><div class="val" style="color:var(--warn)">${k.aberto}</div></div>
         <div class="capex-mini"><div class="lab">Realizado</div><div class="val" style="color:var(--ok)">${k.realizado}</div></div>
         <div class="capex-mini"><div class="lab">Orçamento</div><div class="val" style="color:${accent}">${fmt(k.orc)}</div></div>
-      </div>
+      </div>`}
       ${_ciStatusTrack(k)}
       ${_ciStatusPills(k)}
     </div>
@@ -4443,18 +4550,9 @@ function renderCapexYears(){
 
   if(!anos.length)anos.push(new Date().getFullYear());
 
-  let html=renderCapexDashboard(capexItens,{
-    title:'Dashboard geral do CAPEX',
-    sub:`Consolidado de ${anos.length} ano${anos.length!==1?'s':''}, ${k.marcas} marca${k.marcas!==1?'s':''} e ${k.unidades} unidade${k.unidades!==1?'s':''}.`,
-    groupA:i=>String(i.ano||'Sem ano'),
-    groupALabel:'Pedidos por ano',
-    groupASub:'Comparativo entre todos os ciclos de CAPEX.',
-    groupB:i=>extractMarca(i),
-    groupBLabel:'Marcas mais demandadas',
-    groupBSub:'Onde as solicitações se concentram no grupo.'
-  });
+  let html=renderCapexTabs();
 
-  html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px"><h2 style="font-size:18px;margin:0">Anos de CAPEX</h2><span style="font-size:12px;color:var(--muted)">Clique em um ano para abrir marcas e unidades</span></div><div class="cyear-grid">';
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px"><h2 style="font-size:18px;margin:0">Pedidos de CAPEX por ano</h2><span style="font-size:12px;color:var(--muted)">Clique em um ano para abrir marcas e unidades</span></div><div class="cyear-grid">';
 
   for(const ano of anos){
 
@@ -4534,13 +4632,13 @@ function renderCapexBrands(){
 
   its.forEach(i=>{const m=extractMarca(i);if(!marcaMap[m])marcaMap[m]=[];marcaMap[m].push(i);});
 
-  // Inclui todas as marcas do cadastro, mesmo sem pedidos neste ano
-
-  unidades.forEach(u=>{if(u.marca&&u.marca!=='—'&&!marcaMap[u.marca])marcaMap[u.marca]=[];});
+  if(capexShowEmpty)unidades.forEach(u=>{if(u.marca&&u.marca!=='—'&&!marcaMap[u.marca])marcaMap[u.marca]=[];});
 
   const marcas=Object.keys(marcaMap).sort((a,b)=>a.localeCompare(b,'pt-BR'));
 
-  let html=renderCapexDashboard(its,{
+  let html=renderCapexTabs();
+
+  html+=renderCapexDashboard(its,{
     title:`Dashboard CAPEX ${capexDrillYear}`,
     sub:`Visão do ciclo ${capexDrillYear}: marcas, fontes solicitantes e pedidos abertos.`,
     accent:'var(--accent)',
@@ -4549,10 +4647,11 @@ function renderCapexBrands(){
     groupASub:'Distribuição do ano entre as marcas do grupo.',
     groupB:i=>i.fonte||'Sem fonte',
     groupBLabel:'Fontes solicitantes',
-    groupBSub:'Origem dos pedidos no ciclo selecionado.'
+    groupBSub:'Origem dos pedidos no ciclo selecionado.',
+    hideSummary:true
   });
 
-  html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px"><h2 style="font-size:18px;margin:0">Marcas</h2><span style="font-size:12px;color:var(--muted)">Cada card mostra o dashboard da marca no ano</span></div><div class="pgrid">';
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Marcas com pedidos</h2><button class="capex-empty-toggle ${capexShowEmpty?'active':''}" onclick="toggleCapexEmpty()">${capexShowEmpty?'Ocultar':'Mostrar'} marcas sem pedido</button></div><div class="pgrid">`;
 
   for(const m of marcas){
 
@@ -4626,9 +4725,7 @@ function renderCapexUnidades(){
 
   its.forEach(i=>{if(!uniMap[i.unidade])uniMap[i.unidade]=[];uniMap[i.unidade].push(i);});
 
-  // Inclui todas as escolas da marca no cadastro, mesmo sem pedidos neste ano
-
-  unidades.filter(u=>u.marca===capexDrillMarca).forEach(u=>{if(!uniMap[u.nome])uniMap[u.nome]=[];});
+  if(capexShowEmpty)unidades.filter(u=>u.marca===capexDrillMarca).forEach(u=>{if(!uniMap[u.nome])uniMap[u.nome]=[];});
 
   const unis=Object.keys(uniMap).sort((a,b)=>a.localeCompare(b,'pt-BR'));
 
@@ -4636,7 +4733,9 @@ function renderCapexUnidades(){
 
   const bc=brandColor(capexDrillMarca);const emb=brandEmblem(capexDrillMarca);
 
-  let html=renderCapexDashboard(its,{
+  let html=renderCapexTabs();
+
+  html+=renderCapexDashboard(its,{
     title:`Dashboard ${capexDrillMarca} · ${capexDrillYear}`,
     sub:'Leitura consolidada da marca neste ciclo de CAPEX.',
     accent:bc,
@@ -4645,10 +4744,11 @@ function renderCapexUnidades(){
     groupASub:'Unidades com maior volume de solicitações.',
     groupB:i=>i.fonte||'Sem fonte',
     groupBLabel:'Fontes solicitantes',
-    groupBSub:'Origem dos pedidos dentro da marca.'
+    groupBSub:'Origem dos pedidos dentro da marca.',
+    hideSummary:true
   });
 
-  html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px"><h2 style="font-size:18px;margin:0">Unidades da marca</h2><span style="font-size:12px;color:var(--muted)">Cada card resume a escola no ano selecionado</span></div><div class="pgrid">';
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Unidades com pedidos</h2><button class="capex-empty-toggle ${capexShowEmpty?'active':''}" onclick="toggleCapexEmpty()">${capexShowEmpty?'Ocultar':'Mostrar'} unidades sem pedido</button></div><div class="pgrid">`;
 
   for(const uni of unis){
 
@@ -4712,7 +4812,9 @@ function renderCapexUnitItems(){
 
     <div class="kpi"><div class="lab">Orçado</div><div class="val acc">${fmt(c.orc)}</div></div>`;
 
-  let html=renderCapexDashboard(its,{
+  let html=renderCapexTabs();
+
+  html+=renderCapexDashboard(its,{
     title:`Dashboard da unidade`,
     sub:`${capexDrillUnidade} · ${capexDrillMarca} · ${capexDrillYear}`,
     accent:bc,
@@ -4721,7 +4823,8 @@ function renderCapexUnitItems(){
     groupASub:'Estado atual da execução nesta escola.',
     groupB:i=>i.fonte||'Sem fonte',
     groupBLabel:'Fontes solicitantes',
-    groupBSub:'Quem originou os lançamentos da unidade.'
+    groupBSub:'Quem originou os lançamentos da unidade.',
+    hideSummary:true
   });
 
   html+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px"><h2 style="font-size:18px;margin:0">Lançamentos da unidade</h2><button class="btn btn-primary btn-sm" onclick="openCapexItemModal(null)"><span class="ic">＋</span> Novo pedido</button></div>`;
@@ -4795,8 +4898,6 @@ function renderCapexUnitItems(){
             <input class="fi num" style="height:34px;padding:6px 9px;font-size:13px" value="${it.orcamento?fmt(+it.orcamento).replace('R$ ',''):''}" onblur="updateCapexOrcamento(${it.id},this.value,this)" inputmode="decimal" placeholder="0,00">
           </div>
 
-          <label class="capex-flag"><input type="checkbox" ${it.aprovado?'checked':''} onchange="updateCapexFlag(${it.id},'aprovado',this.checked,this)"> Aprovado</label>
-
           <label class="capex-flag"><input type="checkbox" ${it.realizado?'checked':''} onchange="updateCapexFlag(${it.id},'realizado',this.checked,this)"> Realizado</label>
 
         </div>
@@ -4851,7 +4952,7 @@ async function updateCapexOrcamento(id,raw,input){
 
 async function updateCapexFlag(id,field,checked,input){
 
-  if(!['aprovado','realizado'].includes(field)){toast('Campo inválido.');return;}
+  if(!['realizado'].includes(field)){toast('Campo inválido.');return;}
 
   const payload={};payload[field]=!!checked;
 
@@ -4863,7 +4964,7 @@ async function updateCapexFlag(id,field,checked,input){
 
   renderCapexDrill();
 
-  toast(field==='aprovado'?'Aprovação atualizada.':'Realização atualizada.');
+  toast('Realização atualizada.');
 
 }
 
@@ -4943,8 +5044,6 @@ function openCapexItemModal(id){
 
   setCurrencyValue('ci-m-orc',it?.orcamento);
 
-  document.getElementById('ci-m-aprov').checked=it?.aprovado||false;
-
   document.getElementById('ci-m-real').checked=it?.realizado||false;
 
   document.getElementById('ci-m-obs').value=it?.observacoes||'';
@@ -4975,7 +5074,7 @@ async function saveCapexItem(){if(['leitor','doc'].includes(currentProfile?.role
 
   const regU=unidades.find(x=>x.nome===unidade);
 
-  const obj={ano:+document.getElementById('ci-m-ano').value,fonte:g('ci-m-fonte'),unidade,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia:g('ci-m-ref'),setor:g('ci-m-setor'),situacao:document.getElementById('ci-m-sit').value,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),aprovado:document.getElementById('ci-m-aprov').checked,realizado:document.getElementById('ci-m-real').checked,observacoes:document.getElementById('ci-m-obs').value.trim()};
+  const obj={ano:+document.getElementById('ci-m-ano').value,fonte:g('ci-m-fonte'),unidade,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia:g('ci-m-ref'),setor:g('ci-m-setor'),situacao:document.getElementById('ci-m-sit').value,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:document.getElementById('ci-m-real').checked,observacoes:document.getElementById('ci-m-obs').value.trim()};
 
   if(wasEdit){
 
@@ -4989,7 +5088,7 @@ async function saveCapexItem(){if(['leitor','doc'].includes(currentProfile?.role
 
   }else{
 
-    const{data,error}=await db.from('capex_itens').insert(obj).select().single();
+    const{data,error}=await db.from('capex_itens').insert({...obj,aprovado:false}).select().single();
 
     if(error){toast('Erro ao criar pedido: '+error.message);return;}
 
@@ -4999,7 +5098,7 @@ async function saveCapexItem(){if(['leitor','doc'].includes(currentProfile?.role
 
   closeCapexItemModal();
 
-  renderCapexDrill();
+  renderCapexView();
 
   toast(wasEdit?'Pedido atualizado.':'Pedido criado.');
 
