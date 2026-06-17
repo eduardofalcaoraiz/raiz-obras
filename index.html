@@ -1486,7 +1486,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
           <span style="font-weight:700;font-size:13px;color:var(--warn)">Adiantamento</span>
 
-          <span style="font-size:11px;color:var(--muted);line-height:1.3">Pago agora,<br>NF chega depois</span>
+          <span style="font-size:11px;color:var(--muted);line-height:1.3">Agendar pagamento,<br>NF chega depois</span>
 
         </button>
 
@@ -1568,7 +1568,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
           </div>
 
-          <div class="frow"><label class="fl">Status do pagamento</label><select class="fi" id="imp-st"><option value="PAGO">PAGO</option><option value="PENDENTE">PENDENTE</option></select></div>
+          <div class="frow"><label class="fl">Status inicial</label><input type="hidden" id="imp-st" value="PENDENTE"><div style="display:flex;align-items:center;gap:8px;background:var(--warn-bg);color:var(--warn);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;font-size:12.5px;min-height:42px"><span>⏳</span><span>Pendente até você marcar como pago</span></div></div>
 
           <div class="frow"><label class="fl">Nº do documento</label><input class="fi mono" id="imp-doc" placeholder="NF-e nº 12345"></div>
 
@@ -1769,7 +1769,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         <div class="imp-sec-hd">Responsável pelo Pagamento</div>
 
-        <div><label class="fl">Quem pagou esta nota?</label><select class="fi" id="imp-pag"></select></div>
+        <div><label class="fl">Quem será responsável pelo pagamento?</label><select class="fi" id="imp-pag"></select></div>
       <div style="margin-top:12px"><label class="fl" style="margin-bottom:6px;display:block">Este pagamento é...</label>
       <div style="display:flex;gap:0;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--line)">
         <button type="button" id="imp-escopo-obra-btn" onclick="impSetEscopo('obra')" style="flex:1;padding:9px 12px;font-size:13px;font-weight:600;border:0;cursor:pointer;background:var(--accent);color:white;transition:.15s">🏗 Dentro da obra</button>
@@ -1965,14 +1965,16 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       </div>
       <div class="frow" id="pm-emissao-row" style="display:none"><label class="fl">Data de emissão da nota</label><input class="fi" id="pm-emissao" type="date"></div>
     </div>
-    <div class="fgrid">
-      <div class="frow"><label class="fl">Previsão de pagamento <span style="font-weight:400;color:var(--muted)">(vencimento)</span></label><input class="fi" id="pm-venc" type="date"></div>
-      <div class="frow" id="pm-pago-em-row" style="display:none"><label class="fl">Data efetiva do pagamento</label><input class="fi" id="pm-pago-em" type="date"></div>
-    </div>
+    <div class="frow"><label class="fl">Previsão de pagamento <span style="font-weight:400;color:var(--muted)">(vencimento)</span></label><input class="fi" id="pm-venc" type="date"></div>
+    <input id="pm-pago-em" type="hidden">
 
     <div class="frow" id="pm-nfnum-row" style="display:none"><label class="fl">Nº do documento fiscal</label><input class="fi mono" id="pm-nfnum" placeholder="NF-e, NFS-e, boleto, fatura, recibo..."></div>
 
-    <div class="fgrid"><div class="frow"><label class="fl">Pago por</label><select class="fi" id="pm-pag"></select></div><div class="frow"><label class="fl">Status</label><select class="fi" id="pm-st" onchange="pmStChange()"><option>PAGO</option><option>PENDENTE</option><option>Cancelado</option></select></div></div>
+    <div class="frow"><label class="fl">Responsável pelo pagamento</label><select class="fi" id="pm-pag"></select></div>
+    <input id="pm-st" type="hidden" value="PENDENTE">
+    <div id="pm-status-note" style="display:flex;align-items:center;gap:8px;background:var(--warn-bg);color:var(--warn);border:1px solid var(--line);border-radius:var(--r);padding:9px 11px;font-size:12.5px;margin:-4px 0 14px">
+      <span>⏳</span><span>Todo lançamento nasce como pendente. Depois, use o botão <b>Marcar pago</b> para informar a data efetiva do pagamento.</span>
+    </div>
 
     <div class="frow" style="margin-bottom:4px">
       <label class="fl">Ticket Raiz <span style="font-size:11px;color:var(--muted);font-weight:400">(investidor interno — Raiz / escola)</span></label>
@@ -7650,6 +7652,18 @@ function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(
 
   else{g("pag-title").textContent="Lançar pagamento";["pm-ben","pm-val","pm-ref","pm-venc","pm-emissao","pm-pago-em"].forEach(x=>{const el=g(x);if(el)el.value="";});if(g("pm-nfnum"))g("pm-nfnum").value="";g("pm-cat").value=CATS[0].id;g("pm-st").value="PENDENTE";g("pm-nf").value="Sem nota";pmNfChange();pmStChange();pmSetEscopo("obra");if(g("pm-contrato"))g("pm-contrato").value='';var _pmTkNew=document.getElementById("pm-ticket");if(_pmTkNew)_pmTkNew.value="";}
 
+  const _pmNote=document.getElementById('pm-status-note');
+  const _pmCur=pagEditIdx!==null?cur.pag[pagEditIdx]:null;
+  if(_pmNote){
+    if(_pmCur&&_pmCur.st==='PAGO'){
+      _pmNote.style.background='var(--ok-bg)';_pmNote.style.color='var(--ok)';
+      _pmNote.innerHTML='<span>✓</span><span>Este pagamento já foi marcado como pago'+(_pmCur.pagaEm?' em <b>'+fmtD(_pmCur.pagaEm)+'</b>':'')+'. A data efetiva é definida pelo botão <b>Marcar pago</b>.</span>';
+    }else{
+      _pmNote.style.background='var(--warn-bg)';_pmNote.style.color='var(--warn)';
+      _pmNote.innerHTML='<span>⏳</span><span>Todo lançamento nasce como pendente. Depois, use o botão <b>Marcar pago</b> para informar a data efetiva do pagamento.</span>';
+    }
+  }
+
   g("pag-overlay").classList.add("show");}
 
 function closePagModal(){document.getElementById("pag-overlay").classList.remove("show");}
@@ -7684,21 +7698,21 @@ function pmSetEscopo(v){
   if(hint)hint.textContent=v==='obra'?'Dinheiro do investimento da obra.':'Pagamento fora do investimento da obra.';
 }
 function pmStChange(){
-  const st=document.getElementById('pm-st')?.value||'';
   const pr=document.getElementById('pm-pago-em-row');
-  if(pr)pr.style.display=(st==='PAGO')?'':'none';
-  if(st==='PAGO'){const pe=document.getElementById('pm-pago-em');if(pe&&!pe.value)pe.value=new Date().toISOString().slice(0,10);}
+  if(pr)pr.style.display='none';
 }
 
 function savePag(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const cSeq=document.getElementById("pm-contrato")?.value||'';
   // Preserva tipoCusto existente se for mat/svc/eqp; senão marca como 'outros' (categorizado)
-  const _existTipo=pagEditIdx!==null?(cur.pag[pagEditIdx].tipoCusto||''):'';
+  const oldPag=pagEditIdx!==null?cur.pag[pagEditIdx]:null;
+  const _existTipo=oldPag?(oldPag.tipoCusto||''):'';
   const tipoCusto=['material','servico','equipamento'].includes(_existTipo)?_existTipo:'outros';
-  const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=(document.getElementById("pm-pago-em")?.value||"").trim();const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const _pmCrRow=document.getElementById('pm-constr-row');const _pmCrSel=document.getElementById('pm-constr-sel');const _pmCrSeq=_pmCrRow&&_pmCrRow.style.display!=='none'&&_pmCrSel&&_pmCrSel.value?+_pmCrSel.value:null;const _pmTk=(document.getElementById('pm-ticket')?.value||'').trim().toUpperCase();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:g("pm-st"),venc:g("pm-venc"),emissao,pagaEm,nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin,construtora_seq:_pmCrSeq,ticketRaiz:_pmTk};
+  const stVal=oldPag?(oldPag.st||'PENDENTE'):'PENDENTE';
+  const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=stVal==='PAGO'?(oldPag?.pagaEm||''):'';const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const _pmCrRow=document.getElementById('pm-constr-row');const _pmCrSel=document.getElementById('pm-constr-sel');const _pmCrSeq=_pmCrRow&&_pmCrRow.style.display!=='none'&&_pmCrSel&&_pmCrSel.value?+_pmCrSel.value:null;const _pmTk=(document.getElementById('pm-ticket')?.value||'').trim().toUpperCase();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:stVal,venc:g("pm-venc"),emissao,pagaEm,nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin,construtora_seq:_pmCrSeq,ticketRaiz:_pmTk};
 
   if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];const wasPago=(old.st||'')==="PAGO";const willPago=obj.st==="PAGO";const oldEscopo=(old.escopoFin||'obra');const newEscopo=escopoFin||'obra';cur.pago+=(willPago&&newEscopo==='obra'?obj.v:0)-(wasPago&&oldEscopo==='obra'?(old.v||0):0);cur.pag[pagEditIdx]={...old,...obj};}
 
-  else{if(obj.st==="PAGO")cur.pago+=obj.v;cur.pag.push({...obj,comp:""});}
+  else{cur.pag.push({...obj,comp:""});}
 
   persist(cur.id);closePagModal();renderObra();renderPainel();updateNavBadge();toast(pagEditIdx!==null?"Pagamento atualizado":"Pagamento lançado");}
 
@@ -8773,7 +8787,7 @@ function showAdiantamento(){
 
   showImportReview({
 
-    tipo:'Adiantamento',st:'PAGO',
+    tipo:'Adiantamento',st:'PENDENTE',
 
     date:new Date().toISOString().slice(0,10),
 
@@ -8966,7 +8980,7 @@ function showSemNota(){
 
   showImportReview({
 
-    tipo:'Sem nota',st:'PAGO',
+    tipo:'Sem nota',st:'PENDENTE',
 
     date:new Date().toISOString().slice(0,10),
 
@@ -9014,7 +9028,7 @@ function showManualEntry(){
 
   document.getElementById("imp-chave").value="";
 
-  document.getElementById("imp-st").value="PAGO";
+  document.getElementById("imp-st").value="PENDENTE";
 
 }
 
@@ -10328,7 +10342,7 @@ function showImportReview(data){
 
   document.getElementById("imp-chave").value=data.chave||'';
 
-  document.getElementById("imp-st").value='PAGO';
+  document.getElementById("imp-st").value='PENDENTE';
 
   // Emitente
 
@@ -10651,7 +10665,7 @@ async function confirmImport(){
 
   const tipo=document.getElementById("imp-tipo").value;
 
-  const st=document.getElementById("imp-st").value;
+  const st='PENDENTE';
 
   const nfTipo=document.getElementById("imp-nftipo").value;
 
@@ -10681,7 +10695,7 @@ async function confirmImport(){
 
   if(!val){toast("Informe o valor.");return;}
 
-  const impVenc=(document.getElementById("imp-venc")?.value||"").trim();const impTicket=(document.getElementById('imp-ticket')?.value||'').trim().toUpperCase();const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:impVenc||date,emissao:date,pagaEm:(st==="PAGO"?(impVenc||date):""),nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade,escopoFin:impEscopoFin,construtora_seq:impConstrSeq,ticketRaiz:impTicket};
+  const impVenc=(document.getElementById("imp-venc")?.value||"").trim();const impTicket=(document.getElementById('imp-ticket')?.value||'').trim().toUpperCase();const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:impVenc||date,emissao:date,pagaEm:"",nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade,escopoFin:impEscopoFin,construtora_seq:impConstrSeq,ticketRaiz:impTicket};
 
   if(chave)p.chave=chave;
 
@@ -10728,8 +10742,6 @@ async function confirmImport(){
   if(cnpj&&cnpj!=='—'){CNPJS[ben]=cnpj;autoSaveFornecedor(ben,cnpj);}
 
   cur.pag.push(p);
-
-  if(st==='PAGO')cur.pago+=val;
 
   impFile=null;
 
