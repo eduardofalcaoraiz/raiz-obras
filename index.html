@@ -4003,6 +4003,35 @@ const _ciSitClass={'Resolvido':'b-ok','Em Andamento':'b-info','Cancelado':'b-neu
 
 let capexDrillYear=null,capexDrillMarca=null,capexDrillUnidade=null,capexTab='dashboard',capexShowEmpty=false;
 
+const CAPEX_UNIT_EXCEPTIONS=[
+  {nome:'QI Metropolitano',marca:'QI',tipo:'Agregado CAPEX'}
+];
+
+function capexUnitKey(nome){
+  return(nome||'').trim().toLowerCase();
+}
+
+function getCapexUnitException(nome){
+  const key=capexUnitKey(nome);
+  return CAPEX_UNIT_EXCEPTIONS.find(x=>capexUnitKey(x.nome)===key)||null;
+}
+
+function findCapexUnit(unidade){
+  return getCapexUnitException(unidade)||unidades.find(x=>capexUnitKey(x.nome)===capexUnitKey(unidade))||null;
+}
+
+function capexUnitsForMarca(marca){
+  const seen=new Set();
+  return[...CAPEX_UNIT_EXCEPTIONS,...unidades]
+    .filter(u=>(u.marca||'')===marca)
+    .filter(u=>{
+      const key=capexUnitKey(u.nome);
+      if(!key||seen.has(key))return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 
 
 const BRAND_COLORS={
@@ -4145,7 +4174,7 @@ function computeCapexMarca(unidade){
 
   // Try school registry first
 
-  const reg=unidades.find(x=>x.nome.toLowerCase()===(unidade||'').trim().toLowerCase());
+  const reg=findCapexUnit(unidade);
 
   if(reg)return reg.marca;
 
@@ -4183,7 +4212,7 @@ function extractMarca(it){
 
   if(it.marca)return it.marca;
 
-  const reg=unidades.find(x=>x.nome.toLowerCase()===(it.unidade||'').trim().toLowerCase());
+  const reg=findCapexUnit(it.unidade);
 
   return reg?reg.marca:computeCapexMarca(it.unidade);
 
@@ -4257,11 +4286,11 @@ function capexActiveItems(its){
 }
 
 function capexLegacyUnits(){
-  const reg=new Set(unidades.map(u=>(u.nome||'').trim().toLowerCase()).filter(Boolean));
+  const reg=new Set([...unidades,...CAPEX_UNIT_EXCEPTIONS].map(u=>capexUnitKey(u.nome)).filter(Boolean));
   const map={};
   capexItens.forEach(i=>{
     const uni=(i.unidade||'').trim();
-    if(uni&&!reg.has(uni.toLowerCase()))map[uni]=(map[uni]||0)+1;
+    if(uni&&!reg.has(capexUnitKey(uni)))map[uni]=(map[uni]||0)+1;
   });
   return Object.entries(map).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'pt-BR'));
 }
@@ -4657,7 +4686,7 @@ function renderCapexBrands(){
 
     const mi=marcaMap[m];const mc=_ciKpis(mi);
 
-    const regUnis=unidades.filter(u=>u.marca===m);
+    const regUnis=capexUnitsForMarca(m);
 
     const pct=mi.length?Math.round(mc.res/mi.length*100):0;
 
@@ -4725,7 +4754,7 @@ function renderCapexUnidades(){
 
   its.forEach(i=>{if(!uniMap[i.unidade])uniMap[i.unidade]=[];uniMap[i.unidade].push(i);});
 
-  if(capexShowEmpty)unidades.filter(u=>u.marca===capexDrillMarca).forEach(u=>{if(!uniMap[u.nome])uniMap[u.nome]=[];});
+  if(capexShowEmpty)capexUnitsForMarca(capexDrillMarca).forEach(u=>{if(!uniMap[u.nome])uniMap[u.nome]=[];});
 
   const unis=Object.keys(uniMap).sort((a,b)=>a.localeCompare(b,'pt-BR'));
 
@@ -5000,7 +5029,7 @@ function updateCapexUnitHint(){
 
   if(!unidade){ctx.style.display='none';ctx.innerHTML='';return;}
 
-  const reg=unidades.find(x=>x.nome===unidade);
+  const reg=findCapexUnit(unidade);
 
   const marca=reg?reg.marca:computeCapexMarca(unidade);
 
@@ -5072,7 +5101,7 @@ async function saveCapexItem(){if(['leitor','doc'].includes(currentProfile?.role
 
   if(!unidade||!pedido){toast('Preencha unidade e pedido.');return;}
 
-  const regU=unidades.find(x=>x.nome===unidade);
+  const regU=findCapexUnit(unidade);
 
   const obj={ano:+document.getElementById('ci-m-ano').value,fonte:g('ci-m-fonte'),unidade,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia:g('ci-m-ref'),setor:g('ci-m-setor'),situacao:document.getElementById('ci-m-sit').value,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:document.getElementById('ci-m-real').checked,observacoes:document.getElementById('ci-m-obs').value.trim()};
 
@@ -7858,7 +7887,14 @@ function populateEscolasSelect(preferredMarca){
 
   const byMarca={};
 
-  unidades.forEach(u=>{const m=u.marca||'—';if(!byMarca[m])byMarca[m]=[];byMarca[m].push(u);});
+  const seen=new Set();
+
+  [...CAPEX_UNIT_EXCEPTIONS,...unidades].forEach(u=>{
+    const key=capexUnitKey(u.nome);
+    if(!key||seen.has(key))return;
+    seen.add(key);
+    const m=u.marca||'—';if(!byMarca[m])byMarca[m]=[];byMarca[m].push(u);
+  });
 
   const marcas=Object.keys(byMarca).sort((a,b)=>{
 
