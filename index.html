@@ -250,19 +250,16 @@ button{font-family:inherit;cursor:pointer}
 .capex-nav-sub{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-nav-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .capex-card-arrow{width:34px;height:34px;border-radius:999px;border:1px solid rgba(255,255,255,.62);background:rgba(15,42,36,.28);color:white;display:inline-flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;cursor:default;flex:none;backdrop-filter:blur(6px);box-shadow:0 1px 5px rgba(0,0,0,.18);pointer-events:none}
-.capex-filter-panel{border:1px solid var(--line);background:var(--surface);border-radius:var(--r-lg);padding:13px 14px;margin:-2px 0 16px;display:grid;gap:12px}
-.capex-filter-row{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
-.capex-filter-label{font-size:10.5px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.06em;min-width:74px;padding-top:8px}
-.capex-filter-chips{display:flex;gap:7px;flex-wrap:wrap;min-width:0;flex:1}
-.capex-filter-chip{border:1px solid var(--line);background:var(--surface-2);color:var(--muted);border-radius:999px;padding:7px 10px;font-size:12px;font-weight:650;cursor:pointer;min-height:32px}
-.capex-filter-chip.active{border-color:var(--accent);background:var(--brand-cur-light);color:var(--accent-text)}
-.capex-filter-search{min-width:220px;max-width:320px;flex:1;padding:8px 11px;font-size:12.5px}
-.capex-brand-matrix{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px;margin-bottom:18px}
-.capex-brand-card{border:1px solid var(--line);background:var(--surface);border-radius:var(--r-lg);padding:14px 15px;box-shadow:0 6px 20px -20px rgba(0,0,0,.35)}
-.capex-brand-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.capex-brand-logo{width:54px;height:36px;border:1px solid var(--line);border-radius:8px;background:white;display:flex;align-items:center;justify-content:center;padding:4px;overflow:hidden;flex:none}
-.capex-brand-title{min-width:0;flex:1}.capex-brand-title b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.capex-brand-title span{font-size:11.5px;color:var(--muted)}
-.capex-brand-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px}
+.capex-card-select{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);border-radius:8px;padding:6px 9px;font-size:12px;font-weight:650;min-height:31px;max-width:210px}
+.capex-panel-titlebar{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.capex-panel-titlebar h3{margin:0}
+.capex-brand-rank{display:grid;gap:9px}
+.capex-brand-rank-row{display:grid;grid-template-columns:42px minmax(110px,1fr) minmax(100px,1.4fr) auto;gap:10px;align-items:center;font-size:12.5px}
+.capex-brand-rank-logo{width:42px;height:28px;border:1px solid var(--line);border-radius:7px;background:white;display:flex;align-items:center;justify-content:center;padding:3px;overflow:hidden}
+.capex-brand-rank-name{font-weight:750;color:var(--ink);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-brand-rank-track{height:7px;background:var(--surface-2);border-radius:999px;overflow:hidden}
+.capex-brand-rank-track i{display:block;height:100%;border-radius:999px}
+.capex-brand-rank-val{font-family:"Space Grotesk",sans-serif;font-weight:700;white-space:nowrap}
 .capex-unit-simple{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
 .capex-exec-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;margin-bottom:18px}
 .capex-insight-list{display:flex;flex-direction:column;gap:8px}
@@ -288,7 +285,7 @@ button{font-family:inherit;cursor:pointer}
 .gd-risk span{color:var(--muted)}
 
 @media(max-width:900px){.capex-dashboard,.capex-exec-grid,.capex-unit-simple{grid-template-columns:1fr}.capex-mini-grid,.capex-budget-band{grid-template-columns:repeat(2,1fr)}.global-dashboard{grid-template-columns:1fr}.gd-span-12,.gd-span-8,.gd-span-6,.gd-span-4{grid-column:1}.capex-navline{align-items:flex-start;flex-direction:column}.capex-nav-actions{justify-content:flex-start}}
-@media(max-width:620px){.capex-card-dash,.capex-inline-grid,.capex-budget-band{grid-template-columns:1fr}.capex-item-head{flex-direction:column}.capex-bar-row,.gd-rank-row{grid-template-columns:1fr}.capex-bar-row .val{text-align:left}.capex-context{align-items:flex-start}}
+@media(max-width:620px){.capex-card-dash,.capex-inline-grid,.capex-budget-band{grid-template-columns:1fr}.capex-item-head{flex-direction:column}.capex-bar-row,.gd-rank-row,.capex-brand-rank-row{grid-template-columns:1fr}.capex-bar-row .val{text-align:left}.capex-context{align-items:flex-start}}
 
 .crumb-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;margin-bottom:6px;padding:0}
 
@@ -4256,7 +4253,7 @@ function renderEsfera(){
 const _ciSitClass={'Resolvido':'b-ok','Em Andamento':'b-info','Cancelado':'b-neutral'};
 
 let capexDrillYear=null,capexDrillMarca=null,capexDrillUnidade=null,capexTab='dashboard',capexShowEmpty=false;
-let capexDashFilters={marca:'Todas',situacao:'Todos',categoria:'Todas',fonte:'Todas',busca:''};
+let capexDashControls={primary:'marca',secondary:'unidade',priority:'Em Andamento',brandMetric:'comprometido'};
 let capexListStatus='Todos';
 
 const CAPEX_UNIT_EXCEPTIONS=[
@@ -4701,13 +4698,8 @@ function toggleCapexEmpty(){
   renderCapexDrill();
 }
 
-function capexSetDashFilter(key,value){
-  capexDashFilters[key]=value||((key==='busca')?'':'Todas');
-  renderCapexView();
-}
-
-function capexClearDashFilters(){
-  capexDashFilters={marca:'Todas',situacao:'Todos',categoria:'Todas',fonte:'Todas',busca:''};
+function capexSetDashControl(key,value){
+  capexDashControls[key]=value||'';
   renderCapexView();
 }
 
@@ -4716,70 +4708,34 @@ function capexSetListStatus(value){
   renderCapexDrill();
 }
 
-function capexFilterButton(label,key,value,active,count){
-  const isActive=String(active||'')===String(value||'');
-  const countTxt=count!=null?` <span class="num" style="opacity:.75">${count}</span>`:'';
-  return`<button class="capex-filter-chip ${isActive?'active':''}" onclick="capexSetDashFilter('${capexJs(key)}','${capexJs(value)}')">${escHtml(label)}${countTxt}</button>`;
+function capexControlSelect(key,value,options){
+  return`<select class="capex-card-select" onchange="capexSetDashControl('${capexJs(key)}',this.value)">${options.map(o=>`<option value="${escHtml(o.value)}"${o.value===value?' selected':''}>${escHtml(o.label)}</option>`).join('')}</select>`;
 }
 
-function capexFilterGroup(label,key,options,active){
-  return`<div class="capex-filter-row"><div class="capex-filter-label">${escHtml(label)}</div><div class="capex-filter-chips">${options.map(o=>capexFilterButton(o.label,key,o.value,active,o.count)).join('')}</div></div>`;
-}
-
-function capexStatusOptions(its,allLabel){
-  const statuses=['Em Andamento','Resolvido','Cancelado'];
-  return[{label:allLabel||'Todos',value:'Todos',count:its.length}].concat(statuses.map(s=>({label:s,value:s,count:its.filter(i=>_ciSit(i)===s).length})));
-}
-
-function capexOptionCounts(its,keyFn,allLabel){
-  const map={};
-  (its||[]).forEach(i=>{
-    const key=(keyFn(i)||'Sem informação').trim();
-    map[key]=(map[key]||0)+1;
-  });
-  return[{label:allLabel||'Todos',value:'Todas',count:its.length}].concat(Object.keys(map).sort((a,b)=>map[b]-map[a]||a.localeCompare(b,'pt-BR')).map(k=>({label:k,value:k,count:map[k]})));
-}
-
-function capexNormalizeDashFilters(its){
-  const has=(opts,val)=>!val||val==='Todas'||val==='Todos'||opts.some(o=>o.value===val);
-  if(!has(capexOptionCounts(its,extractMarca),capexDashFilters.marca))capexDashFilters.marca='Todas';
-  if(!has(capexOptionCounts(its,i=>capexCategoriaNome(i)),capexDashFilters.categoria))capexDashFilters.categoria='Todas';
-  if(!has(capexOptionCounts(its,i=>i.fonte||'Sem fonte'),capexDashFilters.fonte))capexDashFilters.fonte='Todas';
-  if(!has(capexStatusOptions(its),capexDashFilters.situacao))capexDashFilters.situacao='Todos';
-}
-
-function capexApplyDashboardFilters(its){
-  const f=capexDashFilters;
-  const q=capexNormText(f.busca||'');
-  return(its||[]).filter(i=>{
-    if(f.marca&&f.marca!=='Todas'&&extractMarca(i)!==f.marca)return false;
-    if(f.situacao&&f.situacao!=='Todos'&&_ciSit(i)!==f.situacao)return false;
-    if(f.categoria&&f.categoria!=='Todas'&&capexCategoriaNome(i)!==f.categoria)return false;
-    if(f.fonte&&f.fonte!=='Todas'&&(i.fonte||'Sem fonte')!==f.fonte)return false;
-    if(q&&!capexNormText([i.pedido,i.unidade,i.referencia,i.setor,i.fonte,capexCategoriaNome(i)].join(' ')).includes(q))return false;
-    return true;
-  });
-}
-
-function renderCapexDashboardFilters(baseIts){
-  capexNormalizeDashFilters(baseIts);
-  const activeCount=['marca','situacao','categoria','fonte'].reduce((a,k)=>a+((capexDashFilters[k]||'Todas')!=='Todas'&&(capexDashFilters[k]||'Todos')!=='Todos'?1:0),0)+(capexDashFilters.busca?1:0);
-  return`<div class="capex-filter-panel">
-    <div class="capex-filter-row" style="align-items:center">
-      <div class="capex-filter-label">Busca</div>
-      <input class="fi capex-filter-search" value="${escHtml(capexDashFilters.busca||'')}" placeholder="Buscar pedido, unidade, ticket ou setor" oninput="capexDashFilters.busca=this.value;renderCapexView()">
-      ${activeCount?`<button class="btn btn-ghost btn-sm" onclick="capexClearDashFilters()">Limpar filtros (${activeCount})</button>`:''}
-    </div>
-    ${capexFilterGroup('Marca','marca',capexOptionCounts(baseIts,extractMarca,'Todas'),capexDashFilters.marca)}
-    ${capexFilterGroup('Situação','situacao',capexStatusOptions(baseIts,'Todas'),capexDashFilters.situacao)}
-    ${capexFilterGroup('Categoria','categoria',capexOptionCounts(baseIts,i=>capexCategoriaNome(i),'Todas'),capexDashFilters.categoria)}
-    ${capexFilterGroup('Fonte','fonte',capexOptionCounts(baseIts,i=>i.fonte||'Sem fonte','Todas'),capexDashFilters.fonte)}
-  </div>`;
-}
-
-function capexListStatusFilters(){
+function capexListStatusSelect(){
   const opts=['Todos','Em Andamento','Resolvido','Cancelado'];
-  return`<div class="capex-filter-row" style="margin:0 0 14px"><div class="capex-filter-label">Situação</div><div class="capex-filter-chips">${opts.map(s=>`<button class="capex-filter-chip ${capexListStatus===s?'active':''}" onclick="capexSetListStatus('${capexJs(s)}')">${escHtml(s)}</button>`).join('')}</div></div>`;
+  return`<select class="capex-card-select" onchange="capexSetListStatus(this.value)" title="Filtrar pedidos da lista">${opts.map(s=>`<option value="${escHtml(s)}"${capexListStatus===s?' selected':''}>${escHtml(s)}</option>`).join('')}</select>`;
+}
+
+function capexDashboardDimension(value){
+  const dims={
+    marca:{value:'marca',label:'Marcas',title:'Pedidos por marca',sub:'Distribuição do ano entre as marcas do grupo.',fn:i=>extractMarca(i)||'Sem marca'},
+    unidade:{value:'unidade',label:'Unidades',title:'Unidades mais demandadas',sub:'Unidades com maior volume de solicitações.',fn:i=>i.unidade||'Sem unidade'},
+    categoria:{value:'categoria',label:'Categorias',title:'Orçamento por categoria',sub:'Categorias editáveis do CAPEX, ordenadas pelo orçamento mapeado.',fn:i=>capexCategoriaNome(i)||'Sem categoria'},
+    fonte:{value:'fonte',label:'Fontes',title:'Fontes solicitantes',sub:'Origem dos pedidos registrados.',fn:i=>i.fonte||'Sem fonte'},
+    setor:{value:'setor',label:'Setores',title:'Pedidos por setor',sub:'Setores informados nos pedidos de CAPEX.',fn:i=>i.setor||'Sem setor'},
+    situacao:{value:'situacao',label:'Situação',title:'Pedidos por situação',sub:'Distribuição entre em andamento, resolvidos e cancelados.',fn:i=>_ciSit(i)}
+  };
+  return dims[value]||dims.marca;
+}
+
+function capexDashboardOptions(kind){
+  if(kind==='primary')return['marca','categoria','situacao','fonte'].map(capexDashboardDimension);
+  return['unidade','setor','fonte','categoria','situacao'].map(capexDashboardDimension);
+}
+
+function capexPriorityOptions(){
+  return['Em Andamento','Todos','Resolvido','Cancelado'].map(v=>({value:v,label:v==='Todos'?'Todos por valor':v}));
 }
 
 function capexApplyListStatus(its){
@@ -4931,46 +4887,39 @@ function renderCapexOverview(){
   document.getElementById('esf-capex-drill').innerHTML=html;
 }
 
-function renderCapexYearBrandMatrix(its,baseIts,ano){
+function renderCapexYearBrandSummary(its,ano){
+  const metric=capexDashControls.brandMetric||'comprometido';
+  const opts=[
+    {value:'comprometido',label:'Comprometido'},
+    {value:'saldo',label:'Saldo'},
+    {value:'autorizado',label:'Disponibilizado'},
+    {value:'andamento',label:'Em andamento'}
+  ];
   const brands=[...new Set(its.map(i=>extractMarca(i)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-  if(!brands.length)return`<div class="capex-panel" style="margin-bottom:18px"><h3>Marcas no recorte</h3><p class="empty" style="padding:0;margin:0">Nenhuma marca encontrada com os filtros atuais.</p></div>`;
+  const rows=brands.map(m=>{
+    const mi=its.filter(i=>extractMarca(i)===m);
+    const k=_ciKpis(mi);
+    const b=capexBudgetStats(mi,{ano,marca:m});
+    const value=metric==='saldo'?b.saldo:(metric==='autorizado'?b.autorizado:(metric==='andamento'?k.aberto:b.comprometido));
+    return{marca:m,items:mi,k,b,value};
+  }).sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)||b.k.total-a.k.total||a.marca.localeCompare(b.marca,'pt-BR')).slice(0,8);
+  const max=Math.max(...rows.map(r=>Math.abs(r.value)),1);
   return`<div class="capex-panel" style="margin-bottom:18px">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
-      <div><h3 style="margin:0 0 4px">Marcas no ano</h3><div class="sub" style="margin:0">Leitura da antiga camada de dashboard por marca, agora reunida no dashboard anual.</div></div>
-      ${capexDashFilters.marca!=='Todas'?`<button class="btn btn-ghost btn-sm" onclick="capexSetDashFilter('marca','Todas')">Ver todas as marcas</button>`:''}
+    <div class="capex-panel-titlebar">
+      <div><h3>Resumo por marca</h3><div class="sub">Leitura consolidada das marcas dentro do ano, sem abrir uma aba extra.</div></div>
+      ${capexControlSelect('brandMetric',metric,opts)}
     </div>
-    <div class="capex-brand-matrix">${brands.map(m=>{
-      const mi=its.filter(i=>extractMarca(i)===m);
-      const baseMi=baseIts.filter(i=>extractMarca(i)===m);
-      const k=_ciKpis(mi);
-      const b=capexBudgetStats(mi,{ano,marca:m});
-      const bc=brandColor(m);
-      const topUnit=_ciGroupStats(mi,i=>i.unidade||'Sem unidade')[0];
-      const topCat=_ciGroupStats(mi,i=>capexCategoriaNome(i))[0];
-      const unitCount=[...new Set(baseMi.map(i=>i.unidade).filter(Boolean).map(capexUnitKey))].length||capexUnitsForMarca(m).length;
-      const saldoColor=b.saldo<0?'var(--danger)':(b.autorizado>0?'var(--ok)':'var(--warn)');
-      return`<div class="capex-brand-card">
-        <div class="capex-brand-head">
-          <div class="capex-brand-logo">${brandEmblem(m)}</div>
-          <div class="capex-brand-title"><b>${escHtml(m)}</b><span>${unitCount} unidade${unitCount!==1?'s':''} · ${k.total} pedido${k.total!==1?'s':''}</span></div>
-        </div>
-        <div class="capex-card-dash">
-          <div class="mini"><span>Andamento</span><b style="color:var(--info)">${k.aberto}</b></div>
-          <div class="mini"><span>Orçado</span><b style="color:${bc}">${fmt(k.orc)}</b></div>
-          <div class="mini"><span>Disponib.</span><b>${fmt(b.autorizado)}</b></div>
-          <div class="mini"><span>Saldo</span><b style="color:${saldoColor}">${fmt(b.saldo)}</b></div>
-        </div>
-        ${_ciStatusTrack(k)}
-        <div style="display:grid;gap:6px;font-size:12px;color:var(--muted);margin-top:8px">
-          <div><b style="color:var(--ink)">Unidade foco:</b> ${escHtml(topUnit?.key||'Sem recorte')}</div>
-          <div><b style="color:var(--ink)">Categoria foco:</b> ${escHtml(topCat?.key||'Sem categoria')}</div>
-        </div>
-        <div class="capex-brand-actions">
-          <button class="btn btn-ghost btn-sm" onclick="capexSetDashFilter('marca','${capexJs(m)}')">Filtrar marca</button>
-          <button class="btn btn-primary btn-sm" onclick="drillCapex(${+ano},'${capexJs(m)}',null,'pedidos')">Abrir unidades</button>
-        </div>
+    ${rows.length?`<div class="capex-brand-rank">${rows.map(r=>{
+      const bc=brandColor(r.marca);
+      const valTxt=metric==='andamento'?`${r.value} pedido${r.value!==1?'s':''}`:fmt(r.value);
+      const valColor=metric==='saldo'?(r.value<0?'var(--danger)':(r.value>0?'var(--ok)':'var(--warn)')):bc;
+      return`<div class="capex-brand-rank-row">
+        <div class="capex-brand-rank-logo">${brandEmblem(r.marca)}</div>
+        <div class="capex-brand-rank-name" title="${escHtml(r.marca)}">${escHtml(r.marca)}</div>
+        <div class="capex-brand-rank-track"><i style="width:${Math.max(6,Math.abs(r.value)/max*100)}%;background:${bc}"></i></div>
+        <button class="btn btn-ghost btn-sm" style="padding:5px 8px;font-size:12px;color:${valColor}" onclick="drillCapex(${+ano},'${capexJs(r.marca)}',null,'pedidos')">${escHtml(valTxt)}</button>
       </div>`;
-    }).join('')}</div>
+    }).join('')}</div>`:'<p class="empty" style="padding:0;margin:0">Nenhuma marca com dados neste ano.</p>'}
   </div>`;
 }
 
@@ -5019,34 +4968,38 @@ function renderCapexScopedDashboard(){
 
   if(!capexDrillMarca){
 
-    const baseIts=capexItens.filter(i=>+i.ano===+capexDrillYear);
-    const its=capexApplyDashboardFilters(baseIts);
-
+    const its=capexItens.filter(i=>+i.ano===+capexDrillYear);
     const k=_ciKpis(its);
-    const totalK=_ciKpis(baseIts);
+    const primary=capexDashboardDimension(capexDashControls.primary||'marca');
+    const secondary=capexDashboardDimension(capexDashControls.secondary||'unidade');
 
-    html+=capexNavLine(`CAPEX ${capexDrillYear}`,'Dashboard anual dinâmico com filtros por marca, situação, categoria, fonte e busca.',{
+    html+=capexNavLine(`CAPEX ${capexDrillYear}`,'Dashboard anual consolidado, com controles discretos dentro dos cards.',{
       backTitle:'Voltar aos anos',
       right:capexBudgetAction(capexDrillYear,'','Adicionar CAPEX disponibilizado','','ghost')
     });
 
-    html+=renderCapexDashboardFilters(baseIts);
-    html+=capexBudgetSummary(capexBudgetStats(baseIts,{ano:capexDrillYear}),'var(--accent)',capexBudgetAction(capexDrillYear,'','Adicionar CAPEX disponibilizado','','ghost'));
+    html+=capexBudgetSummary(capexBudgetStats(its,{ano:capexDrillYear}),'var(--accent)',capexBudgetAction(capexDrillYear,'','Adicionar CAPEX disponibilizado','','ghost'));
 
     html+=renderCapexDashboard(its,{
       title:`Dashboard CAPEX ${capexDrillYear}`,
-      sub:`${k.total} de ${totalK.total} pedidos do ano no recorte atual, com ${k.marcas} marca${k.marcas!==1?'s':''} e ${k.unidades} unidade${k.unidades!==1?'s':''}.`,
+      sub:`${k.total} pedidos do ano, com ${k.marcas} marca${k.marcas!==1?'s':''} e ${k.unidades} unidade${k.unidades!==1?'s':''}.`,
       accent:'var(--accent)',
-      groupA:i=>extractMarca(i),
-      groupALabel:'Pedidos por marca',
-      groupASub:'Distribuição do ano entre as marcas do grupo.',
-      groupB:i=>i.unidade||'Sem unidade',
-      groupBLabel:'Unidades mais demandadas',
-      groupBSub:'Ranking de unidades no recorte atual.',
+      groupA:primary.fn,
+      groupALabel:primary.title,
+      groupASub:primary.sub,
+      groupAControl:capexControlSelect('primary',primary.value,capexDashboardOptions('primary')),
+      groupAColorFn:primary.value==='marca'?m=>brandColor(m):null,
+      groupB:secondary.fn,
+      groupBLabel:secondary.title,
+      groupBSub:secondary.sub,
+      groupBControl:capexControlSelect('secondary',secondary.value,capexDashboardOptions('secondary')),
+      groupBColorFn:secondary.value==='marca'?m=>brandColor(m):null,
+      priorityStatus:capexDashControls.priority||'Em Andamento',
+      priorityControl:capexControlSelect('priority',capexDashControls.priority||'Em Andamento',capexPriorityOptions()),
       hideSummary:true
     });
 
-    html+=renderCapexYearBrandMatrix(its,baseIts,capexDrillYear);
+    html+=renderCapexYearBrandSummary(its,capexDrillYear);
 
   }else if(!capexDrillUnidade){
 
@@ -5196,7 +5149,7 @@ function _ciGroupStats(its,keyFn){
 
 }
 
-function _ciBars(entries,total,accent,emptyMsg){
+function _ciBars(entries,total,accent,emptyMsg,colorFn){
 
   if(!entries.length)return`<p class="empty" style="padding:0;margin:0">${emptyMsg||'Sem dados para este recorte.'}</p>`;
 
@@ -5204,7 +5157,7 @@ function _ciBars(entries,total,accent,emptyMsg){
 
   return`<div class="capex-bars">${entries.map(e=>`<div class="capex-bar-row">
     <div class="name" title="${escHtml(e.key)}">${escHtml(e.key)}</div>
-    <div class="bar"><i style="width:${Math.max(5,(e.orc||e.total)/max*100)}%;background:${accent}"></i></div>
+    <div class="bar"><i style="width:${Math.max(5,(e.orc||e.total)/max*100)}%;background:${colorFn?colorFn(e.key,e):accent}"></i></div>
     <div class="val num">${e.orc>0?`${fmt(e.orc)} · ${e.total}`:e.total}</div>
   </div>`).join('')}</div>`;
 
@@ -5251,7 +5204,11 @@ function renderCapexDashboard(its,opt){
 
   const groupCat=_ciGroupStats(its,(i)=>capexCategoriaNome(i)).sort((a,b)=>b.orc-a.orc||b.total-a.total||a.key.localeCompare(b.key,'pt-BR')).slice(0,opt.limitCat||8);
 
-  const open=its.filter(i=>_ciSit(i)==='Em Andamento').slice().sort((a,b)=>(+b.orcamento||0)-(+a.orcamento||0)).slice(0,4);
+  const priorityStatus=opt.priorityStatus||'Em Andamento';
+
+  const priorityBase=priorityStatus==='Todos'?its:its.filter(i=>_ciSit(i)===priorityStatus);
+
+  const open=priorityBase.slice().sort((a,b)=>(+b.orcamento||0)-(+a.orcamento||0)).slice(0,4);
 
   return`<div class="capex-dashboard">
     <div class="capex-panel">
@@ -5269,8 +5226,10 @@ function renderCapexDashboard(its,opt){
       ${_ciStatusPills(k)}
     </div>
     <div class="capex-panel">
-      <h3>${opt.sideTitle||'Prioridades abertas'}</h3>
-      <div class="sub">${open.length?'Maiores itens em aberto pelo orçamento informado.':'Nenhum item aberto neste recorte.'}</div>
+      <div class="capex-panel-titlebar">
+        <div><h3>${opt.sideTitle||'Prioridades'}</h3><div class="sub">${open.length?'Maiores itens pelo orçamento informado.':'Nenhum item neste recorte.'}</div></div>
+        ${opt.priorityControl||''}
+      </div>
       ${open.length?`<div class="capex-bars">${open.map(i=>`<div class="capex-bar-row">
         <div class="name" title="${escHtml(i.pedido||'Pedido')}">${escHtml(i.pedido||'Pedido')}</div>
         <div class="bar"><i style="width:${Math.max(8,Math.min(100,(+i.orcamento||0)/(Math.max(...open.map(x=>+x.orcamento||0),1))*100))}%;background:${_ciStatusColor(i.situacao)}"></i></div>
@@ -5278,9 +5237,11 @@ function renderCapexDashboard(its,opt){
       </div>`).join('')}</div>`:'<p class="empty" style="padding:0;margin:0">Tudo resolvido ou sem orçamento aberto.</p>'}
     </div>
     <div class="capex-panel">
-      <h3>${opt.groupALabel||'Distribuição principal'}</h3>
-      <div class="sub">${opt.groupASub||'Onde o volume de pedidos está concentrado.'}</div>
-      ${_ciBars(groupA,k.total,accent)}
+      <div class="capex-panel-titlebar">
+        <div><h3>${opt.groupALabel||'Distribuição principal'}</h3><div class="sub">${opt.groupASub||'Onde o volume de pedidos está concentrado.'}</div></div>
+        ${opt.groupAControl||''}
+      </div>
+      ${_ciBars(groupA,k.total,accent,null,opt.groupAColorFn)}
     </div>
     <div class="capex-panel">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px">
@@ -5291,9 +5252,11 @@ function renderCapexDashboard(its,opt){
       ${_ciBars(groupCat,k.total,accent,'Sem categoria neste recorte.')}
     </div>
     <div class="capex-panel">
-      <h3>${opt.groupBLabel||'Recorte complementar'}</h3>
-      <div class="sub">${opt.groupBSub||'Comparativo por outra dimensão do CAPEX.'}</div>
-      ${_ciBars(groupB,k.total,accent)}
+      <div class="capex-panel-titlebar">
+        <div><h3>${opt.groupBLabel||'Recorte complementar'}</h3><div class="sub">${opt.groupBSub||'Comparativo por outra dimensão do CAPEX.'}</div></div>
+        ${opt.groupBControl||''}
+      </div>
+      ${_ciBars(groupB,k.total,accent,null,opt.groupBColorFn)}
     </div>
   </div>`;
 
@@ -5429,8 +5392,7 @@ function renderCapexBrands(){
     right:`${capexBudgetAction(capexDrillYear,'','Adicionar CAPEX disponibilizado','','ghost')}<button class="capex-empty-toggle ${capexShowEmpty?'active':''}" onclick="toggleCapexEmpty()">${capexShowEmpty?'Ocultar':'Mostrar'} marcas sem pedido</button>`
   });
 
-  html+=capexListStatusFilters();
-  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Marcas com pedidos</h2><span style="font-size:12px;color:var(--muted)">Clique no card para abrir as unidades da marca</span></div><div class="pgrid">`;
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><div><h2 style="font-size:18px;margin:0">Marcas com pedidos</h2><span style="font-size:12px;color:var(--muted)">Clique no card para abrir as unidades da marca</span></div>${capexListStatusSelect()}</div><div class="pgrid">`;
 
   for(const m of marcas){
 
@@ -5526,8 +5488,7 @@ function renderCapexUnidades(){
     right:`${capexBudgetAction(capexDrillYear,'','Adicionar CAPEX disponibilizado',capexDrillMarca,'ghost')}<button class="capex-empty-toggle ${capexShowEmpty?'active':''}" onclick="toggleCapexEmpty()">${capexShowEmpty?'Ocultar':'Mostrar'} unidades sem pedido</button>`
   });
 
-  html+=capexListStatusFilters();
-  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Unidades com pedidos</h2><span style="font-size:12px;color:var(--muted)">Clique no card para abrir o resumo da unidade</span></div><div class="pgrid">`;
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><div><h2 style="font-size:18px;margin:0">Unidades com pedidos</h2><span style="font-size:12px;color:var(--muted)">Clique no card para abrir o resumo da unidade</span></div>${capexListStatusSelect()}</div><div class="pgrid">`;
 
   for(const uni of unis){
 
@@ -5596,9 +5557,8 @@ function renderCapexUnitItems(){
     right:capexBudgetAction(capexDrillYear,capexDrillUnidade,null,capexDrillMarca,'ghost')
   });
 
-  html+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Lançamentos da unidade</h2></div>`;
+  html+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Lançamentos da unidade</h2>${capexListStatusSelect()}</div>`;
 
-  html+=capexListStatusFilters();
   html+=capexBudgetSummary(capexBudgetStats(itsBase,{ano:capexDrillYear,marca:capexDrillMarca,unidade:capexDrillUnidade}),brandColor(capexDrillMarca),capexBudgetAction(capexDrillYear,capexDrillUnidade));
 
   if(!its.length){html+='<p class="empty">Nenhum pedido para esta unidade ainda.</p>';}
