@@ -237,9 +237,19 @@ button{font-family:inherit;cursor:pointer}
 .capex-insight .num{font-weight:700;white-space:nowrap}
 .capex-empty-toggle{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer}
 .capex-empty-toggle.active{border-color:var(--accent);color:var(--accent);background:var(--brand-cur-light)}
+.global-dashboard{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin-bottom:22px}
+.gd-span-12{grid-column:span 12}.gd-span-8{grid-column:span 8}.gd-span-6{grid-column:span 6}.gd-span-4{grid-column:span 4}
+.gd-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.gd-panel-head h3{margin:0;font-size:16px}.gd-panel-head .sub{margin:3px 0 0}
+.gd-rank{display:grid;gap:8px}
+.gd-rank-row{display:grid;grid-template-columns:minmax(120px,170px) 1fr auto;gap:10px;align-items:center;font-size:12.5px}
+.gd-rank-row .name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650;color:var(--ink)}
+.gd-rank-row .track{height:7px;background:var(--surface-2);border-radius:999px;overflow:hidden}
+.gd-rank-row .track i{display:block;height:100%;border-radius:999px}
+.gd-rank-row .val{font-family:"Space Grotesk",sans-serif;font-weight:650;white-space:nowrap}
 
-@media(max-width:900px){.capex-dashboard,.capex-exec-grid{grid-template-columns:1fr}.capex-mini-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:620px){.capex-card-dash,.capex-inline-grid{grid-template-columns:1fr}.capex-item-head{flex-direction:column}.capex-bar-row{grid-template-columns:1fr}.capex-bar-row .val{text-align:left}.capex-context{align-items:flex-start}}
+@media(max-width:900px){.capex-dashboard,.capex-exec-grid{grid-template-columns:1fr}.capex-mini-grid{grid-template-columns:repeat(2,1fr)}.global-dashboard{grid-template-columns:1fr}.gd-span-12,.gd-span-8,.gd-span-6,.gd-span-4{grid-column:1}}
+@media(max-width:620px){.capex-card-dash,.capex-inline-grid{grid-template-columns:1fr}.capex-item-head{flex-direction:column}.capex-bar-row,.gd-rank-row{grid-template-columns:1fr}.capex-bar-row .val{text-align:left}.capex-context{align-items:flex-start}}
 
 .crumb-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;margin-bottom:6px;padding:0}
 
@@ -1325,7 +1335,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <div class="phead"><div><div class="eyebrow" id="u-crumb"></div><h1 id="u-nome"></h1><p id="u-meta"></p></div>
 
-        <div class="acts"><button class="btn btn-sm" onclick="openCatModal(undefined,'pasta')"><span class="ic">＋</span> Criar pasta</button>
+        <div class="acts"><button class="btn btn-sm" onclick="openCatModal(undefined,'documento')"><span class="ic">＋</span> Criar pasta</button>
 
           <button class="btn btn-primary btn-sm" onclick="anexarIA()"><span class="ic">↑</span> Anexar documentos</button></div></div>
 
@@ -1367,7 +1377,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         <div class="tablewrap" id="admin-users"></div></div>
 
-      <!-- Gestão de Categorias de Gasto -->
+      <!-- Gestão de categorias por módulo -->
 
       <div class="card" style="margin-top:20px">
 
@@ -1375,13 +1385,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
           <div>
 
-            <h2 style="font-size:19px;margin-bottom:3px">Categorias de Gasto</h2>
+            <h2 style="font-size:19px;margin-bottom:3px">Categorias da plataforma</h2>
 
-            <div class="sub">Gerencie as categorias que aparecem na classificação de pagamentos das obras.</div>
+            <div class="sub">Gerencie separadamente pagamentos, documentos e CAPEX.</div>
 
           </div>
 
-          <button class="btn btn-primary btn-sm" onclick="openCatModal(undefined,'pagamento')"><span class="ic">＋</span> Nova categoria</button>
+          <button class="btn btn-primary btn-sm" onclick="openCatModal(undefined,'pagamento')"><span class="ic">＋</span> Nova categoria de pagamento</button>
 
         </div>
 
@@ -2977,7 +2987,7 @@ let investidores=[];
 
 let FORN_DATA={}; // {cnpj: {nome, email, telefone, municipio, uf, atividade, porte, ...}}
 
-// Categorias padrão — usadas como fallback quando DB está vazio
+// Categorias padrão de pagamentos — usadas como fallback quando DB está vazio
 
 const DEFAULT_CATS=[
 
@@ -3011,9 +3021,29 @@ const DEFAULT_CATS=[
 
 ];
 
-let CATS=[]; // Preenchido pelo loadFromDB() — se vazio, usa DEFAULT_CATS
+let CATS=[]; // Categorias de pagamentos. Preenchido pelo loadFromDB() — se vazio, usa DEFAULT_CATS
 
 const catById=id=>CATS.find(c=>c.id===id)||{nome:"(removida)",subs:[]};
+
+let DOC_CATS=[]; // Categorias/pastas de documentos, independentes de pagamentos e CAPEX
+let docCatSeq=1;
+
+function normalizeCatTipo(tipo){
+  return tipo==='pasta'||tipo==='documento'?'documento':(tipo==='capex'?'capex':'pagamento');
+}
+
+function catListByTipo(tipo){
+  tipo=normalizeCatTipo(tipo);
+  return tipo==='capex'?CAPEX_CATS:(tipo==='documento'?DOC_CATS:CATS);
+}
+
+function docCatById(id){
+  return DOC_CATS.find(c=>c.id===id)||CATS.find(c=>c.id===id)||DEFAULT_CATS.find(c=>c.id===id)||{id:id||'',nome:'(pasta removida)',subs:[],tipo:'documento'};
+}
+
+function docCatsSorted(){
+  return DOC_CATS.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+}
 
 const DEFAULT_CAPEX_CATS=[
   {id:'capex_mobiliario',nome:'Mobiliário e marcenaria',subs:['Geral'],tipo:'capex'},
@@ -3042,7 +3072,8 @@ function capexCatById(id){
 }
 
 function categoryById(id,tipo){
-  return (tipo==='capex'?CAPEX_CATS:CATS).find(c=>c.id===id)||CAPEX_CATS.find(c=>c.id===id)||CATS.find(c=>c.id===id)||{nome:'(removida)',subs:[]};
+  const list=catListByTipo(tipo);
+  return list.find(c=>c.id===id)||CAPEX_CATS.find(c=>c.id===id)||DOC_CATS.find(c=>c.id===id)||CATS.find(c=>c.id===id)||{nome:'(removida)',subs:[]};
 }
 
 let CNPJS={}; // Preenchido pelo loadFromDB() — nunca hardcoded
@@ -3949,15 +3980,115 @@ function renderObraCard(o,i){const pct=execObra(o);const _uni=unidades.find(u=>u
 
 
 
+function geralBarRows(rows,opt){
+  opt=opt||{};
+  if(!rows.length)return`<p class="empty" style="padding:0;margin:0">${opt.empty||'Sem dados para mostrar.'}</p>`;
+  const max=Math.max(...rows.map(r=>+r.value||0),1);
+  return`<div class="gd-rank">${rows.map(r=>`<div class="gd-rank-row">
+    <div class="name" title="${escHtml(r.label)}">${escHtml(r.label)}</div>
+    <div class="track"><i style="width:${Math.max(4,(+r.value||0)/max*100)}%;background:${r.color||opt.color||'var(--accent)'}"></i></div>
+    <div class="val" style="color:${r.color||opt.color||'var(--ink)'}">${opt.money?fmt(r.value):(r.display||r.value)}</div>
+  </div>`).join('')}</div>`;
+}
+
+function geralDocCount(){
+  return unidades.reduce((a,u)=>a+Object.values(u.docs||{}).reduce((s,arr)=>s+(arr||[]).length,0),0);
+}
+
 function renderGeral(){
 
-  const tc=obras.reduce((a,o)=>a+o.contratado,0),ta=obras.reduce((a,o)=>a+o.aportado,0),tp=obras.reduce((a,o)=>a+o.pago,0);
+  const tc=obras.reduce((a,o)=>a+contratadoTotal(o),0),ta=obras.reduce((a,o)=>a+o.aportado,0),tp=obras.reduce((a,o)=>a+o.pago+pagoExtra(o),0);
+  const pagamentos=[];obras.forEach(o=>(o.pag||[]).forEach((p,i)=>pagamentos.push({o,p,i})));
+  const pend=pagamentos.filter(x=>x.p.st==='PENDENTE');
+  const atr=allAtrasos();
+  const pendTotal=pend.reduce((a,x)=>a+(+x.p.v||0),0);
+  const atrTotal=atr.reduce((a,x)=>a+(+x.p.v||0),0);
+  const capexK=_ciKpis(capexItens);
+  const docTotal=geralDocCount();
+  const fornecedores=[...new Set(pagamentos.map(x=>(x.p.ben||'').trim()).filter(Boolean))].length;
 
-  document.getElementById('geral-kpis').innerHTML=`<div class="kpi"><div class="lab">Obras ativas</div><div class="val">${obras.filter(o=>o.status==='Em andamento').length}<span style="font-size:14px;color:var(--soft)"> / ${obras.length}</span></div></div><div class="kpi"><div class="lab">Total contratado</div><div class="val">${fmt(tc)}</div></div><div class="kpi"><div class="lab">Total aportado</div><div class="val">${fmt(ta)}</div></div><div class="kpi"><div class="lab">Total pago</div><div class="val acc">${fmt(tp)}</div></div>`;
+  document.getElementById('geral-kpis').innerHTML=`
+    <div class="kpi"><div class="lab">Obras e unidades</div><div class="val">${obras.length}<span style="font-size:14px;color:var(--soft)"> obras</span></div><div class="sub">${unidades.length} unidades cadastradas</div></div>
+    <div class="kpi"><div class="lab">Financeiro executado</div><div class="val acc">${fmt(tp)}</div><div class="sub">de ${fmt(tc)} contratado/aditivado</div></div>
+    <div class="kpi"><div class="lab">Pendências de pagamento</div><div class="val ${atr.length?'dg':''}">${fmt(pendTotal)}</div><div class="sub">${atr.length} atrasado(s) · ${fmt(atrTotal)}</div></div>
+    <div class="kpi"><div class="lab">CAPEX de melhorias</div><div class="val">${capexK.total}</div><div class="sub">${fmt(capexK.orc)} orçado · ${capexK.aberto} aberto(s)</div></div>`;
 
-  let body='';
+  const esferaRows=Object.entries(ESFERAS).map(([eid,e])=>{
+    const list=obras.filter(o=>(o.esfera||'nova')===eid);
+    return{label:e.label,value:list.reduce((a,o)=>a+contratadoTotal(o),0),display:`${list.length} obra(s)`,color:eid==='capex'?'var(--accent)':eid==='expansao'?'var(--info)':'var(--ok)'};
+  }).filter(r=>r.value>0||r.display!=='0 obra(s)');
 
-  for(const[eid,e] of Object.entries(ESFERAS)){const list=obras.filter(o=>(o.esfera||'nova')===eid);if(!list.length)continue;const etc=list.reduce((a,o)=>a+o.contratado,0),etp=list.reduce((a,o)=>a+o.pago,0);body+=`<div class="esfera-sec"><div class="esfera-sec-head"><div><h2>${e.icon} ${e.label}</h2><div class="sub">${list.length} obra(s) · ${fmt(etc)} contratado · ${fmt(etp)} pago</div></div><button class="btn btn-ghost btn-sm" onclick="go('${eid}')">Ver tudo →</button></div><div class="pgrid">${list.map((o,i)=>renderObraCard(o,i)).join('')}</div></div>`;}
+  const marcaMap={};
+  obras.forEach(o=>{
+    const marcas=(o.marca||'—').split(' + ').filter(Boolean);
+    const div=Math.max(marcas.length,1);
+    marcas.forEach(m=>{
+      if(!marcaMap[m])marcaMap[m]={label:m,value:0,pago:0,obras:0,color:brandColor(m)};
+      marcaMap[m].value+=contratadoTotal(o)/div;
+      marcaMap[m].pago+=(o.pago+pagoExtra(o))/div;
+      marcaMap[m].obras++;
+    });
+  });
+  const marcaRows=Object.values(marcaMap).sort((a,b)=>b.value-a.value).slice(0,8);
+
+  const catRows=CATS.map(c=>({label:c.nome,value:pagamentos.filter(x=>x.p.st==='PAGO'&&x.p.cat===c.id).reduce((a,x)=>a+(+x.p.v||0),0),color:'var(--ok)'})).filter(r=>r.value>0).sort((a,b)=>b.value-a.value).slice(0,7);
+  const capexCatRows=_ciGroupStats(capexItens,i=>capexCategoriaNome(i)).sort((a,b)=>b.orc-a.orc||b.total-a.total).slice(0,7).map(r=>({label:r.key,value:r.orc||r.total,display:r.orc?fmt(r.orc):`${r.total} pedido(s)`,color:'var(--accent)'}));
+
+  const docByMarca={};
+  unidades.forEach(u=>{
+    const qtd=Object.values(u.docs||{}).reduce((a,arr)=>a+(arr||[]).length,0);
+    const m=u.marca||'—';
+    if(!docByMarca[m])docByMarca[m]={label:m,value:0,units:0,color:brandColor(m)};
+    docByMarca[m].value+=qtd;docByMarca[m].units++;
+  });
+  const docRows=Object.values(docByMarca).filter(r=>r.value>0).sort((a,b)=>b.value-a.value).slice(0,7).map(r=>({...r,display:`${r.value} doc(s)`}));
+
+  const fila=pend.slice().sort((a,b)=>(a.p.venc||'9999-99-99').localeCompare(b.p.venc||'9999-99-99')).slice(0,7).map(x=>({
+    label:`${x.p.ben||'Pagamento'} · ${x.o.nome.split(' —')[0].split(' (')[0]}`,
+    value:+x.p.v||0,
+    display:`${fmt(x.p.v)}${x.p.venc?' · '+fmtD(x.p.venc):''}`,
+    color:isAtraso(x.p)?'var(--danger)':'var(--warn)'
+  }));
+
+  const dashboard=`<div class="global-dashboard">
+    <div class="capex-panel gd-span-8">
+      <div class="gd-panel-head"><div><h3>Investimento por marca</h3><div class="sub">Contratado/aditivado distribuído pelas marcas envolvidas nas obras.</div></div><button class="btn btn-ghost btn-sm" onclick="go('escolas')">Unidades →</button></div>
+      ${geralBarRows(marcaRows,{money:true,color:'var(--accent)',empty:'Nenhuma marca com obra cadastrada.'})}
+    </div>
+    <div class="capex-panel gd-span-4">
+      <div class="gd-panel-head"><div><h3>Resumo operacional</h3><div class="sub">Sinais rápidos da plataforma.</div></div></div>
+      ${capexInsightRows([
+        {label:'Fornecedores em pagamentos',value:fornecedores,color:'var(--info)'},
+        {label:'Documentos cadastrados',value:docTotal,color:'var(--ok)'},
+        {label:'Categorias de documentos',value:DOC_CATS.length,color:'var(--info)'},
+        {label:'Categorias CAPEX',value:CAPEX_CATS.length,color:'var(--accent)'}
+      ])}
+    </div>
+    <div class="capex-panel gd-span-6">
+      <div class="gd-panel-head"><div><h3>Pagamentos por categoria</h3><div class="sub">Onde o gasto pago se concentra nas obras.</div></div><button class="btn btn-ghost btn-sm" onclick="go('cobranca')">Cobrança →</button></div>
+      ${geralBarRows(catRows,{money:true,color:'var(--ok)',empty:'Ainda não há pagamentos quitados por categoria.'})}
+    </div>
+    <div class="capex-panel gd-span-6">
+      <div class="gd-panel-head"><div><h3>CAPEX por categoria</h3><div class="sub">Orçamento mapeado nos pedidos de melhorias.</div></div><button class="btn btn-ghost btn-sm" onclick="go('capex')">CAPEX →</button></div>
+      ${geralBarRows(capexCatRows,{color:'var(--accent)',empty:'Sem CAPEX categorizado.'})}
+    </div>
+    <div class="capex-panel gd-span-4">
+      <div class="gd-panel-head"><div><h3>Esferas</h3><div class="sub">Volume contratado por frente.</div></div></div>
+      ${geralBarRows(esferaRows,{money:true,color:'var(--info)'})}
+    </div>
+    <div class="capex-panel gd-span-4">
+      <div class="gd-panel-head"><div><h3>Documentos por marca</h3><div class="sub">Cobertura documental carregada por unidade.</div></div><button class="btn btn-ghost btn-sm" onclick="go('docs')">Documentos →</button></div>
+      ${geralBarRows(docRows,{color:'var(--info)',empty:'Nenhum documento carregado ainda.'})}
+    </div>
+    <div class="capex-panel gd-span-4">
+      <div class="gd-panel-head"><div><h3>Fila de atenção</h3><div class="sub">Próximos pagamentos pendentes e atrasados.</div></div></div>
+      ${geralBarRows(fila,{color:'var(--warn)',empty:'Nenhuma pendência de pagamento.'})}
+    </div>
+  </div>`;
+
+  let body=dashboard;
+
+  for(const[eid,e] of Object.entries(ESFERAS)){const list=obras.filter(o=>(o.esfera||'nova')===eid);if(!list.length)continue;const etc=list.reduce((a,o)=>a+contratadoTotal(o),0),etp=list.reduce((a,o)=>a+o.pago+pagoExtra(o),0);body+=`<div class="esfera-sec"><div class="esfera-sec-head"><div><h2>${e.icon} ${e.label}</h2><div class="sub">${list.length} obra(s) · ${fmt(etc)} contratado/aditivado · ${fmt(etp)} pago</div></div><button class="btn btn-ghost btn-sm" onclick="go('${eid}')">Ver tudo →</button></div><div class="pgrid">${list.map((o,i)=>renderObraCard(o,i)).join('')}</div></div>`;}
 
   document.getElementById('geral-body').innerHTML=body||'<p class="empty">Nenhuma obra cadastrada. Acesse uma esfera para criar a primeira.</p>';
 
@@ -4762,7 +4893,7 @@ function renderCapexBrands(){
     hideSummary:true
   });
 
-  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Marcas com pedidos</h2><button class="capex-empty-toggle ${capexShowEmpty?'active':''}" onclick="toggleCapexEmpty()">${capexShowEmpty?'Ocultar':'Mostrar'} marcas sem pedido</button></div><div class="pgrid">`;
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" onclick="drillCapex(null,null,null)">← Voltar aos anos</button><h2 style="font-size:18px;margin:0">Marcas com pedidos</h2></div><button class="capex-empty-toggle ${capexShowEmpty?'active':''}" onclick="toggleCapexEmpty()">${capexShowEmpty?'Ocultar':'Mostrar'} marcas sem pedido</button></div><div class="pgrid">`;
 
   for(const m of marcas){
 
@@ -4849,7 +4980,7 @@ function renderCapexUnidades(){
     hideSummary:true
   });
 
-  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Unidades com pedidos</h2><button class="capex-empty-toggle ${capexShowEmpty?'active':''}" onclick="toggleCapexEmpty()">${capexShowEmpty?'Ocultar':'Mostrar'} unidades sem pedido</button></div><div class="pgrid">`;
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" onclick="drillCapex(${capexDrillYear},null,null)">← Voltar às marcas</button><h2 style="font-size:18px;margin:0">Unidades com pedidos</h2></div><button class="capex-empty-toggle ${capexShowEmpty?'active':''}" onclick="toggleCapexEmpty()">${capexShowEmpty?'Ocultar':'Mostrar'} unidades sem pedido</button></div><div class="pgrid">`;
 
   for(const uni of unis){
 
@@ -4918,7 +5049,8 @@ function renderCapexUnitItems(){
     hideSummary:true
   });
 
-  html+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px"><h2 style="font-size:18px;margin:0">Lançamentos da unidade</h2><button class="btn btn-primary btn-sm" onclick="openCapexItemModal(null)"><span class="ic">＋</span> Novo pedido</button></div>`;
+  const msBack=capexDrillMarca.replace(/'/g,"\\'");
+  html+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" onclick="drillCapex(${capexDrillYear},'${msBack}',null)">← Voltar às unidades</button><h2 style="font-size:18px;margin:0">Lançamentos da unidade</h2></div><button class="btn btn-primary btn-sm" onclick="openCapexItemModal(null)"><span class="ic">＋</span> Novo pedido</button></div>`;
 
   if(!its.length){html+='<p class="empty">Nenhum pedido para esta unidade ainda.</p>';}
 
@@ -6707,22 +6839,16 @@ function renderDocs(){
 
 
 
-async function openUni(id){curUni=unidades.find(u=>u.id===id);curUni.docs={};const snap=curUni.docs;const{data}=await db.from('documentos_unidade').select('*').eq('unidade_id',id);if(curUni.docs!==snap)return;if(data)data.forEach(d=>{(curUni.docs[d.cat_id]=curUni.docs[d.cat_id]||[]).push({dbId:d.id,name:d.name,storagePath:d.storage_path||null,type:d.type});});renderUni();go("uni");}
+async function openUni(id){curUni=unidades.find(u=>u.id===id);curUni.docs={};const snap=curUni.docs;const{data}=await db.from('documentos_unidade').select('*').eq('unidade_id',id);if(curUni.docs!==snap)return;if(data)data.forEach(d=>{(curUni.docs[d.cat_id]=curUni.docs[d.cat_id]||[]).push({dbId:d.id,name:d.name,storagePath:d.storage_path||null,type:d.type});if(d.cat_id&&!DOC_CATS.some(c=>c.id===d.cat_id))DOC_CATS.push({...docCatById(d.cat_id),id:d.cat_id,tipo:'documento'});});renderUni();go("uni");}
 
 function renderUni(){const u=curUni;document.getElementById("u-crumb").innerHTML=`<span style="display:inline-flex;align-items:center;gap:7px;background:${brandLight(u.marca)};border:1.5px solid ${brandColor(u.marca)}44;border-radius:20px;padding:3px 10px 3px 4px"><span style="display:inline-flex;background:white;border-radius:5px;overflow:hidden;height:20px;width:32px;align-items:center;flex-shrink:0;border:1px solid ${brandColor(u.marca)}22">${brandLogoImg(u.marca,'height:16px;width:28px;object-fit:contain')}</span><span style="font-size:12px;font-weight:600;color:${brandColor(u.marca)}">${u.marca}</span></span>`;document.getElementById("u-nome").textContent=u.nome;const _uobra=u.obraId?obras.find(x=>x.id===u.obraId):null;document.getElementById("u-meta").innerHTML=`<span class="badge ${u.tipo==='Em obra'?'b-info':'b-ok'}">${u.tipo||'Em operação'}</span>${_uobra?` <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="openObra(${_uobra.id})">↗ ${_uobra.nome}</button>`:""}`;
 
   const dlOf=(arr,cid)=>arr.length?arr.map((d,idx)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><button onclick="viewUniDoc('${cid}',${idx})" style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink);background:none;border:0;font-weight:500;min-width:0;text-align:left;padding:0;cursor:pointer"><span style="color:var(--accent)">📄</span> <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.name}</span></button><span style="display:flex;gap:6px;flex:none"><button class="btn btn-sm" onclick="viewUniDoc('${cid}',${idx})">Ver</button><button class="btn btn-sm" onclick="downloadDoc('${cid}',${idx})">Baixar</button><button class="iconbtn" title="Excluir" onclick="deleteDoc('${cid}',${idx})">🗑</button></span></div>`).join(""):'<div style="font-size:13px;color:var(--soft);padding:5px 0">Nenhum documento.</div>';
 
-  // Só mostra categorias com documentos nesta unidade OU personalizadas (criadas pelo usuário)
-
-  // Sem pastas padrão — cada unidade é organizada pelo Eduardo no dia a dia
-
-  // Pastas de documentos: APENAS tipo='pasta' OU que já tenham documentos (backward compat)
-  const catsToShow=CATS.filter(c=>{
-    const hasDocs=(u.docs[c.id]||[]).length>0;
-    const isPasta=c.tipo==='pasta';
-    return isPasta||hasDocs; // mostra pastas criadas como 'pasta' + retrocompat com docs existentes
-  });
+  // Documentos usam um catálogo próprio, separado das categorias de pagamentos e CAPEX.
+  const docMap=new Map(docCatsSorted().map(c=>[c.id,c]));
+  Object.keys(u.docs||{}).forEach(cid=>{if(!docMap.has(cid))docMap.set(cid,docCatById(cid));});
+  const catsToShow=[...docMap.values()].filter(c=>(DOC_CATS.some(x=>x.id===c.id)||(u.docs[c.id]||[]).length>0));
 
   const emptyMsg=catsToShow.length===0
 
@@ -6734,7 +6860,7 @@ function renderUni(){const u=curUni;document.getElementById("u-crumb").innerHTML
 
     const docs=u.docs[c.id]||[];
 
-    return `<div class="card" style="padding:16px 20px;margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:8px;font-weight:500">📁 ${c.nome}${docs.length?` <span class="badge b-neutral" style="font-size:10px">${docs.length}</span>`:''}<button class="iconbtn" title="Renomear" onclick="openCatModal('${c.id}')">✎</button><button class="iconbtn" title="Excluir esta pasta" style="color:var(--danger)" onclick="deleteCatFromUnit('${c.id}')">🗑</button></div><button class="btn btn-sm" onclick="anexarCat('${c.id}')"><span class="ic">📎</span> Anexar</button></div><div style="margin-top:8px">${dlOf(docs,c.id)}</div></div>`;
+    return `<div class="card" style="padding:16px 20px;margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:8px;font-weight:500">📁 ${c.nome}${docs.length?` <span class="badge b-neutral" style="font-size:10px">${docs.length}</span>`:''}<button class="iconbtn" title="Renomear" onclick="openCatModal('${c.id}','documento')">✎</button><button class="iconbtn" title="Excluir esta pasta" style="color:var(--danger)" onclick="deleteCatFromUnit('${c.id}')">🗑</button></div><button class="btn btn-sm" onclick="anexarCat('${c.id}')"><span class="ic">📎</span> Anexar</button></div><div style="margin-top:8px">${dlOf(docs,c.id)}</div></div>`;
 
   }).join("");
 
@@ -6750,9 +6876,12 @@ async function deleteCatFromUnit(cid){
 
   if(!curUni)return;
 
-  const c=CATS.find(x=>x.id===cid);
+  const c=DOC_CATS.find(x=>x.id===cid)||docCatById(cid);
 
   const docs=curUni.docs[cid]||[];
+  const usedElsewhere=unidades.some(u=>u.id!==curUni.id&&((u.docs&&u.docs[cid])||[]).length>0);
+
+  if(usedElsewhere){toast('Esta pasta tem documentos em outras unidades. Exclua pela Administração quando ela não estiver mais em uso.');return;}
 
   const msg=docs.length>0
 
@@ -6772,9 +6901,9 @@ async function deleteCatFromUnit(cid){
 
     delete curUni.docs[cid];
 
-    CATS=CATS.filter(x=>x.id!==cid);
+    DOC_CATS=DOC_CATS.filter(x=>x.id!==cid);
 
-    await persistCats();
+    await db.from('categorias').delete().eq('id',cid);
 
     toast(`Pasta "${c?.nome||cid}" excluída.`);
 
@@ -7871,7 +8000,7 @@ function pmSubs(){}
 
 function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(typeof idx==="number")?idx:null;const g=v=>document.getElementById(v);
 
-  g("pm-cat").innerHTML=CATS.filter(function(c){return c.tipo!=='pasta';}).map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
+  g("pm-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
 
   const _pagEditVal=pagEditIdx!==null?(cur.pag[pagEditIdx]?.pagn||''):'';
   _fillPagSelect("pm-pag", cur, _pagEditVal);
@@ -8351,7 +8480,7 @@ async function deleteEscola(id){
 let catEditId=null;
 
 function openCatModal(id,tipo){
-  _catTipo=tipo||(CAPEX_CATS.some(c=>c.id===id)?'capex':'pagamento');
+  _catTipo=normalizeCatTipo(tipo||(CAPEX_CATS.some(c=>c.id===id)?'capex':DOC_CATS.some(c=>c.id===id)?'documento':'pagamento'));
 
   catEditId=id||null;
 
@@ -8361,14 +8490,14 @@ function openCatModal(id,tipo){
 
     const c=categoryById(catEditId,_catTipo);
 
-    document.getElementById("cat-title").textContent=_catTipo==='capex'?'Editar categoria CAPEX':"Editar categoria";
+    document.getElementById("cat-title").textContent=_catTipo==='capex'?'Editar categoria CAPEX':(_catTipo==='documento'?'Editar pasta de documentos':"Editar categoria");
     const sb=document.getElementById("cat-save-btn");if(sb)sb.innerHTML='<span class="ic">✓</span> Salvar alterações';
 
     inp.value=c.nome;
 
   }else{
 
-    document.getElementById("cat-title").textContent=_catTipo==='capex'?'Nova categoria CAPEX':"Nova categoria";
+    document.getElementById("cat-title").textContent=_catTipo==='capex'?'Nova categoria CAPEX':(_catTipo==='documento'?'Nova pasta de documentos':"Nova categoria");
     const sb2=document.getElementById("cat-save-btn");if(sb2)sb2.innerHTML='<span class="ic">✓</span> Criar categoria';
 
     inp.value="";
@@ -8378,7 +8507,7 @@ function openCatModal(id,tipo){
   // Adaptar labels do modal conforme tipo
   var _catSaveBtn2=document.getElementById("cat-save-btn");
   var _catTitle2=document.getElementById("cat-title");
-  if(_catTipo==='pasta'){
+  if(_catTipo==='documento'){
     if(_catSaveBtn2&&!catEditId)_catSaveBtn2.innerHTML='<span class="ic">✓</span> Criar pasta';
     if(_catTitle2&&!catEditId)_catTitle2.textContent='Nova pasta de documentos';
     var _catInp2=document.getElementById("cat-input");
@@ -8403,7 +8532,9 @@ function saveCatModal(){if(['leitor','doc'].includes(currentProfile?.role)){toas
 
   if(!nm){toast("Dê um nome.");return;}
 
-  const targetCats=_catTipo==='capex'?CAPEX_CATS:CATS;
+  _catTipo=normalizeCatTipo(_catTipo);
+
+  const targetCats=catListByTipo(_catTipo);
 
   const dup=targetCats.find(c=>c.nome.toLowerCase()===nm.toLowerCase()&&c.id!==catEditId);
 
@@ -8419,11 +8550,11 @@ function saveCatModal(){if(['leitor','doc'].includes(currentProfile?.role)){toas
 
     const c=categoryById(catEditId,_catTipo);
 
-    c.nome=nm;c.subs=subs;
+    c.nome=nm;c.subs=subs;c.tipo=_catTipo;
 
   }else{
 
-    newId=_catTipo==='capex'?"capex_cat_"+(capexCatSeq++):"cat_"+(catSeq++);
+    newId=_catTipo==='capex'?"capex_cat_"+(capexCatSeq++):(_catTipo==='documento'?"doc_cat_"+(docCatSeq++):"cat_"+(catSeq++));
 
     targetCats.push({id:newId,nome:nm,subs,tipo:_catTipo||'pagamento'});
 
@@ -8436,8 +8567,6 @@ function saveCatModal(){if(['leitor','doc'].includes(currentProfile?.role)){toas
   const _wasForm=_catModalFromForm;
 
   closeCatModal();
-
-  if(curUni)renderUni();
 
   // Se aberto a partir do formulário de pagamento, seleciona automaticamente
   if(_wasPm&&newId){
@@ -8474,6 +8603,7 @@ function saveCatModal(){if(['leitor','doc'].includes(currentProfile?.role)){toas
 
   if(document.querySelector('#view-admin .active')||document.getElementById('admin-cats'))renderAdminCats();
   if(curEsfera==='capex')renderCapexView();
+  if(curUni)renderUni();
 
   toast(wasEdit?`Categoria "${nm}" atualizada.`:`Categoria "${nm}" criada.`);
 
@@ -8483,7 +8613,7 @@ function saveCatModal(){if(['leitor','doc'].includes(currentProfile?.role)){toas
 
 let _catModalFromForm=false;
 let _catModalFromPm=false;
-let _catTipo='pagamento'; // contexto: 'pagamento' ou 'pasta'
+let _catTipo='pagamento'; // contexto: 'pagamento', 'documento' ou 'capex'
 
 function openCatModalFromForm(){_catModalFromForm=true;openCatModal(undefined,'pagamento');}
 function openCatModalFromPm(){_catModalFromPm=true;openCatModal(undefined,'pagamento');}
@@ -8494,21 +8624,48 @@ function openCatModalFromPm(){_catModalFromPm=true;openCatModal(undefined,'pagam
 
 let anexAlvo=null,pendingDocs=[];
 
-function inferCat(name){const n=name.toLowerCase();const rules=[["topog",/topograf/],["sond",/sondagem|sondag/],["arts",/\barts?\b|\brrt\b/],["imovel",/matr[íi]cula|escritura|iptu|certid[ãa]o|im[óo]vel/],["locacao",/loca[çc][ãa]o|aluguel|andaime|ca[çc]amba/],["legal",/darm|guia|prefeitura|fazenda|alvar|habite|bombeiro|cbmerj|sanitar|ambient|poda|[áa]rvore|legaliza|licen[çc]a/],["proj",/projeto|arquitet|planta|engenharia|topografia|projetista/],["demo",/demoli|terraplan|entulho/],["taxa",/taxa|administra/],["equip",/elevador|climatiz|mobili|instala[çc]/],["cant",/\bepi\b|seguran|ferramenta|frete|transport|limpeza|diarista/],["mo",/empreit|medi[çc][aã]o|sal[áa]rio|servi[çc]o/],["mat",/a[çc]o|ferro|ferrag|cimento|concreto|bloco|areia|madeira|gesso|vidro|tinta|hidr[áa]ul|el[ée]tric|material|\bnf\b|nota|danfe/],["outros",/comiss|ressarc|adiant/]];for(const[c,re]of rules)if(re.test(n))return c;return"outros";}
+function findDocCatByNeedle(needle){
+  const n=capexNormText(needle);
+  return docCatsSorted().find(c=>capexNormText(c.nome).includes(n)||capexNormText(c.id).includes(n));
+}
+
+function inferDocCat(name){
+  const n=capexNormText(name);
+  const rules=[
+    ['cbmerj',['cbmerj','bombeiro','avcb','incendio']],
+    ['cnpj',['cnpj','cartao cnpj']],
+    ['consorcio',['consorcio','consorcio']],
+    ['energia',['ligacao de energia','energia','light','enel']],
+    ['projeto',['projeto','planta','arquitet','levantamento arquitetonico']],
+    ['dpa',['dpa','dpe']],
+    ['art',['art','rrt']],
+    ['imovel',['matricula','escritura','iptu','certidao','imovel']],
+    ['locacao',['locacao','aluguel','andaime','cacamba']],
+    ['sondagem',['sondagem','sondag']],
+    ['topografia',['topografia','topograf']]
+  ];
+  for(const[needle,terms]of rules){
+    if(terms.some(t=>capexTextHas(n,t))){
+      const c=findDocCatByNeedle(needle);
+      if(c)return c.id;
+    }
+  }
+  return DOC_CATS[0]?.id||null;
+}
 
 function anexarCat(cid){if(!curUni){toast("Abra uma unidade.");return;}anexAlvo=cid;let inp=document.getElementById("anexo-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="anexo-input";inp.multiple=true;inp.style.display="none";document.body.appendChild(inp);inp.onchange=async()=>{if(!inp.files.length)return;const cid2=anexAlvo;const inserts=[];for(const f of Array.from(inp.files)){const path=`${curUni.id}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const{error}=await db.storage.from('documentos').upload(path,f);if(error){toast("Erro ao enviar: "+f.name);continue;}(curUni.docs[cid2]=curUni.docs[cid2]||[]).push({name:f.name,storagePath:path,type:f.type});inserts.push({unidade_id:curUni.id,cat_id:cid2,name:f.name,type:f.type,storage_path:path});}if(inserts.length){const{data:rows}=await db.from('documentos_unidade').insert(inserts).select('id,storage_path');if(rows)rows.forEach(r=>{const arr=curUni.docs[cid2]||[];const item=arr.find(d=>d.storagePath===r.storage_path);if(item)item.dbId=r.id;});}const n=inp.files.length;renderUni();toast(n>1?n+" documentos anexados":"Documento anexado");inp.value="";};}inp.click();}
 
-function anexarIA(){if(!curUni){toast("Abra uma unidade.");return;}let inp=document.getElementById("ia-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="ia-input";inp.multiple=true;inp.style.display="none";document.body.appendChild(inp);inp.onchange=()=>{if(!inp.files.length)return;pendingDocs=Array.from(inp.files).map(f=>({file:f,name:f.name,cat:inferCat(f.name)}));inp.value="";openDocModal();};}inp.click();}
+function anexarIA(){if(!curUni){toast("Abra uma unidade.");return;}let inp=document.getElementById("ia-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="ia-input";inp.multiple=true;inp.style.display="none";document.body.appendChild(inp);inp.onchange=()=>{if(!inp.files.length)return;pendingDocs=Array.from(inp.files).map(f=>{const cat=inferDocCat(f.name);return{file:f,name:f.name,cat,newCat:!cat,newCatName:cat?'':'Geral'};});inp.value="";openDocModal();};}inp.click();}
 
 function openDocModal(){document.getElementById("doc-overlay").classList.add("show");document.getElementById("doc-reading").style.display="block";document.getElementById("doc-review").style.display="none";setTimeout(()=>{document.getElementById("doc-reading").style.display="none";document.getElementById("doc-review").style.display="block";renderDocList();},1200);}
 
-function renderDocList(){document.getElementById("doc-list").innerHTML=pendingDocs.map((p,i)=>{const opts=CATS.map(c=>`<option value="${c.id}" ${(!p.newCat&&c.id===p.cat)?'selected':''}>${c.nome}</option>`).join("")+`<option value="__new__" ${p.newCat?'selected':''}>➕ Criar nova categoria…</option>`;const field=p.newCat?`<div style="margin-top:8px;padding-left:30px"><input class="fi" style="font-size:13px;padding:8px 11px" placeholder="Nome da nova categoria" value="${p.newCatName||''}" oninput="pendingDocs[${i}].newCatName=this.value"></div>`:"";return `<div style="padding:11px 0;border-top:1px solid var(--line)"><div style="display:flex;align-items:center;gap:12px"><span style="color:var(--accent);font-size:18px">📄</span><div style="flex:1;min-width:0"><div style="font-weight:500;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div><div style="font-size:11.5px;color:${p.newCat?'var(--accent)':'var(--ok)'}">${p.newCat?'Nova categoria':'✓ IA sugeriu: '+catById(p.cat).nome}</div></div><select class="fi" style="width:auto;max-width:210px;padding:7px 10px;font-size:13px" onchange="onCatSelect(${i},this.value)">${opts}</select></div>${field}</div>`;}).join("");}
+function renderDocList(){document.getElementById("doc-list").innerHTML=pendingDocs.map((p,i)=>{if(!p.cat&&!p.newCat&&DOC_CATS[0])p.cat=DOC_CATS[0].id;const opts=docCatsSorted().map(c=>`<option value="${c.id}" ${(!p.newCat&&c.id===p.cat)?'selected':''}>${c.nome}</option>`).join("")+`<option value="__new__" ${p.newCat?'selected':''}>➕ Criar nova pasta…</option>`;const field=p.newCat?`<div style="margin-top:8px;padding-left:30px"><input class="fi" style="font-size:13px;padding:8px 11px" placeholder="Nome da nova pasta documental" value="${p.newCatName||''}" oninput="pendingDocs[${i}].newCatName=this.value"></div>`:"";return `<div style="padding:11px 0;border-top:1px solid var(--line)"><div style="display:flex;align-items:center;gap:12px"><span style="color:var(--accent);font-size:18px">📄</span><div style="flex:1;min-width:0"><div style="font-weight:500;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div><div style="font-size:11.5px;color:${p.newCat?'var(--accent)':'var(--ok)'}">${p.newCat?'Nova pasta documental':'✓ Sugestão documental: '+docCatById(p.cat).nome}</div></div><select class="fi" style="width:auto;max-width:210px;padding:7px 10px;font-size:13px" onchange="onCatSelect(${i},this.value)">${opts}</select></div>${field}</div>`;}).join("");}
 
 function onCatSelect(i,val){if(val==="__new__")pendingDocs[i].newCat=true;else{pendingDocs[i].newCat=false;pendingDocs[i].cat=val;}renderDocList();}
 
 function closeDocModal(){document.getElementById("doc-overlay").classList.remove("show");pendingDocs=[];}
 
-async function confirmDocs(){for(const p of pendingDocs)if(p.newCat&&!(p.newCatName||"").trim()){toast("Dê nome à nova categoria.");return;}const map={};pendingDocs.forEach(p=>{if(p.newCat){const nm=p.newCatName.trim(),k=nm.toLowerCase();let id=map[k];if(!id){const ex=CATS.find(c=>c.nome.toLowerCase()===k);id=ex?ex.id:"cat_"+(catSeq++);if(!ex)CATS.push({id,nome:nm,subs:["Geral"],tipo:'pasta'});map[k]=id;}p.cat=id;}});const inserts=[];for(const p of pendingDocs){const path=`${curUni.id}/${Date.now()}_${p.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const{error}=await db.storage.from('documentos').upload(path,p.file);if(error){toast("Erro ao enviar: "+p.name);continue;}(curUni.docs[p.cat]=curUni.docs[p.cat]||[]).push({name:p.name,storagePath:path,type:p.file.type});inserts.push({unidade_id:curUni.id,cat_id:p.cat,name:p.name,type:p.file.type,storage_path:path});}if(inserts.length){const{data:rows}=await db.from('documentos_unidade').insert(inserts).select('id,storage_path');if(rows)rows.forEach(r=>{for(const arr of Object.values(curUni.docs)){const item=arr.find(d=>d.storagePath===r.storage_path);if(item){item.dbId=r.id;break;}}});}if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'})));const n=pendingDocs.length;document.getElementById("doc-overlay").classList.remove("show");pendingDocs=[];renderUni();toast(n>1?n+" documentos anexados":"Documento anexado");}
+async function confirmDocs(){for(const p of pendingDocs)if(p.newCat&&!(p.newCatName||"").trim()){toast("Dê nome à nova pasta.");return;}const map={};pendingDocs.forEach(p=>{if(p.newCat){const nm=p.newCatName.trim(),k=capexNormText(nm);let id=map[k];if(!id){const ex=DOC_CATS.find(c=>capexNormText(c.nome)===k);id=ex?ex.id:"doc_cat_"+(docCatSeq++);if(!ex)DOC_CATS.push({id,nome:nm,subs:["Geral"],tipo:'documento'});map[k]=id;}p.cat=id;}else if(!p.cat&&DOC_CATS[0])p.cat=DOC_CATS[0].id;});const inserts=[];for(const p of pendingDocs){if(!p.cat){toast('Escolha uma pasta para todos os documentos.');return;}const path=`${curUni.id}/${Date.now()}_${p.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const{error}=await db.storage.from('documentos').upload(path,p.file);if(error){toast("Erro ao enviar: "+p.name);continue;}(curUni.docs[p.cat]=curUni.docs[p.cat]||[]).push({name:p.name,storagePath:path,type:p.file.type});inserts.push({unidade_id:curUni.id,cat_id:p.cat,name:p.name,type:p.file.type,storage_path:path});}if(inserts.length){const{data:rows}=await db.from('documentos_unidade').insert(inserts).select('id,storage_path');if(rows)rows.forEach(r=>{for(const arr of Object.values(curUni.docs)){const item=arr.find(d=>d.storagePath===r.storage_path);if(item){item.dbId=r.id;break;}}});}await persistCats();const n=pendingDocs.length;document.getElementById("doc-overlay").classList.remove("show");pendingDocs=[];renderUni();toast(n>1?n+" documentos anexados":"Documento anexado");}
 
 
 
@@ -8818,7 +8975,7 @@ async function persist(obraId){
 
     }
 
-    const allCats=[...CATS,...CAPEX_CATS];
+    const allCats=[...CATS,...DOC_CATS,...CAPEX_CATS];
     if(allCats.length)await db.from('categorias').upsert(allCats.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'})));
 
     const cl=Object.entries(CNPJS).map(([n,c])=>({nome:n,cnpj:c}));
@@ -8835,7 +8992,7 @@ async function persistCats(){
 
   try{
 
-    const allCats=[...CATS,...CAPEX_CATS];
+    const allCats=[...CATS,...DOC_CATS,...CAPEX_CATS];
     if(allCats.length)await db.from('categorias').upsert(allCats.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'})));
 
   }catch(e){console.error('persistCats:',e);}
@@ -8852,7 +9009,7 @@ async function loadFromDB(){
 
     if(!od||!od.length){return;}
 
-    const[pagR,aprR,cntrR,catR,uniR,cnpjR]=await Promise.all([
+    const[pagR,aprR,cntrR,catR,uniR,cnpjR,docR]=await Promise.all([
 
       db.from('pagamentos').select('*'),
 
@@ -8864,7 +9021,9 @@ async function loadFromDB(){
 
       db.from('unidades').select('*'),
 
-      db.from('fornecedores_cnpj').select('*')
+      db.from('fornecedores_cnpj').select('*'),
+
+      db.from('documentos_unidade').select('*')
 
     ]);
 
@@ -8900,18 +9059,31 @@ async function loadFromDB(){
 
     if(catR.data&&catR.data.length){
       const allCats=catR.data.map(c=>({id:c.id,nome:c.nome,subs:Array.isArray(c.subs)?c.subs:(c.subs||['Geral']),tipo:c.tipo||'pagamento'}));
-      CATS=allCats.filter(c=>c.tipo!=='capex');
+      CATS=allCats.filter(c=>!['capex','documento','pasta'].includes(c.tipo)).map(c=>({...c,tipo:'pagamento'}));
+      DOC_CATS=allCats.filter(c=>['documento','pasta'].includes(c.tipo)).map(c=>({...c,tipo:'documento'}));
       CAPEX_CATS=allCats.filter(c=>c.tipo==='capex');
       if(!CATS.length)CATS=[...DEFAULT_CATS];
       if(!CAPEX_CATS.length)CAPEX_CATS=[...DEFAULT_CAPEX_CATS];
       catSeq=Math.max(catSeq,...CATS.filter(c=>c.id.startsWith('cat_')).map(c=>parseInt(c.id.replace('cat_',''))||0))+1;
+      docCatSeq=Math.max(docCatSeq,...DOC_CATS.filter(c=>c.id.startsWith('doc_cat_')).map(c=>parseInt(c.id.replace('doc_cat_',''))||0))+1;
       capexCatSeq=Math.max(capexCatSeq,...CAPEX_CATS.filter(c=>c.id.startsWith('capex_cat_')).map(c=>parseInt(c.id.replace('capex_cat_',''))||0))+1;
     }else{
       CATS=[...DEFAULT_CATS];
+      DOC_CATS=[];
       CAPEX_CATS=[...DEFAULT_CAPEX_CATS];
     }
 
     if(uniR.error){console.error('loadFromDB unidades error:',uniR.error);}else if(uniR.data&&uniR.data.length){unidades=uniR.data.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obraId:u.obra_id||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||'',docs:{}}));uniSeq=unidades.reduce((m,u)=>Math.max(m,parseInt(u.id.replace('u',''))||0),1)+1;}
+
+    if(docR?.data?.length){
+      const byUni=new Map(unidades.map(u=>[u.id,u]));
+      docR.data.forEach(d=>{
+        const u=byUni.get(d.unidade_id);
+        if(!u)return;
+        (u.docs[d.cat_id]=u.docs[d.cat_id]||[]).push({dbId:d.id,name:d.name,storagePath:d.storage_path||null,type:d.type});
+        if(d.cat_id&&!DOC_CATS.some(c=>c.id===d.cat_id))DOC_CATS.push({...docCatById(d.cat_id),id:d.cat_id,tipo:'documento'});
+      });
+    }
 
     if(cnpjR.data)cnpjR.data.forEach(r=>{CNPJS[r.nome]=r.cnpj;if(r.cnpj)FORN_DATA[r.cnpj.replace(/\D/g,'')]={nome:r.nome,email:r.email||'',telefone:r.telefone||'',municipio:r.municipio||'',uf:r.uf||'',atividade:r.atividade||'',porte:r.porte||'',endereco:r.endereco||''};});
 
@@ -9000,7 +9172,7 @@ function openImport(){
 
   _fillContrSelect("imp-contrato",cur,'');_fillConstrSel('imp-constr-sel',cur,'');
 
-  document.getElementById("imp-cat").innerHTML=CATS.filter(function(c){return c.tipo!=='pasta';}).map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
+  document.getElementById("imp-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
 
   _fillPagSelect("imp-pag", cur, '');
 
@@ -11156,9 +11328,9 @@ function renderAdminCats(){
 
   const defaultIds=['proj','legal','demo','mat','mo','equip','cant','topog','sond','imovel','arts','locacao','taxa','outros'];
 
-  const custom=CATS.filter(c=>!defaultIds.includes(c.id));
+  const custom=CATS.filter(c=>!defaultIds.includes(c.id)).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
 
-  const defaults=CATS.filter(c=>defaultIds.includes(c.id));
+  const defaults=CATS.filter(c=>defaultIds.includes(c.id)).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
 
   const catRow=(c,isDef,tipo)=>`<tr>
 
@@ -11166,19 +11338,20 @@ function renderAdminCats(){
 
     <td style="font-size:13px;color:var(--muted)">${(c.subs||[]).join(' · ')}</td>
 
-    <td><span class="badge ${isDef?'b-neutral':'b-ok'}" style="font-size:11px">${tipo==='capex'?'CAPEX editável':(isDef?'Padrão':'Personalizada')}</span></td>
+    <td><span class="badge ${isDef?'b-neutral':'b-ok'}" style="font-size:11px">${tipo==='capex'?'CAPEX':tipo==='documento'?'Documento':(isDef?'Pagamento padrão':'Pagamento')}</span></td>
 
     <td style="white-space:nowrap;display:flex;gap:6px">
 
       <button class="btn btn-ghost btn-sm" onclick="openCatModal('${c.id}','${tipo||'pagamento'}')">✎ Editar</button>
 
-      ${(!isDef||tipo==='capex')?`<button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)88;font-size:12px" onclick="deleteCat('${c.id}')">Excluir</button>`:''}
+      ${(!isDef||tipo==='capex'||tipo==='documento')?`<button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)88;font-size:12px" onclick="deleteCat('${c.id}')">Excluir</button>`:''}
 
     </td>
 
   </tr>`;
 
   const capexRows=CAPEX_CATS.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+  const docRows=docCatsSorted();
 
   el.innerHTML=`
 
@@ -11193,9 +11366,20 @@ function renderAdminCats(){
       <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${capexRows.map(c=>catRow(c,false,'capex')).join('')}</tbody></table></div>
     </div>
 
+    <div style="margin-bottom:18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+        <div>
+          <div style="font-size:11.5px;font-weight:700;color:var(--info);text-transform:uppercase;letter-spacing:.5px">Categorias de documentos</div>
+          <div class="sub">Pastas documentais independentes das categorias financeiras.</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openCatModal(undefined,'documento')"><span class="ic">＋</span> Nova pasta documental</button>
+      </div>
+      <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${docRows.length?docRows.map(c=>catRow(c,false,'documento')).join(''):'<tr><td colspan="4"><p class="empty">Nenhuma pasta documental criada ainda.</p></td></tr>'}</tbody></table></div>
+    </div>
+
     ${custom.length>0?`<div style="margin-bottom:12px">
 
-      <div style="font-size:11.5px;font-weight:700;color:var(--ok);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">✦ Categorias de pagamentos/documentos personalizadas</div>
+      <div style="font-size:11.5px;font-weight:700;color:var(--ok);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">✦ Categorias de pagamentos personalizadas</div>
 
       <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${custom.map(c=>catRow(c,false,c.tipo||'pagamento')).join('')}</tbody></table></div>
 
@@ -11216,12 +11400,15 @@ function renderAdminCats(){
 function deleteCat(id){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
   const isCapex=CAPEX_CATS.some(x=>x.id===id);
+  const isDoc=DOC_CATS.some(x=>x.id===id);
 
-  const c=categoryById(id,isCapex?'capex':'pagamento');
+  const tipo=isCapex?'capex':(isDoc?'documento':'pagamento');
 
-  const inUse=isCapex?capexItens.some(i=>capexCategoriaId(i)===id):obras.some(o=>o.pag.some(p=>p.cat===id));
+  const c=categoryById(id,tipo);
 
-  if(inUse){toast(`A categoria "${c.nome}" está em uso em ${isCapex?'CAPEX':'pagamentos'} — não pode ser excluída.`);return;}
+  const inUse=isCapex?capexItens.some(i=>capexCategoriaId(i)===id):(isDoc?unidades.some(u=>((u.docs&&u.docs[id])||[]).length>0):obras.some(o=>o.pag.some(p=>p.cat===id)));
+
+  if(inUse){toast(`A categoria "${c.nome}" está em uso em ${isCapex?'CAPEX':isDoc?'documentos':'pagamentos'} — não pode ser excluída.`);return;}
 
   askConfirm(`Excluir a categoria "${c.nome}"?`,async ()=>{
 
@@ -11230,10 +11417,12 @@ function deleteCat(id){if(['leitor','doc'].includes(currentProfile?.role)){toast
     if(error){toast('Erro ao excluir categoria.');return;}
 
     if(isCapex)CAPEX_CATS=CAPEX_CATS.filter(x=>x.id!==id);
+    else if(isDoc)DOC_CATS=DOC_CATS.filter(x=>x.id!==id);
     else CATS=CATS.filter(x=>x.id!==id);
 
     renderAdminCats();
     if(curEsfera==='capex')renderCapexView();
+    if(curUni)renderUni();
 
     toast(`Categoria "${c.nome}" excluída.`);
 
