@@ -1570,7 +1570,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
           <div class="frow"><label class="fl">Status inicial</label><input type="hidden" id="imp-st" value="PENDENTE"><div style="display:flex;align-items:center;gap:8px;background:var(--warn-bg);color:var(--warn);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;font-size:12.5px;min-height:42px"><span>⏳</span><span>Pendente até você marcar como pago</span></div></div>
 
-          <div class="frow"><label class="fl">Nº do documento</label><input class="fi mono" id="imp-doc" placeholder="NF-e nº 12345"></div>
+          <div class="frow"><label class="fl">Nº da nota fiscal</label><input class="fi mono" id="imp-doc" placeholder="Somente o número, ex.: 12345"></div>
 
           <div class="frow"><label class="fl">Data de emissão da nota</label><input class="fi" id="imp-date" type="date"></div>
           <div class="frow"><label class="fl">Previsão de pagamento <span style="font-weight:400;color:var(--muted)">(vencimento)</span></label><input class="fi" id="imp-venc" type="date"></div>
@@ -1968,7 +1968,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
     <div class="frow"><label class="fl">Previsão de pagamento <span style="font-weight:400;color:var(--muted)">(vencimento)</span></label><input class="fi" id="pm-venc" type="date"></div>
     <input id="pm-pago-em" type="hidden">
 
-    <div class="frow" id="pm-nfnum-row" style="display:none"><label class="fl">Nº do documento fiscal</label><input class="fi mono" id="pm-nfnum" placeholder="NF-e, NFS-e, boleto, fatura, recibo..."></div>
+    <div class="frow" id="pm-nfnum-row" style="display:none"><label class="fl">Nº da nota fiscal</label><input class="fi mono" id="pm-nfnum" placeholder="Somente o número da nota, sem série"></div>
 
     <div class="frow"><label class="fl">Responsável pelo pagamento</label><select class="fi" id="pm-pag"></select></div>
     <input id="pm-st" type="hidden" value="PENDENTE">
@@ -7702,13 +7702,13 @@ function pmStChange(){
   if(pr)pr.style.display='none';
 }
 
-function savePag(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const nfNum=(document.getElementById("pm-nfnum")?.value||'').trim();const cSeq=document.getElementById("pm-contrato")?.value||'';
+function savePag(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const pmNfTipo=document.getElementById("pm-nf")?.value||'Sem nota';const nfNum=cleanImpDocNumber((document.getElementById("pm-nfnum")?.value||'').trim(),pmNfTipo);const cSeq=document.getElementById("pm-contrato")?.value||'';
   // Preserva tipoCusto existente se for mat/svc/eqp; senão marca como 'outros' (categorizado)
   const oldPag=pagEditIdx!==null?cur.pag[pagEditIdx]:null;
   const _existTipo=oldPag?(oldPag.tipoCusto||''):'';
   const tipoCusto=['material','servico','equipamento'].includes(_existTipo)?_existTipo:'outros';
   const stVal=oldPag?(oldPag.st||'PENDENTE'):'PENDENTE';
-  const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=stVal==='PAGO'?(oldPag?.pagaEm||''):'';const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const _pmCrRow=document.getElementById('pm-constr-row');const _pmCrSel=document.getElementById('pm-constr-sel');const _pmCrSeq=_pmCrRow&&_pmCrRow.style.display!=='none'&&_pmCrSel&&_pmCrSel.value?+_pmCrSel.value:null;const _pmTk=(document.getElementById('pm-ticket')?.value||'').trim().toUpperCase();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:stVal,venc:g("pm-venc"),emissao,pagaEm,nfTipo:g("pm-nf"),contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin,construtora_seq:_pmCrSeq,ticketRaiz:_pmTk};
+  const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=stVal==='PAGO'?(oldPag?.pagaEm||''):'';const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const _pmCrRow=document.getElementById('pm-constr-row');const _pmCrSel=document.getElementById('pm-constr-sel');const _pmCrSeq=_pmCrRow&&_pmCrRow.style.display!=='none'&&_pmCrSel&&_pmCrSel.value?+_pmCrSel.value:null;const _pmTk=(document.getElementById('pm-ticket')?.value||'').trim().toUpperCase();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:stVal,venc:g("pm-venc"),emissao,pagaEm,nfTipo:pmNfTipo,contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin,construtora_seq:_pmCrSeq,ticketRaiz:_pmTk};
 
   if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];const wasPago=(old.st||'')==="PAGO";const willPago=obj.st==="PAGO";const oldEscopo=(old.escopoFin||'obra');const newEscopo=escopoFin||'obra';cur.pago+=(willPago&&newEscopo==='obra'?obj.v:0)-(wasPago&&oldEscopo==='obra'?(old.v||0):0);cur.pag[pagEditIdx]={...old,...obj};}
 
@@ -9466,6 +9466,55 @@ function impDocPrefix(tipo){
   return m[tipo]||'Documento nº';
 }
 
+function cleanImpNfNumber(raw,tipo){
+  const s=String(raw||'').trim();
+  if(!s)return'';
+  const key=(s.replace(/\D/g,'').match(/\d{44}/)||[])[0];
+  if(key){
+    const d=decodeChave(key);
+    if(d&&d.nfNum)return d.nfNum;
+  }
+  const norm=s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const labelMatch=norm.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfs-?e|nfc-?e|ct-?e)?|nota\s*fiscal(?:\s*de\s*servicos)?|nfs-?e|nf-?e|nfc-?e|ct-?e|n[roºo.]?)\s*(?:n[ºo.]*)?\s*[:#\-]?\s*([0-9][0-9.\-/ ]{0,24})/i);
+  let candidate=labelMatch?labelMatch[1]:s;
+  const seriePair=String(candidate).match(/^\s*([0-9][0-9. ]*)\s*\/\s*\d{1,3}\s*$/);
+  if(seriePair)candidate=seriePair[1];
+  const beforeSerie=String(candidate).split(/\b(?:s[eé]rie|serie|c[oó]digo|codigo|verifica[çc][aã]o|rps|cnpj|cpf)\b/i)[0];
+  const digits=beforeSerie.replace(/\D/g,'');
+  return digits?digits.replace(/^0+(?=\d)/,''):'';
+}
+
+function cleanImpDocNumber(raw,tipo){
+  if(['NF-e','NFC-e','NFS-e','CT-e'].includes(tipo))return cleanImpNfNumber(raw,tipo);
+  return String(raw||'').replace(/\s+/g,' ').trim();
+}
+
+function findImpDocNumberFromText(text,tipo,decoded){
+  if(['NF-e','NFC-e','CT-e'].includes(tipo)&&decoded?.nfNum)return decoded.nfNum;
+  const lines=String(text||'').split(/\n+/).map(l=>l.trim()).filter(Boolean);
+  const skip=/c[oó]digo|codigo|verifica|autentic|rps|s[eé]rie|serie|cnpj|cpf|inscri|compet[eê]ncia|data|valor|al[ií]quota|protocolo|chave/i;
+  const explicitNota=/nota\s*fiscal|nfs-?e|nf-?e|nfc-?e|ct-?e|n[uú]mero\s*\/\s*s[eé]rie|n[uú]mero\s*(?:da\s*)?(?:nota|nota\s*fiscal)/i;
+  const label=tipo==='NFS-e'
+    ? /(?:n[uú]mero\s*\/\s*s[eé]rie|n[uú]mero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nota\s*fiscal\s*(?:de\s*servi[çc]os?)?|nfs-?e|n[ºo.]?\s*(?:da\s*nota)?)/i
+    : /(?:n[uú]mero\s*\/\s*s[eé]rie|n[uú]mero\s*(?:da\s*)?(?:nota|nf-?e|nfc-?e|ct-?e|documento)|nf-?e|nfc-?e|ct-?e|nota\s*fiscal|n[ºo.]?\s*(?:da\s*nota)?)/i;
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    if(skip.test(line)&&!explicitNota.test(line))continue;
+    if(!label.test(line))continue;
+    const same=line.match(/(?:n[uú]mero\s*\/\s*s[eé]rie|n[uú]mero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfs-?e|nfc-?e|ct-?e)?|nota\s*fiscal(?:\s*de\s*servi[çc]os?)?|nfs-?e|nf-?e|nfc-?e|ct-?e|n[ºo.]?\s*(?:da\s*nota)?)\s*(?:n[ºo.]*)?\s*[:#\-]?\s*([0-9][0-9.\-/ ]{0,24})/i);
+    if(same){
+      const n=cleanImpNfNumber(same[1],tipo);
+      if(n)return n;
+    }
+    const next=lines[i+1]||'';
+    if(/^[0-9][0-9.\-/ ]{0,24}$/.test(next)){
+      const n=cleanImpNfNumber(next,tipo);
+      if(n)return n;
+    }
+  }
+  return decoded?.nfNum||'';
+}
+
 function cleanImpCodigo(raw,tipo){
   const s=String(raw||'').trim();
   if(!s)return'';
@@ -9487,15 +9536,13 @@ function mapEdgeInvoiceResult(result){
   const vals=d.valores||{};
   const pag=d.pagamento||{};
   const nfNum=d.numero_nf!=null?String(d.numero_nf):'';
-  const serieStr=d.serie&&String(d.serie)!=='1'?' série '+String(d.serie):'';
   const tipoDoc=normalizeImpDocTipo(d.tipo_documento||d.tipo||'NF-e');
-  const docPrefix=impDocPrefix(tipoDoc);
   const codigo=d.chave_acesso||d.linha_digitavel||d.codigo_barras||d.codigo_verificacao||'';
   const venc=(d.data_vencimento||pag.vencimento||(pag.parcelas&&pag.parcelas[0]&&pag.parcelas[0].vencimento)||'');
   return{
     ben:ems.razao_social||d.razao_social||'',
     cnpj:ems.cnpj||d.cnpj||'',
-    doc:nfNum?`${docPrefix} ${nfNum}${serieStr}`:'',
+    doc:cleanImpDocNumber(nfNum,tipoDoc),
     val:parseFloat(vals.valor_total||d.valor_total)||0,
     date:d.data_emissao||'',
     chave:cleanImpCodigo(codigo,tipoDoc),
@@ -9668,7 +9715,7 @@ function parseNFeXML(xmlText){
     const chave=getTag(xmlText,'chCTe')||((xmlText.match(/Id="CTe(\d{44})"/)||[])[1]||'');
     const desc=getTag(xmlText,'xProd')||getTag(xmlText,'xMunEnv')||'Transporte / frete';
     if(!ben&&!val)throw new Error('XML não reconhecido como CT-e.');
-    return{ben,cnpj:fmtCnpj(cnpjRaw),doc:nCT?`CT-e nº ${nCT}${serie?' série '+serie:''}`:'',val,subtotal:val,desconto:0,frete:0,date:dEmiRaw.slice(0,10),chave,discriminacao:desc,desc,itens:[{descricao:desc,quantidade:1,unidade:'Srv',valor_unitario:val,valor_total:val}],pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:'',tipo:'CT-e'};
+    return{ben,cnpj:fmtCnpj(cnpjRaw),doc:cleanImpDocNumber(nCT,'CT-e'),val,subtotal:val,desconto:0,frete:0,date:dEmiRaw.slice(0,10),chave,discriminacao:desc,desc,itens:[{descricao:desc,quantidade:1,unidade:'Srv',valor_unitario:val,valor_total:val}],pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:'',tipo:'CT-e'};
   }
 
   const isNFSe=/<(?:[\w:]+:)?(?:CompNfse|InfNfse|GerarNfse|ConsultarNfse|NfseCancelamento|ListaNfse|NFSe|Nfse)\b/i.test(xmlText)
@@ -9713,7 +9760,7 @@ function parseNFeXML(xmlText){
     }
     if(itensNFSe.length===0&&discriminacao)itensNFSe.push({descricao:discriminacao,quantidade:1,unidade:'Srv',valor_unitario:val,valor_total:val});
 
-    return{ben,cnpj:fmtCnpj(cnpjRaw),doc:nNF?`NFS-e nº ${nNF}`:'',val,subtotal:valServ||val,desconto,frete:0,date:dEmiRaw.slice(0,10),chave:codVerif,discriminacao,desc:discriminacao,itens:itensNFSe,pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:'',tipo:'NFS-e'};
+    return{ben,cnpj:fmtCnpj(cnpjRaw),doc:cleanImpDocNumber(nNF,'NFS-e'),val,subtotal:valServ||val,desconto,frete:0,date:dEmiRaw.slice(0,10),chave:codVerif,discriminacao,desc:discriminacao,itens:itensNFSe,pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:'',tipo:'NFS-e'};
   }
 
   const emitBlock=getBlock(xmlText,'emit');
@@ -9758,7 +9805,7 @@ function parseNFeXML(xmlText){
 
   const desc=itens.length?itens[0].descricao:getTag(xmlText,'xProd')||'';
   if(!ben&&!val)throw new Error('XML não reconhecido como nota fiscal. Verifique se o arquivo é XML de NF-e, NFC-e, NFS-e ou CT-e.');
-  return{ben,cnpj:fmtCnpj(cnpjRaw),doc:nNF?`${tipo} nº ${nNF}${serie?' série '+serie:''}`:'',val,subtotal,desconto,frete,date:dEmiRaw.slice(0,10),chave,itens,discriminacao:'',desc,pagForma:parcelas.length>1?'PARCELADO':'A_VISTA',numParcelas:parcelas.length||1,parcelas,obs:'',tipo};
+  return{ben,cnpj:fmtCnpj(cnpjRaw),doc:cleanImpDocNumber(nNF,tipo),val,subtotal,desconto,frete,date:dEmiRaw.slice(0,10),chave,itens,discriminacao:'',desc,pagForma:parcelas.length>1?'PARCELADO':'A_VISTA',numParcelas:parcelas.length||1,parcelas,obs:'',tipo};
 
 }
 
@@ -9896,12 +9943,7 @@ function parseNFFromText(text, digits){
   else if(/\b(darf|das|darm|gps|gnre|gare)\b|guia\s+(?:de|do)|tributo|taxa\s+municipal/i.test(text))tipo='Guia';
   const prestadorBlock=tipo==='NFS-e'?findSection([/^\s*prestador(?:\s+de\s+servi\S*)?\s*:?\s*$/i,/^\s*dados\s+do\s+prestador/i],[/^\s*tomador\b/i,/^\s*intermediario\b/i,/^\s*discriminacao\b/i,/^\s*servicos\b/i,/^\s*valores\b/i]):'';
 
-  const nfM=text.match(/n[º°\.]?\s*(?:da\s*)?nfs-?e\s*:?\s*(\d+)/i)
-    ||text.match(/n[uú]mero\s*(?:da\s*)?(?:nota|nfs-?e|nf-?e|nfc-?e|ct-?e|documento|fatura|recibo|guia)\s*:?\s*([A-Z0-9.\-/]+)/i)
-    ||text.match(/[Nn]\.?\s*[Ff]\.?[Ee]?\s*[nN][º°\.]\s*:?\s*(\d+(?:[.\/ ]\d+)*)/i)
-    ||text.match(/\b(?:nota|fatura|recibo|documento|nosso\s+n[uú]mero)\s+n[º°\.]?\s*:?\s*([A-Z0-9.\-/]+)/i)
-    ||text.match(/\bnum(?:ero)?\s*:?\s*(\d{1,12})\b/i);
-  const nfNum=nfM?String(nfM[1]).replace(/[ ]/g,''):(decoded?.nfNum||'');
+  const nfNum=findImpDocNumberFromText(text,tipo,decoded);
 
   let linhaDigitavel='';
   if(tipo==='Boleto'){
@@ -9945,8 +9987,7 @@ function parseNFFromText(text, digits){
   }
 
   const finalCnpj=tipo==='NFS-e'?(cnpjFrom(prestadorBlock)||''):(cnpj||(decoded?.cnpj)||'');
-  const prefix=impDocPrefix(tipo);
-  const finalDoc=nfNum?`${prefix} ${nfNum}${decoded?.serie&&decoded.serie!=='1'?' série '+decoded.serie:''}`:'';
+  const finalDoc=cleanImpDocNumber(nfNum,tipo);
   const descIdx=lines.findIndex(l=>/(servi[çc]o|refer[eê]ncia|descri[çc][aã]o|hist[oó]rico|discrimina[çc][aã]o)/i.test(l));
   let desc='';
   if(descIdx>=0){
@@ -10020,7 +10061,7 @@ async function decodePastedChave(){
 
     ben:'',cnpj:d.cnpj,
 
-    doc:`${impDocPrefix(d.tipo)} ${d.nfNum}${d.serie&&d.serie!=='1'?' série '+d.serie:''}`,
+    doc:cleanImpDocNumber(d.nfNum,d.tipo),
 
     val:0,date:d.date,chave:c,desc:'',tipo:d.tipo||'NF-e'
 
@@ -10292,7 +10333,7 @@ function impChaveChanged(raw){
 
   if(!document.getElementById('imp-doc').value)
 
-    document.getElementById('imp-doc').value=`${impDocPrefix(d.tipo)} ${d.nfNum}${d.serie&&d.serie!=='1'?' série '+d.serie:''}`;
+    document.getElementById('imp-doc').value=cleanImpDocNumber(d.nfNum,d.tipo);
 
   if(document.getElementById('imp-nftipo')){document.getElementById('imp-nftipo').value=d.tipo||'NF-e';impNfTipoChanged(d.tipo||'NF-e');}
 
@@ -10334,7 +10375,7 @@ function showImportReview(data){
 
   // Documento
 
-  document.getElementById("imp-doc").value=data.doc||'';
+  document.getElementById("imp-doc").value=cleanImpDocNumber(data.doc||data.nfNum||'',nfTipo);
 
   document.getElementById("imp-date").value=data.date||new Date().toISOString().slice(0,10);
 
@@ -10641,7 +10682,9 @@ async function confirmImport(){
 
   const cnpj=document.getElementById("imp-cnpj").value.trim();
 
-  const nfNum=document.getElementById("imp-doc").value.trim();
+  const nfTipo=document.getElementById("imp-nftipo").value;
+
+  const nfNum=cleanImpDocNumber(document.getElementById("imp-doc").value.trim(),nfTipo);
 
   const ref=document.getElementById("imp-ref")?.value.trim()||'';
 
@@ -10666,8 +10709,6 @@ async function confirmImport(){
   const tipo=document.getElementById("imp-tipo").value;
 
   const st='PENDENTE';
-
-  const nfTipo=document.getElementById("imp-nftipo").value;
 
   const forma=document.getElementById("imp-pag-forma").value;
 
