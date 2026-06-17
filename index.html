@@ -2549,7 +2549,10 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div class="capex-form-title">Contexto do pedido</div>
       <div class="fgrid"><div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="ci-m-ano" onchange="updateCapexUnitHint()"><option value="2026">2026</option><option value="2025">2025</option></select></div><div class="frow"><label class="fl">Fonte solicitante</label><select class="fi" id="ci-m-fonte"><option>UNIDADE</option><option>MANUTENÇÃO</option><option>ARQUITETURA</option><option>TI</option><option>RH</option></select></div></div>
 
-      <div class="frow" style="margin-bottom:0"><label class="fl">Unidade / escola</label><select class="fi" id="ci-m-unidade" onchange="updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
+      <div class="fgrid">
+        <div class="frow"><label class="fl">Unidade / escola</label><select class="fi" id="ci-m-unidade" onchange="updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
+        <div class="frow"><label class="fl">Categoria CAPEX <button type="button" onclick="openCatModal(undefined,'capex')" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">+ Nova</button></label><select class="fi" id="ci-m-cat"><option value="capex_outros">A classificar / outros</option></select></div>
+      </div>
     </div>
 
     <div class="capex-form-card">
@@ -3011,6 +3014,36 @@ const DEFAULT_CATS=[
 let CATS=[]; // Preenchido pelo loadFromDB() — se vazio, usa DEFAULT_CATS
 
 const catById=id=>CATS.find(c=>c.id===id)||{nome:"(removida)",subs:[]};
+
+const DEFAULT_CAPEX_CATS=[
+  {id:'capex_mobiliario',nome:'Mobiliário e marcenaria',subs:['Geral'],tipo:'capex'},
+  {id:'capex_pintura',nome:'Pintura, acabamentos e revestimentos',subs:['Geral'],tipo:'capex'},
+  {id:'capex_obras_civis',nome:'Obras civis e reforma predial',subs:['Geral'],tipo:'capex'},
+  {id:'capex_outros',nome:'A classificar / outros',subs:['Geral'],tipo:'capex'},
+  {id:'capex_material_manutencao',nome:'Material de manutenção',subs:['Geral'],tipo:'capex'},
+  {id:'capex_ti',nome:'TI, rede e audiovisual',subs:['Geral'],tipo:'capex'},
+  {id:'capex_playground',nome:'Playground, esporte e áreas externas',subs:['Geral'],tipo:'capex'},
+  {id:'capex_seguranca',nome:'Segurança, acesso e incêndio',subs:['Geral'],tipo:'capex'},
+  {id:'capex_hidraulica',nome:'Hidráulica, banheiros e vazamentos',subs:['Geral'],tipo:'capex'},
+  {id:'capex_climatizacao',nome:'Climatização e ventilação',subs:['Geral'],tipo:'capex'},
+  {id:'capex_comunicacao',nome:'Comunicação visual e sinalização',subs:['Geral'],tipo:'capex'},
+  {id:'capex_ambientes',nome:'Adequação de ambientes e layout',subs:['Geral'],tipo:'capex'},
+  {id:'capex_servicos',nome:'Serviços técnicos e mão de obra',subs:['Geral'],tipo:'capex'},
+  {id:'capex_eletrica',nome:'Elétrica e iluminação',subs:['Geral'],tipo:'capex'},
+  {id:'capex_cozinha',nome:'Cozinha, copa e equipamentos operacionais',subs:['Geral'],tipo:'capex'},
+  {id:'capex_pedagogico',nome:'Pedagógico, laboratório e biblioteca',subs:['Geral'],tipo:'capex'}
+];
+
+let CAPEX_CATS=[]; // Categorias editáveis exclusivas do CAPEX
+let capexCatSeq=1;
+
+function capexCatById(id){
+  return CAPEX_CATS.find(c=>c.id===id)||DEFAULT_CAPEX_CATS.find(c=>c.id===id)||{nome:'A classificar / outros',subs:['Geral'],tipo:'capex'};
+}
+
+function categoryById(id,tipo){
+  return (tipo==='capex'?CAPEX_CATS:CATS).find(c=>c.id===id)||CAPEX_CATS.find(c=>c.id===id)||CATS.find(c=>c.id===id)||{nome:'(removida)',subs:[]};
+}
 
 let CNPJS={}; // Preenchido pelo loadFromDB() — nunca hardcoded
 
@@ -4033,6 +4066,63 @@ function capexUnitsForMarca(marca){
     });
 }
 
+const CAPEX_CATEGORY_RULES=[
+  ['capex_mobiliario',['cadeira','cadeiras','mesa','mesas','carteira','carteiras','armario','armarios','gaveteiro','estante','prateleira','bancada','balcao','sofa','puff','poltrona','marcenaria','movel','moveis','mobiliario','locker','nichos','divisoria','divisorias','painel ripado','porta mochila','cabideiro','roupeiro','guarda volumes']],
+  ['capex_ti',['computador','notebook','desktop','monitor','teclado','mouse','impressora','toner','tablet','ipad','chromebook','switch','roteador','wifi','wi fi','internet','rede logica','cabo hdmi','hdmi','projetor','datashow','tv','televisao','audio','som','microfone','caixa de som','nobreak','servidor','rack ti','camera ip','licenca','software']],
+  ['capex_material_manutencao',['chapa','parafuso','bucha','cola','silicone','massa','cimento','areia','pedra','madeira','mdf','tubo','cano','conexao','material de manutencao','insumo','ferragem','ferramenta','grelha','grelhas','metalon','tela','toldo','lixeira','tapete','tanque de areia','cantoneira','telha','calha']],
+  ['capex_servicos',['mao de obra','mdo','servico de','servicos de','laudo','vistoria','projeto executivo','projeto de','levantamento','frete','transporte','locacao','aluguel','dedetizacao','desinsetizacao','limpeza tecnica','manutencao preventiva','manutencao corretiva','retirada','remocao','desmontagem','montagem','contratacao sera feita']],
+  ['capex_pintura',['pintura','pintar','tinta','grafiato','revestimento','piso','pisos','porcelanato','ceramica','azulejo','rodape','forro','drywall','gesso','massa corrida','textura','vinilico','granito','pastilha','cimento queimado','laminado','sportit','monolitico']],
+  ['capex_obras_civis',['obra','obras','reforma','construcao','construir','demolicao','alvenaria','concreto','estrutura','cobertura','telhado','escada','rampa','muro','guarda corpo','guarda-corpo','corrimao','fachada','ampliacao','platibanda','rachadura','fissura','janela','janelas','porta de vidro','marquise','estacionamento','elevador','acessibilidade']],
+  ['capex_hidraulica',['hidraulica','hidraulico','vazamento','vazamentos','infiltracao','infiltracoes','caixa d agua','caixa dagua','bomba d agua','bomba de agua','ralo','esgoto','vaso sanitario','sanitario','mictorio','torneira','pia','chuveiro','banheiro','banheiros','bebedouro','purificador','filtro','registro']],
+  ['capex_climatizacao',['ar condicionado','split','condicionado','climatizacao','ventilador','ventiladores','exaustao','exaustor','duto','evaporadora','condensadora','ventilacao','cassete','vrf','resfriador']],
+  ['capex_eletrica',['eletrica','eletrico','iluminacao','luminaria','luminarias','lampada','lampadas','led','tomada','tomadas','disjuntor','quadro eletrico','interruptor','refletor','refletores','poste','eletroduto','energia']],
+  ['capex_seguranca',['cftv','camera','cameras','alarme','controle de acesso','catraca','fechadura','porteiro','interfone','grade','grades','gradil','portao','porta cadeado','cerca','concertina','extintor','incendio','sprinkler','avcb','hidrante','rota de fuga','sinalizacao de emergencia']],
+  ['capex_comunicacao',['comunicacao visual','sinalizacao','placa','placas','adesivo','adesivos','adesivacao','adesivar','letreiro','totem','banner','lona','outdoor','plotagem','identificacao','chaveiro plastico','logo da marca']],
+  ['capex_playground',['playground','parquinho','brinquedo','brinquedos','casinha','escorregador','balanco','grama','gramado','jardim','paisagismo','quadra','trave','tabela de basquete','rede de protecao','tatame','piso emborrachado','area externa','patio','cabana alpina','domo','kaska','paradome','ping pong','toto']],
+  ['capex_cozinha',['cozinha','copa','geladeira','freezer','microondas','fogao','forno','lava louca','refeitorio','buffet','coifa','exaustao da cozinha']],
+  ['capex_pedagogico',['biblioteca','livro','livros','laboratorio','microscopio','brinquedoteca','material pedagogico','lousa','quadro branco','quadro magnetico','mapa','instrumento musical','musica','sala de musica','lab de ciencia','ciencias','sala steam']],
+  ['capex_ambientes',['recepcao','auditorio','area de convivencia','sala de aula','sala atendimento','sala de atendimento','secretaria','inspetoria','almoxarifado','hall','novo acesso','acesso a escola','espaco adequado','remanejamento']]
+];
+
+function capexNormText(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+}
+
+function capexTextHas(txt,term){
+  return(' '+txt+' ').includes(' '+capexNormText(term)+' ');
+}
+
+function capexAutoCategoryId(it){
+  const desc=capexNormText([it?.pedido,it?.referencia].filter(Boolean).join(' '));
+  const meta=capexNormText([it?.setor,it?.fonte].filter(Boolean).join(' '));
+  const hits=[];
+  CAPEX_CATEGORY_RULES.forEach(([id,terms],idx)=>{
+    const score=terms.reduce((n,t)=>n+(capexTextHas(desc,t)?1:0),0);
+    if(score)hits.push({id,score,idx});
+  });
+  if(!hits.length){
+    if(capexTextHas(meta,'ti'))return'capex_ti';
+    if(capexTextHas(meta,'manutencao'))return'capex_material_manutencao';
+    if(capexTextHas(meta,'arquitetura'))return'capex_obras_civis';
+    return'capex_outros';
+  }
+  hits.sort((a,b)=>b.score-a.score||a.idx-b.idx);
+  return hits[0].id||'capex_outros';
+}
+
+function capexCategoriaId(it){
+  return it?.categoria_capex||capexAutoCategoryId(it)||'capex_outros';
+}
+
+function capexCategoriaNome(it){
+  return capexCatById(capexCategoriaId(it)).nome;
+}
+
+function capexCategoryOptions(selected){
+  const cats=(CAPEX_CATS.length?CAPEX_CATS:DEFAULT_CAPEX_CATS).slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+  return cats.map(c=>`<option value="${escHtml(c.id)}"${c.id===selected?' selected':''}>${escHtml(c.nome)}</option>`).join('');
+}
+
 
 
 const BRAND_COLORS={
@@ -4498,6 +4588,8 @@ function renderCapexDashboard(its,opt){
 
   const groupB=_ciGroupStats(its,opt.groupB||((i)=>extractMarca(i))).slice(0,opt.limitB||6);
 
+  const groupCat=_ciGroupStats(its,(i)=>capexCategoriaNome(i)).sort((a,b)=>b.orc-a.orc||b.total-a.total||a.key.localeCompare(b.key,'pt-BR')).slice(0,opt.limitCat||8);
+
   const open=its.filter(i=>i.situacao==='Pendente'||i.situacao==='Em Andamento').slice().sort((a,b)=>(+b.orcamento||0)-(+a.orcamento||0)).slice(0,4);
 
   return`<div class="capex-dashboard">
@@ -4527,6 +4619,14 @@ function renderCapexDashboard(its,opt){
       <h3>${opt.groupALabel||'Distribuição principal'}</h3>
       <div class="sub">${opt.groupASub||'Onde o volume de pedidos está concentrado.'}</div>
       ${_ciBars(groupA,k.total,accent)}
+    </div>
+    <div class="capex-panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px">
+        <h3 style="margin:0">Gastos por categoria</h3>
+        ${currentProfile?.role==='admin'?'<button class="btn btn-ghost btn-sm" style="padding:5px 8px;font-size:12px" onclick="openCapexCategoryManager()">✎ Editar nomes</button>':''}
+      </div>
+      <div class="sub">Categorias editáveis do CAPEX, ordenadas pelo orçamento mapeado.</div>
+      ${_ciBars(groupCat,k.total,accent,'Sem categoria neste recorte.')}
     </div>
     <div class="capex-panel">
       <h3>${opt.groupBLabel||'Recorte complementar'}</h3>
@@ -4838,6 +4938,8 @@ function renderCapexUnitItems(){
 
       const sit=_ciSit(it);
 
+      const catId=capexCategoriaId(it);
+
       html+=`<div class="capex-item-card" style="border-left:4px solid ${accent}">
 
         <div class="capex-item-head">
@@ -4889,6 +4991,13 @@ function renderCapexUnitItems(){
             <input class="fi num" style="height:34px;padding:6px 9px;font-size:13px" value="${it.orcamento?fmt(+it.orcamento).replace('R$ ',''):''}" onblur="updateCapexOrcamento(${it.id},this.value,this)" inputmode="decimal" placeholder="0,00">
           </div>
 
+          <div>
+            <label class="fl" style="font-size:11px;margin-bottom:4px">Categoria</label>
+            <select class="fi" style="height:34px;padding:6px 9px;font-size:13px" onchange="updateCapexCategoria(${it.id},this.value,this)">
+              ${capexCategoryOptions(catId)}
+            </select>
+          </div>
+
           <label class="capex-flag"><input type="checkbox" ${it.realizado?'checked':''} onchange="updateCapexFlag(${it.id},'realizado',this.checked,this)"> Realizado</label>
 
         </div>
@@ -4920,6 +5029,30 @@ async function updateCapexSituacao(id,sit,sel){
   renderCapexDrill();
 
   toast('Situação atualizada.');
+
+}
+
+async function updateCapexCategoria(id,categoria,sel){
+
+  const{error}=await db.from('capex_itens').update({categoria_capex:categoria}).eq('id',id);
+
+  if(error){toast('Erro ao salvar categoria.');return;}
+
+  const it=capexItens.find(i=>i.id===id);if(it)it.categoria_capex=categoria;
+
+  renderCapexDrill();
+
+  toast('Categoria atualizada.');
+
+}
+
+function openCapexCategoryManager(){
+
+  if(currentProfile?.role!=='admin'){toast('Edição de categorias disponível na Administração.');return;}
+
+  go('admin');
+
+  setTimeout(()=>document.getElementById('admin-cats')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
 
 }
 
@@ -5007,6 +5140,13 @@ function updateCapexUnitHint(){
 
 }
 
+function populateCapexCategorySelect(selected){
+  const sel=document.getElementById('ci-m-cat');if(!sel)return;
+  const val=selected||'capex_outros';
+  sel.innerHTML=capexCategoryOptions(val);
+  sel.value=val;
+}
+
 
 
 function openCapexItemModal(id){
@@ -5020,6 +5160,8 @@ function openCapexItemModal(id){
   populateCapexYearSelect(it?.ano||capexDrillYear||new Date().getFullYear());
 
   populateEscolasSelect(it?extractMarca(it):capexDrillMarca);
+
+  populateCapexCategorySelect(it?capexCategoriaId(it):'capex_outros');
 
   document.getElementById('ci-m-fonte').value=it?.fonte||'UNIDADE';
 
@@ -5065,7 +5207,7 @@ async function saveCapexItem(){if(['leitor','doc'].includes(currentProfile?.role
 
   const regU=findCapexUnit(unidade);
 
-  const obj={ano:+document.getElementById('ci-m-ano').value,fonte:g('ci-m-fonte'),unidade,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia:g('ci-m-ref'),setor:g('ci-m-setor'),situacao:document.getElementById('ci-m-sit').value,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:document.getElementById('ci-m-real').checked,observacoes:document.getElementById('ci-m-obs').value.trim()};
+  const obj={ano:+document.getElementById('ci-m-ano').value,fonte:g('ci-m-fonte'),unidade,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia:g('ci-m-ref'),setor:g('ci-m-setor'),categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia:g('ci-m-ref'),setor:g('ci-m-setor'),fonte:g('ci-m-fonte')}),situacao:document.getElementById('ci-m-sit').value,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:document.getElementById('ci-m-real').checked,observacoes:document.getElementById('ci-m-obs').value.trim()};
 
   if(wasEdit){
 
@@ -8209,7 +8351,7 @@ async function deleteEscola(id){
 let catEditId=null;
 
 function openCatModal(id,tipo){
-  _catTipo=tipo||'pagamento';
+  _catTipo=tipo||(CAPEX_CATS.some(c=>c.id===id)?'capex':'pagamento');
 
   catEditId=id||null;
 
@@ -8217,16 +8359,16 @@ function openCatModal(id,tipo){
 
   if(catEditId){
 
-    const c=catById(catEditId);
+    const c=categoryById(catEditId,_catTipo);
 
-    document.getElementById("cat-title").textContent="Editar categoria";
+    document.getElementById("cat-title").textContent=_catTipo==='capex'?'Editar categoria CAPEX':"Editar categoria";
     const sb=document.getElementById("cat-save-btn");if(sb)sb.innerHTML='<span class="ic">✓</span> Salvar alterações';
 
     inp.value=c.nome;
 
   }else{
 
-    document.getElementById("cat-title").textContent="Nova categoria";
+    document.getElementById("cat-title").textContent=_catTipo==='capex'?'Nova categoria CAPEX':"Nova categoria";
     const sb2=document.getElementById("cat-save-btn");if(sb2)sb2.innerHTML='<span class="ic">✓</span> Criar categoria';
 
     inp.value="";
@@ -8242,6 +8384,11 @@ function openCatModal(id,tipo){
     var _catInp2=document.getElementById("cat-input");
     if(_catInp2)_catInp2.placeholder='Ex.: Contratos, Projetos, Laudos, AVCB…';
   }
+  if(_catTipo==='capex'){
+    if(_catSaveBtn2&&!catEditId)_catSaveBtn2.innerHTML='<span class="ic">✓</span> Criar categoria CAPEX';
+    var _catInp3=document.getElementById("cat-input");
+    if(_catInp3)_catInp3.placeholder='Ex.: Material de TI, Serviços, Mobiliário…';
+  }
   document.getElementById("cat-overlay").classList.add("show");
 
   setTimeout(()=>inp.focus(),60);
@@ -8256,7 +8403,9 @@ function saveCatModal(){if(['leitor','doc'].includes(currentProfile?.role)){toas
 
   if(!nm){toast("Dê um nome.");return;}
 
-  const dup=CATS.find(c=>c.nome.toLowerCase()===nm.toLowerCase()&&c.id!==catEditId);
+  const targetCats=_catTipo==='capex'?CAPEX_CATS:CATS;
+
+  const dup=targetCats.find(c=>c.nome.toLowerCase()===nm.toLowerCase()&&c.id!==catEditId);
 
   if(dup){toast("Já existe categoria com esse nome.");return;}
 
@@ -8268,15 +8417,15 @@ function saveCatModal(){if(['leitor','doc'].includes(currentProfile?.role)){toas
 
   if(catEditId){
 
-    const c=catById(catEditId);
+    const c=categoryById(catEditId,_catTipo);
 
     c.nome=nm;c.subs=subs;
 
   }else{
 
-    newId="cat_"+(catSeq++);
+    newId=_catTipo==='capex'?"capex_cat_"+(capexCatSeq++):"cat_"+(catSeq++);
 
-    CATS.push({id:newId,nome:nm,subs,tipo:_catTipo||'pagamento'});
+    targetCats.push({id:newId,nome:nm,subs,tipo:_catTipo||'pagamento'});
 
   }
 
@@ -8324,6 +8473,7 @@ function saveCatModal(){if(['leitor','doc'].includes(currentProfile?.role)){toas
   // Atualiza gestão de categorias se estiver aberta
 
   if(document.querySelector('#view-admin .active')||document.getElementById('admin-cats'))renderAdminCats();
+  if(curEsfera==='capex')renderCapexView();
 
   toast(wasEdit?`Categoria "${nm}" atualizada.`:`Categoria "${nm}" criada.`);
 
@@ -8668,7 +8818,8 @@ async function persist(obraId){
 
     }
 
-    if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'})));
+    const allCats=[...CATS,...CAPEX_CATS];
+    if(allCats.length)await db.from('categorias').upsert(allCats.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'})));
 
     const cl=Object.entries(CNPJS).map(([n,c])=>({nome:n,cnpj:c}));
 
@@ -8684,7 +8835,8 @@ async function persistCats(){
 
   try{
 
-    if(CATS.length)await db.from('categorias').upsert(CATS.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'})));
+    const allCats=[...CATS,...CAPEX_CATS];
+    if(allCats.length)await db.from('categorias').upsert(allCats.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'})));
 
   }catch(e){console.error('persistCats:',e);}
 
@@ -8746,7 +8898,18 @@ async function loadFromDB(){
 
     nextObraId=obras.reduce((m,o)=>Math.max(m,o.id),0)+1;
 
-    if(catR.data&&catR.data.length){CATS=catR.data.map(c=>({id:c.id,nome:c.nome,subs:Array.isArray(c.subs)?c.subs:(c.subs||['Geral']),tipo:c.tipo||'pagamento'}));catSeq=Math.max(catSeq,...CATS.filter(c=>c.id.startsWith('cat_')).map(c=>parseInt(c.id.replace('cat_',''))||0))+1;}else{CATS=[...DEFAULT_CATS];}
+    if(catR.data&&catR.data.length){
+      const allCats=catR.data.map(c=>({id:c.id,nome:c.nome,subs:Array.isArray(c.subs)?c.subs:(c.subs||['Geral']),tipo:c.tipo||'pagamento'}));
+      CATS=allCats.filter(c=>c.tipo!=='capex');
+      CAPEX_CATS=allCats.filter(c=>c.tipo==='capex');
+      if(!CATS.length)CATS=[...DEFAULT_CATS];
+      if(!CAPEX_CATS.length)CAPEX_CATS=[...DEFAULT_CAPEX_CATS];
+      catSeq=Math.max(catSeq,...CATS.filter(c=>c.id.startsWith('cat_')).map(c=>parseInt(c.id.replace('cat_',''))||0))+1;
+      capexCatSeq=Math.max(capexCatSeq,...CAPEX_CATS.filter(c=>c.id.startsWith('capex_cat_')).map(c=>parseInt(c.id.replace('capex_cat_',''))||0))+1;
+    }else{
+      CATS=[...DEFAULT_CATS];
+      CAPEX_CATS=[...DEFAULT_CAPEX_CATS];
+    }
 
     if(uniR.error){console.error('loadFromDB unidades error:',uniR.error);}else if(uniR.data&&uniR.data.length){unidades=uniR.data.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obraId:u.obra_id||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||'',docs:{}}));uniSeq=unidades.reduce((m,u)=>Math.max(m,parseInt(u.id.replace('u',''))||0),1)+1;}
 
@@ -10997,39 +11160,52 @@ function renderAdminCats(){
 
   const defaults=CATS.filter(c=>defaultIds.includes(c.id));
 
-  const catRow=(c,isDef)=>`<tr>
+  const catRow=(c,isDef,tipo)=>`<tr>
 
     <td style="font-weight:500">${c.nome}</td>
 
     <td style="font-size:13px;color:var(--muted)">${(c.subs||[]).join(' · ')}</td>
 
-    <td><span class="badge ${isDef?'b-neutral':'b-ok'}" style="font-size:11px">${isDef?'Padrão':'Personalizada'}</span></td>
+    <td><span class="badge ${isDef?'b-neutral':'b-ok'}" style="font-size:11px">${tipo==='capex'?'CAPEX editável':(isDef?'Padrão':'Personalizada')}</span></td>
 
     <td style="white-space:nowrap;display:flex;gap:6px">
 
-      <button class="btn btn-ghost btn-sm" onclick="openCatModal('${c.id}')">✎ Editar</button>
+      <button class="btn btn-ghost btn-sm" onclick="openCatModal('${c.id}','${tipo||'pagamento'}')">✎ Editar</button>
 
-      ${!isDef?`<button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)88;font-size:12px" onclick="deleteCat('${c.id}')">Excluir</button>`:''}
+      ${(!isDef||tipo==='capex')?`<button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)88;font-size:12px" onclick="deleteCat('${c.id}')">Excluir</button>`:''}
 
     </td>
 
   </tr>`;
 
+  const capexRows=CAPEX_CATS.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+
   el.innerHTML=`
+
+    <div style="margin-bottom:18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+        <div>
+          <div style="font-size:11.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">Categorias de CAPEX</div>
+          <div class="sub">Nomes editáveis usados nos dashboards e nos lançamentos de CAPEX.</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openCatModal(undefined,'capex')"><span class="ic">＋</span> Nova categoria CAPEX</button>
+      </div>
+      <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${capexRows.map(c=>catRow(c,false,'capex')).join('')}</tbody></table></div>
+    </div>
 
     ${custom.length>0?`<div style="margin-bottom:12px">
 
-      <div style="font-size:11.5px;font-weight:700;color:var(--ok);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">✦ Suas categorias personalizadas</div>
+      <div style="font-size:11.5px;font-weight:700;color:var(--ok);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">✦ Categorias de pagamentos/documentos personalizadas</div>
 
-      <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${custom.map(c=>catRow(c,false)).join('')}</tbody></table></div>
+      <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${custom.map(c=>catRow(c,false,c.tipo||'pagamento')).join('')}</tbody></table></div>
 
     </div>`:'<p style="font-size:13px;color:var(--muted);margin-bottom:12px">Você ainda não criou categorias personalizadas. Clique em "+ Nova categoria" para começar.</p>'}
 
     <details style="margin-top:4px">
 
-      <summary style="font-size:13px;color:var(--muted);cursor:pointer;user-select:none">Ver ${defaults.length} categorias padrão do sistema</summary>
+      <summary style="font-size:13px;color:var(--muted);cursor:pointer;user-select:none">Ver ${defaults.length} categorias padrão de pagamentos</summary>
 
-      <div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${defaults.map(c=>catRow(c,true)).join('')}</tbody></table></div>
+      <div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${defaults.map(c=>catRow(c,true,c.tipo||'pagamento')).join('')}</tbody></table></div>
 
     </details>`;
 
@@ -11039,19 +11215,25 @@ function renderAdminCats(){
 
 function deleteCat(id){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
-  const c=catById(id);
+  const isCapex=CAPEX_CATS.some(x=>x.id===id);
 
-  const inUse=obras.some(o=>o.pag.some(p=>p.cat===id));
+  const c=categoryById(id,isCapex?'capex':'pagamento');
 
-  if(inUse){toast(`A categoria "${c.nome}" está em uso em pagamentos — não pode ser excluída.`);return;}
+  const inUse=isCapex?capexItens.some(i=>capexCategoriaId(i)===id):obras.some(o=>o.pag.some(p=>p.cat===id));
 
-  askConfirm(`Excluir a categoria "${c.nome}"?`,()=>{
+  if(inUse){toast(`A categoria "${c.nome}" está em uso em ${isCapex?'CAPEX':'pagamentos'} — não pode ser excluída.`);return;}
 
-    CATS=CATS.filter(x=>x.id!==id);
+  askConfirm(`Excluir a categoria "${c.nome}"?`,async ()=>{
 
-    persistGlobal();
+    const{error}=await db.from('categorias').delete().eq('id',id);
+
+    if(error){toast('Erro ao excluir categoria.');return;}
+
+    if(isCapex)CAPEX_CATS=CAPEX_CATS.filter(x=>x.id!==id);
+    else CATS=CATS.filter(x=>x.id!==id);
 
     renderAdminCats();
+    if(curEsfera==='capex')renderCapexView();
 
     toast(`Categoria "${c.nome}" excluída.`);
 
