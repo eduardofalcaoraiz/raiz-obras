@@ -125,6 +125,7 @@ button{font-family:inherit;cursor:pointer}
 .linkbtn:hover{color:var(--ink)}
 
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.kpis:empty{display:none;margin-bottom:0}
 
 @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}}
 
@@ -4276,6 +4277,11 @@ function renderCapexView(){
   else renderCapexDrill();
 }
 
+function clearCapexLooseKpis(){
+  const el=document.getElementById('esf-kpis');
+  if(el)el.innerHTML='';
+}
+
 function toggleCapexEmpty(){
   capexShowEmpty=!capexShowEmpty;
   renderCapexDrill();
@@ -4302,16 +4308,12 @@ function capexInsightRows(rows,emptyMsg){
 
 function renderCapexOverview(){
   document.getElementById('esf-crumb').style.display='none';
+  clearCapexLooseKpis();
   const k=_ciKpis(capexItens);
   const semOrc=capexItens.filter(i=>!(+i.orcamento||0)&&_ciSit(i)!=='Cancelado');
   const semFonte=capexItens.filter(i=>!(i.fonte||'').trim()||(i.fonte||'').trim()==='-');
   const abertas=capexItens.filter(i=>['Pendente','Em Andamento'].includes(_ciSit(i)));
   const legado=capexLegacyUnits();
-  document.getElementById('esf-kpis').innerHTML=`
-    <div class="kpi"><div class="lab">Pedidos registrados</div><div class="val">${k.total}</div></div>
-    <div class="kpi"><div class="lab">Em aberto</div><div class="val" style="color:var(--warn)">${k.aberto}</div></div>
-    <div class="kpi"><div class="lab">Resolvidos</div><div class="val ok">${k.res}</div></div>
-    <div class="kpi"><div class="lab">Orçamento mapeado</div><div class="val acc">${fmt(k.orc)}</div></div>`;
 
   const topOpen=abertas.slice().sort((a,b)=>(+b.orcamento||0)-(+a.orcamento||0)).slice(0,8).map(i=>({
     label:`${i.pedido||'Pedido'} · ${i.unidade||'Sem unidade'}`,
@@ -4563,17 +4565,7 @@ function populateCapexYearSelect(currentYear){
 
 function renderCapexYears(){
 
-  const k=_ciKpis(capexItens);
-
-  document.getElementById('esf-kpis').innerHTML=`
-
-    <div class="kpi"><div class="lab">Total de pedidos</div><div class="val">${k.total}</div></div>
-
-    <div class="kpi"><div class="lab">Resolvidos</div><div class="val ok">${k.res}</div></div>
-
-    <div class="kpi"><div class="lab">Em aberto</div><div class="val" style="color:var(--warn)">${k.aberto}</div></div>
-
-    <div class="kpi"><div class="lab">Orçamento total</div><div class="val acc">${fmt(k.orc)}</div></div>`;
+  clearCapexLooseKpis();
 
   const anos=[...new Set(capexItens.map(i=>+i.ano).filter(Boolean))].sort((a,b)=>b-a);
 
@@ -4645,17 +4637,7 @@ function renderCapexBrands(){
 
   const its=capexItens.filter(i=>+i.ano===+capexDrillYear);
 
-  const c=_ciKpis(its);
-
-  document.getElementById('esf-kpis').innerHTML=`
-
-    <div class="kpi"><div class="lab">Pedidos em ${capexDrillYear}</div><div class="val">${c.total}</div></div>
-
-    <div class="kpi"><div class="lab">Resolvidos</div><div class="val ok">${c.res}</div></div>
-
-    <div class="kpi"><div class="lab">Em aberto</div><div class="val" style="color:var(--warn)">${c.aberto}</div></div>
-
-    <div class="kpi"><div class="lab">Orçado</div><div class="val acc">${fmt(c.orc)}</div></div>`;
+  clearCapexLooseKpis();
 
   const marcaMap={};
 
@@ -4738,17 +4720,7 @@ function renderCapexUnidades(){
 
   const its=capexItens.filter(i=>+i.ano===+capexDrillYear&&extractMarca(i)===capexDrillMarca);
 
-  const c=_ciKpis(its);
-
-  document.getElementById('esf-kpis').innerHTML=`
-
-    <div class="kpi"><div class="lab">${capexDrillMarca} · ${capexDrillYear}</div><div class="val">${c.total} pedidos</div></div>
-
-    <div class="kpi"><div class="lab">Resolvidos</div><div class="val ok">${c.res}</div></div>
-
-    <div class="kpi"><div class="lab">Em aberto</div><div class="val" style="color:var(--warn)">${c.aberto}</div></div>
-
-    <div class="kpi"><div class="lab">Orçado</div><div class="val acc">${fmt(c.orc)}</div></div>`;
+  clearCapexLooseKpis();
 
   const uniMap={};
 
@@ -4827,19 +4799,9 @@ function renderCapexUnitItems(){
 
   const its=capexItens.filter(i=>+i.ano===+capexDrillYear&&extractMarca(i)===capexDrillMarca&&i.unidade===capexDrillUnidade);
 
-  const c=_ciKpis(its);
-
   const bc=brandColor(capexDrillMarca);
 
-  document.getElementById('esf-kpis').innerHTML=`
-
-    <div class="kpi"><div class="lab">Pedidos</div><div class="val">${c.total}</div></div>
-
-    <div class="kpi"><div class="lab">Resolvidos</div><div class="val ok">${c.res}</div></div>
-
-    <div class="kpi"><div class="lab">Em aberto</div><div class="val" style="color:var(--warn)">${c.aberto}</div></div>
-
-    <div class="kpi"><div class="lab">Orçado</div><div class="val acc">${fmt(c.orc)}</div></div>`;
+  clearCapexLooseKpis();
 
   let html=renderCapexTabs();
 
