@@ -9466,10 +9466,36 @@ function impDocPrefix(tipo){
   return m[tipo]||'Documento nº';
 }
 
-function cleanImpNfNumber(raw,tipo){
+function decodeNfseKeyNumber(raw,dateIso){
+  const text=String(raw||'');
+  const compact=text.replace(/\D/g,'');
+  const candidates=(text.match(/\d{30,60}/g)||[]).concat(compact?[compact]:[]).filter((v,i,a)=>v.length>=30&&a.indexOf(v)===i);
+  for(const c of candidates){
+    if(c.length>=50){
+      const fixed=c.slice(23,36).replace(/^0+(?=\d)/,'');
+      if(/^\d{1,9}$/.test(fixed)&&fixed!=='0')return fixed;
+    }
+  }
+  const ym=String(dateIso||'').match(/^(\d{4})-(\d{2})/);
+  if(ym){
+    const yymm=ym[1].slice(2)+ym[2];
+    const re=new RegExp('0{4,}([1-9]\\d{0,8}?)(?='+yymm+')');
+    for(const c of candidates){
+      const m=c.match(re);
+      if(m)return m[1].replace(/^0+(?=\d)/,'');
+    }
+  }
+  return'';
+}
+
+function cleanImpNfNumber(raw,tipo,dateIso){
   const s=String(raw||'').trim();
   if(!s)return'';
-  const key=(s.replace(/\D/g,'').match(/\d{44}/)||[])[0];
+  if(tipo==='NFS-e'){
+    const nfse=decodeNfseKeyNumber(s,dateIso);
+    if(nfse)return nfse;
+  }
+  const key=['NF-e','NFC-e','CT-e'].includes(tipo)?(s.replace(/\D/g,'').match(/\d{44}/)||[])[0]:'';
   if(key){
     const d=decodeChave(key);
     if(d&&d.nfNum)return d.nfNum;
@@ -9477,15 +9503,15 @@ function cleanImpNfNumber(raw,tipo){
   const norm=s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const labelMatch=norm.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfs-?e|nfc-?e|ct-?e)?|nota\s*fiscal(?:\s*de\s*servicos)?|nfs-?e|nf-?e|nfc-?e|ct-?e|n[roºo.]?)\s*(?:n[ºo.]*)?\s*[:#\-]?\s*([0-9][0-9.\-/ ]{0,24})/i);
   let candidate=labelMatch?labelMatch[1]:s;
-  const seriePair=String(candidate).match(/^\s*([0-9][0-9. ]*)\s*\/\s*\d{1,3}\s*$/);
+  const seriePair=String(candidate).match(/^\s*([0-9][0-9.]*)\s*\/\s*\d{1,3}\s*$/);
   if(seriePair)candidate=seriePair[1];
   const beforeSerie=String(candidate).split(/\b(?:s[eé]rie|serie|c[oó]digo|codigo|verifica[çc][aã]o|rps|cnpj|cpf)\b/i)[0];
   const digits=beforeSerie.replace(/\D/g,'');
   return digits?digits.replace(/^0+(?=\d)/,''):'';
 }
 
-function cleanImpDocNumber(raw,tipo){
-  if(['NF-e','NFC-e','NFS-e','CT-e'].includes(tipo))return cleanImpNfNumber(raw,tipo);
+function cleanImpDocNumber(raw,tipo,dateIso){
+  if(['NF-e','NFC-e','NFS-e','CT-e'].includes(tipo))return cleanImpNfNumber(raw,tipo,dateIso);
   return String(raw||'').replace(/\s+/g,' ').trim();
 }
 
@@ -9494,6 +9520,13 @@ function findImpDocNumberFromText(text,tipo,decoded){
   const lines=String(text||'').split(/\n+/).map(l=>l.trim()).filter(Boolean);
   const skip=/c[oó]digo|codigo|verifica|autentic|rps|s[eé]rie|serie|cnpj|cpf|inscri|compet[eê]ncia|data|valor|al[ií]quota|protocolo|chave/i;
   const explicitNota=/nota\s*fiscal|nfs-?e|nf-?e|nfc-?e|ct-?e|n[uú]mero\s*\/\s*s[eé]rie|n[uú]mero\s*(?:da\s*)?(?:nota|nota\s*fiscal)/i;
+  const firstTokenNumber=raw=>{
+    const s=String(raw||'').trim();
+    const pair=s.match(/^([0-9][0-9.]*)\s*\/\s*\d{1,3}\b/);
+    if(pair)return cleanImpNfNumber(pair[1],tipo);
+    const m=s.match(/^([0-9]{1,13})(?=\s|$)/);
+    return m?cleanImpNfNumber(m[1],tipo):'';
+  };
   const label=tipo==='NFS-e'
     ? /(?:n[uú]mero\s*\/\s*s[eé]rie|n[uú]mero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nota\s*fiscal\s*(?:de\s*servi[çc]os?)?|nfs-?e|n[ºo.]?\s*(?:da\s*nota)?)/i
     : /(?:n[uú]mero\s*\/\s*s[eé]rie|n[uú]mero\s*(?:da\s*)?(?:nota|nf-?e|nfc-?e|ct-?e|documento)|nf-?e|nfc-?e|ct-?e|nota\s*fiscal|n[ºo.]?\s*(?:da\s*nota)?)/i;
@@ -9507,6 +9540,8 @@ function findImpDocNumberFromText(text,tipo,decoded){
       if(n)return n;
     }
     const next=lines[i+1]||'';
+    const first=firstTokenNumber(next);
+    if(first)return first;
     if(/^[0-9][0-9.\-/ ]{0,24}$/.test(next)){
       const n=cleanImpNfNumber(next,tipo);
       if(n)return n;
@@ -9538,11 +9573,14 @@ function mapEdgeInvoiceResult(result){
   const nfNum=d.numero_nf!=null?String(d.numero_nf):'';
   const tipoDoc=normalizeImpDocTipo(d.tipo_documento||d.tipo||'NF-e');
   const codigo=d.chave_acesso||d.linha_digitavel||d.codigo_barras||d.codigo_verificacao||'';
+  const nfDocFromKey=tipoDoc==='NFS-e'?cleanImpDocNumber(codigo,tipoDoc,d.data_emissao||''):'';
+  let nfDoc=cleanImpDocNumber(nfNum,tipoDoc,d.data_emissao||'');
+  if(nfDocFromKey&&(!nfDoc||(nfDoc.length===1&&nfDocFromKey.length>1)))nfDoc=nfDocFromKey;
   const venc=(d.data_vencimento||pag.vencimento||(pag.parcelas&&pag.parcelas[0]&&pag.parcelas[0].vencimento)||'');
   return{
     ben:ems.razao_social||d.razao_social||'',
     cnpj:ems.cnpj||d.cnpj||'',
-    doc:cleanImpDocNumber(nfNum,tipoDoc),
+    doc:nfDoc,
     val:parseFloat(vals.valor_total||d.valor_total)||0,
     date:d.data_emissao||'',
     chave:cleanImpCodigo(codigo,tipoDoc),
