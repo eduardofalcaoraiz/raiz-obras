@@ -36,6 +36,7 @@ Issuer/provider self-check:
 - If both provider and taker appear, fill emitente with provider and tomador with taker. Do not copy tomador into emitente.
 - For NFS-e, numero_nf is the Nota Fiscal/NFS-e number only. Put verification code in codigo_verificacao, not in numero_nf.
 - numero_nf must contain only the invoice number itself. Do not include NF-e/NFS-e prefix, serie, RPS, verification code, access key, CNPJ, date, city code or any label text. If the visible field says "Numero/Serie", use only the number before the serie.
+- For DANFSe/NFS-e layouts with a header like "Numero da NFS-e | Competencia | Data e Hora", the invoice number is the first value in the next row, even if service description later contains another number.
 
 Return this JSON shape:
 {
@@ -252,8 +253,14 @@ function validateDataAgainstText(data: AnyRecord, text: string) {
   out.valores = { ...(out.valores || {}) }
 
   if (['NF-e', 'NFC-e', 'NFS-e', 'CT-e'].includes(tipo)) {
-    out.numero_nf = normalizeInvoiceNumber(out.numero_nf, tipo, out.chave_acesso) || null
+    out.numero_nf = normalizeInvoiceNumber(out.numero_nf, tipo, out.chave_acesso || out.codigo_verificacao, out.data_emissao || undefined) || null
     out.serie = null
+    const localNumero = findDocNumber(full, tipo)
+    const nfseKeyNumero = tipo === 'NFS-e'
+      ? decodeNfseNumberFromKey(out.chave_acesso || out.codigo_verificacao || full, out.data_emissao || undefined)
+      : ''
+    if (nfseKeyNumero) out.numero_nf = nfseKeyNumero
+    else if (localNumero) out.numero_nf = localNumero
   }
 
   if (tipo === 'NFS-e') {
@@ -492,7 +499,8 @@ function normalizeData(input: AnyRecord, source: string) {
   const itens = normalizeItems(input?.itens || input?.items || [], tipo, total)
   const chave = cleanStr(input?.chave_acesso || input?.chave || '')
   const rawNumero = input?.numero_nf ?? input?.numero ?? input?.numero_documento
-  const numero = ['NF-e', 'NFC-e', 'NFS-e', 'CT-e'].includes(tipo) ? normalizeInvoiceNumber(rawNumero, tipo, chave) : cleanStr(rawNumero)
+  const dataEmissao = dateIso(input?.data_emissao || input?.emissao || input?.date)
+  const numero = ['NF-e', 'NFC-e', 'NFS-e', 'CT-e'].includes(tipo) ? normalizeInvoiceNumber(rawNumero, tipo, chave, dataEmissao || undefined) : cleanStr(rawNumero)
   const linha = cleanStr(input?.linha_digitavel || '')
   const barcode = cleanStr(input?.codigo_barras || '')
   const codVer = cleanStr(input?.codigo_verificacao || '')
@@ -501,7 +509,7 @@ function normalizeData(input: AnyRecord, source: string) {
     tipo_documento: tipo,
     numero_nf: numero || null,
     serie: null,
-    data_emissao: dateIso(input?.data_emissao || input?.emissao || input?.date),
+    data_emissao: dataEmissao,
     data_vencimento: dateIso(input?.data_vencimento || input?.vencimento || pagamento?.vencimento),
     chave_acesso: onlyDigits(chave).length === 44 ? onlyDigits(chave) : (tipo === 'NFS-e' ? null : chave || null),
     linha_digitavel: linha || null,
@@ -571,8 +579,10 @@ function extractStrictText(rawText: string) {
 
   const prestadorBlock = tipo === 'NFS-e' ? findSection(text, [/^\s*prestador(?:\s+de\s+servi\S*)?\s*:?\s*$/i, /^\s*dados\s+do\s+prestador/i], [/^\s*tomador\b/i, /^\s*intermediario\b/i, /^\s*discriminacao\b/i, /^\s*servicos\b/i, /^\s*valores\b/i]) : ''
   const linhaDigitavel = tipo === 'Boleto' ? findLinhaDigitavel(text) : ''
-  const numero = ['NF-e', 'NFC-e', 'CT-e'].includes(tipo) && decoded?.numero ? decoded.numero : (findDocNumber(text, tipo) || decoded?.numero || '')
   const dataEmissao = findDateNear(lines, [/emiss/i, /compet/i, /data do documento/i]) || decoded?.date || ''
+  const numero = tipo === 'NFS-e'
+    ? (decodeNfseNumberFromKey(chave || text, dataEmissao) || findDocNumber(text, tipo) || '')
+    : (['NF-e', 'NFC-e', 'CT-e'].includes(tipo) && decoded?.numero ? decoded.numero : (findDocNumber(text, tipo) || decoded?.numero || ''))
   const dataVenc = findDateNear(lines, [/venc/i, /pagar ate/i, /data limite/i])
   const cnpj = tipo === 'NFS-e' ? (firstCnpj(prestadorBlock) || '') : (firstCnpj(text) || decoded?.cnpj || '')
   const razao = findName(lines, tipo, prestadorBlock)
@@ -636,6 +646,13 @@ function findDocNumber(text: string, tipo: string) {
   const lines = String(text || '').split('\n').map((l) => l.trim()).filter(Boolean)
   const skip = /codigo|verifica|autentic|rps|serie|cnpj|cpf|inscri|competencia|data|valor|aliquota|protocolo|chave/i
   const explicitNota = /nota\s*fiscal|nfs-?e|nf-?e|nfc-?e|ct-?e|numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nota\s*fiscal)/i
+  const firstTokenNumber = (raw: string) => {
+    const s = String(raw || '').trim()
+    const pair = s.match(/^([0-9][0-9.]*)\s*\/\s*\d{1,3}\b/)
+    if (pair) return normalizeInvoiceNumber(pair[1], tipo)
+    const m = s.match(/^([0-9]{1,13})(?=\s|$)/)
+    return m ? normalizeInvoiceNumber(m[1], tipo) : ''
+  }
   const label = tipo === 'NFS-e'
     ? /(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nota\s*fiscal\s*(?:de\s*servicos?)?|nfs-?e|n(?:ro|o|º)?\.?\s*(?:da\s*nota)?)/i
     : /(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nf-?e|nfc-?e|ct-?e|documento)|nf-?e|nfc-?e|ct-?e|nota\s*fiscal|n(?:ro|o|º)?\.?\s*(?:da\s*nota)?)/i
@@ -652,6 +669,8 @@ function findDocNumber(text: string, tipo: string) {
     }
 
     const next = lines[i + 1] || ''
+    const first = firstTokenNumber(next)
+    if (first) return first
     if (/^[0-9][0-9.\-/ ]{0,24}$/.test(next)) {
       const n = normalizeInvoiceNumber(next, tipo)
       if (n) return n
@@ -926,7 +945,12 @@ function normalizeForma(raw: unknown) {
   return 'A_VISTA'
 }
 
-function normalizeInvoiceNumber(raw: unknown, tipo: string, chave?: unknown) {
+function normalizeInvoiceNumber(raw: unknown, tipo: string, chave?: unknown, dataEmissao?: string) {
+  if (tipo === 'NFS-e') {
+    const nfseFromKey = decodeNfseNumberFromKey(chave || raw, dataEmissao)
+    if (nfseFromKey) return nfseFromKey
+  }
+
   const key = onlyDigits(chave || '')
   if (['NF-e', 'NFC-e', 'CT-e'].includes(tipo) && key.length === 44) {
     const decoded = decodeAccessKey(key)
@@ -946,11 +970,38 @@ function normalizeInvoiceNumber(raw: unknown, tipo: string, chave?: unknown) {
   const noAccent = stripAccents(s)
   const m = noAccent.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfs-?e|nfc-?e|ct-?e)?|nota\s*fiscal(?:\s*de\s*servicos)?|nfs-?e|nf-?e|nfc-?e|ct-?e|n(?:ro|o|º)?\.?)\s*(?:n(?:o|º)?\.?)?\s*[:#-]?\s*([0-9][0-9.\-/ ]{0,24})/i)
   let candidate = m ? m[1] : s
-  const seriePair = String(candidate).match(/^\s*([0-9][0-9. ]*)\s*\/\s*\d{1,3}\s*$/)
+  const seriePair = String(candidate).match(/^\s*([0-9][0-9.]*)\s*\/\s*\d{1,3}\s*$/)
   if (seriePair) candidate = seriePair[1]
   const beforeNoise = String(candidate).split(/\b(?:serie|codigo|verificacao|rps|cnpj|cpf|inscricao|competencia|data|valor|protocolo|chave)\b/i)[0]
   const digits = onlyDigits(beforeNoise)
   return digits ? digits.replace(/^0+(?=\d)/, '') : ''
+}
+
+function decodeNfseNumberFromKey(raw: unknown, dataEmissao?: string) {
+  const text = String(raw || '')
+  const compact = onlyDigits(text)
+  const candidates = (text.match(/\d{30,60}/g) || [])
+    .concat(compact ? [compact] : [])
+    .filter((v, i, arr) => v.length >= 30 && arr.indexOf(v) === i)
+
+  for (const c of candidates) {
+    if (c.length >= 50) {
+      const fixed = c.slice(23, 36).replace(/^0+(?=\d)/, '')
+      if (/^\d{1,9}$/.test(fixed) && fixed !== '0') return fixed
+    }
+  }
+
+  const ym = String(dataEmissao || '').match(/^(\d{4})-(\d{2})/)
+  if (ym) {
+    const yymm = ym[1].slice(2) + ym[2]
+    const re = new RegExp('0{4,}([1-9]\\d{0,8}?)(?=' + yymm + ')')
+    for (const c of candidates) {
+      const m = c.match(re)
+      if (m) return m[1].replace(/^0+(?=\d)/, '')
+    }
+  }
+
+  return ''
 }
 
 function dateIso(raw: unknown) {
