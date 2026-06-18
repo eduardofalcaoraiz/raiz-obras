@@ -28,6 +28,7 @@ Critical rules:
 9. Evidence first: if OCR is unclear, fragmented, or ambiguous, return null/0 for that field instead of guessing.
 10. Do not infer totals from the largest number on the page. Use only values explicitly labeled as total, valor da nota, valor liquido, valor dos servicos, valor do documento, or valor a pagar.
 11. Do not infer company names from arbitrary uppercase lines. For NFS-e, emitente must come from the PRESTADOR/provider block only.
+12. If the document has fatura/duplicatas/parcelamento, extract each visible installment with numero, valor and vencimento. Do not split the total unless the installment schedule is explicit.
 
 Issuer/provider self-check:
 - NF-e/NFC-e/CT-e: emitente is the company in EMITENTE/REMETENTE, never DESTINATARIO.
@@ -296,6 +297,17 @@ function validateDataAgainstText(data: AnyRecord, text: string) {
   if (out.data_emissao && !dateAppears(full, out.data_emissao)) out.data_emissao = null
   if (out.data_vencimento && !dateAppears(full, out.data_vencimento)) out.data_vencimento = null
 
+  const totalForParcelas = num(out.valores?.valor_total)
+  const localParcelas = findInstallments(full, totalForParcelas)
+  const aiParcelas = normalizeParcelas(out.pagamento?.parcelas || [], totalForParcelas)
+    .filter((p) => (!p.valor || moneyAppears(full, p.valor)) && (!p.vencimento || dateAppears(full, p.vencimento)))
+  const parcelas = mergeParcelas(localParcelas, aiParcelas)
+  out.pagamento = { ...(out.pagamento || {}) }
+  out.pagamento.parcelas = parcelas
+  out.pagamento.num_parcelas = parcelas.length || 1
+  if (parcelas.length > 1) out.pagamento.forma = 'PARCELADO'
+  else if (out.pagamento.forma === 'PARCELADO') out.pagamento.forma = tipo === 'Boleto' ? 'BOLETO' : 'A_VISTA'
+
   if (out.discriminacao && !containsLoose(norm, out.discriminacao) && String(out.discriminacao).length > 30) out.discriminacao = null
   out.itens = Array.isArray(out.itens)
     ? out.itens.filter((it: AnyRecord) => !it?.descricao || containsLoose(norm, it.descricao) || String(it.descricao).length <= 30)
@@ -560,12 +572,98 @@ function normalizeParcelas(items: AnyRecord[], total: number) {
   })).filter((p) => p.valor || p.vencimento)
 }
 
+function findInstallments(text: string, total = 0) {
+  const source = String(text || '')
+  const out: AnyRecord[] = []
+  const seen = new Set<string>()
+  const add = (raw: AnyRecord) => {
+    const valor = num(raw.valor)
+    const vencimento = dateIso(raw.vencimento)
+    if (!valor || !vencimento) return
+    const numero = parseInstallmentNumber(raw.numero, out.length + 1)
+    const key = `${numero}|${valor}|${vencimento}`
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push({ numero, valor, vencimento })
+  }
+
+  const getTag = (block: string, tag: string) => {
+    const m = String(block || '').match(new RegExp('<(?:[\\w:]+:)?' + tag + '[^>]*>([\\s\\S]*?)<\\/(?:[\\w:]+:)?' + tag + '>', 'i'))
+    return m ? m[1].replace(/<[^>]+>/g, '').trim() : ''
+  }
+  const dupRe = /<(?:[\w:]+:)?dup\b[^>]*>([\s\S]*?)<\/(?:[\w:]+:)?dup>/gi
+  let dm: RegExpExecArray | null
+  while ((dm = dupRe.exec(source)) !== null) {
+    add({ numero: getTag(dm[1], 'nDup'), valor: getTag(dm[1], 'vDup'), vencimento: getTag(dm[1], 'dVenc') })
+  }
+
+  const lines = source.replace(/\r/g, '\n').split('\n').map((l) => cleanStr(l)).filter(Boolean)
+  const hasContext = (line: string) => /duplicat|parcela|parcelamento|fatura|venc|dven|vdup|ndup|cobranc/.test(stripAccents(line).toLowerCase())
+  const parseCandidate = (line: string) => {
+    const dates = [...String(line || '').matchAll(/\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/g)]
+    const values = findMoneyMatches(line)
+    if (!dates.length || !values.length) return
+    const date = dateIso(dates[0][0])
+    const value = values[values.length - 1]?.value || 0
+    if (!date || !value) return
+    const beforeDate = line.slice(0, dates[0].index || 0)
+    const n =
+      (line.match(/\b(?:parcela|duplicata|dup\.?|ndup|n(?:umero)?)\D{0,12}(\d{1,3})(?:\s*\/\s*\d{1,3})?/i) || [])[1]
+      || (beforeDate.match(/(?:^|\s)(\d{1,3})(?:\s*[\/-]\s*\d{1,3})?(?=\s|$)/) || [])[1]
+      || ''
+    add({ numero: n || out.length + 1, valor: value, vencimento: date })
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    if (!hasContext(lines[i])) continue
+    for (let j = i; j <= Math.min(i + 10, lines.length - 1); j++) {
+      parseCandidate(lines[j])
+      const currentHasFullRow = /\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/.test(lines[j]) && findMoneyMatches(lines[j]).length > 0
+      if (j + 1 < lines.length && !currentHasFullRow) parseCandidate(lines[j] + ' ' + lines[j + 1])
+    }
+  }
+
+  return out
+    .filter((p) => !total || total <= 0 || p.valor <= total * 1.01)
+    .sort((a, b) => (a.vencimento || '').localeCompare(b.vencimento || '') || (a.numero || 0) - (b.numero || 0))
+}
+
+function parseInstallmentNumber(raw: unknown, fallback: number) {
+  const m = String(raw ?? '').match(/\d{1,3}/)
+  const n = m ? Number(m[0]) : 0
+  return n > 0 ? n : fallback
+}
+
+function findMoneyMatches(line: string) {
+  const values: { raw: string; value: number; index: number }[] = []
+  const re = /(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(String(line || ''))) !== null) {
+    values.push({ raw: m[0], value: num(m[1]), index: m.index })
+  }
+  return values.filter((v) => v.value > 0)
+}
+
+function findAccessKey(text: string) {
+  const source = String(text || '')
+  const direct = (source.match(/\b\d{44}\b/) || [])[0]
+  if (direct) return direct
+  const lines = source.replace(/\r/g, '\n').split('\n').map((l) => cleanStr(l)).filter(Boolean)
+  for (let i = 0; i < lines.length; i++) {
+    if (!/chave\s+de\s+acesso|chave\s+acesso|consulta\s+pela\s+chave/i.test(stripAccents(lines[i]).toLowerCase())) continue
+    const block = lines.slice(i, i + 4).join(' ')
+    const digits = onlyDigits(block)
+    if (digits.length >= 44) return digits.slice(0, 44)
+  }
+  return ''
+}
+
 function extractStrictText(rawText: string) {
   const text = String(rawText || '').replace(/\r/g, '\n').replace(/[ \t]+/g, ' ')
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
   const norm = stripAccents(text).toLowerCase()
   const digits = text.replace(/\D/g, '')
-  const chave = (digits.match(/\d{44}/) || [])[0] || ''
+  const chave = findAccessKey(text)
   const decoded = chave ? decodeAccessKey(chave) : null
 
   let tipo = decoded?.tipo || 'NF-e'
@@ -588,13 +686,15 @@ function extractStrictText(rawText: string) {
   const razao = findName(lines, tipo, prestadorBlock)
   const total = findValue(text, lines, tipo)
   const desc = findDescription(lines, tipo)
+  const parcelas = findInstallments(text, total)
+  const firstInstallmentDue = parcelas.find((p) => p.vencimento)?.vencimento || ''
 
   return {
     tipo_documento: tipo,
     numero_nf: numero || null,
     serie: null,
     data_emissao: dataEmissao || null,
-    data_vencimento: dataVenc || null,
+    data_vencimento: dataVenc || firstInstallmentDue || null,
     chave_acesso: chave || null,
     linha_digitavel: linhaDigitavel || null,
     codigo_barras: null,
@@ -603,7 +703,7 @@ function extractStrictText(rawText: string) {
     itens: desc ? [{ descricao: desc, quantidade: 1, unidade: ['NF-e', 'NFC-e'].includes(tipo) ? 'UN' : 'Srv', valor_unitario: total, valor_total: total }] : [],
     discriminacao: desc || null,
     valores: { subtotal: total, desconto: 0, frete: 0, valor_total: total },
-    pagamento: { forma: tipo === 'Boleto' ? 'BOLETO' : 'A_VISTA', num_parcelas: 1, parcelas: [] },
+    pagamento: { forma: parcelas.length > 1 ? 'PARCELADO' : (tipo === 'Boleto' ? 'BOLETO' : 'A_VISTA'), num_parcelas: parcelas.length || 1, parcelas },
     observacoes: null,
   }
 }
