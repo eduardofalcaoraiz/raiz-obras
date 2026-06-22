@@ -518,8 +518,6 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 .btn-logout:hover{background:rgba(237,231,218,.08);color:var(--cream)}
 
-.nav-sep{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(237,231,218,.25);padding:14px 12px 3px;font-weight:600;pointer-events:none}
-
 :root{--brand-cur:var(--accent);--brand-cur-light:var(--surface);--brand-text:var(--accent-text);--brand-readable:#FFFFFF;--brand-readable-soft:rgba(255,255,255,.88);--brand-readable-shadow:0 1px 2px rgba(0,0,0,.38)}
 
 /* Cor de marca injetada dinamicamente por JS — substitui accent em toda a obra */
@@ -1192,13 +1190,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <nav class="nav" id="nav">
 
-      <div class="nav-sep">Cadastros</div>
-
       <button class="active" data-nav="escolas" onclick="go('escolas')"><span class="ic">🏫</span> Nossas Escolas</button>
 
       <button data-nav="investidores" onclick="go('investidores')"><span class="ic">💼</span> Investidores Externos</button>
-
-      <div class="nav-sep">Esferas</div>
 
       <button data-nav="capex" onclick="go('capex')"><span class="ic">🔧</span> Capex de Melhorias</button>
 
@@ -1206,11 +1200,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <button data-nav="nova" onclick="go('nova')"><span class="ic">🏢</span> Novas Unidades</button>
 
-      <div class="nav-sep">Repositório</div>
-
       <button data-nav="docs" onclick="go('docs')"><span class="ic">▤</span> Documentações das Unidades</button>
-
-      <div class="nav-sep">Gestão</div>
 
       <button data-nav="cobranca" onclick="go('cobranca')"><span class="ic">◉</span> Cobrança <span class="pill" id="nav-cobr"></span></button>
 
