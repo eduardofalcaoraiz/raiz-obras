@@ -1190,7 +1190,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <nav class="nav" id="nav">
 
-      <button class="active" data-nav="escolas" onclick="go('escolas')"><span class="ic">🏫</span> Nossas Escolas</button>
+      <button class="active" data-nav="escolas" onclick="go('escolas')"><span class="ic">🏫</span> Documentos das Escolas</button>
 
       <button data-nav="investidores" onclick="go('investidores')"><span class="ic">💼</span> Investidores Externos</button>
 
@@ -1199,8 +1199,6 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <button data-nav="expansao" onclick="go('expansao')"><span class="ic">🏗</span> Expansões de Unidades</button>
 
       <button data-nav="nova" onclick="go('nova')"><span class="ic">🏢</span> Novas Unidades</button>
-
-      <button data-nav="docs" onclick="go('docs')"><span class="ic">▤</span> Documentações das Unidades</button>
 
       <button data-nav="cobranca" onclick="go('cobranca')"><span class="ic">◉</span> Cobrança <span class="pill" id="nav-cobr"></span></button>
 
@@ -1220,13 +1218,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 
 
-    <!-- NOSSAS ESCOLAS -->
+    <!-- DOCUMENTOS DAS ESCOLAS -->
 
     <section id="view-escolas" class="view active">
 
 <div class="phead">
 
-        <div><div class="eyebrow">Cadastro central</div><h1>Nossas Escolas</h1><p>Diretório completo das unidades do grupo — base para todas as esferas.</p></div>
+        <div><div class="eyebrow">Cadastro central</div><h1>Documentos das Escolas</h1><p>Diretório das unidades do grupo com acesso direto aos documentos anexados.</p></div>
 
         <div class="acts"><button class="btn btn-primary" onclick="openUniModal(null)"><span class="ic">＋</span> Nova escola</button></div>
 
@@ -1369,25 +1367,11 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 
 
-    <!-- DOCUMENTOS (global) -->
-
-    <section id="view-docs" class="view">
-
-      <div class="phead"><div><div class="eyebrow">Repositório central</div><h1>Documentações das Unidades</h1><p>Documentos de todas as unidades escolares da Raiz — contratos, alvarás, matrículas e mais.</p></div>
-
-        <div class="acts"><button class="btn btn-primary" onclick="openUniModal()"><span class="ic">＋</span> Nova unidade</button></div></div>
-
-      <div id="docs-grid"></div>
-
-    </section>
-
-
-
     <!-- UNIDADE (docs de uma unidade) -->
 
     <section id="view-uni" class="view">
 
-      <button class="btn btn-ghost btn-sm" style="margin-bottom:14px" onclick="go('docs')">← Documentos</button>
+      <button class="btn btn-ghost btn-sm" style="margin-bottom:14px" onclick="go('escolas')">← Escolas</button>
 
       <div class="phead"><div><div class="eyebrow" id="u-crumb"></div><h1 id="u-nome"></h1><p id="u-meta"></p></div>
 
@@ -2106,7 +2090,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       </select>
 
-      <p style="font-size:11.5px;color:var(--muted);margin:5px 0 0">O nome e a marca da obra serão os da escola selecionada. Cadastre a escola primeiro em <b>Nossas Escolas</b> se ainda não estiver na lista.</p>
+      <p style="font-size:11.5px;color:var(--muted);margin:5px 0 0">O nome e a marca da obra serão os da escola selecionada. Cadastre a escola primeiro em <b>Documentos das Escolas</b> se ainda não estiver na lista.</p>
 
     </div>
 
@@ -4066,9 +4050,11 @@ function go(view){
 
   if(window.innerWidth<=768)closeSidebar();
 
+  if(view==="docs")view="escolas";
+
   if(view==="geral")view="escolas";
 
-  const esferaViews=['capex','expansao','nova'];document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById("view-"+(esferaViews.includes(view)?'esfera':view)).classList.add("active");document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===view||(view==="obra"&&b.dataset.nav===(cur?.esfera||curEsfera))||(view==="uni"&&b.dataset.nav==="docs")));const _main=document.querySelector(".main");if(_main)_main.scrollTo(0,0);window.scrollTo(0,0);if(esferaViews.includes(view)){curEsfera=view;esfBusca='';esfFiltroMarca='Todas';renderEsfera();}if(view==="escolas")renderEscolas();if(view==="cobranca")renderCobranca();if(view==="docs")renderDocs();if(view==="forn")renderForn();if(view==="admin")renderAdmin();if(view==="investidores")renderInvestidores();updateNavBadge();}
+  const esferaViews=['capex','expansao','nova'];document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById("view-"+(esferaViews.includes(view)?'esfera':view)).classList.add("active");document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===view||(view==="obra"&&b.dataset.nav===(cur?.esfera||curEsfera))||(view==="uni"&&b.dataset.nav==="escolas")));const _main=document.querySelector(".main");if(_main)_main.scrollTo(0,0);window.scrollTo(0,0);if(esferaViews.includes(view)){curEsfera=view;esfBusca='';esfFiltroMarca='Todas';renderEsfera();}if(view==="escolas")renderEscolas();if(view==="cobranca")renderCobranca();if(view==="forn")renderForn();if(view==="admin")renderAdmin();if(view==="investidores")renderInvestidores();updateNavBadge();}
 
 function updateNavBadge(){const n=allAtrasos().length;const el=document.getElementById("nav-cobr");el.textContent=n||"";el.style.display=n?"inline-block":"none";}
 
@@ -7641,7 +7627,8 @@ function renderDocs(){
 
   if(!html)html='<p class="empty">Nenhuma unidade cadastrada.</p>';
 
-  document.getElementById('docs-grid').innerHTML=html;
+  const grid=document.getElementById('docs-grid');
+  if(grid)grid.innerHTML=html;
 
 }
 
@@ -8920,7 +8907,7 @@ function anexarNF(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getE
 
 
 
-/* NOSSAS ESCOLAS */
+/* DOCUMENTOS DAS ESCOLAS */
 
 function populateEscolasSelect(preferredMarca){
 
@@ -8974,8 +8961,6 @@ function toggleNovaMarca(val){
   document.getElementById('um-nova-marca-row').style.display=val==='__nova__'?'block':'none';
 
 }
-
-
 
 function renderEscolas(){
 
@@ -9037,7 +9022,7 @@ function renderEscolas(){
 
             <span class="uc-logo">${brandLogoImg(marca,'height:15px;width:26px;object-fit:contain')}</span>
 
-            <span class="uc-nome">${u.nome}</span>
+            <span class="uc-nome">${escHtml(u.nome)}</span>
 
           </div>
 
@@ -9050,6 +9035,10 @@ function renderEscolas(){
           </div>
 
           <div style="font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(u.endereco||'Endereço não informado')}</div>
+
+          <div style="margin-top:auto;padding-top:9px;border-top:1px solid var(--line)">
+            <button class="btn btn-primary btn-sm" style="font-size:12px;padding:6px 11px;width:100%;justify-content:center" onclick="openUni('${u.id}')">Documentos</button>
+          </div>
 
         </div>
 
@@ -9165,8 +9154,6 @@ async function saveUni(){if(['leitor','doc'].includes(currentProfile?.role)){toa
 
   closeUniModal();
 
-  renderDocs();
-
   if(g('view-escolas').classList.contains('active'))renderEscolas();
 
   populateEscolasSelect();
@@ -9230,8 +9217,6 @@ async function deleteEscola(id){
     unidades=unidades.filter(x=>x.id!==id);
 
     renderEscolas();
-
-    renderDocs();
 
     updateNavBadge();
 
