@@ -317,6 +317,21 @@ button{font-family:inherit;cursor:pointer}
 .capex-insight .num{font-weight:700;white-space:nowrap}
 .capex-empty-toggle{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer}
 .capex-empty-toggle.active{border-color:var(--accent);color:var(--accent);background:var(--brand-cur-light)}
+.capex-tr-search{display:grid;grid-template-columns:minmax(260px,360px) 1fr;gap:12px;align-items:start;border:1px solid var(--line);background:linear-gradient(135deg,var(--surface) 0%,var(--raiz-soft) 100%);border-radius:var(--r-lg);padding:13px 14px;margin:0 0 16px;box-shadow:0 8px 22px -24px rgba(0,0,0,.45)}
+.capex-tr-field label{display:block;font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.07em;color:var(--accent-text);margin-bottom:6px}
+.capex-tr-field input{height:38px;width:100%;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);color:var(--ink);padding:8px 11px;font:700 14px "Space Grotesk",system-ui,sans-serif;outline:none}
+.capex-tr-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(248,136,8,.16)}
+.capex-tr-results{display:grid;gap:7px;min-width:0}
+.capex-tr-result{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;border:1px solid var(--line);background:rgba(255,255,255,.82);border-radius:10px;padding:8px 10px;text-align:left;color:var(--ink);cursor:pointer;min-width:0;transition:border-color .15s,box-shadow .15s,transform .12s}
+.capex-tr-result:hover{border-color:var(--accent);box-shadow:0 8px 18px -18px rgba(0,0,0,.5);transform:translateY(-1px)}
+.capex-tr-result.exact{border-color:rgba(248,136,8,.55);background:#FFF7ED}
+.capex-tr-code{font-family:"Space Grotesk",system-ui,sans-serif;font-size:12px;font-weight:850;color:var(--accent-text);background:var(--raiz-soft);border:1px solid rgba(248,136,8,.35);border-radius:999px;padding:3px 8px;white-space:nowrap}
+.capex-tr-main{min-width:0}
+.capex-tr-title{font-size:13px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-tr-meta{font-size:11.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-tr-status{font-size:11px;font-weight:800;color:var(--muted);white-space:nowrap}
+.capex-tr-empty{font-size:12.5px;color:var(--muted);padding:9px 2px}
+@media(max-width:760px){.capex-tr-search{grid-template-columns:1fr}.capex-tr-result{grid-template-columns:1fr}.capex-tr-code,.capex-tr-status{width:max-content}}
 .global-dashboard{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin-bottom:22px;align-items:start}
 .gd-span-12{grid-column:span 12}.gd-span-8{grid-column:span 8}.gd-span-6{grid-column:span 6}.gd-span-4{grid-column:span 4}
 .gd-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
@@ -4267,6 +4282,7 @@ const _ciSitClass={'Resolvido':'b-ok','Em Andamento':'b-info','Cancelado':'b-neu
 let capexDrillYear=null,capexDrillMarca=null,capexDrillUnidade=null,capexTab='dashboard',capexShowEmpty=false;
 let capexDashControls={focusDim:'',focusValue:''};
 let capexListStatus='Todos';
+let capexTrSearchQuery='';
 
 const CAPEX_UNIT_EXCEPTIONS=[
   {nome:'QI Metropolitano',marca:'QI',tipo:'Agregado CAPEX'}
@@ -4347,6 +4363,89 @@ function capexCategoriaId(it){
 
 function capexCategoriaNome(it){
   return capexCatById(capexCategoriaId(it)).nome;
+}
+
+function capexTrDigits(v){
+  return String(v||'').toUpperCase().replace(/^TR[\s\-:]*/,'').replace(/\D/g,'');
+}
+
+function capexTrKey(v){
+  return String(v||'').toUpperCase().replace(/^TR[\s\-:]*/,'').replace(/[^A-Z0-9]/g,'');
+}
+
+function capexTrSearchResults(query){
+  const q=String(query||'').trim();
+  if(!q)return[];
+  const qDigits=capexTrDigits(q),qKey=capexTrKey(q);
+  if(!qDigits&&!qKey)return[];
+  return capexItens.map(it=>{
+    const ref=String(it.referencia||'').trim();
+    if(!ref)return null;
+    const rd=capexTrDigits(ref),rk=capexTrKey(ref);
+    let score=0;
+    if(qDigits&&rd){
+      if(rd===qDigits)score=120;
+      else if(rd.startsWith(qDigits))score=90;
+      else if(rd.includes(qDigits))score=70;
+    }
+    if(!score&&qKey&&rk){
+      if(rk===qKey)score=100;
+      else if(rk.startsWith(qKey))score=75;
+      else if(rk.includes(qKey))score=55;
+    }
+    return score?{it,score,exact:qDigits&&rd===qDigits}:null;
+  }).filter(Boolean).sort((a,b)=>b.score-a.score||(+b.it.ano||0)-(+a.it.ano||0)||String(a.it.referencia||'').localeCompare(String(b.it.referencia||''),'pt-BR')).slice(0,8);
+}
+
+function capexTrResultsHtml(){
+  const q=capexTrSearchQuery;
+  if(!String(q||'').trim())return'';
+  const rows=capexTrSearchResults(q);
+  if(!rows.length)return'<div class="capex-tr-empty">Nenhum pedido encontrado para este TR.</div>';
+  return rows.map(({it,exact})=>{
+    const marca=extractMarca(it);
+    const idArg=JSON.stringify(it.id);
+    const ref=escHtml(it.referencia||'');
+    const title=escHtml(it.pedido||'Pedido sem descricao');
+    const meta=[it.ano,marca,it.unidade,capexCategoriaNome(it)].filter(Boolean).map(escHtml).join(' &middot; ');
+    return`<button type="button" class="capex-tr-result ${exact?'exact':''}" onclick='openCapexItemFromSearch(${idArg})'>
+      <span class="capex-tr-code">TR ${ref}</span>
+      <span class="capex-tr-main"><span class="capex-tr-title">${title}</span><span class="capex-tr-meta">${meta}</span></span>
+      <span class="capex-tr-status">${escHtml(_ciSit(it))}</span>
+    </button>`;
+  }).join('');
+}
+
+function renderCapexTrSearch(){
+  return`<div class="capex-tr-search">
+    <div class="capex-tr-field">
+      <label for="capex-tr-search">Pesquisa por TR</label>
+      <input id="capex-tr-search" value="${escHtml(capexTrSearchQuery)}" placeholder="Digite o numero do TR" inputmode="numeric" autocomplete="off" oninput="setCapexTrSearch(this.value)" onkeydown="capexTrSearchKey(event)">
+    </div>
+    <div class="capex-tr-results" id="capex-tr-results">${capexTrResultsHtml()}</div>
+  </div>`;
+}
+
+function renderCapexTrResults(){
+  const el=document.getElementById('capex-tr-results');
+  if(el)el.innerHTML=capexTrResultsHtml();
+}
+
+function setCapexTrSearch(v){
+  capexTrSearchQuery=v;
+  renderCapexTrResults();
+}
+
+function capexTrSearchKey(ev){
+  if(ev.key!=='Enter')return;
+  const first=capexTrSearchResults(capexTrSearchQuery)[0];
+  if(first){ev.preventDefault();openCapexItemFromSearch(first.it.id);}
+}
+
+function openCapexItemFromSearch(id){
+  const it=capexItens.find(x=>String(x.id)===String(id));
+  if(!it){toast('Pedido de CAPEX nao encontrado.');renderCapexTrResults();return;}
+  openCapexItemModal(it.id);
 }
 
 function capexCategoryOptions(selected){
@@ -5070,6 +5169,7 @@ function renderCapexOverview(){
   const primary=capexDashboardDimension('ano');
   const secondary=capexDashboardDimension('marca');
   let html=renderCapexTabs();
+  html+=renderCapexTrSearch();
   html+=capexFocusBar();
   html+=capexControlCards(scopedIts,budgetScope);
   html+=renderCapexDashboard(scopedIts,{
@@ -5496,6 +5596,8 @@ function renderCapexYears(){
   if(!anos.length)anos.push(new Date().getFullYear());
 
   let html=renderCapexTabs();
+
+  html+=renderCapexTrSearch();
 
   html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Pedidos de CAPEX por ano</h2><span style="font-size:12px;color:var(--muted)">Clique em um ano para abrir o dashboard do ciclo</span></div><div class="cyear-grid">';
 
