@@ -56,31 +56,46 @@ button{font-family:inherit;cursor:pointer}
 
 .app{display:flex;position:fixed;inset:0;min-height:0;width:auto;height:100vh;height:100dvh;overflow:hidden;background:var(--paper)}
 
-.side{width:250px;flex:none;background:var(--ink);color:var(--cream);padding:24px 16px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh;height:100dvh;overflow:hidden}
+.side{width:250px;flex:none;background:radial-gradient(circle at 18% 0%,rgba(248,136,8,.74) 0%,rgba(248,136,8,.18) 32%,transparent 55%),linear-gradient(165deg,#2F1608 0%,#5D2703 38%,#9B4303 72%,#C45A04 115%);color:var(--cream);padding:24px 16px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh;height:100dvh;overflow:hidden;box-shadow:inset -1px 0 0 rgba(255,255,255,.12)}
 #side-color-layer{position:absolute;inset:0;pointer-events:none;z-index:0;transition:opacity .5s}
 .side>*:not(#side-color-layer){position:relative;z-index:1}
+.side,.main{transition:width .22s ease,flex-basis .22s ease}
+.side-collapse-btn{width:100%;height:32px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.1);color:#fff;border-radius:9px;display:flex;align-items:center;justify-content:center;margin:-4px 0 10px;font-size:18px;font-weight:800;cursor:pointer;transition:background .15s,border-color .15s,transform .12s}
+.side-collapse-btn:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.28)}
+.side-collapse-btn span{display:inline-block;line-height:1;transition:transform .18s ease}
 
-.brand{display:flex;align-items:center;gap:11px;padding:0 8px 20px;border-bottom:1px solid rgba(237,231,218,.12);margin-bottom:12px}
+.brand{display:flex;align-items:center;gap:11px;padding:0 8px 20px;border-bottom:1px solid rgba(255,255,255,.18);margin-bottom:12px}
+.brand-copy{min-width:0;transition:opacity .14s ease,width .18s ease}
 
-.brand .mk{width:36px;height:36px;border-radius:9px;background:white;display:grid;place-items:center;padding:4px;overflow:hidden}
+.brand .mk{width:36px;height:36px;border-radius:9px;background:white;display:grid;place-items:center;padding:4px;overflow:hidden;box-shadow:0 8px 18px -12px rgba(0,0,0,.55)}
 
 .brand b{font-family:"Outfit",system-ui,sans-serif;font-weight:600;font-size:18px;color:#fff;display:block;line-height:1.1}
 
-.brand span{font-size:11.5px;color:var(--cream-soft);letter-spacing:.03em}
+.brand span{font-size:11.5px;color:rgba(255,255,255,.76);letter-spacing:.03em}
 
-.nav button{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:transparent;border:0;color:var(--cream);padding:11px 12px;border-radius:9px;font-size:14.5px;transition:background .15s;position:relative}
+.nav button{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:transparent;border:1px solid transparent;color:rgba(255,255,255,.86);padding:11px 12px;border-radius:9px;font-size:14.5px;transition:background .15s,border-color .15s,color .15s,box-shadow .15s;position:relative}
+.nav-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .12s ease,width .18s ease}
 
-.nav button:hover{background:rgba(237,231,218,.08)}
+.nav button:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.12);color:#fff}
 
-.nav button.active{background:var(--cream);color:var(--ink-2);font-weight:500}
+.nav button.active{background:linear-gradient(135deg,rgba(255,255,255,.97) 0%,rgba(253,233,210,.92) 100%);border-color:rgba(255,255,255,.58);color:var(--raiz-text);font-weight:700;box-shadow:0 10px 24px -20px rgba(0,0,0,.65)}
 
 .nav .ic{width:18px;text-align:center;font-size:16px;opacity:.95}
 
-.nav .pill{position:absolute;right:10px;background:var(--accent);color:var(--accent-readable);font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:20px}
+.nav .pill{position:absolute;right:10px;background:rgba(255,255,255,.92);color:var(--raiz-text);font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:20px}
 
 .nav button.active .pill{background:var(--danger);color:#fff}
 
-.side .foot{margin-top:auto;padding-top:14px;border-top:1px solid rgba(237,231,218,.12);font-size:11.5px;color:var(--cream-soft);line-height:1.5}
+.side .foot{margin-top:auto;padding-top:14px;border-top:1px solid rgba(255,255,255,.18);font-size:11.5px;color:rgba(255,255,255,.7);line-height:1.5}
+.side.collapsed{width:78px;padding-left:11px;padding-right:11px}
+.side.collapsed .brand{justify-content:center;padding-left:0;padding-right:0}
+.side.collapsed .brand>div:not(.mk),.side.collapsed .foot{display:none}
+.side.collapsed .nav button{justify-content:center;padding-left:10px;padding-right:10px;font-size:0;gap:0}
+.side.collapsed .nav .ic{width:22px;font-size:18px}
+.side.collapsed .nav button.active{box-shadow:0 8px 20px -18px rgba(0,0,0,.65)}
+.side.collapsed .nav .pill{right:4px;top:5px;min-width:17px;padding:0 5px}
+.side.collapsed .nav button .pill{font-size:10px}
+.side.collapsed .side-collapse-btn span{transform:rotate(180deg)}
 
 .main{flex:1;min-width:0;min-height:0;overflow-x:hidden;overflow-y:auto;overflow-y:overlay;height:100vh;height:100dvh;background:var(--paper)}
 
@@ -656,6 +671,12 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
   }
 
+  .side.collapsed{width:260px;padding:16px 12px}
+  .side.collapsed .brand>div:not(.mk),.side.collapsed .foot{display:block;opacity:1;width:auto;max-width:none;overflow:visible;pointer-events:auto}
+  .side.collapsed .nav button{justify-content:flex-start;font-size:14.5px;gap:11px}
+  .side-collapse-btn,.side.collapsed .side-collapse-btn{display:none}
+  .side.collapsed .nav .pill{right:10px;top:auto}
+
   .side.mobile-open{left:0;box-shadow:4px 0 24px rgba(0,0,0,.35)}
 
 
@@ -1207,8 +1228,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
   <div class="side-backdrop" id="side-backdrop" onclick="closeSidebar()"></div>
 
-  <aside class="side">
+  <aside class="side" id="sidebar">
     <div id="side-color-layer"></div>
+    <button class="side-collapse-btn" id="side-collapse-btn" onclick="toggleSideCollapse()" title="Recolher menu" aria-label="Recolher menu"><span id="side-collapse-ic">‹</span></button>
     <div class="brand"><div class="mk"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png" style="width:100%;height:100%;object-fit:contain" alt="Raiz Educação"></div><div><b>Raiz Educação</b><span>Gestão de obras &amp; documentos</span></div></div>
 
     <nav class="nav" id="nav">
@@ -4062,6 +4084,36 @@ function updateObraBanner(o){
 }
 
 
+
+const SIDE_COLLAPSE_KEY='raiz_obras_sidebar_collapsed';
+
+function isMobileSidebar(){return window.innerWidth<=768;}
+
+function applySideCollapsePreference(){
+  const side=document.getElementById('sidebar')||document.querySelector('.side');
+  if(!side)return;
+  document.querySelectorAll('.nav button').forEach(b=>{if(!b.title)b.title=b.textContent.trim();});
+  let collapsed=false;
+  try{collapsed=localStorage.getItem(SIDE_COLLAPSE_KEY)==='1';}catch(e){}
+  if(isMobileSidebar())collapsed=false;
+  side.classList.toggle('collapsed',collapsed);
+  const btn=document.getElementById('side-collapse-btn');
+  if(btn){
+    const label=collapsed?'Expandir menu':'Recolher menu';
+    btn.title=label;
+    btn.setAttribute('aria-label',label);
+  }
+}
+
+function toggleSideCollapse(){
+  if(isMobileSidebar()){toggleSidebar();return;}
+  const side=document.getElementById('sidebar')||document.querySelector('.side');
+  if(!side)return;
+  const collapsed=!side.classList.contains('collapsed');
+  side.classList.toggle('collapsed',collapsed);
+  try{localStorage.setItem(SIDE_COLLAPSE_KEY,collapsed?'1':'0');}catch(e){}
+  applySideCollapsePreference();
+}
 
 function toggleSidebar(){document.querySelector('.side').classList.toggle('mobile-open');document.getElementById('side-backdrop').classList.toggle('show');}
 
@@ -12943,6 +12995,7 @@ async function onLogin(user){
   currentProfile=profile;
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='flex';
+  applySideCollapsePreference();
   document.getElementById('foot-user-name').textContent=profile.nome||user.email;
 
   // Mostrar menu admin
@@ -12971,6 +13024,8 @@ async function onLogin(user){
 // Inicialização com tratamento de erro
 (async()=>{
   try{
+    applySideCollapsePreference();
+    window.addEventListener('resize',applySideCollapsePreference);
     const{data:{session},error}=await db.auth.getSession();
     if(error)throw error;
     if(session){
