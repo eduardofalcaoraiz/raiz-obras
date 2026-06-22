@@ -249,7 +249,9 @@ button{font-family:inherit;cursor:pointer}
 .capex-status-empty{font-size:11.7px;color:var(--muted);min-height:48px;display:flex;align-items:center}
 .capex-status-cta{margin-top:auto;border-top:1px solid var(--line);padding-top:10px;display:flex;justify-content:space-between;align-items:center;font-size:11.5px;font-weight:800;color:var(--status-color);text-transform:uppercase;letter-spacing:.03em}
 .capex-status-shell-simple{padding:14px 16px}
+.capex-status-shell-simple{border-color:color-mix(in srgb,var(--brand-color) 24%,var(--line))}
 .capex-status-shell-simple .capex-status-shell-head{margin-bottom:12px}
+.capex-status-shell-simple .capex-status-logo{border-color:color-mix(in srgb,var(--brand-color) 28%,var(--line))}
 .capex-status-shell-simple .capex-status-total{grid-template-columns:auto auto}
 .capex-status-shell-simple .capex-status-card{min-height:128px;background:linear-gradient(180deg,var(--status-tint) 0%,var(--surface) 88%)}
 .capex-status-shell-simple .capex-status-card-head{padding:15px 15px 8px}
@@ -4833,10 +4835,11 @@ renderCapexUnitStatusCards=function(its){
   const all=its||[];
   const marca=capexDrillMarca||'';
   const brand=brandColor(marca);
+  const brandTint=brandLight(marca)||'var(--surface-2)';
   const cfg=[
-    {status:'Em Andamento',title:'Em andamento',color:'var(--info)',tint:'#E3F0FC'},
-    {status:'Resolvido',title:'Resolvido',color:'var(--ok)',tint:'#EDF7ED'},
-    {status:'Cancelado',title:'Cancelado',color:'var(--soft)',tint:'var(--surface-2)'}
+    {status:'Resolvido',title:'Resolvido',color:brand,tint:brandTint},
+    {status:'Em Andamento',title:'Em andamento',color:brand,tint:brandTint},
+    {status:'Cancelado',title:'Cancelado',color:brand,tint:brandTint}
   ];
   return`<div class="capex-status-shell capex-status-shell-simple" style="--brand-color:${brand}">
     <div class="capex-status-shell-head">
