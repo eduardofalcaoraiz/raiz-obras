@@ -4419,6 +4419,26 @@ function _contrast(a,b){
   return(hi+0.05)/(lo+0.05);
 }
 
+function _hueFromRgb(c){
+  const r=c.r/255,g=c.g/255,b=c.b/255;
+  const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;
+  if(!d)return 0;
+  let h=max===r?((g-b)/d)%6:max===g?(b-r)/d+2:(r-g)/d+4;
+  h*=60;
+  return h<0?h+360:h;
+}
+
+function _brandPrefersLightText(hex){
+  const c=_hexRgb(hex);if(!c)return false;
+  const max=Math.max(c.r,c.g,c.b),min=Math.min(c.r,c.g,c.b);
+  const sat=max?(max-min)/max:0;
+  const lum=_relLum(hex);
+  const hue=_hueFromRgb(c);
+  const greenCyanYellow=hue>=55&&hue<=190;
+  const whiteContrast=_contrast('#FFFFFF',hex);
+  return whiteContrast>=2.45&&(lum<0.32||(sat>=0.68&&!greenCyanYellow));
+}
+
 function _darkenHex(hex,amt){
   const c=_hexRgb(hex);if(!c)return hex;
   const f=Math.max(0,Math.min(1,amt==null?0.68:amt));
@@ -4429,6 +4449,7 @@ function _darkenHex(hex,amt){
 function readableTextOnColor(color){
   if(!color||String(color).startsWith('var('))return'#FFFFFF';
   const ink='#0F2A24',white='#FFFFFF';
+  if(_brandPrefersLightText(color))return white;
   return _contrast(ink,color)>=_contrast(white,color)?ink:white;
 }
 
