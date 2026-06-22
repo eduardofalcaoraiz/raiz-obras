@@ -248,6 +248,14 @@ button{font-family:inherit;cursor:pointer}
 .capex-status-preview span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .capex-status-empty{font-size:11.7px;color:var(--muted);min-height:48px;display:flex;align-items:center}
 .capex-status-cta{margin-top:auto;border-top:1px solid var(--line);padding-top:10px;display:flex;justify-content:space-between;align-items:center;font-size:11.5px;font-weight:800;color:var(--status-color);text-transform:uppercase;letter-spacing:.03em}
+.capex-status-shell-simple{padding:14px 16px}
+.capex-status-shell-simple .capex-status-shell-head{margin-bottom:12px}
+.capex-status-shell-simple .capex-status-total{grid-template-columns:auto auto}
+.capex-status-shell-simple .capex-status-card{min-height:128px;background:linear-gradient(180deg,var(--status-tint) 0%,var(--surface) 88%)}
+.capex-status-shell-simple .capex-status-card-head{padding:15px 15px 8px}
+.capex-status-shell-simple .capex-status-body{padding:0 15px 13px;gap:8px}
+.capex-status-only{font-family:"Space Grotesk",sans-serif;font-size:15px;font-weight:700;color:var(--ink)}
+.capex-status-shell-simple .capex-status-cta{padding-top:9px}
 .capex-budget-band{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
 .capex-budget-cell{min-width:0}
 .capex-budget-cell span{display:block;font-size:10.5px;color:var(--muted);font-weight:750;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -4814,6 +4822,39 @@ renderCapexUnitStatusCards=function(its){
           </div>
           <div class="capex-status-progress" title="${pct}% dos pedidos da unidade"><i style="width:${Math.max(rows.length?8:0,pct)}%"></i></div>
           ${rows.length?`<ul class="capex-status-preview">${preview}${more}</ul>`:'<div class="capex-status-empty">Nenhum pedido neste status.</div>'}
+          <div class="capex-status-cta"><span>Abrir pedidos</span><span>→</span></div>
+        </div>
+      </button>`;
+    }).join('')}</div>
+  </div>`;
+};
+
+renderCapexUnitStatusCards=function(its){
+  const all=its||[];
+  const marca=capexDrillMarca||'';
+  const brand=brandColor(marca);
+  const cfg=[
+    {status:'Em Andamento',title:'Em andamento',color:'var(--info)',tint:'#E3F0FC'},
+    {status:'Resolvido',title:'Resolvido',color:'var(--ok)',tint:'#EDF7ED'},
+    {status:'Cancelado',title:'Cancelado',color:'var(--soft)',tint:'var(--surface-2)'}
+  ];
+  return`<div class="capex-status-shell capex-status-shell-simple" style="--brand-color:${brand}">
+    <div class="capex-status-shell-head">
+      <div class="capex-status-brand">
+        <div class="capex-status-logo">${brandLogoImg(marca,'height:28px;width:48px;object-fit:contain')}</div>
+        <div style="min-width:0"><b>${escHtml(capexDrillUnidade||'Unidade')}</b><span>${escHtml(marca)} · ${capexDrillYear}</span></div>
+      </div>
+      <div class="capex-status-total"><span>Total de pedidos</span><b>${all.length}</b></div>
+    </div>
+    <div class="capex-status-grid">${cfg.map(c=>{
+      const rows=all.filter(i=>_ciSit(i)===c.status);
+      return`<button type="button" class="capex-status-card" style="--status-color:${c.color};--status-tint:${c.tint}" onclick="capexSetListStatus('${c.status}')">
+        <div class="capex-status-card-head">
+          <div class="capex-status-name"><span class="capex-status-dot"></span><h3>${c.title}</h3></div>
+          <div class="count">${rows.length}</div>
+        </div>
+        <div class="capex-status-body">
+          <div class="capex-status-only">${rows.length} pedido${rows.length!==1?'s':''}</div>
           <div class="capex-status-cta"><span>Abrir pedidos</span><span>→</span></div>
         </div>
       </button>`;
