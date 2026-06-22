@@ -24,6 +24,8 @@
   --paper:#F3EFE7;--surface:#FFFFFF;--surface-2:#FBF9F4;
 
   --raiz-primary:#F88808;--raiz-primary-d:#C45A04;--raiz-text:#9B4303;--raiz-soft:#FDE9D2;
+  --raiz-card-gradient:linear-gradient(135deg,var(--surface) 0%,rgba(253,233,210,.78) 100%);
+  --raiz-panel-gradient:linear-gradient(180deg,var(--surface) 0%,rgba(253,233,210,.46) 100%);
 
   --ink:#173C34;--ink-2:#0F2A24;--cream:#EDE7DA;--cream-soft:#B9C2BC;
 
@@ -134,7 +136,7 @@ button{font-family:inherit;cursor:pointer}
 
 @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}}
 
-.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:17px 19px}
+.kpi{background:var(--raiz-card-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:17px 19px}
 
 .kpi .lab{font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:8px}
 
@@ -144,7 +146,7 @@ button{font-family:inherit;cursor:pointer}
 
 .kpi .sub{font-size:12px;color:var(--soft);font-weight:500;margin-top:4px}
 
-.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px 24px;margin-bottom:18px}
+.card{background:var(--raiz-panel-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px 24px;margin-bottom:18px}
 
 .card>h2{font-size:19px;margin-bottom:4px}.card .sub{color:var(--muted);font-size:13.5px;font-weight:500;margin-bottom:16px}
 
@@ -156,7 +158,7 @@ button{font-family:inherit;cursor:pointer}
 
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
 
-.pcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px 22px;cursor:pointer;transition:transform .14s,box-shadow .16s;animation:fade .45s ease both}
+.pcard{background:var(--raiz-card-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px 22px;cursor:pointer;transition:transform .14s,box-shadow .16s;animation:fade .45s ease both}
 
 .pcard:hover{transform:translateY(-3px);box-shadow:0 10px 28px -16px rgba(23,60,52,.4)}
 
@@ -201,7 +203,7 @@ button{font-family:inherit;cursor:pointer}
 .cprog-bar{height:100%;background:var(--ok);border-radius:3px;transition:width .6s}
 
 .capex-dashboard{display:grid;grid-template-columns:minmax(320px,1.2fr) minmax(260px,.8fr);gap:16px;margin-bottom:18px;align-items:start}
-.capex-panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:16px 18px;overflow:hidden}
+.capex-panel{background:var(--raiz-panel-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:16px 18px;overflow:hidden}
 .capex-panel h3{font-size:16px;margin:0 0 4px}
 .capex-panel .sub{font-size:12.5px;color:var(--muted);font-weight:500;margin-bottom:14px}
 .capex-status-track{display:flex;height:12px;border-radius:999px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line);margin:12px 0}
@@ -221,7 +223,7 @@ button{font-family:inherit;cursor:pointer}
 .capex-card-dash .mini{background:rgba(255,255,255,.72);border:1px solid rgba(0,0,0,.07);border-radius:9px;padding:8px 9px;min-width:0}
 .capex-card-dash .mini span{display:block;font-size:10.5px;color:var(--muted);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-card-dash .mini b{font-family:"Space Grotesk",sans-serif;font-size:15px;color:var(--ink)}
-.capex-status-shell{border:1px solid var(--line);background:var(--surface);border-radius:var(--r-lg);padding:16px;box-shadow:0 8px 24px -24px rgba(0,0,0,.45);margin:16px 0 18px}
+.capex-status-shell{border:1px solid var(--line);background:var(--raiz-panel-gradient);border-radius:var(--r-lg);padding:16px;box-shadow:0 8px 24px -24px rgba(0,0,0,.45);margin:16px 0 18px}
 .capex-status-shell-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
 .capex-status-brand{display:flex;align-items:center;gap:11px;min-width:0}
 .capex-status-logo{width:58px;height:38px;border-radius:9px;background:white;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:4px;overflow:hidden;flex:none}
@@ -260,14 +262,14 @@ button{font-family:inherit;cursor:pointer}
 .capex-status-shell-simple .capex-status-body{padding:0 15px 13px;gap:8px}
 .capex-status-only{font-family:"Space Grotesk",sans-serif;font-size:15px;font-weight:700;color:var(--ink)}
 .capex-status-shell-simple .capex-status-cta{padding-top:9px}
-.capex-budget-band{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+.capex-budget-band{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(135deg,var(--surface) 0%,rgba(253,233,210,.54) 100%)}
 .capex-budget-cell{min-width:0}
 .capex-budget-cell span{display:block;font-size:10.5px;color:var(--muted);font-weight:750;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-budget-cell b{display:block;font-family:"Space Grotesk",sans-serif;font-size:17px;margin-top:3px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-budget-progress{grid-column:1/-1;height:7px;background:var(--surface);border-radius:999px;overflow:hidden;border:1px solid var(--line)}
 .capex-budget-progress i{display:block;height:100%;border-radius:999px}
 .capex-budget-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;align-items:center}
-.capex-item-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:17px 19px;margin-bottom:12px;box-shadow:0 6px 20px -18px rgba(0,0,0,.35)}
+.capex-item-card{background:var(--raiz-card-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:17px 19px;margin-bottom:12px;box-shadow:0 6px 20px -18px rgba(0,0,0,.35)}
 .capex-item-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:10px}
 .capex-item-title{font-size:15px;line-height:1.5;color:var(--ink);font-weight:600}
 .capex-item-meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
@@ -281,7 +283,7 @@ button{font-family:inherit;cursor:pointer}
 .capex-context-title{font-weight:700;font-size:14px;line-height:1.25}
 .capex-context-sub{font-size:12px;color:var(--muted);margin-top:2px}
 .capex-tabs{margin:4px 0 18px}
-.capex-navline{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 16px;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg)}
+.capex-navline{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 16px;padding:12px 14px;background:var(--raiz-panel-gradient);border:1px solid var(--line);border-radius:var(--r-lg)}
 .capex-nav-main{display:flex;align-items:center;gap:11px;min-width:0}
 .capex-arrow-btn{width:38px;height:38px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;cursor:pointer;flex:none;transition:background .15s,border-color .15s,transform .12s}
 .capex-arrow-btn:hover{background:var(--ink);border-color:var(--ink);color:var(--cream);transform:translateX(-1px)}
@@ -294,12 +296,12 @@ button{font-family:inherit;cursor:pointer}
 .capex-card-select{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);border-radius:8px;padding:6px 9px;font-size:12px;font-weight:650;min-height:31px;max-width:210px}
 .capex-panel-titlebar{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
 .capex-panel-titlebar h3{margin:0}
-.capex-lens-band{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-lg);padding:12px 14px;margin:0 0 16px}
+.capex-lens-band{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--line);background:var(--raiz-panel-gradient);border-radius:var(--r-lg);padding:12px 14px;margin:0 0 16px}
 .capex-lens-title{min-width:220px}.capex-lens-title b{display:block;font-size:14px}.capex-lens-title span{display:block;font-size:12px;color:var(--muted);margin-top:2px}
 .capex-focus-pill{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--brand-cur-light);color:var(--accent-text);border-radius:999px;padding:7px 10px;font-size:12px;font-weight:750}
 .capex-focus-pill button{border:0;background:transparent;color:inherit;font-weight:900;cursor:pointer;padding:0 2px}
 .capex-control-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
-.capex-control-card{border:1px solid var(--line);background:var(--surface);border-radius:var(--r-lg);padding:12px 13px;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .12s;min-height:86px}
+.capex-control-card{border:1px solid var(--line);background:var(--raiz-card-gradient);border-radius:var(--r-lg);padding:12px 13px;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .12s;min-height:86px}
 .capex-control-card:hover{border-color:var(--accent);box-shadow:0 8px 22px -20px rgba(0,0,0,.45);transform:translateY(-1px)}
 .capex-control-card span{display:block;color:var(--muted);font-size:10.5px;font-weight:850;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
 .capex-control-card b{display:block;color:var(--ink);font-family:"Space Grotesk",sans-serif;font-size:20px;line-height:1.1}
@@ -364,7 +366,7 @@ button{font-family:inherit;cursor:pointer}
 
 .esc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
 
-.esc-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;transition:box-shadow .15s}
+.esc-card{background:var(--raiz-card-gradient);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;transition:box-shadow .15s}
 
 .esc-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.07)}
 
@@ -398,7 +400,7 @@ td.n{font-family:"Space Grotesk",sans-serif;text-align:right;white-space:nowrap}
 
 .invgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin-bottom:18px}
 
-.invc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:15px 17px}
+.invc{background:var(--raiz-card-gradient);border:1px solid var(--line);border-radius:var(--r);padding:15px 17px}
 
 .invc .nm{font-weight:500;font-size:13.5px;margin-bottom:8px}.invc .v{font-size:19px;font-weight:500;font-family:"Space Grotesk",sans-serif}.invc .pc{font-size:12px;color:var(--soft);margin-top:5px}
 
@@ -424,7 +426,7 @@ input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 
 
 @media(max-width:640px){.fgrid{grid-template-columns:1fr}}
 
-.unicard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px 22px;cursor:pointer;transition:transform .14s,box-shadow .16s}
+.unicard{background:var(--raiz-card-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px 22px;cursor:pointer;transition:transform .14s,box-shadow .16s}
 
 .unicard:hover{transform:translateY(-3px);box-shadow:0 10px 28px -16px rgba(23,60,52,.4)}
 
@@ -564,9 +566,11 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 #view-obra .wrap,#view-escolas .wrap{position:relative;z-index:1}
 
-#view-obra .card,#view-obra .kpi,#view-obra .pag-row,#view-obra .tablewrap,#view-obra .tabs,#view-obra .imp-sec{background:var(--surface);position:relative}
+#view-obra .card,#view-obra .kpi,#view-obra .pag-row,#view-obra .tablewrap,#view-obra .tabs,#view-obra .imp-sec{background:linear-gradient(135deg,var(--surface) 0%,var(--brand-cur-light) 145%);position:relative}
 
-#view-escolas .esc-card,#view-escolas .card,#view-escolas .kpi{background:var(--surface);position:relative}
+#view-uni .card,#view-uni .kpi,#view-uni .tablewrap{background:linear-gradient(135deg,var(--surface) 0%,var(--brand-cur-light) 145%);position:relative}
+
+#view-escolas .esc-card,#view-escolas .card,#view-escolas .kpi{background:var(--raiz-panel-gradient);position:relative}
 
 .phead{position:relative;z-index:1}
 
@@ -4081,7 +4085,7 @@ function updateNavBadge(){const n=allAtrasos().length;const el=document.getEleme
 
 /* GERAL + ESFERAS */
 
-function renderObraCard(o,i){const pct=execObra(o);const _uni=unidades.find(u=>u.obraId===o.id);const e=ESFERAS[o.esfera||'nova'];const marcas=(o.marca||'').split(' + ');const bc=brandColor(marcas[0]);const marcaPills=marcas.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;background:${brandLight(m)};color:${brandColor(m)};padding:2px 8px 2px 4px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid ${brandColor(m)}28"><span style="display:inline-flex;background:white;border-radius:4px;padding:1px 3px;overflow:hidden;height:16px;width:26px;align-items:center;flex-shrink:0">${brandLogoImg(m,'height:14px;width:24px;object-fit:contain')}</span>${m}</span>`).join(' ');return `<div class="pcard" style="animation-delay:${i*55}ms;border-left:4px solid ${bc}" onclick="openObra(${o.id})"><div class="crumb" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${marcaPills}${_uni?`<span style="color:var(--ok);font-size:11.5px">· ${_uni.nome}</span>`:''}</div><h3 style="margin-top:9px">${o.nome}</h3><div class="constr">${o.constr}</div><div class="meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span onclick="event.stopPropagation()"><select style="font-size:11px;padding:2px 8px;height:22px;border-radius:14px;border:1.5px solid ${o.status==='Concluído'?'var(--ok)':o.status==='Em andamento'?'#1976D2':'var(--muted)'};color:${o.status==='Concluído'?'var(--ok)':o.status==='Em andamento'?'#1976D2':'var(--muted)'};background:${o.status==='Concluído'?'#EDF7ED':o.status==='Em andamento'?'#E3F0FC':'var(--surface)'};font-weight:600;cursor:pointer" onchange="setObraStatus(${o.id},this.value)"><option value="Planejamento" ${o.status==='Planejamento'?'selected':''}>📋 Planejamento</option><option value="Em andamento" ${o.status==='Em andamento'?'selected':''}>🏗 Em andamento</option><option value="Concluído" ${o.status==='Concluído'?'selected':''}>✅ Concluído</option></select></span>${pct>100?'<span class="badge b-danger">acima do contrato</span>':''}<span class="badge b-neutral" style="font-size:10px">${e?e.icon:''} ${e?e.label:''}</span><span style="margin-left:auto" onclick="event.stopPropagation()"><button class="iconbtn" style="color:var(--danger);font-size:13px" title="Excluir obra" onclick="deleteObra(${o.id},event)">🗑</button></span></div><div class="bar"><i class="${barClass(pct)}" style="width:${Math.min(pct,100)}%"></i></div><div class="figs"><span>Pago <b>${fmt(o.pago)}</b></span><span>de ${fmt(o.contratado)} · <b>${pct}%</b></span></div></div>`;}
+function renderObraCard(o,i){const pct=execObra(o);const _uni=unidades.find(u=>u.obraId===o.id);const e=ESFERAS[o.esfera||'nova'];const marcas=(o.marca||'').split(' + ');const bc=brandColor(marcas[0]);const marcaPills=marcas.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;background:${brandLight(m)};color:${brandColor(m)};padding:2px 8px 2px 4px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid ${brandColor(m)}28"><span style="display:inline-flex;background:white;border-radius:4px;padding:1px 3px;overflow:hidden;height:16px;width:26px;align-items:center;flex-shrink:0">${brandLogoImg(m,'height:14px;width:24px;object-fit:contain')}</span>${m}</span>`).join(' ');return `<div class="pcard" style="animation-delay:${i*55}ms;border-left:4px solid ${bc};background:${_brandSoftGradient(marcas)}" onclick="openObra(${o.id})"><div class="crumb" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${marcaPills}${_uni?`<span style="color:var(--ok);font-size:11.5px">· ${_uni.nome}</span>`:''}</div><h3 style="margin-top:9px">${o.nome}</h3><div class="constr">${o.constr}</div><div class="meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span onclick="event.stopPropagation()"><select style="font-size:11px;padding:2px 8px;height:22px;border-radius:14px;border:1.5px solid ${o.status==='Concluído'?'var(--ok)':o.status==='Em andamento'?'#1976D2':'var(--muted)'};color:${o.status==='Concluído'?'var(--ok)':o.status==='Em andamento'?'#1976D2':'var(--muted)'};background:${o.status==='Concluído'?'#EDF7ED':o.status==='Em andamento'?'#E3F0FC':'var(--surface)'};font-weight:600;cursor:pointer" onchange="setObraStatus(${o.id},this.value)"><option value="Planejamento" ${o.status==='Planejamento'?'selected':''}>📋 Planejamento</option><option value="Em andamento" ${o.status==='Em andamento'?'selected':''}>🏗 Em andamento</option><option value="Concluído" ${o.status==='Concluído'?'selected':''}>✅ Concluído</option></select></span>${pct>100?'<span class="badge b-danger">acima do contrato</span>':''}<span class="badge b-neutral" style="font-size:10px">${e?e.icon:''} ${e?e.label:''}</span><span style="margin-left:auto" onclick="event.stopPropagation()"><button class="iconbtn" style="color:var(--danger);font-size:13px" title="Excluir obra" onclick="deleteObra(${o.id},event)">🗑</button></span></div><div class="bar"><i class="${barClass(pct)}" style="width:${Math.min(pct,100)}%"></i></div><div class="figs"><span>Pago <b>${fmt(o.pago)}</b></span><span>de ${fmt(o.contratado)} · <b>${pct}%</b></span></div></div>`;}
 
 
 
@@ -4725,6 +4729,16 @@ function drillCapex(year,marca,unidade,tab){
 
 }
 
+function _brandSoftGradient(marcas){
+  const arr=Array.isArray(marcas)?marcas:[marcas];
+  const cols=arr.map(m=>brandLight(m)).filter(c=>c&&!c.startsWith('var'));
+  if(!cols.length)cols.push('#FDE9D2');
+  if(cols.length===1)return`linear-gradient(135deg,var(--surface) 0%,${cols[0]} 132%)`;
+  if(cols.length===2)return`linear-gradient(135deg,${cols[0]} 0%,var(--surface) 48%,${cols[1]} 100%)`;
+  const stops=cols.slice(0,5).map((c,i)=>`${c} ${Math.round(i*100/(Math.min(cols.length,5)-1))}%`);
+  return`linear-gradient(135deg,${stops.join(',')})`;
+}
+
 function capexJs(v){
   return String(v||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 }
@@ -5106,7 +5120,7 @@ function capexControlCards(its,scope){
   const semVerba=capexPendenciaGroups(list,'sem_verba');
   const saldoNeg=capexPendenciaGroups(list,'saldo_negativo');
   const deficit=saldoNeg.reduce((a,g)=>a+Math.abs(Math.min(g.budget.saldo,0)),0);
-  const card=(label,value,detail,onclick,color)=>`<button class="capex-control-card" onclick="${onclick}">
+  const card=(label,value,detail,onclick,color)=>`<button class="capex-control-card" style="background:linear-gradient(135deg,var(--surface) 0%,color-mix(in srgb,${color||'var(--accent)'} 13%,var(--surface)) 100%)" onclick="${onclick}">
     <span>${escHtml(label)}</span>
     <b style="color:${color||'var(--ink)'}">${escHtml(value)}</b>
     <em>${escHtml(detail)}</em>
@@ -5123,7 +5137,7 @@ function capexControlCards(its,scope){
 function capexBudgetSummary(stats,accent,actionHtml){
   const usedWidth=stats.autorizado>0?Math.min(Math.max(stats.usado,0),100):(stats.comprometido>0?100:0);
   const barColor=stats.saldo<0?'var(--danger)':(accent||'var(--accent)');
-  return`<div class="capex-budget-band">
+  return`<div class="capex-budget-band" style="background:linear-gradient(135deg,var(--surface) 0%,color-mix(in srgb,${barColor} 10%,var(--surface)) 100%)">
     <div class="capex-budget-cell"><span>CAPEX disponibilizado</span><b style="color:${accent||'var(--accent)'}">${fmt(stats.autorizado)}</b></div>
     <div class="capex-budget-cell"><span>Comprometido</span><b>${fmt(stats.comprometido)}</b></div>
     <div class="capex-budget-cell"><span>Saldo disponível</span><b style="color:${stats.color}">${fmt(stats.saldo)}</b></div>
@@ -5641,7 +5655,7 @@ function renderCapexYears(){
 
       </div>
 
-      <div style="padding:18px 28px 22px;background:var(--surface)">
+      <div style="padding:18px 28px 22px;background:${_brandSoftGradient(marcas.length?marcas:['RAIZ'])}">
 
         ${_ciMiniDash(its,gc,{ano})}
 
@@ -5719,7 +5733,7 @@ function renderCapexBrands(){
 
     html+=`<div class="pcard" onclick="drillCapex(${capexDrillYear},'${ms}',null)" style="padding:0;overflow:hidden;border:none;box-shadow:0 2px 16px rgba(0,0,0,.1)">
 
-      <div style="background:${bc};padding:18px 22px;display:flex;align-items:center;gap:14px">
+      <div style="background:${_brandGradient([m])};padding:18px 22px;display:flex;align-items:center;gap:14px">
 
         <div style="width:76px;height:50px;border-radius:10px;background:white;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:5px;overflow:hidden">${emb}</div>
 
@@ -5737,7 +5751,7 @@ function renderCapexBrands(){
 
       </div>
 
-      <div style="padding:16px 22px 18px;background:var(--surface)">
+      <div style="padding:16px 22px 18px;background:${_brandSoftGradient([m])}">
 
         ${_ciMiniDash(mi,bc,{ano:capexDrillYear,marca:m})}
 
@@ -5802,7 +5816,7 @@ function renderCapexUnidades(){
 
     html+=`<div class="pcard" onclick="drillCapex(${capexDrillYear},'${ms}','${us}')" style="padding:0;overflow:hidden;border:none;box-shadow:0 2px 16px rgba(0,0,0,.1)">
 
-      <div style="background:${bc};padding:11px 16px;display:flex;align-items:center;gap:10px">
+      <div style="background:${_brandGradient([capexDrillMarca])};padding:11px 16px;display:flex;align-items:center;gap:10px">
 
         <div style="width:50px;height:32px;border-radius:7px;background:white;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:3px;overflow:hidden">${emb}</div>
 
@@ -5818,7 +5832,7 @@ function renderCapexUnidades(){
 
       </div>
 
-      <div style="padding:14px 18px 16px;background:var(--surface)">
+      <div style="padding:14px 18px 16px;background:${_brandSoftGradient([capexDrillMarca])}">
 
         ${_ciMiniDash(ui,bc,{ano:capexDrillYear,marca:capexDrillMarca,unidade:uni})}
 
@@ -5891,7 +5905,7 @@ function renderCapexUnitItems(){
 
       const catId=capexCategoriaId(it);
 
-      html+=`<div class="capex-item-card" style="border-left:4px solid ${accent}">
+      html+=`<div class="capex-item-card" style="border-left:4px solid ${accent};background:${_brandSoftGradient([marca])}">
 
         <div class="capex-item-head">
 
@@ -7697,7 +7711,7 @@ function renderDocs(){
 
       const n=Object.values(u.docs).reduce((a,arr)=>a+arr.length,0);
 
-      html+=`<div class="uni-card" onclick="openUni('${u.id}')" style="cursor:pointer">
+      html+=`<div class="uni-card" onclick="openUni('${u.id}')" style="cursor:pointer;background:${_brandSoftGradient([marca])}">
 
         <div class="uc-bar" style="background:${bc}"></div>
 
@@ -9128,7 +9142,7 @@ function renderEscolas(){
 
     list.forEach(u=>{
 
-      html+=`<div class="uni-card">
+      html+=`<div class="uni-card" style="background:${_brandSoftGradient([marca])}">
 
         <div class="uc-bar" style="background:${bc}"></div>
 
