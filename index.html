@@ -11411,6 +11411,10 @@ function cleanImpNfNumber(raw,tipo,dateIso){
   if(seriePair)candidate=seriePair[1];
   const beforeSerie=String(candidate).split(/\b(?:s[eé]rie|serie|c[oó]digo|codigo|verifica[çc][aã]o|rps|cnpj|cpf)\b/i)[0];
   const digits=beforeSerie.replace(/\D/g,'');
+  if(tipo==='NFS-e'){
+    const municipal=digits.match(/^20\d{2}0{4,}([1-9]\d{0,8})$/);
+    if(municipal)return municipal[1];
+  }
   return digits?digits.replace(/^0+(?=\d)/,''):'';
 }
 
@@ -11428,7 +11432,7 @@ function findImpDocNumberFromText(text,tipo,decoded){
     const s=String(raw||'').trim();
     const pair=s.match(/^([0-9][0-9.]*)\s*\/\s*\d{1,3}\b/);
     if(pair)return cleanImpNfNumber(pair[1],tipo);
-    const m=s.match(/^([0-9]{1,13})(?=\s|$)/);
+    const m=s.match(/^([0-9]{1,20})(?=\s|$)/);
     return m?cleanImpNfNumber(m[1],tipo):'';
   };
   const label=tipo==='NFS-e'
@@ -12043,7 +12047,7 @@ function impFindNfseHeaderNumber(lines){
     const sameTail=arr[i].replace(/.*(?:numero\s+da\s+(?:nota|nfs-?e)|nfs-?e|nota\s+fiscal\s+de\s+servi[çc]os)\s*[:#-]?/i,'').trim();
     const sameFirst=firstNumber(sameTail,arr[i+1]||'');
     if(sameFirst)return sameFirst;
-    const same=arr[i].match(/(?:numero\s+da\s+(?:nota|nfs-?e)|nfs-?e|nota\s+fiscal\s+de\s+servi[çc]os)\s*[:#-]?\s*([0-9]{1,13})(?!\d)/i);
+    const same=arr[i].match(/(?:numero\s+da\s+(?:nota|nfs-?e)|nfs-?e|nota\s+fiscal\s+de\s+servi[çc]os)\s*[:#-]?\s*([0-9]{1,20})(?!\d)/i);
     if(same)return cleanImpNfNumber(same[1],'NFS-e');
     const next=firstNumber(arr[i+1]||'',arr[i+2]||'');
     if(next)return next;
@@ -12077,14 +12081,14 @@ function impFindNfseTotalValue(text,lines){
   }
   for(let i=0;i<arr.length;i++){
     const n=_norm(arr[i]);
-    if(/valor\s+da\s+nota/.test(n)){
-      const v=valueFromWindow(i,/valor\s+da\s+nota/, 'last');
+    if(/valor\s+(?:total\s+)?da\s+nota/.test(n)){
+      const v=valueFromWindow(i,/valor\s+(?:total\s+)?da\s+nota/, 'last');
       if(v)return v;
     }
   }
   for(let i=0;i<arr.length;i++){
     const n=_norm(arr[i]);
-    if(/valor\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e/.test(n)){
+    if(/valor\s+(?:total\s+)?da\s+nota|total\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e/.test(n)){
       for(let j=i+1;j<=Math.min(i+8,arr.length-1);j++){
         const nj=_norm(arr[j]);
         if(/valor\s+liquido\s+da\s+nfs-?e|valor\s+liquido/.test(nj)){
