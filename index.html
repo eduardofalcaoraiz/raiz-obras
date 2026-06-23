@@ -3377,6 +3377,21 @@ function _buildPagadores(obraAtual, valorAtual){
   if(valorAtual&&valorAtual.trim())nomes.add(valorAtual.trim());
   return Array.from(nomes).sort();
 }
+function _obraEscolaPagadora(obraAtual){
+  if(!obraAtual)return'';
+  const u=unidades.find(x=>String(x.obraId||'')===String(obraAtual.id||''));
+  return (u&&u.nome)||obraAtual.nome||'';
+}
+function _obraTemInvestidorExterno(obraAtual){
+  return !!(obraAtual&&Array.isArray(obraAtual.aportes)&&obraAtual.aportes.some(a=>a&&String(a.inv||'').trim()));
+}
+function _defaultPagadorObra(obraAtual){
+  if(!obraAtual)return'';
+  const esfera=obraAtual.esfera||'nova';
+  if(!['expansao','nova'].includes(esfera))return'';
+  if(_obraTemInvestidorExterno(obraAtual))return'';
+  return _obraEscolaPagadora(obraAtual);
+}
 function _fillPagSelect(elId, obraAtual, valorSelecionado){
   const el=document.getElementById(elId);if(!el)return;
   const lista=_buildPagadores(obraAtual, valorSelecionado);
@@ -9101,7 +9116,7 @@ function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(
 
   g("pm-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
 
-  const _pagEditVal=pagEditIdx!==null?(cur.pag[pagEditIdx]?.pagn||''):'';
+  const _pagEditVal=pagEditIdx!==null?(cur.pag[pagEditIdx]?.pagn||''):_defaultPagadorObra(cur);
   _fillPagSelect("pm-pag", cur, _pagEditVal);
 
   g("pm-pag").onchange=function(){let info=document.getElementById("pm-pag-saldo");if(!info){info=document.createElement("p");info.id="pm-pag-saldo";info.style.cssText="font-size:12px;margin:5px 0 0";this.after(info);}if(!cur)return;const s=getInvestSaldo(cur,this.value);if(s===null){info.textContent='';return;}info.innerHTML=s>=0?`<span style="color:var(--ok)">Saldo disponível: ${fmt(s)}</span>`:`<span style="color:var(--danger)">⚠ Déficit atual de ${fmt(-s)}</span>`;}
@@ -10531,7 +10546,7 @@ function openImport(){
 
   document.getElementById("imp-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
 
-  _fillPagSelect("imp-pag", cur, '');
+  _fillPagSelect("imp-pag", cur, _defaultPagadorObra(cur));
 
   // Indicador de saldo ao selecionar pagante
 
