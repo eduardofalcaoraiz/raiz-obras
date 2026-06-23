@@ -653,8 +653,10 @@ function findAccessKey(text: string) {
   if (direct) return direct
   const lines = source.replace(/\r/g, '\n').split('\n').map((l) => cleanStr(l)).filter(Boolean)
   for (let i = 0; i < lines.length; i++) {
-    if (!/chave\s+de\s+acesso|chave\s+acesso|consulta\s+pela\s+chave/i.test(stripAccents(lines[i]).toLowerCase())) continue
-    const block = lines.slice(i, i + 4).join(' ')
+    const norm = stripAccents(lines[i]).toLowerCase()
+    if (!/chave\s+de\s+acesso|chave\s+acesso|consulta\s+pela\s+chave|\bchave\b/i.test(norm)) continue
+    const idx = norm.indexOf('chave')
+    const block = (idx >= 0 ? lines[i].slice(idx) : lines[i]) + ' ' + lines.slice(i + 1, i + 4).join(' ')
     const digits = onlyDigits(block)
     if (digits.length >= 44) return digits.slice(0, 44)
   }
@@ -688,7 +690,9 @@ function extractStrictText(rawText: string) {
   const cnpj = tipo === 'NFS-e' ? (firstCnpj(prestadorBlock) || '') : (firstCnpj(text) || decoded?.cnpj || '')
   const razao = findName(lines, tipo, prestadorBlock)
   const total = findValue(text, lines, tipo)
-  const desc = findDescription(lines, tipo)
+  let desc = findDescription(lines, tipo)
+  const danfeItems = ['NF-e', 'NFC-e'].includes(tipo) ? parseDanfeItemsFromText(text) : []
+  if (danfeItems.length) desc = danfeItems.map((it) => it.descricao).filter(Boolean).join('; ')
   const parcelas = findInstallments(text, total)
   const firstInstallmentDue = parcelas.find((p) => p.vencimento)?.vencimento || ''
 
@@ -703,7 +707,7 @@ function extractStrictText(rawText: string) {
     codigo_barras: null,
     codigo_verificacao: null,
     emitente: { razao_social: cleanCompanyName(razao) || null, cnpj: cnpj || null },
-    itens: desc ? [{ descricao: desc, quantidade: 1, unidade: ['NF-e', 'NFC-e'].includes(tipo) ? 'UN' : 'Srv', valor_unitario: total, valor_total: total }] : [],
+    itens: danfeItems.length ? danfeItems : (desc ? [{ descricao: desc, quantidade: 1, unidade: ['NF-e', 'NFC-e'].includes(tipo) ? 'UN' : 'Srv', valor_unitario: total, valor_total: total }] : []),
     discriminacao: desc || null,
     valores: { subtotal: total, desconto: 0, frete: 0, valor_total: total },
     pagamento: { forma: parcelas.length > 1 ? 'PARCELADO' : (tipo === 'Boleto' ? 'BOLETO' : 'A_VISTA'), num_parcelas: parcelas.length || 1, parcelas },
@@ -894,6 +898,34 @@ function findDescription(lines: string[], tipo: string) {
     if (next.length > 6) return next
   }
   return tipo === 'Boleto' ? 'Cobranca por boleto bancario' : ''
+}
+
+function parseDanfeItemsFromText(text: string) {
+  const lines = String(text || '').replace(/\r/g, '\n').split('\n').map((l) => cleanStr(l)).filter(Boolean)
+  const items: AnyRecord[] = []
+  const seen = new Set<string>()
+  const rowRe = /^([\d\s]{6,22})\s+(.+?)\s+(\d{8})\s+\d{3,4}\s+\d{4}\s+([A-Z]{1,6})\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})(?:\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2}))?/i
+  for (const line of lines) {
+    if (!/\d/.test(line) || !/\b(PC|UN|UND|M2|M3|KG|CX|MT|LT|PAR|PCT)\b/i.test(line)) continue
+    const m = line.match(rowRe)
+    if (!m) continue
+    const codigo = onlyDigits(m[1])
+    const descricao = cleanStr(m[2])
+    if (!descricao || descricao.length < 3) continue
+    const item = {
+      codigo,
+      descricao,
+      quantidade: num(m[5]),
+      unidade: String(m[4] || 'UN').toUpperCase(),
+      valor_unitario: num(m[6]),
+      valor_total: num(m[7]),
+    }
+    const key = [item.codigo, item.descricao, item.quantidade, item.valor_total].join('|').toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    items.push(item)
+  }
+  return items
 }
 
 function decodeAccessKey(chave: string) {
