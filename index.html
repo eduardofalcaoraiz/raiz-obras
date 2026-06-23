@@ -11831,82 +11831,6 @@ function dataFromDecodedChave(c,d){
   };
 }
 
-async function lookupOfficialByAccessKey(c,onStatus){
-  if(onStatus)onStatus('Consultando XML oficial por chave de acesso...');
-  const edgeUrl=SUPA_URL+'/functions/v1/read-invoice';
-  let resp;
-  try{
-    resp=await fetch(edgeUrl,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':'Bearer '+SUPA_ANON,
-        'apikey':SUPA_ANON
-      },
-      body:JSON.stringify({accessKey:c}),
-      signal:AbortSignal.timeout(60000)
-    });
-  }catch(fetchErr){
-    if(fetchErr.name==='TimeoutError'||fetchErr.name==='AbortError')
-      throw Object.assign(new Error('Tempo esgotado aguardando consulta oficial por chave (60s).'),{payload:null});
-    throw Object.assign(new Error('Erro de rede ao conectar com consulta oficial: '+fetchErr.message),{payload:null});
-  }
-  let payload=null;
-  try{payload=await resp.json();}catch(e){payload={ok:false,error:'Resposta da consulta oficial nao veio em JSON.'};}
-  if(!resp.ok||!payload.ok){
-    const msg=payload?.error||('Servidor retornou HTTP '+resp.status);
-    throw Object.assign(new Error(msg),{payload});
-  }
-  return mapEdgeInvoiceResult(payload);
-}
-
-function showAccessKeyLookupError(c,err){
-  const payload=err?.payload||{};
-  const attempts=Array.isArray(payload.attempts)?payload.attempts:[];
-  const rows=[{
-    etapa:'Consulta oficial por chave',
-    erro:err?.message||'Nao foi possivel consultar a nota pela chave.'
-  }];
-  if(payload.code==='NFE_LOOKUP_NOT_CONFIGURED')rows.push({
-    etapa:'Canal legal pendente',
-    erro:'Para baixar XML completo e itens sem captcha, configure no backend uma API fiscal autorizada ou um conector com certificado A1. A consulta publica da SEFAZ nao pode ser automatizada por captcha.'
-  });
-  if(attempts.length)rows.push({
-    etapa:'Tentativas tecnicas',
-    erro:attempts.join('\n')
-  });
-  showImportErrorDetails({name:'Chave de acesso '+c.slice(0,8)+'...'+c.slice(-6)},rows);
-}
-
-function applyOfficialLookupToOpenReview(data){
-  if(!data)return;
-  const nfTipo=data.tipo||'NF-e';
-  const nfSel=document.getElementById('imp-nftipo');
-  if(nfSel&&![...nfSel.options].some(o=>o.value===nfTipo))nfSel.add(new Option(nfTipo,nfTipo));
-  if(nfSel){nfSel.value=nfTipo;impNfTipoChanged(nfTipo);}
-  const fill=(id,val)=>{const el=document.getElementById(id);if(el&&val&&!el.value)el.value=val;};
-  fill('imp-ben',data.ben);
-  fill('imp-cnpj',data.cnpj);
-  fill('imp-doc',cleanImpDocNumber(data.doc||data.nfNum||'',nfTipo));
-  fill('imp-date',data.date);
-  fill('imp-venc',data.venc);
-  fill('imp-chave',data.chave);
-  if((data.itens||[]).length)impRenderItens(data.itens,data.discriminacao||data.desc||'',nfTipo);
-  if(data.val&&!parseCurrency(document.getElementById('imp-val-input')?.value||''))setCurrencyValue('imp-val-input',data.val);
-  if(data.subtotal&&!parseCurrency(document.getElementById('imp-subtotal')?.value||''))setCurrencyValue('imp-subtotal',data.subtotal);
-  if(data.desconto&&!parseCurrency(document.getElementById('imp-desconto')?.value||''))setCurrencyValue('imp-desconto',data.desconto);
-  if(data.frete&&!parseCurrency(document.getElementById('imp-frete')?.value||''))setCurrencyValue('imp-frete',data.frete);
-  const parcelas=Array.isArray(data.parcelas)?data.parcelas.filter(p=>p&&(p.valor||p.vencimento)):[];
-  if(parcelas.length>1){
-    document.getElementById('imp-pag-forma').value='PARCELADO';
-    document.getElementById('imp-nparcelas').value=parcelas.length;
-    document.getElementById('imp-nparcelas-row').style.display='';
-    impRenderParcelas(parcelas);
-  }
-}
-
-
-
 async function decodePastedChave(){
 
   const raw=document.getElementById('imp-chave-paste').value.trim();
@@ -11918,23 +11842,10 @@ async function decodePastedChave(){
   const d=decodeChave(c);
   if(!d){toast('Chave invalida.');return;}
   const localData=dataFromDecodedChave(c,d);
-  document.getElementById('imp-upload').style.display='none';
-  document.getElementById('imp-review').style.display='none';
-  document.getElementById('imp-reading').style.display='block';
-  try{
-    const officialData=await lookupOfficialByAccessKey(c,_setImpStatus);
-    const merged=impMergeTrustedLocal(officialData,localData);
-    showImportReview(merged);
-    if(!document.getElementById('imp-ben').value)await lookupByCNPJ(true);
-    toast((officialData.itens&&officialData.itens.length)?'XML oficial lido com itens da nota. Confira os dados.':'Consulta oficial concluida. Confira os dados.');
-    if(!impIsComplete(merged))impShowPartialWarning({name:'Chave de acesso '+c.slice(0,8)+'...'+c.slice(-6)},merged,[]);
-  }catch(err){
-    showImportReview(localData);
-    await lookupByCNPJ(true);
-    showAccessKeyLookupError(c,err);
-    if(!document.getElementById('imp-ben').value)
-      toast('Chave decodificada. Consulta oficial ainda precisa de canal autorizado.');
-  }
+  showImportReview(localData);
+  await lookupByCNPJ(true);
+  if(!document.getElementById('imp-ben').value)
+    toast('Chave decodificada. Anexe o PDF/XML para ler itens e valores.');
   return;
 
   if(!d){toast('Chave inválida.');return;}
@@ -12193,8 +12104,6 @@ function impCnpjChanged(){
 
 
 
-let impLastOfficialLookupKey='';
-
 async function impChaveChanged(raw){
 
   const c=raw.replace(/\D/g,'');
@@ -12228,17 +12137,6 @@ async function impChaveChanged(raw){
   // Busca razão social em segundo plano
 
   if(!document.getElementById('imp-ben').value)lookupByCNPJ(true);
-
-  if(impLastOfficialLookupKey===c)return;
-  impLastOfficialLookupKey=c;
-  try{
-    _setImpStatus('Consultando XML oficial por chave de acesso...');
-    const officialData=await lookupOfficialByAccessKey(c,_setImpStatus);
-    applyOfficialLookupToOpenReview(officialData);
-    toast((officialData.itens&&officialData.itens.length)?'XML oficial lido com itens da nota.':'Consulta oficial concluida pela chave.');
-  }catch(err){
-    showAccessKeyLookupError(c,err);
-  }
 
 }
 
