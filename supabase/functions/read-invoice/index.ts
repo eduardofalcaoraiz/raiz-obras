@@ -26,7 +26,7 @@ Critical rules:
 7. Dates must be YYYY-MM-DD. Numbers must be plain decimals with dot separator.
 8. Unknown fields must be null, empty arrays, or zero. Return only valid JSON.
 9. Evidence first: if OCR is unclear, fragmented, or ambiguous, return null/0 for that field instead of guessing.
-10. Do not infer totals from the largest number on the page. Use only values explicitly labeled as total, valor da nota, valor liquido, valor dos servicos, valor do documento, or valor a pagar.
+10. Do not infer totals from the largest number on the page. Use only values explicitly labeled as total, valor da nota, valor total da nota, valor liquido, valor dos servicos, valor do documento, or valor a pagar.
 11. Do not infer company names from arbitrary uppercase lines. For NFS-e, emitente must come from the PRESTADOR/provider block only.
 12. If the document has fatura/duplicatas/parcelamento, extract each visible installment with numero, valor and vencimento. Do not split the total unless the installment schedule is explicit.
 
@@ -74,6 +74,7 @@ Deno.serve(async (req: Request) => {
     const rawText = String(body?.rawText || body?.text || '')
     const imageBase64 = String(body?.imageBase64 || '')
     const mediaType = String(body?.mediaType || 'application/pdf')
+    const fileName = String(body?.fileName || body?.filename || 'documento')
 
     const attempts: string[] = []
     const geminiKey = Deno.env.get('GEMINI_API_KEY') || ''
@@ -120,6 +121,17 @@ Deno.serve(async (req: Request) => {
         if (consider('Mistral OCR + IA', normalized)) return ok(merged || {}, attempts)
       } catch (err) {
         attempts.push('Mistral OCR: ' + errorMessage(err))
+      }
+    }
+
+    const advancedOcrUrl = (Deno.env.get('ADVANCED_OCR_URL') || Deno.env.get('OPEN_SOURCE_OCR_URL') || '').trim()
+    if (advancedOcrUrl && Deno.env.get('ADVANCED_OCR_DISABLED') !== '1') {
+      try {
+        const text = await callAdvancedOcrService(advancedOcrUrl, imageBase64, mediaType, fileName)
+        const normalized = await extractFromOcrText(text, geminiKey, 'advanced-open-source-ocr')
+        if (consider('OCR avancado open-source + IA', normalized)) return ok(merged || {}, attempts)
+      } catch (err) {
+        attempts.push('OCR avancado open-source: ' + errorMessage(err))
       }
     }
 
@@ -258,6 +270,7 @@ function enforceFiscalEvidence(data: AnyRecord, strictLocal: AnyRecord) {
   } else if (strictTipo && ['NF-e', 'NFC-e', 'NFS-e', 'CT-e'].includes(strictTipo)) {
     out.tipo_documento = strictTipo
   }
+  if (strict.numero_nf) out.numero_nf = strict.numero_nf
   if (strict.emitente?.razao_social) out.emitente = { ...(out.emitente || {}), razao_social: strict.emitente.razao_social }
   if (strict.emitente?.cnpj) out.emitente = { ...(out.emitente || {}), cnpj: strict.emitente.cnpj }
   if (strict.valores) {
@@ -276,6 +289,7 @@ function enforceFiscalEvidence(data: AnyRecord, strictLocal: AnyRecord) {
 function validateDataAgainstText(data: AnyRecord, text: string) {
   const out: AnyRecord = JSON.parse(JSON.stringify(data || {}))
   const full = String(text || '')
+  const fullLines = full.split('\n').map((l) => l.trim()).filter(Boolean)
   const norm = stripAccents(full).toLowerCase()
   const digits = onlyDigits(full)
   const tipo = normalizeTipo(out.tipo_documento)
@@ -285,12 +299,15 @@ function validateDataAgainstText(data: AnyRecord, text: string) {
   if (['NF-e', 'NFC-e', 'NFS-e', 'CT-e'].includes(tipo)) {
     out.numero_nf = normalizeInvoiceNumber(out.numero_nf, tipo, out.chave_acesso || out.codigo_verificacao, out.data_emissao || undefined) || null
     out.serie = null
-    const localNumero = findDocNumber(full, tipo)
+    const nfseHeaderNumero = tipo === 'NFS-e' ? findNfseHeaderNumber(fullLines) : ''
+    const looseNumero = findDocNumber(full, tipo)
+    const localNumero = tipo === 'NFS-e' ? (nfseHeaderNumero || looseNumero) : looseNumero
     const nfseKeyNumero = tipo === 'NFS-e'
       ? decodeNfseNumberFromKey(out.chave_acesso || out.codigo_verificacao || full, out.data_emissao || undefined)
       : ''
     if (nfseKeyNumero) out.numero_nf = nfseKeyNumero
     else if (localNumero) out.numero_nf = localNumero
+    else if (tipo === 'NFS-e' && onlyDigits(out.numero_nf || '').length < 2) out.numero_nf = null
   }
 
   if (tipo === 'NFS-e') {
@@ -300,6 +317,11 @@ function validateDataAgainstText(data: AnyRecord, text: string) {
     const emitCnpj = onlyDigits(out.emitente?.cnpj || '')
     if (emitName && !containsLoose(prestadorNorm, emitName)) out.emitente.razao_social = null
     if (emitCnpj && !onlyDigits(prestadorBlock).includes(emitCnpj)) out.emitente.cnpj = null
+    const localNfseValue = findNfseTotalValue(full, fullLines)
+    if (localNfseValue) {
+      out.valores.valor_total = localNfseValue
+      if (!num(out.valores.subtotal) || out.valores.subtotal < localNfseValue) out.valores.subtotal = localNfseValue
+    }
   }
 
   const emitCnpj = onlyDigits(out.emitente?.cnpj || '')
@@ -506,6 +528,42 @@ async function callMistralOcr(key: string, imageBase64: string, mediaType: strin
   return text
 }
 
+async function callAdvancedOcrService(url: string, imageBase64: string, mediaType: string, fileName: string) {
+  const token = Deno.env.get('ADVANCED_OCR_TOKEN') || ''
+  const headers: HeadersInit = { 'Content-Type': 'application/json' }
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const resp = await fetchWithTimeout(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      imageBase64,
+      mediaType,
+      fileName,
+      language: 'por',
+      expectedDocument: 'brazilian-fiscal-document',
+    }),
+  }, 90000)
+
+  const raw = await resp.text()
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${raw.slice(0, 260)}`)
+  let data: AnyRecord
+  try {
+    data = JSON.parse(raw || '{}')
+  } catch {
+    throw new Error('resposta nao JSON do OCR avancado')
+  }
+  if (data?.ok === false) throw new Error(String(data.error || 'OCR avancado retornou falha'))
+  const pages = Array.isArray(data?.pages) ? data.pages : []
+  const text = [
+    data?.text,
+    data?.markdown,
+    pages.map((p: AnyRecord) => p?.markdown || p?.text || '').filter(Boolean).join('\n\n'),
+  ].filter(Boolean).join('\n\n')
+  if (!String(text || '').trim()) throw new Error('OCR avancado sem texto extraido')
+  return String(text)
+}
+
 async function callOcrSpace(key: string, imageBase64: string, mediaType: string) {
   const form = new FormData()
   form.append('base64Image', `data:${mediaType};base64,${imageBase64}`)
@@ -513,6 +571,7 @@ async function callOcrSpace(key: string, imageBase64: string, mediaType: string)
   form.append('isOverlayRequired', 'false')
   form.append('detectOrientation', 'true')
   form.append('scale', 'true')
+  form.append('isTable', 'true')
   form.append('OCREngine', '2')
 
   const resp = await fetchWithTimeout('https://api.ocr.space/parse/image', {
@@ -749,15 +808,17 @@ function extractStrictText(rawText: string) {
   const prestadorBlock = tipo === 'NFS-e' ? findNfsePrestadorBlock(text, lines) : ''
   const linhaDigitavel = tipo === 'Boleto' ? findLinhaDigitavel(text) : ''
   const dataEmissao = findDateNear(lines, [/emiss/i, /compet/i, /data do documento/i]) || decoded?.date || ''
+  const nfseHeaderNumero = tipo === 'NFS-e' ? findNfseHeaderNumber(lines) : ''
+  const nfseLooseNumero = tipo === 'NFS-e' ? findDocNumber(text, tipo) : ''
   const numero = tipo === 'NFS-e'
-    ? (decodeNfseNumberFromKey(chave || text, dataEmissao) || findDocNumber(text, tipo) || '')
+    ? (decodeNfseNumberFromKey(chave || text, dataEmissao) || nfseHeaderNumero || nfseLooseNumero || '')
     : (['NF-e', 'NFC-e', 'CT-e'].includes(tipo) && decoded?.numero ? decoded.numero : (findDocNumber(text, tipo) || decoded?.numero || ''))
   const dataVenc = findDateNear(lines, [/venc/i, /pagar ate/i, /data limite/i])
   const cnpj = tipo === 'NFS-e' ? (firstCnpj(prestadorBlock) || '') : (decoded?.cnpj || firstCnpj(text) || '')
   const razao = tipo === 'NFS-e'
     ? (findNfseProviderName(prestadorBlock) || findName(lines, tipo, prestadorBlock))
     : (['NF-e', 'NFC-e'].includes(tipo) ? (findDanfeIssuerName(text, lines) || findName(lines, tipo, prestadorBlock)) : findName(lines, tipo, prestadorBlock))
-  let total = findValue(text, lines, tipo)
+  let total = tipo === 'NFS-e' ? findNfseTotalValue(text, lines) : findValue(text, lines, tipo)
   let desc = tipo === 'NFS-e' ? (findNfseDescription(lines) || findDescription(lines, tipo)) : findDescription(lines, tipo)
   const danfeItems = ['NF-e', 'NFC-e'].includes(tipo) ? parseDanfeItemsFromText(text) : []
   const danfeTotals = ['NF-e', 'NFC-e'].includes(tipo) ? findDanfeTotals(text, danfeItems) : {}
@@ -869,6 +930,95 @@ function findNfseDescription(lines: string[]) {
     return cleanStr(block.join(' '))
   }
   return ''
+}
+
+function nfseMoneyList(s: string) {
+  return [...String(s || '').matchAll(/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/g)]
+    .map((m) => num(m[1]))
+    .filter((v) => Number.isFinite(v))
+}
+
+function findNfseHeaderNumber(lines: string[]) {
+  const arr = (lines || []).map((l) => cleanStr(l)).filter(Boolean)
+  const firstNumber = (raw: string) => {
+    const s = cleanStr(raw)
+    const pair = s.match(/^([0-9][0-9.]*)\s*\/\s*\d{1,3}\b/)
+    if (pair) return normalizeInvoiceNumber(pair[1], 'NFS-e')
+    const m = s.match(/^([0-9]{1,20})(?=\s|$)/)
+    return m ? normalizeInvoiceNumber(m[1], 'NFS-e') : ''
+  }
+  for (let i = 0; i < arr.length; i++) {
+    const n = stripAccents(arr[i]).toLowerCase()
+    if (!/numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n[ºo.]|nota\s+fiscal\s+de\s+servicos/.test(n)) continue
+    const sameTail = arr[i].replace(/.*(?:numero\s+da\s+(?:nota|nfs-?e)|nfs-?e|nota\s+fiscal\s+de\s+servi[cç]os)\s*[:#-]?/i, '').trim()
+    const sameFirst = firstNumber(sameTail, arr[i + 1] || '')
+    if (sameFirst) return sameFirst
+    const same = arr[i].match(/(?:numero\s+da\s+(?:nota|nfs-?e)|nfs-?e|nota\s+fiscal\s+de\s+servi[cç]os)\s*[:#-]?\s*([0-9]{1,20})(?!\d)/i)
+    if (same) return normalizeInvoiceNumber(same[1], 'NFS-e')
+    const next = firstNumber(arr[i + 1] || '', arr[i + 2] || '')
+    if (next) return next
+  }
+  return ''
+}
+
+function findNfseTotalValue(text: string, lines: string[]) {
+  const arr = (lines?.length ? lines : String(text || '').split('\n')).map((l) => cleanStr(l)).filter(Boolean)
+  const pickLastPositive = (vals: number[]) => vals.filter((v) => v > 0).pop() || 0
+  const pickFirstPositive = (vals: number[]) => vals.find((v) => v > 0) || 0
+  const valueFromWindow = (start: number, labelRe: RegExp | null, mode: 'first' | 'last') => {
+    for (let j = start; j <= Math.min(start + 4, arr.length - 1); j++) {
+      const line = arr[j] || ''
+      const n = stripAccents(line).toLowerCase()
+      if (labelRe && !labelRe.test(n) && j === start) continue
+      const vals = nfseMoneyList(line)
+      if (vals.length) return mode === 'first' ? pickFirstPositive(vals) : pickLastPositive(vals)
+      const nextVals = nfseMoneyList(arr[j + 1] || '')
+      if (nextVals.length) return mode === 'first' ? pickFirstPositive(nextVals) : pickLastPositive(nextVals)
+    }
+    return 0
+  }
+
+  for (let i = 0; i < arr.length; i++) {
+    const n = stripAccents(arr[i]).toLowerCase()
+    if (/valor\s+liquido\s+da\s+nfs-?e|valor\s+liquido\s+do\s+documento|valor\s+liquido/.test(n)) {
+      const v = valueFromWindow(i, /valor\s+liquido/, 'last')
+      if (v) return v
+    }
+  }
+  for (let i = 0; i < arr.length; i++) {
+    const n = stripAccents(arr[i]).toLowerCase()
+    if (/valor\s+(?:total\s+)?da\s+nota/.test(n)) {
+      const v = valueFromWindow(i, /valor\s+(?:total\s+)?da\s+nota/, 'last')
+      if (v) return v
+    }
+  }
+  for (let i = 0; i < arr.length; i++) {
+    const n = stripAccents(arr[i]).toLowerCase()
+    if (/valor\s+(?:total\s+)?da\s+nota|total\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e/.test(n)) {
+      for (let j = i + 1; j <= Math.min(i + 8, arr.length - 1); j++) {
+        const nj = stripAccents(arr[j]).toLowerCase()
+        if (/valor\s+liquido\s+da\s+nfs-?e|valor\s+liquido/.test(nj)) {
+          const v = valueFromWindow(j, /valor\s+liquido/, 'last')
+          if (v) return v
+        }
+      }
+      for (let j = i + 1; j <= Math.min(i + 5, arr.length - 1); j++) {
+        const nj = stripAccents(arr[j]).toLowerCase()
+        if (/valor\s+do\s+servico|valor\s+dos\s+servicos/.test(nj)) {
+          const v = valueFromWindow(j, /valor\s+do\s+servico|valor\s+dos\s+servicos/, 'first')
+          if (v) return v
+        }
+      }
+    }
+  }
+  for (let i = 0; i < arr.length; i++) {
+    const n = stripAccents(arr[i]).toLowerCase()
+    if (/valor\s+do\s+servico|valor\s+dos\s+servicos|valor\s+total\s+dos\s+servicos/.test(n)) {
+      const v = valueFromWindow(i, /valor\s+(?:do|dos|total\s+dos)\s+servic/, 'first')
+      if (v) return v
+    }
+  }
+  return 0
 }
 
 function findLinhaDigitavel(text: string) {
@@ -1388,6 +1538,10 @@ function normalizeInvoiceNumber(raw: unknown, tipo: string, chave?: unknown, dat
   if (seriePair) candidate = seriePair[1]
   const beforeNoise = String(candidate).split(/\b(?:serie|codigo|verificacao|rps|cnpj|cpf|inscricao|competencia|data|valor|protocolo|chave)\b/i)[0]
   const digits = onlyDigits(beforeNoise)
+  if (tipo === 'NFS-e') {
+    const municipal = digits.match(/^20\d{2}0{4,}([1-9]\d{0,8})$/)
+    if (municipal) return municipal[1]
+  }
   return digits ? digits.replace(/^0+(?=\d)/, '') : ''
 }
 
