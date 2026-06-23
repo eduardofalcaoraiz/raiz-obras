@@ -348,6 +348,9 @@ button{font-family:inherit;cursor:pointer}
 .capex-tr-meta{font-size:11.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-tr-status{font-size:11px;font-weight:800;color:var(--muted);white-space:nowrap}
 .capex-tr-empty{font-size:12.5px;color:var(--muted);padding:9px 2px}
+.obra-nf-search{background:var(--surface);box-shadow:0 8px 22px -26px rgba(0,0,0,.38)}
+.obra-nf-result .capex-tr-code{background:var(--surface-2);border-color:rgba(23,60,52,.16);color:var(--ink)}
+.obra-nf-result.exact{background:#FFFBF4;border-color:rgba(248,136,8,.32)}
 @media(max-width:760px){.capex-tr-search{grid-template-columns:1fr}.capex-tr-result{grid-template-columns:1fr}.capex-tr-code,.capex-tr-status{width:max-content}}
 .global-dashboard{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin-bottom:22px;align-items:start}
 .gd-span-12{grid-column:span 12}.gd-span-8{grid-column:span 8}.gd-span-6{grid-column:span 6}.gd-span-4{grid-column:span 4}
@@ -1318,6 +1321,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div id="esf-obras-section">
 
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:24px 0 14px"><h2 style="font-size:18px;flex:1;margin:0">Obras</h2><input class="fi" id="esf-busca" style="width:240px;padding:8px 12px;font-size:13px" placeholder="Buscar obra, marca, construtora…" oninput="setEsfBusca(this.value)"></div>
+
+        <div id="esf-nf-search"></div>
 
         <div class="chips" id="esf-chips"></div>
 
@@ -3221,13 +3226,121 @@ let uniSeq=1;
 
 const ESFERAS={capex:{label:'Capex de Melhorias',desc:'Obras de melhoria e retrofit em unidades existentes.',icon:'🔧'},expansao:{label:'Expansões de Unidades',desc:'Ampliação e expansão de unidades em operação.',icon:'🏗'},nova:{label:'Novas Unidades',desc:'Construção e abertura de novas unidades do grupo.',icon:'🏢'}};
 
-let curEsfera='nova',esfBusca='',esfFiltroMarca='Todas';
+let curEsfera='nova',esfBusca='',esfFiltroMarca='Todas',esfNfSearchQuery='';
 
 let capexItens=[],capexSaldos=[],capexEditId=null;
 
 function setEsfBusca(v){esfBusca=v;renderEsfera();}
 
 function setEsfFiltro(m){esfFiltroMarca=m;renderEsfera();}
+
+function nfSearchKey(v){
+  return String(v||'').replace(/\D/g,'').replace(/^0+(?=\d)/,'');
+}
+
+function nfSearchText(v){
+  return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+}
+
+function paymentNfNumber(p){
+  const tipo=p?.nfTipo||'NF-e';
+  const candidates=[p?.nfNum,p?.nota,p?.nfDoc?.name].filter(Boolean);
+  for(const c of candidates){
+    const clean=cleanImpDocNumber(c,tipo);
+    if(clean)return clean;
+    const digits=nfSearchKey(c);
+    if(digits)return digits;
+  }
+  return'';
+}
+
+function esferaNfSearchResults(query){
+  const q=String(query||'').trim();
+  if(!q||curEsfera==='capex')return[];
+  const qDigits=nfSearchKey(q),qText=nfSearchText(q);
+  if(!qDigits&&!qText)return[];
+  const rows=[];
+  obras.filter(o=>(o.esfera||'nova')===curEsfera).forEach(o=>{
+    (o.pag||[]).forEach((p,i)=>{
+      const nf=paymentNfNumber(p);
+      const raw=[p.nfNum,p.nota,p.nfDoc?.name,p.nfTipo].filter(Boolean).join(' ');
+      const nd=nfSearchKey(nf||raw),nt=nfSearchText(nf||raw);
+      let score=0;
+      if(qDigits&&nd){
+        if(nd===qDigits)score=130;
+        else if(nd.startsWith(qDigits))score=95;
+        else if(nd.includes(qDigits))score=72;
+      }
+      if(!score&&qText&&nt){
+        if(nt===qText)score=105;
+        else if(nt.startsWith(qText))score=78;
+        else if(nt.includes(qText))score=55;
+      }
+      if(score)rows.push({o,p,i,nf:nf||p.nfNum||p.nota||'',score,exact:qDigits&&nd===qDigits});
+    });
+  });
+  return rows.sort((a,b)=>b.score-a.score||String(a.o.nome||'').localeCompare(String(b.o.nome||''),'pt-BR')||String(a.nf||'').localeCompare(String(b.nf||''),'pt-BR')).slice(0,10);
+}
+
+function esferaNfResultsHtml(){
+  if(!String(esfNfSearchQuery||'').trim())return'';
+  const rows=esferaNfSearchResults(esfNfSearchQuery);
+  if(!rows.length)return'<div class="capex-tr-empty">Nenhum pagamento encontrado para esta nota fiscal.</div>';
+  return rows.map(({o,p,i,nf,exact})=>{
+    const nfLabel=escHtml(nf||p.nfNum||'NF');
+    const title=escHtml(p.ben||'Beneficiario nao informado');
+    const meta=[o.nome,p.ref,p.venc?fmtD(p.venc):'',fmt(p.v)].filter(Boolean).map(escHtml).join(' &middot; ');
+    const obraId=JSON.stringify(o.id);
+    const idxArg=JSON.stringify(i);
+    return`<button type="button" class="capex-tr-result obra-nf-result ${exact?'exact':''}" onclick='openPagamentoFromNfSearch(${obraId},${idxArg})'>
+      <span class="capex-tr-code">NF ${nfLabel}</span>
+      <span class="capex-tr-main"><span class="capex-tr-title">${title}</span><span class="capex-tr-meta">${meta}</span></span>
+      <span class="capex-tr-status">${escHtml(p.nfTipo||'NF')}</span>
+    </button>`;
+  }).join('');
+}
+
+function renderEsferaNfSearch(){
+  if(curEsfera==='capex')return'';
+  return`<div class="capex-tr-search obra-nf-search">
+    <div class="capex-tr-field">
+      <label for="esf-nf-search-input">Pesquisa por NF</label>
+      <input id="esf-nf-search-input" value="${escHtml(esfNfSearchQuery)}" placeholder="Digite o numero da nota fiscal" inputmode="numeric" autocomplete="off" oninput="setEsfNfSearch(this.value)" onkeydown="esferaNfSearchKey(event)">
+    </div>
+    <div class="capex-tr-results" id="esf-nf-results">${esferaNfResultsHtml()}</div>
+  </div>`;
+}
+
+function renderEsferaNfResults(){
+  const el=document.getElementById('esf-nf-results');
+  if(el)el.innerHTML=esferaNfResultsHtml();
+}
+
+function setEsfNfSearch(v){
+  esfNfSearchQuery=v;
+  renderEsferaNfResults();
+}
+
+function esferaNfSearchKey(ev){
+  if(ev.key!=='Enter')return;
+  const first=esferaNfSearchResults(esfNfSearchQuery)[0];
+  if(first){ev.preventDefault();openPagamentoFromNfSearch(first.o.id,first.i);}
+}
+
+function openPagamentoFromNfSearch(obraId,pagIdx){
+  const o=obras.find(x=>String(x.id)===String(obraId));
+  if(!o||!o.pag||!o.pag[pagIdx]){toast('Pagamento nao encontrado para esta nota fiscal.');renderEsferaNfResults();return;}
+  const p=o.pag[pagIdx];
+  openObra(o.id);
+  pagEscopo=(p.escopoFin||'obra')==='extra'?'extra':'obra';
+  pagFiltro='todos';
+  pagBusca=paymentNfNumber(p)||p.nfNum||'';
+  pagPage=0;
+  pagExpanded=new Set([pagIdx]);
+  renderPag();
+  showTab('pag');
+  setTimeout(()=>openPagModal(pagIdx),80);
+}
 
 
 
@@ -4135,7 +4248,7 @@ function go(view){
 
   if(view==="geral")view="escolas";
 
-  const esferaViews=['capex','expansao','nova'];document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById("view-"+(esferaViews.includes(view)?'esfera':view)).classList.add("active");document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===view||(view==="obra"&&b.dataset.nav===(cur?.esfera||curEsfera))||(view==="uni"&&b.dataset.nav==="escolas")));const _main=document.querySelector(".main");if(_main)_main.scrollTo(0,0);window.scrollTo(0,0);if(esferaViews.includes(view)){curEsfera=view;esfBusca='';esfFiltroMarca='Todas';renderEsfera();}if(view==="escolas")renderEscolas();if(view==="cobranca")renderCobranca();if(view==="forn")renderForn();if(view==="admin")renderAdmin();if(view==="investidores")renderInvestidores();updateNavBadge();}
+  const esferaViews=['capex','expansao','nova'];document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById("view-"+(esferaViews.includes(view)?'esfera':view)).classList.add("active");document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===view||(view==="obra"&&b.dataset.nav===(cur?.esfera||curEsfera))||(view==="uni"&&b.dataset.nav==="escolas")));const _main=document.querySelector(".main");if(_main)_main.scrollTo(0,0);window.scrollTo(0,0);if(esferaViews.includes(view)){curEsfera=view;esfBusca='';esfFiltroMarca='Todas';esfNfSearchQuery='';renderEsfera();}if(view==="escolas")renderEscolas();if(view==="cobranca")renderCobranca();if(view==="forn")renderForn();if(view==="admin")renderAdmin();if(view==="investidores")renderInvestidores();updateNavBadge();}
 
 function updateNavBadge(){const n=allAtrasos().length;const el=document.getElementById("nav-cobr");el.textContent=n||"";el.style.display=n?"inline-block":"none";}
 
@@ -4328,6 +4441,9 @@ function renderEsfera(){
   const marcas=['Todas',...Array.from(new Set(list.flatMap(o=>o.marca.split(' + '))))];
 
   document.getElementById('esf-chips').innerHTML=marcas.map(m=>{const active=m===esfFiltroMarca;if(m==='Todas')return`<button class="chip ${active?'active':''}" onclick="setEsfFiltro('${m}')">Todas</button>`;return`<button class="chip ${active?'active':''}" onclick="setEsfFiltro('${m}')" style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-flex;background:white;border-radius:3px;overflow:hidden;height:14px;width:22px;align-items:center;flex-shrink:0">${brandLogoImg(m,'height:12px;width:20px;object-fit:contain')}</span>${m}</button>`;}).join('');
+
+  const nfSearchEl=document.getElementById('esf-nf-search');
+  if(nfSearchEl)nfSearchEl.innerHTML=renderEsferaNfSearch();
 
   const q=esfBusca.trim().toLowerCase();const filtered=list.filter(o=>(esfFiltroMarca==='Todas'||o.marca.split(' + ').includes(esfFiltroMarca))&&(!q||o.nome.toLowerCase().includes(q)||o.marca.toLowerCase().includes(q)||o.constr.toLowerCase().includes(q)));
 
