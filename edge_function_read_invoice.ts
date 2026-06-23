@@ -80,7 +80,8 @@ Deno.serve(async (req: Request) => {
     const fileName = String(body?.fileName || body?.filename || 'documento')
 
     const attempts: string[] = []
-    const geminiKey = Deno.env.get('GEMINI_API_KEY') || ''
+    const geminiDisabled = Deno.env.get('GEMINI_DISABLED') === '1' || Deno.env.get('FREE_ONLY_NO_GEMINI') === '1'
+    const geminiKey = geminiDisabled ? '' : (Deno.env.get('GEMINI_API_KEY') || '')
     let merged: AnyRecord | null = null
     const consider = (stage: string, normalized: AnyRecord) => {
       if (!hasUsefulData(normalized)) {
@@ -156,6 +157,8 @@ Deno.serve(async (req: Request) => {
       } catch (err) {
         attempts.push('Gemini direto: ' + errorMessage(err))
       }
+    } else if (geminiDisabled) {
+      attempts.push('Gemini desativado: modo gratuito sem risco de cobranca')
     } else if (!geminiKey) {
       attempts.push('Secret GEMINI_API_KEY nao configurado')
     }
