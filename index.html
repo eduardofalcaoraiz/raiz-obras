@@ -11573,6 +11573,70 @@ function impFindDanfeTotals(text,itens){
   return out;
 }
 
+function impIsNfseLikeText(normText){
+  return /danfse|documento auxiliar da nfs-?e|chave de acesso da nfs-?e|numero da nfs-?e|emitente da nfs-?e|prestador do servico|prestador de servicos|nota fiscal de servicos|nfs-?e/.test(normText);
+}
+
+function impFindNfsePrestadorBlock(text,lines){
+  const all=(lines&&lines.length?lines:String(text||'').split('\n')).map(l=>String(l||'').trim()).filter(Boolean);
+  const start=all.findIndex(l=>/emitente\s+da\s+nfs-?e|prestador\s+do\s+servi|prestador\s+de\s+servi|dados\s+do\s+prestador/i.test(_norm(l)));
+  if(start<0)return'';
+  let end=all.length;
+  for(let i=start+1;i<all.length;i++){
+    if(/tomador|intermediario|servico\s+prestado|discriminacao|valores/i.test(_norm(all[i]))){end=i;break;}
+  }
+  return all.slice(start,end).join('\n');
+}
+
+function impCleanNfseProviderName(raw){
+  let s=String(raw||'').replace(/\s+/g,' ').trim();
+  s=s.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig,' ');
+  s=s.replace(/^\d{1,3}(?:\.\d{3})*(?:\/\d{4}-\d{2})?\s+/,'');
+  if(/^(?:cnpj|cpf|nif|inscricao municipal|telefone|e-mail|email|nome\s*\/?\s*nome empresarial)\b/i.test(s))return'';
+  s=impCleanCompanyName(s);
+  const n=_norm(s);
+  if(s.length<5||!/[A-Za-zÀ-ÿ]/.test(s))return'';
+  if(/prestador|tomador|servico|endereco|municipio|cep|telefone|email|inscricao|simples nacional|regime/.test(n))return'';
+  return s;
+}
+
+function impFindNfseProviderName(block){
+  const lines=String(block||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  for(let i=0;i<lines.length;i++){
+    const n=_norm(lines[i]);
+    if(!/nome\s*\/?\s*nome empresarial|razao social|nome empresarial|prestador/.test(n))continue;
+    for(let j=i+1;j<=Math.min(i+4,lines.length-1);j++){
+      const c=impCleanNfseProviderName(lines[j]);
+      if(c)return c;
+    }
+  }
+  for(const line of lines){
+    const c=impCleanNfseProviderName(line);
+    if(c)return c;
+  }
+  return'';
+}
+
+function impFindNfseDescription(lines){
+  for(let i=0;i<lines.length;i++){
+    const n=_norm(lines[i]);
+    if(!/descricao\s+do\s+servico|discriminacao\s+do\s+servico/.test(n))continue;
+    const same=lines[i].replace(/^(descri[çc][aã]o|discrimina[çc][aã]o)(?:\s+do\s+servi[çc]o)?\s*:?\s*/i,'').trim();
+    if(same&&!/^do\s+servi/i.test(same)&&same.length>6)return same;
+    const block=[];
+    for(let j=i+1;j<Math.min(lines.length,i+8);j++){
+      const line=String(lines[j]||'').trim();
+      const ln=_norm(line);
+      if(!line)continue;
+      if(/^(tributacao|valor|bc iss|issqn|irrf|pis|cofins|csll|total|codigo de tributacao|pais|municipio)/.test(ln))break;
+      if(/codigo de tributacao|local da prestacao|pais da prestacao/.test(ln))continue;
+      block.push(line);
+    }
+    return block.join(' ').trim();
+  }
+  return'';
+}
+
 
 
 async function extractPdfText(file,onStatus){
@@ -11693,10 +11757,11 @@ function parseNFFromText(text, digits){
   const cnpjs=[...text.matchAll(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g)].map(m=>m[0]);
   const rawCnpj=(text.match(/(?:CNPJ|CPF\/CNPJ)[:\s]*([0-9.\-/]{14,18})/i)||[])[1];
   const cnpj=cnpjs[0]||cnpjFmt((rawCnpj||'').replace(/\D/g,''));
-  const chave=findImpAccessKey(text);
+  const nfseLike=impIsNfseLikeText(norm);
+  const chave=nfseLike?'':findImpAccessKey(text);
   const decoded=chave?decodeChave(chave):null;
 
-  let tipo='NF-e';
+  let tipo=nfseLike?'NFS-e':'NF-e';
   if(/nfc-?e|cupom\s+fiscal\s+eletr[oô]nico|danfe\s+nfc/i.test(text)||decoded?.mod==='65')tipo='NFC-e';
   else if(/nfs-?e|nota\s+fiscal\s+de\s+servi[çc]os?|prestador\s+de\s+servi[çc]os?/i.test(text))tipo='NFS-e';
   else if(/ct-?e|dacte|conhecimento\s+de\s+transporte/i.test(text)||decoded?.mod==='57')tipo='CT-e';
@@ -11704,8 +11769,8 @@ function parseNFFromText(text, digits){
   else if(/fatura|invoice|cobran[çc]a|demonstrativo/i.test(text))tipo='Fatura';
   else if(/recibo|recibemos|recebi\b|rpa\b/i.test(text))tipo='Recibo';
   else if(/\b(darf|das|darm|gps|gnre|gare)\b|guia\s+(?:de|do)|tributo|taxa\s+municipal/i.test(text))tipo='Guia';
-  if(decoded&&['NF-e','NFC-e','CT-e'].includes(decoded.tipo))tipo=decoded.tipo;
-  const prestadorBlock=tipo==='NFS-e'?findSection([/^\s*prestador(?:\s+de\s+servi\S*)?\s*:?\s*$/i,/^\s*dados\s+do\s+prestador/i],[/^\s*tomador\b/i,/^\s*intermediario\b/i,/^\s*discriminacao\b/i,/^\s*servicos\b/i,/^\s*valores\b/i]):'';
+  if(!nfseLike&&decoded&&['NF-e','NFC-e','CT-e'].includes(decoded.tipo))tipo=decoded.tipo;
+  const prestadorBlock=tipo==='NFS-e'?impFindNfsePrestadorBlock(text,lines):'';
 
   const nfNum=findImpDocNumberFromText(text,tipo,decoded);
 
@@ -11731,6 +11796,10 @@ function parseNFFromText(text, digits){
     ben=findNameInLines(prestadorBlock.split('\n').map(l=>l.trim()).filter(Boolean),[/raz[aã]o\s*social/i,/nome\s*empresarial/i,/nome\/raz[aã]o\s*social/i,/prestador/i]);
   }
   const labels=tipo==='Boleto'?[/(?:benefici[aá]rio|cedente|favorecido)/i]:[/emitente/i,/fornecedor/i,/benefici[aá]rio/i,/raz[aã]o\s*social/i,/empresa\s+prestadora/i];
+  if(tipo==='NFS-e'){
+    const nfseProvider=impFindNfseProviderName(prestadorBlock);
+    if(nfseProvider)ben=nfseProvider;
+  }
   for(let i=0;i<lines.length&&!ben&&tipo!=='NFS-e';i++){
     if(labels.some(re=>re.test(lines[i]))){
       const same=lines[i].replace(labels.find(re=>re.test(lines[i])),'').replace(/[:\-]/,'').trim();
@@ -11755,7 +11824,8 @@ function parseNFFromText(text, digits){
   const finalDoc=cleanImpDocNumber(nfNum,tipo);
   const descIdx=lines.findIndex(l=>/(servi[çc]o|refer[eê]ncia|descri[çc][aã]o|hist[oó]rico|discrimina[çc][aã]o)/i.test(l));
   let desc='';
-  if(descIdx>=0){
+  if(tipo==='NFS-e')desc=impFindNfseDescription(lines);
+  if(!desc&&descIdx>=0){
     desc=lines[descIdx].replace(/^(servi[çc]o|refer[eê]ncia|descri[çc][aã]o|hist[oó]rico|discrimina[çc][aã]o)(?:\s+dos?\s+servi[çc]os?)?\s*:?\s*/i,'').trim();
     if(desc.length<6){
       const block=[];
