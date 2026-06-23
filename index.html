@@ -9782,6 +9782,213 @@ function inferType(path){
 
 }
 
+function danfeXmlNodes(root,tag){
+  if(!root)return[];
+  const wanted=String(tag||'').toLowerCase();
+  const out=[];
+  if(root.localName&&root.localName.toLowerCase()===wanted)out.push(root);
+  const nodes=root.getElementsByTagName?root.getElementsByTagName('*'):[];
+  for(let i=0;i<nodes.length;i++){
+    const nm=(nodes[i].localName||nodes[i].nodeName||'').toLowerCase();
+    if(nm===wanted)out.push(nodes[i]);
+  }
+  return out;
+}
+
+function danfeXmlNode(root,tag){return danfeXmlNodes(root,tag)[0]||null;}
+
+function danfeXmlText(root,tag){
+  const n=danfeXmlNode(root,tag);
+  return n?String(n.textContent||'').trim():'';
+}
+
+function danfeDigits(v){return String(v||'').replace(/\D/g,'');}
+
+function danfeFmtCpfCnpj(v){
+  const d=danfeDigits(v);
+  if(d.length===14)return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
+  if(d.length===11)return d.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,'$1.$2.$3-$4');
+  return v||'';
+}
+
+function danfeFmtChave(v){
+  const d=danfeDigits(v);
+  return d.length===44?d.replace(/(\d{4})(?=\d)/g,'$1 ').trim():v||'';
+}
+
+function danfeFmtDate(v){
+  if(!v)return'';
+  const s=String(v);
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if(!m)return s;
+  return m[3]+'/'+m[2]+'/'+m[1]+(m[4]?' '+m[4]+':'+m[5]:'');
+}
+
+function danfeFmtNumber(v,dec){
+  const n=parseFloat(String(v===null||v===undefined?'':v).replace(',','.'));
+  if(!isFinite(n))return'';
+  return n.toLocaleString('pt-BR',{minimumFractionDigits:dec,maximumFractionDigits:dec});
+}
+
+function danfeFmtMoney(v){return 'R$ '+danfeFmtNumber(v===null||v===undefined||v===''?0:v,2);}
+
+function danfeEndereco(block){
+  if(!block)return'';
+  const parts=[
+    [danfeXmlText(block,'xLgr'),danfeXmlText(block,'nro')].filter(Boolean).join(', '),
+    danfeXmlText(block,'xCpl'),
+    danfeXmlText(block,'xBairro'),
+    [danfeXmlText(block,'xMun'),danfeXmlText(block,'UF')].filter(Boolean).join(' / '),
+    danfeXmlText(block,'CEP')?'CEP '+danfeXmlText(block,'CEP'):''
+  ].filter(Boolean);
+  return parts.join(' - ');
+}
+
+function renderXmlFiscalDocument(xmlText,fileName){
+  const parser=new DOMParser();
+  const xml=parser.parseFromString(xmlText,'application/xml');
+  if(danfeXmlNode(xml,'parsererror'))throw new Error('XML invalido ou malformado.');
+  const data=parseNFeXML(xmlText);
+  const ide=danfeXmlNode(xml,'ide');
+  const emit=danfeXmlNode(xml,'emit');
+  const dest=danfeXmlNode(xml,'dest');
+  const total=danfeXmlNode(danfeXmlNode(xml,'total'),'ICMSTot')||danfeXmlNode(xml,'ICMSTot');
+  const prot=danfeXmlNode(xml,'infProt');
+  const chave=danfeXmlText(xml,'chNFe')||((xmlText.match(/Id=["']NFe(\d{44})["']/)||[])[1]||data.chave||'');
+  const isNfe=!!danfeXmlNode(xml,'infNFe')||['NF-e','NFC-e'].includes(data.tipo);
+  const title=isNfe?'DANFE - Documento Auxiliar da Nota Fiscal Eletronica':'Documento fiscal gerado a partir do XML';
+  const dets=danfeXmlNodes(xml,'det');
+  const rows=(isNfe?dets:[]).map((det,i)=>{
+    const prod=danfeXmlNode(det,'prod');
+    return{
+      n:det.getAttribute('nItem')||String(i+1),
+      cod:danfeXmlText(prod,'cProd'),
+      desc:danfeXmlText(prod,'xProd'),
+      ncm:danfeXmlText(prod,'NCM'),
+      cfop:danfeXmlText(prod,'CFOP'),
+      un:danfeXmlText(prod,'uCom')||danfeXmlText(prod,'uTrib'),
+      qtd:danfeXmlText(prod,'qCom')||danfeXmlText(prod,'qTrib'),
+      unit:danfeXmlText(prod,'vUnCom')||danfeXmlText(prod,'vUnTrib'),
+      total:danfeXmlText(prod,'vProd'),
+      descVal:danfeXmlText(prod,'vDesc')
+    };
+  });
+  const itens=rows.length?rows:(data.itens||[]).map((it,i)=>({
+    n:String(i+1),cod:it.codigo||'',desc:it.descricao||'',ncm:'',cfop:'',
+    un:it.unidade||'',qtd:it.quantidade,unit:it.valor_unitario,total:it.valor_total,descVal:it.desconto
+  }));
+  const emitEnd=danfeEndereco(danfeXmlNode(emit,'enderEmit'));
+  const destEnd=danfeEndereco(danfeXmlNode(dest,'enderDest'));
+  const infCpl=danfeXmlText(xml,'infCpl');
+  const nfNum=danfeXmlText(ide,'nNF')||data.doc||'';
+  const serie=danfeXmlText(ide,'serie')||'';
+  const modelo=danfeXmlText(ide,'mod')||'';
+  const natOp=danfeXmlText(ide,'natOp')||'';
+  const emissao=danfeXmlText(ide,'dhEmi')||danfeXmlText(ide,'dEmi')||data.date||'';
+  const saida=danfeXmlText(ide,'dhSaiEnt')||'';
+  const protocolo=[danfeXmlText(prot,'nProt'),danfeFmtDate(danfeXmlText(prot,'dhRecbto'))].filter(Boolean).join(' - ');
+  const css=`<style id="danfe-print-style">
+    .danfe-view{background:#eee8dc;border-radius:8px;min-height:74vh;padding:18px;overflow:auto}
+    .danfe-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:0 auto 12px;max-width:980px}
+    .danfe-toolbar .hint{font-size:12px;color:var(--muted)}
+    .danfe-page{background:#fff;color:#111;width:min(100%,980px);margin:0 auto;padding:18px;box-shadow:0 10px 32px rgba(20,28,20,.18);border-radius:4px;font-family:Arial,Helvetica,sans-serif}
+    .danfe-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:7px}
+    .danfe-box{border:1px solid #111;padding:6px;min-height:38px}
+    .danfe-label{font-size:8px;text-transform:uppercase;color:#333;margin-bottom:3px;letter-spacing:.02em}
+    .danfe-value{font-size:11px;font-weight:700;line-height:1.28;word-break:break-word}
+    .danfe-title{border:2px solid #111;text-align:center;padding:9px 8px}
+    .danfe-title h3{font-size:15px;margin:0 0 3px;font-weight:800}
+    .danfe-title p{font-size:10px;margin:0;color:#333}
+    .danfe-key{font-family:ui-monospace,Consolas,monospace;font-size:13px;letter-spacing:.8px;text-align:center}
+    .danfe-section{font-size:9px;font-weight:800;text-transform:uppercase;background:#efefef;border:1px solid #111;border-bottom:0;margin-top:8px;padding:3px 6px}
+    .danfe-table{width:100%;border-collapse:collapse;font-size:9px}
+    .danfe-table th,.danfe-table td{border:1px solid #111;padding:4px 5px;vertical-align:top}
+    .danfe-table th{background:#f2f2f2;text-transform:uppercase;font-size:8px}
+    .danfe-table .n{text-align:right;white-space:nowrap;font-family:ui-monospace,Consolas,monospace}
+    .danfe-totals{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:8px}
+    .danfe-totals .danfe-box{border-left:0}
+    .danfe-totals .danfe-box:first-child{border-left:1px solid #111}
+    .danfe-small{font-size:9px;line-height:1.35;font-weight:400;color:#222}
+    .danfe-watermark{font-size:10px;color:#555;text-align:center;margin-top:10px}
+    @media print{
+      body{margin:0;background:#fff}
+      .danfe-toolbar{display:none!important}
+      .danfe-page{width:auto;margin:0;padding:10mm;box-shadow:none;border-radius:0}
+    }
+  </style>`;
+  const productRows=itens.length?itens.map(it=>`<tr>
+      <td class="n">${escHtml(it.n)}</td>
+      <td>${escHtml(it.cod)}</td>
+      <td>${escHtml(it.desc)}</td>
+      <td>${escHtml(it.ncm)}</td>
+      <td>${escHtml(it.cfop)}</td>
+      <td>${escHtml(it.un)}</td>
+      <td class="n">${escHtml(danfeFmtNumber(it.qtd,4))}</td>
+      <td class="n">${escHtml(danfeFmtNumber(it.unit,2))}</td>
+      <td class="n">${escHtml(danfeFmtNumber(it.total,2))}</td>
+      <td class="n">${escHtml(danfeFmtNumber(it.descVal,2))}</td>
+    </tr>`).join(''):`<tr><td colspan="10" style="text-align:center;color:#666">Nenhum item encontrado no XML.</td></tr>`;
+  return `${css}<div class="danfe-view">
+    <div class="danfe-toolbar">
+      <div class="hint"><b>Visualizacao fiscal:</b> arquivo XML convertido para formato de nota dentro da plataforma.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="printDanfeFromViewer()"><span class="ic">↓</span> Salvar PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadOriginalFromViewer()"><span class="ic">↓</span> Baixar XML original</button>
+      </div>
+    </div>
+    <div class="danfe-page" id="danfe-print-source" data-print-title="${escHtml((fileName||'danfe').replace(/\.xml$/i,'.pdf'))}">
+      <div class="danfe-grid">
+        <div class="danfe-box">
+          <div class="danfe-label">Emitente</div>
+          <div class="danfe-value">${escHtml(danfeXmlText(emit,'xNome')||data.ben||'')}</div>
+          <div class="danfe-small">${escHtml(emitEnd)}</div>
+          <div class="danfe-small">CNPJ/CPF: ${escHtml(danfeFmtCpfCnpj(danfeXmlText(emit,'CNPJ')||danfeXmlText(emit,'CPF')||data.cnpj||''))} ${danfeXmlText(emit,'IE')?` - IE: ${escHtml(danfeXmlText(emit,'IE'))}`:''}</div>
+        </div>
+        <div class="danfe-title">
+          <h3>${escHtml(title)}</h3>
+          <p>NF ${escHtml(nfNum)} ${serie?`- Serie ${escHtml(serie)}`:''} ${modelo?`- Modelo ${escHtml(modelo)}`:''}</p>
+          <p>Entrada/Saida: ${escHtml(danfeXmlText(ide,'tpNF')==='0'?'Entrada':'Saida')}</p>
+        </div>
+      </div>
+      <div class="danfe-section">Chave de acesso</div>
+      <div class="danfe-box"><div class="danfe-key">${escHtml(danfeFmtChave(chave))}</div></div>
+      <div class="danfe-grid" style="margin-top:7px">
+        <div class="danfe-box"><div class="danfe-label">Natureza da operacao</div><div class="danfe-value">${escHtml(natOp)}</div></div>
+        <div class="danfe-box"><div class="danfe-label">Protocolo de autorizacao</div><div class="danfe-value">${escHtml(protocolo||danfeXmlText(prot,'xMotivo')||'')}</div></div>
+      </div>
+      <div class="danfe-section">Destinatario / Remetente</div>
+      <div class="danfe-grid">
+        <div class="danfe-box"><div class="danfe-label">Nome / Razao social</div><div class="danfe-value">${escHtml(danfeXmlText(dest,'xNome'))}</div><div class="danfe-small">${escHtml(destEnd)}</div></div>
+        <div class="danfe-box"><div class="danfe-label">CNPJ/CPF e emissao</div><div class="danfe-value">${escHtml(danfeFmtCpfCnpj(danfeXmlText(dest,'CNPJ')||danfeXmlText(dest,'CPF')))}</div><div class="danfe-small">Emissao: ${escHtml(danfeFmtDate(emissao))}${saida?`<br>Saida: ${escHtml(danfeFmtDate(saida))}`:''}</div></div>
+      </div>
+      <div class="danfe-section">Produtos / Servicos</div>
+      <table class="danfe-table">
+        <thead><tr><th>#</th><th>Codigo</th><th>Descricao</th><th>NCM</th><th>CFOP</th><th>Un</th><th>Qtd</th><th>Vlr unit</th><th>Vlr total</th><th>Desc.</th></tr></thead>
+        <tbody>${productRows}</tbody>
+      </table>
+      <div class="danfe-totals">
+        <div class="danfe-box"><div class="danfe-label">Valor dos produtos</div><div class="danfe-value">${escHtml(danfeFmtMoney(danfeXmlText(total,'vProd')||data.subtotal))}</div></div>
+        <div class="danfe-box"><div class="danfe-label">Desconto</div><div class="danfe-value">${escHtml(danfeFmtMoney(danfeXmlText(total,'vDesc')||data.desconto))}</div></div>
+        <div class="danfe-box"><div class="danfe-label">Frete</div><div class="danfe-value">${escHtml(danfeFmtMoney(danfeXmlText(total,'vFrete')||data.frete))}</div></div>
+        <div class="danfe-box"><div class="danfe-label">Valor total da NF</div><div class="danfe-value">${escHtml(danfeFmtMoney(danfeXmlText(total,'vNF')||data.val))}</div></div>
+      </div>
+      ${infCpl?`<div class="danfe-section">Dados adicionais</div><div class="danfe-box"><div class="danfe-small">${escHtml(infCpl)}</div></div>`:''}
+      <div class="danfe-watermark">Representacao visual gerada automaticamente pela plataforma a partir do XML fiscal original.</div>
+    </div>
+  </div>`;
+}
+
+function printDanfeFromViewer(){
+  const source=document.getElementById('danfe-print-source');
+  if(!source){toast('DANFE nao disponivel para impressao.');return;}
+  const styles=document.getElementById('danfe-print-style')?.textContent||'';
+  const title=source.getAttribute('data-print-title')||'danfe.pdf';
+  const w=window.open('','_blank');
+  if(!w){toast('Permita pop-ups para salvar o PDF.');return;}
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title><style>${styles}</style></head><body>${source.outerHTML}<script>window.onload=function(){setTimeout(function(){window.print();},150);};<\/script></body></html>`);
+  w.document.close();
+}
+
 async function viewFile(d){
 
   if(!d)return;
@@ -9808,7 +10015,12 @@ async function viewFile(d){
 
   const dl=document.getElementById("viewer-download");
 
-  if(dl){dl.dataset.url=url||'';dl.dataset.filename=d.name||'arquivo';}
+  if(dl){
+    dl.dataset.url=url||'';
+    dl.dataset.filename=d.name||'arquivo';
+    dl.dataset.mode='download';
+    dl.innerHTML='<span class="ic">↓</span> Baixar';
+  }
 
   const body=document.getElementById("viewer-body");
 
@@ -9845,6 +10057,8 @@ async function viewFile(d){
   const isVideo=type.startsWith('video/')||['mp4','webm','mov','avi','mkv'].includes(ext);
 
   const isAudio=type.startsWith('audio/')||['mp3','wav','ogg','m4a','aac'].includes(ext);
+
+  const isXml=type.includes('xml')||ext==='xml';
 
   const isText=type.startsWith('text/')||['txt','csv','md','json','xml','html','htm','log','ini','yaml','yml'].includes(ext);
 
@@ -9936,6 +10150,42 @@ async function viewFile(d){
 
 
 
+  }else if(isXml){
+
+    if(dl){
+      dl.dataset.mode='danfe-print';
+      dl.dataset.filename=(d.name||'nota.xml').replace(/\.xml$/i,'.pdf');
+      dl.dataset.xmlFilename=d.name||'arquivo.xml';
+      dl.innerHTML='<span class="ic">↓</span> Salvar PDF';
+    }
+
+    body.innerHTML='<div style="padding:60px;text-align:center;color:var(--muted)"><div class="spin" style="margin:0 auto 16px"></div><p>Convertendo XML em visualização da nota fiscal…</p></div>';
+
+    try{
+
+      const resp=await fetch(url);
+
+      if(!resp.ok)throw new Error('HTTP '+resp.status);
+
+      const text=await resp.text();
+
+      body.innerHTML=renderXmlFiscalDocument(text,d.name||'arquivo.xml');
+
+    }catch(e){
+
+      console.error('[XML DANFE Viewer]',e);
+
+      if(dl){
+        dl.dataset.mode='download';
+        dl.innerHTML='<span class="ic">↓</span> Baixar XML';
+      }
+
+      body.innerHTML=`<div style="padding:42px;text-align:center;color:var(--muted)"><div style="font-size:42px;margin-bottom:12px">📄</div><p style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px">Não foi possível montar a visualização fiscal do XML.</p><p style="font-size:12.5px;margin-bottom:18px">${escHtml((e&&e.message)||String(e)).slice(0,180)}</p><button class="btn btn-primary" onclick="downloadFromViewer()">Baixar XML original</button></div>`;
+
+    }
+
+
+
   }else if(isText){
 
     body.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted)">Carregando conteúdo…</div>';
@@ -9996,8 +10246,20 @@ async function viewFile(d){
 
 async function downloadFromViewer(){
   const dl=document.getElementById('viewer-download');
+  if(dl?.dataset?.mode==='danfe-print'){printDanfeFromViewer();return;}
   const url=dl?.dataset?.url;
   const fname=dl?.dataset?.filename||'arquivo';
+  await downloadViewerUrl(url,fname);
+}
+
+async function downloadOriginalFromViewer(){
+  const dl=document.getElementById('viewer-download');
+  const url=dl?.dataset?.url;
+  const fname=dl?.dataset?.xmlFilename||'arquivo.xml';
+  await downloadViewerUrl(url,fname);
+}
+
+async function downloadViewerUrl(url,fname){
   if(!url){toast('Nenhum arquivo disponível.');return;}
   try{
     const resp=await fetch(url);
