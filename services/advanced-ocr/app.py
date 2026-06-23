@@ -120,6 +120,27 @@ def _ocr_with_tesseract(pages: list[Any], lang: str) -> list[dict[str, Any]]:
     return out
 
 
+def _ocr_with_rapidocr(pages: list[Any], lang: str) -> list[dict[str, Any]]:
+    try:
+        import numpy as np
+        from rapidocr_onnxruntime import RapidOCR
+    except Exception as exc:
+        raise RuntimeError(f"rapidocr unavailable: {exc}") from exc
+
+    engine = RapidOCR()
+    out: list[dict[str, Any]] = []
+    for idx, image in enumerate(pages):
+        result, _elapsed = engine(np.array(image))
+        lines: list[str] = []
+        for item in result or []:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                text = item[1]
+                if text:
+                    lines.append(str(text))
+        out.append(_page_dict(idx, "\n".join(lines), "rapidocr"))
+    return out
+
+
 def _choose_pages(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     useful = [p for p in results if len((p.get("text") or "").strip()) >= 20]
     return useful or results
@@ -136,7 +157,7 @@ def ocr(req: OcrRequest, authorization: str | None = Header(default=None)) -> di
     pages = _pages_from_request(req)
     backend_order = [
         b.strip().lower()
-        for b in os.environ.get("ADVANCED_OCR_BACKENDS", "surya,paddle,tesseract").split(",")
+        for b in os.environ.get("ADVANCED_OCR_BACKENDS", "rapidocr,surya,paddle,tesseract").split(",")
         if b.strip()
     ]
     errors: list[str] = []
@@ -147,6 +168,8 @@ def ocr(req: OcrRequest, authorization: str | None = Header(default=None)) -> di
                 result = _choose_pages(_ocr_with_surya(pages, req.language))
             elif backend == "paddle":
                 result = _choose_pages(_ocr_with_paddle(pages, req.language))
+            elif backend == "rapidocr":
+                result = _choose_pages(_ocr_with_rapidocr(pages, req.language))
             elif backend == "tesseract":
                 result = _choose_pages(_ocr_with_tesseract(pages, req.language))
             else:

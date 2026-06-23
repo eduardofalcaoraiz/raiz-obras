@@ -45,3 +45,8 @@ supabase/.temp/
 # Python cache
 __pycache__/
 *.pyc
+
+# Runtime local e artefatos temporarios
+tmp/
+.venv/
+services/advanced-ocr/.venv/

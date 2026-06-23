@@ -11598,7 +11598,7 @@ async function readInvoiceWithAI(file,onStatus){
 
       },
 
-      body:JSON.stringify({imageBase64:imgB64,mediaType}),
+      body:JSON.stringify({imageBase64:imgB64,mediaType,fileName:file.name}),
 
       signal:AbortSignal.timeout(120000)
 

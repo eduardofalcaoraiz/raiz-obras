@@ -5,7 +5,7 @@ Optional OCR microservice for the `read-invoice` cascade.
 The Supabase Edge Function can call this service when the secret
 `ADVANCED_OCR_URL` is configured. The service receives a PDF/image as base64
 and returns extracted text. It is designed for open-source engines that cannot
-run inside Supabase Edge, especially Surya and PaddleOCR.
+run inside Supabase Edge, especially RapidOCR, Surya and PaddleOCR.
 
 ## Endpoint
 
@@ -35,7 +35,7 @@ Response:
 ## Environment
 
 - `ADVANCED_OCR_TOKEN`: optional bearer token.
-- `ADVANCED_OCR_BACKENDS`: backend order. Default: `surya,paddle,tesseract`.
+- `ADVANCED_OCR_BACKENDS`: backend order. Default: `rapidocr,surya,paddle,tesseract`.
 - `ADVANCED_OCR_PDF_ZOOM`: PDF render zoom. Default: `3.0`.
 - `ADVANCED_OCR_MAX_PAGES`: maximum pages per request. Default: `8`.
 - `PADDLE_OCR_LANG`: Paddle language, default `pt`.
@@ -49,6 +49,7 @@ Install one or more backend requirement files:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements-base.txt
+pip install -r requirements-rapidocr.txt
 pip install -r requirements-surya.txt
 pip install -r requirements-paddle.txt
 ```

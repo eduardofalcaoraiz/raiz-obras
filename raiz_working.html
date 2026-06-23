@@ -1535,7 +1535,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         <div class="ic" style="font-size:28px">📄</div>
 
-        <h3 style="font-size:15px;margin:8px 0 4px">Selecionar arquivo da nota fiscal</h3>
+        <h3 style="font-size:15px;margin:8px 0 4px">Selecionar arquivo(s) da nota fiscal</h3>
 
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:8px 0">
 
@@ -1543,13 +1543,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         </div>
 
-        <p style="color:var(--muted);font-size:12px;margin:4px 0 10px">XML lê todos os campos. PDF, imagem e texto usam IA e fallback local para extração.</p>
+        <p style="color:var(--muted);font-size:12px;margin:4px 0 10px">Pode selecionar PDF + XML juntos: o XML preenche os campos e o PDF fica como NF visível no sistema.</p>
 
-        <button class="btn btn-ink" type="button">Selecionar arquivo</button>
+        <button class="btn btn-ink" type="button">Selecionar arquivo(s)</button>
 
       </div>
 
-      <input type="file" id="imp-file" style="display:none" accept=".xml,.pdf,.jpg,.jpeg,.png,.webp,.txt,.html,.htm,.XML,.PDF,.JPG,.JPEG,.PNG,.WEBP,.TXT,.HTML,.HTM" onchange="readImportFile(this)">
+      <input type="file" id="imp-file" style="display:none" multiple accept=".xml,.pdf,.jpg,.jpeg,.png,.webp,.txt,.html,.htm,.XML,.PDF,.JPG,.JPEG,.PNG,.WEBP,.TXT,.HTML,.HTM" onchange="readImportFile(this)">
 
       <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
 
@@ -3376,6 +3376,21 @@ function _buildPagadores(obraAtual, valorAtual){
   // Garante que o valor atual (se existir) sempre aparece
   if(valorAtual&&valorAtual.trim())nomes.add(valorAtual.trim());
   return Array.from(nomes).sort();
+}
+function _obraEscolaPagadora(obraAtual){
+  if(!obraAtual)return'';
+  const u=unidades.find(x=>String(x.obraId||'')===String(obraAtual.id||''));
+  return (u&&u.nome)||obraAtual.nome||'';
+}
+function _obraTemInvestidorExterno(obraAtual){
+  return !!(obraAtual&&Array.isArray(obraAtual.aportes)&&obraAtual.aportes.some(a=>a&&String(a.inv||'').trim()));
+}
+function _defaultPagadorObra(obraAtual){
+  if(!obraAtual)return'';
+  const esfera=obraAtual.esfera||'nova';
+  if(!['expansao','nova'].includes(esfera))return'';
+  if(_obraTemInvestidorExterno(obraAtual))return'';
+  return _obraEscolaPagadora(obraAtual);
 }
 function _fillPagSelect(elId, obraAtual, valorSelecionado){
   const el=document.getElementById(elId);if(!el)return;
@@ -9101,7 +9116,7 @@ function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(
 
   g("pm-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
 
-  const _pagEditVal=pagEditIdx!==null?(cur.pag[pagEditIdx]?.pagn||''):'';
+  const _pagEditVal=pagEditIdx!==null?(cur.pag[pagEditIdx]?.pagn||''):_defaultPagadorObra(cur);
   _fillPagSelect("pm-pag", cur, _pagEditVal);
 
   g("pm-pag").onchange=function(){let info=document.getElementById("pm-pag-saldo");if(!info){info=document.createElement("p");info.id="pm-pag-saldo";info.style.cssText="font-size:12px;margin:5px 0 0";this.after(info);}if(!cur)return;const s=getInvestSaldo(cur,this.value);if(s===null){info.textContent='';return;}info.innerHTML=s>=0?`<span style="color:var(--ok)">Saldo disponível: ${fmt(s)}</span>`:`<span style="color:var(--danger)">⚠ Déficit atual de ${fmt(-s)}</span>`;}
@@ -9192,16 +9207,16 @@ function anexarComp(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.ge
     }
     inp.value="";};inp.click();}
 
-function anexarNF(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getElementById("nf-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="nf-input";inp.style.display="none";document.body.appendChild(inp);}
+function anexarNF(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getElementById("nf-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="nf-input";inp.style.display="none";document.body.appendChild(inp);}inp.multiple=true;inp.accept=".xml,.pdf,.jpg,.jpeg,.png,.webp,.XML,.PDF,.JPG,.JPEG,.PNG,.WEBP";
 
-  inp.onchange=async()=>{if(!inp.files.length)return;const f=inp.files[0];toast('Enviando nota fiscal…');
+  inp.onchange=async()=>{if(!inp.files.length)return;const files=Array.from(inp.files||[]);const f=impPickPrimaryNfFile(files);if(!f)return;const hasXml=files.some(x=>impFileExt(x)==='xml');const hasPdf=files.some(x=>impFileExt(x)==='pdf');toast(hasXml&&hasPdf?'Enviando PDF como NF visível…':'Enviando nota fiscal…');
     try{
       // Garantir sessão válida antes do upload
       const{data:{session}}=await db.auth.getSession();
       if(!session){toast('Sessão expirada. Faça login novamente.');return;}
       const path=await uploadPagDoc(oid,f,'nf');
-      o.pag[i].nfDoc={name:f.name,storagePath:path,type:f.type};
-      persist(oid);if(cur&&cur.id===oid)renderObra();toast('✓ Nota fiscal anexada e salva.');
+      o.pag[i].nfDoc={name:f.name,storagePath:path,type:f.type||inferType(f.name)};
+      persist(oid);if(cur&&cur.id===oid)renderObra();toast(hasXml&&hasPdf?'✓ PDF anexado como NF visível.':'✓ Nota fiscal anexada e salva.');
     }catch(e){
       const msg=e?.message||e?.error||String(e);
       console.error('upload NF:',e);
@@ -9741,7 +9756,8 @@ async function uploadPagDoc(obraId,file,tipo){
   const safeName=file.name.replace(/[^a-zA-Z0-9._\-]/g,'_');
   const path=`obra_${obraId}/${tipo}_${ts}/${safeName}`;
 
-  const{error}=await db.storage.from('pagamentos').upload(path,file,{upsert:true});
+  const contentType=file.type||inferType(file.name);
+  const{error}=await db.storage.from('pagamentos').upload(path,file,{upsert:true,contentType});
 
   if(error)throw error;
 
@@ -9773,8 +9789,219 @@ function inferType(path){
 
   if(/\.pdf$/i.test(path))return'application/pdf';
 
+  if(/\.xml$/i.test(path))return'application/xml';
+
+  if(/\.(txt|csv|json|html|htm|md)$/i.test(path))return'text/plain';
+
   return'application/octet-stream';
 
+}
+
+function danfeXmlNodes(root,tag){
+  if(!root)return[];
+  const wanted=String(tag||'').toLowerCase();
+  const out=[];
+  if(root.localName&&root.localName.toLowerCase()===wanted)out.push(root);
+  const nodes=root.getElementsByTagName?root.getElementsByTagName('*'):[];
+  for(let i=0;i<nodes.length;i++){
+    const nm=(nodes[i].localName||nodes[i].nodeName||'').toLowerCase();
+    if(nm===wanted)out.push(nodes[i]);
+  }
+  return out;
+}
+
+function danfeXmlNode(root,tag){return danfeXmlNodes(root,tag)[0]||null;}
+
+function danfeXmlText(root,tag){
+  const n=danfeXmlNode(root,tag);
+  return n?String(n.textContent||'').trim():'';
+}
+
+function danfeDigits(v){return String(v||'').replace(/\D/g,'');}
+
+function danfeFmtCpfCnpj(v){
+  const d=danfeDigits(v);
+  if(d.length===14)return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
+  if(d.length===11)return d.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,'$1.$2.$3-$4');
+  return v||'';
+}
+
+function danfeFmtChave(v){
+  const d=danfeDigits(v);
+  return d.length===44?d.replace(/(\d{4})(?=\d)/g,'$1 ').trim():v||'';
+}
+
+function danfeFmtDate(v){
+  if(!v)return'';
+  const s=String(v);
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if(!m)return s;
+  return m[3]+'/'+m[2]+'/'+m[1]+(m[4]?' '+m[4]+':'+m[5]:'');
+}
+
+function danfeFmtNumber(v,dec){
+  const n=parseFloat(String(v===null||v===undefined?'':v).replace(',','.'));
+  if(!isFinite(n))return'';
+  return n.toLocaleString('pt-BR',{minimumFractionDigits:dec,maximumFractionDigits:dec});
+}
+
+function danfeFmtMoney(v){return 'R$ '+danfeFmtNumber(v===null||v===undefined||v===''?0:v,2);}
+
+function danfeEndereco(block){
+  if(!block)return'';
+  const parts=[
+    [danfeXmlText(block,'xLgr'),danfeXmlText(block,'nro')].filter(Boolean).join(', '),
+    danfeXmlText(block,'xCpl'),
+    danfeXmlText(block,'xBairro'),
+    [danfeXmlText(block,'xMun'),danfeXmlText(block,'UF')].filter(Boolean).join(' / '),
+    danfeXmlText(block,'CEP')?'CEP '+danfeXmlText(block,'CEP'):''
+  ].filter(Boolean);
+  return parts.join(' - ');
+}
+
+function renderXmlFiscalDocument(xmlText,fileName){
+  const parser=new DOMParser();
+  const xml=parser.parseFromString(xmlText,'application/xml');
+  if(danfeXmlNode(xml,'parsererror'))throw new Error('XML invalido ou malformado.');
+  const data=parseNFeXML(xmlText);
+  const ide=danfeXmlNode(xml,'ide');
+  const emit=danfeXmlNode(xml,'emit');
+  const dest=danfeXmlNode(xml,'dest');
+  const total=danfeXmlNode(danfeXmlNode(xml,'total'),'ICMSTot')||danfeXmlNode(xml,'ICMSTot');
+  const prot=danfeXmlNode(xml,'infProt');
+  const chave=danfeXmlText(xml,'chNFe')||((xmlText.match(/Id=["']NFe(\d{44})["']/)||[])[1]||data.chave||'');
+  const isNfe=!!danfeXmlNode(xml,'infNFe')||['NF-e','NFC-e'].includes(data.tipo);
+  const title=isNfe?'DANFE - Documento Auxiliar da Nota Fiscal Eletronica':'Documento fiscal gerado a partir do XML';
+  const dets=danfeXmlNodes(xml,'det');
+  const rows=(isNfe?dets:[]).map((det,i)=>{
+    const prod=danfeXmlNode(det,'prod');
+    return{
+      n:det.getAttribute('nItem')||String(i+1),
+      cod:danfeXmlText(prod,'cProd'),
+      desc:danfeXmlText(prod,'xProd'),
+      ncm:danfeXmlText(prod,'NCM'),
+      cfop:danfeXmlText(prod,'CFOP'),
+      un:danfeXmlText(prod,'uCom')||danfeXmlText(prod,'uTrib'),
+      qtd:danfeXmlText(prod,'qCom')||danfeXmlText(prod,'qTrib'),
+      unit:danfeXmlText(prod,'vUnCom')||danfeXmlText(prod,'vUnTrib'),
+      total:danfeXmlText(prod,'vProd'),
+      descVal:danfeXmlText(prod,'vDesc')
+    };
+  });
+  const itens=rows.length?rows:(data.itens||[]).map((it,i)=>({
+    n:String(i+1),cod:it.codigo||'',desc:it.descricao||'',ncm:'',cfop:'',
+    un:it.unidade||'',qtd:it.quantidade,unit:it.valor_unitario,total:it.valor_total,descVal:it.desconto
+  }));
+  const emitEnd=danfeEndereco(danfeXmlNode(emit,'enderEmit'));
+  const destEnd=danfeEndereco(danfeXmlNode(dest,'enderDest'));
+  const infCpl=danfeXmlText(xml,'infCpl');
+  const nfNum=danfeXmlText(ide,'nNF')||data.doc||'';
+  const serie=danfeXmlText(ide,'serie')||'';
+  const modelo=danfeXmlText(ide,'mod')||'';
+  const natOp=danfeXmlText(ide,'natOp')||'';
+  const emissao=danfeXmlText(ide,'dhEmi')||danfeXmlText(ide,'dEmi')||data.date||'';
+  const saida=danfeXmlText(ide,'dhSaiEnt')||'';
+  const protocolo=[danfeXmlText(prot,'nProt'),danfeFmtDate(danfeXmlText(prot,'dhRecbto'))].filter(Boolean).join(' - ');
+  const css=`<style id="danfe-print-style">
+    .danfe-view{background:#eee8dc;border-radius:8px;min-height:74vh;padding:18px;overflow:auto}
+    .danfe-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:0 auto 12px;max-width:980px}
+    .danfe-toolbar .hint{font-size:12px;color:var(--muted)}
+    .danfe-page{background:#fff;color:#111;width:min(100%,980px);margin:0 auto;padding:18px;box-shadow:0 10px 32px rgba(20,28,20,.18);border-radius:4px;font-family:Arial,Helvetica,sans-serif}
+    .danfe-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:7px}
+    .danfe-box{border:1px solid #111;padding:6px;min-height:38px}
+    .danfe-label{font-size:8px;text-transform:uppercase;color:#333;margin-bottom:3px;letter-spacing:.02em}
+    .danfe-value{font-size:11px;font-weight:700;line-height:1.28;word-break:break-word}
+    .danfe-title{border:2px solid #111;text-align:center;padding:9px 8px}
+    .danfe-title h3{font-size:15px;margin:0 0 3px;font-weight:800}
+    .danfe-title p{font-size:10px;margin:0;color:#333}
+    .danfe-key{font-family:ui-monospace,Consolas,monospace;font-size:13px;letter-spacing:.8px;text-align:center}
+    .danfe-section{font-size:9px;font-weight:800;text-transform:uppercase;background:#efefef;border:1px solid #111;border-bottom:0;margin-top:8px;padding:3px 6px}
+    .danfe-table{width:100%;border-collapse:collapse;font-size:9px}
+    .danfe-table th,.danfe-table td{border:1px solid #111;padding:4px 5px;vertical-align:top}
+    .danfe-table th{background:#f2f2f2;text-transform:uppercase;font-size:8px}
+    .danfe-table .n{text-align:right;white-space:nowrap;font-family:ui-monospace,Consolas,monospace}
+    .danfe-totals{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:8px}
+    .danfe-totals .danfe-box{border-left:0}
+    .danfe-totals .danfe-box:first-child{border-left:1px solid #111}
+    .danfe-small{font-size:9px;line-height:1.35;font-weight:400;color:#222}
+    .danfe-watermark{font-size:10px;color:#555;text-align:center;margin-top:10px}
+    @media print{
+      body{margin:0;background:#fff}
+      .danfe-toolbar{display:none!important}
+      .danfe-page{width:auto;margin:0;padding:10mm;box-shadow:none;border-radius:0}
+    }
+  </style>`;
+  const productRows=itens.length?itens.map(it=>`<tr>
+      <td class="n">${escHtml(it.n)}</td>
+      <td>${escHtml(it.cod)}</td>
+      <td>${escHtml(it.desc)}</td>
+      <td>${escHtml(it.ncm)}</td>
+      <td>${escHtml(it.cfop)}</td>
+      <td>${escHtml(it.un)}</td>
+      <td class="n">${escHtml(danfeFmtNumber(it.qtd,4))}</td>
+      <td class="n">${escHtml(danfeFmtNumber(it.unit,2))}</td>
+      <td class="n">${escHtml(danfeFmtNumber(it.total,2))}</td>
+      <td class="n">${escHtml(danfeFmtNumber(it.descVal,2))}</td>
+    </tr>`).join(''):`<tr><td colspan="10" style="text-align:center;color:#666">Nenhum item encontrado no XML.</td></tr>`;
+  return `${css}<div class="danfe-view">
+    <div class="danfe-toolbar">
+      <div class="hint"><b>Visualizacao fiscal:</b> arquivo XML convertido para formato de nota dentro da plataforma.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="printDanfeFromViewer()"><span class="ic">↓</span> Salvar PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadOriginalFromViewer()"><span class="ic">↓</span> Baixar XML original</button>
+      </div>
+    </div>
+    <div class="danfe-page" id="danfe-print-source" data-print-title="${escHtml((fileName||'danfe').replace(/\.xml$/i,'.pdf'))}">
+      <div class="danfe-grid">
+        <div class="danfe-box">
+          <div class="danfe-label">Emitente</div>
+          <div class="danfe-value">${escHtml(danfeXmlText(emit,'xNome')||data.ben||'')}</div>
+          <div class="danfe-small">${escHtml(emitEnd)}</div>
+          <div class="danfe-small">CNPJ/CPF: ${escHtml(danfeFmtCpfCnpj(danfeXmlText(emit,'CNPJ')||danfeXmlText(emit,'CPF')||data.cnpj||''))} ${danfeXmlText(emit,'IE')?` - IE: ${escHtml(danfeXmlText(emit,'IE'))}`:''}</div>
+        </div>
+        <div class="danfe-title">
+          <h3>${escHtml(title)}</h3>
+          <p>NF ${escHtml(nfNum)} ${serie?`- Serie ${escHtml(serie)}`:''} ${modelo?`- Modelo ${escHtml(modelo)}`:''}</p>
+          <p>Entrada/Saida: ${escHtml(danfeXmlText(ide,'tpNF')==='0'?'Entrada':'Saida')}</p>
+        </div>
+      </div>
+      <div class="danfe-section">Chave de acesso</div>
+      <div class="danfe-box"><div class="danfe-key">${escHtml(danfeFmtChave(chave))}</div></div>
+      <div class="danfe-grid" style="margin-top:7px">
+        <div class="danfe-box"><div class="danfe-label">Natureza da operacao</div><div class="danfe-value">${escHtml(natOp)}</div></div>
+        <div class="danfe-box"><div class="danfe-label">Protocolo de autorizacao</div><div class="danfe-value">${escHtml(protocolo||danfeXmlText(prot,'xMotivo')||'')}</div></div>
+      </div>
+      <div class="danfe-section">Destinatario / Remetente</div>
+      <div class="danfe-grid">
+        <div class="danfe-box"><div class="danfe-label">Nome / Razao social</div><div class="danfe-value">${escHtml(danfeXmlText(dest,'xNome'))}</div><div class="danfe-small">${escHtml(destEnd)}</div></div>
+        <div class="danfe-box"><div class="danfe-label">CNPJ/CPF e emissao</div><div class="danfe-value">${escHtml(danfeFmtCpfCnpj(danfeXmlText(dest,'CNPJ')||danfeXmlText(dest,'CPF')))}</div><div class="danfe-small">Emissao: ${escHtml(danfeFmtDate(emissao))}${saida?`<br>Saida: ${escHtml(danfeFmtDate(saida))}`:''}</div></div>
+      </div>
+      <div class="danfe-section">Produtos / Servicos</div>
+      <table class="danfe-table">
+        <thead><tr><th>#</th><th>Codigo</th><th>Descricao</th><th>NCM</th><th>CFOP</th><th>Un</th><th>Qtd</th><th>Vlr unit</th><th>Vlr total</th><th>Desc.</th></tr></thead>
+        <tbody>${productRows}</tbody>
+      </table>
+      <div class="danfe-totals">
+        <div class="danfe-box"><div class="danfe-label">Valor dos produtos</div><div class="danfe-value">${escHtml(danfeFmtMoney(danfeXmlText(total,'vProd')||data.subtotal))}</div></div>
+        <div class="danfe-box"><div class="danfe-label">Desconto</div><div class="danfe-value">${escHtml(danfeFmtMoney(danfeXmlText(total,'vDesc')||data.desconto))}</div></div>
+        <div class="danfe-box"><div class="danfe-label">Frete</div><div class="danfe-value">${escHtml(danfeFmtMoney(danfeXmlText(total,'vFrete')||data.frete))}</div></div>
+        <div class="danfe-box"><div class="danfe-label">Valor total da NF</div><div class="danfe-value">${escHtml(danfeFmtMoney(danfeXmlText(total,'vNF')||data.val))}</div></div>
+      </div>
+      ${infCpl?`<div class="danfe-section">Dados adicionais</div><div class="danfe-box"><div class="danfe-small">${escHtml(infCpl)}</div></div>`:''}
+      <div class="danfe-watermark">Representacao visual gerada automaticamente pela plataforma a partir do XML fiscal original.</div>
+    </div>
+  </div>`;
+}
+
+function printDanfeFromViewer(){
+  const source=document.getElementById('danfe-print-source');
+  if(!source){toast('DANFE nao disponivel para impressao.');return;}
+  const styles=document.getElementById('danfe-print-style')?.textContent||'';
+  const title=source.getAttribute('data-print-title')||'danfe.pdf';
+  const w=window.open('','_blank');
+  if(!w){toast('Permita pop-ups para salvar o PDF.');return;}
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title><style>${styles}</style></head><body>${source.outerHTML}<script>window.onload=function(){setTimeout(function(){window.print();},150);};<\/script></body></html>`);
+  w.document.close();
 }
 
 async function viewFile(d){
@@ -9803,7 +10030,12 @@ async function viewFile(d){
 
   const dl=document.getElementById("viewer-download");
 
-  if(dl){dl.dataset.url=url||'';dl.dataset.filename=d.name||'arquivo';}
+  if(dl){
+    dl.dataset.url=url||'';
+    dl.dataset.filename=d.name||'arquivo';
+    dl.dataset.mode='download';
+    dl.innerHTML='<span class="ic">↓</span> Baixar';
+  }
 
   const body=document.getElementById("viewer-body");
 
@@ -9840,6 +10072,8 @@ async function viewFile(d){
   const isVideo=type.startsWith('video/')||['mp4','webm','mov','avi','mkv'].includes(ext);
 
   const isAudio=type.startsWith('audio/')||['mp3','wav','ogg','m4a','aac'].includes(ext);
+
+  const isXml=type.includes('xml')||ext==='xml';
 
   const isText=type.startsWith('text/')||['txt','csv','md','json','xml','html','htm','log','ini','yaml','yml'].includes(ext);
 
@@ -9931,6 +10165,42 @@ async function viewFile(d){
 
 
 
+  }else if(isXml){
+
+    if(dl){
+      dl.dataset.mode='danfe-print';
+      dl.dataset.filename=(d.name||'nota.xml').replace(/\.xml$/i,'.pdf');
+      dl.dataset.xmlFilename=d.name||'arquivo.xml';
+      dl.innerHTML='<span class="ic">↓</span> Salvar PDF';
+    }
+
+    body.innerHTML='<div style="padding:60px;text-align:center;color:var(--muted)"><div class="spin" style="margin:0 auto 16px"></div><p>Convertendo XML em visualização da nota fiscal…</p></div>';
+
+    try{
+
+      const resp=await fetch(url);
+
+      if(!resp.ok)throw new Error('HTTP '+resp.status);
+
+      const text=await resp.text();
+
+      body.innerHTML=renderXmlFiscalDocument(text,d.name||'arquivo.xml');
+
+    }catch(e){
+
+      console.error('[XML DANFE Viewer]',e);
+
+      if(dl){
+        dl.dataset.mode='download';
+        dl.innerHTML='<span class="ic">↓</span> Baixar XML';
+      }
+
+      body.innerHTML=`<div style="padding:42px;text-align:center;color:var(--muted)"><div style="font-size:42px;margin-bottom:12px">📄</div><p style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px">Não foi possível montar a visualização fiscal do XML.</p><p style="font-size:12.5px;margin-bottom:18px">${escHtml((e&&e.message)||String(e)).slice(0,180)}</p><button class="btn btn-primary" onclick="downloadFromViewer()">Baixar XML original</button></div>`;
+
+    }
+
+
+
   }else if(isText){
 
     body.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted)">Carregando conteúdo…</div>';
@@ -9991,8 +10261,20 @@ async function viewFile(d){
 
 async function downloadFromViewer(){
   const dl=document.getElementById('viewer-download');
+  if(dl?.dataset?.mode==='danfe-print'){printDanfeFromViewer();return;}
   const url=dl?.dataset?.url;
   const fname=dl?.dataset?.filename||'arquivo';
+  await downloadViewerUrl(url,fname);
+}
+
+async function downloadOriginalFromViewer(){
+  const dl=document.getElementById('viewer-download');
+  const url=dl?.dataset?.url;
+  const fname=dl?.dataset?.xmlFilename||'arquivo.xml';
+  await downloadViewerUrl(url,fname);
+}
+
+async function downloadViewerUrl(url,fname){
   if(!url){toast('Nenhum arquivo disponível.');return;}
   try{
     const resp=await fetch(url);
@@ -10206,7 +10488,36 @@ let tT;function toast(m){const t=document.getElementById("toast");document.getEl
 
 /* ===== IMPORTAR NOTA / DESPESA ===== */
 
-let impReviewData={}, impFile=null;
+let impReviewData={}, impFile=null, impXmlFile=null;
+
+function impFileExt(file){
+  return (file?.name||'').split('.').pop().toLowerCase();
+}
+
+function impPickPrimaryNfFile(files){
+  const list=Array.from(files||[]).filter(Boolean);
+  return list.find(f=>impFileExt(f)==='pdf')||list.find(f=>impFileExt(f)!=='xml')||list[0]||null;
+}
+
+function impFindFileByExt(files,ext){
+  return Array.from(files||[]).find(f=>impFileExt(f)===ext)||null;
+}
+
+function impMergePdfSupport(xmlData,pdfData){
+  const base={...(xmlData||{})};
+  const aux=pdfData||{};
+  ['ben','cnpj','doc','val','subtotal','desconto','frete','date','venc','chave','desc','discriminacao','tipo'].forEach(k=>{
+    if((base[k]===undefined||base[k]===null||base[k]===''||base[k]===0)&&aux[k])base[k]=aux[k];
+  });
+  if((!base.itens||!base.itens.length)&&Array.isArray(aux.itens)&&aux.itens.length)base.itens=aux.itens;
+  if((!base.parcelas||!base.parcelas.length)&&Array.isArray(aux.parcelas)&&aux.parcelas.length){
+    base.parcelas=aux.parcelas;
+    base.pagForma=aux.pagForma||'PARCELADO';
+    base.numParcelas=aux.numParcelas||aux.parcelas.length;
+    if(!base.venc)base.venc=aux.venc||aux.parcelas[0]?.vencimento||'';
+  }
+  return base;
+}
 
 
 
@@ -10214,7 +10525,7 @@ function openImport(){
 
   if(!cur){toast("Abra uma obra.");return;}
 
-  impReviewData={}; impFile=null;
+  impReviewData={}; impFile=null; impXmlFile=null;
 
   document.getElementById("imp-upload").style.display="block";
   document.getElementById("imp-reading").style.display="none";
@@ -10235,7 +10546,7 @@ function openImport(){
 
   document.getElementById("imp-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
 
-  _fillPagSelect("imp-pag", cur, '');
+  _fillPagSelect("imp-pag", cur, _defaultPagadorObra(cur));
 
   // Indicador de saldo ao selecionar pagante
 
@@ -10321,7 +10632,9 @@ function impCatChanged(){
 
 function impSetCusto(tipo){
 
-  document.getElementById('imp-custo-val').value=tipo;
+  const custoVal=document.getElementById('imp-custo-val');
+
+  if(custoVal)custoVal.value=tipo;
 
   const CUSTO_COLORS={'material':'var(--info)','servico':'var(--ok)','equipamento':'var(--warn)','outros':'var(--accent)'};
 
@@ -10373,9 +10686,11 @@ function impSetCusto(tipo){
 
   // Preenche tipos de material
 
-  if(tipo==='material'&&!document.getElementById('imp-mat-tipo').innerHTML.includes('<option value="concreto">')){
+  const matTipoEl=document.getElementById('imp-mat-tipo');
 
-    document.getElementById('imp-mat-tipo').innerHTML='<option value="">— Selecione o tipo —</option>'+MATERIAL_TIPOS.map(m=>`<option value="${m.id}">${m.nome}</option>`).join('');
+  if(tipo==='material'&&matTipoEl&&!matTipoEl.innerHTML.includes('<option value="concreto">')){
+
+    matTipoEl.innerHTML='<option value="">— Selecione o tipo —</option>'+MATERIAL_TIPOS.map(m=>`<option value="${m.id}">${m.nome}</option>`).join('');
 
   }
 
@@ -10383,7 +10698,11 @@ function impSetCusto(tipo){
 
 function impMatTipoChanged(){
 
-  const tipoId=document.getElementById('imp-mat-tipo').value;
+  const tipoEl=document.getElementById('imp-mat-tipo');
+
+  if(!tipoEl)return;
+
+  const tipoId=tipoEl.value;
 
   const mt=MATERIAL_TIPOS.find(m=>m.id===tipoId);
 
@@ -10588,9 +10907,16 @@ function impMergeData(primary,secondary){
   });
   if((!out.parcelas||!out.parcelas.length)&&secondary.parcelas&&secondary.parcelas.length)out.parcelas=secondary.parcelas;
   const itens=[...(out.itens||[])];
-  const seen=new Set(itens.map(it=>(it.descricao||'').toLowerCase().trim()).filter(Boolean));
+  const itemKey=it=>[
+    String(it.codigo||'').replace(/\D/g,''),
+    String(it.descricao||'').toLowerCase().replace(/\s+/g,' ').trim(),
+    parseFloat(it.quantidade)||'',
+    parseFloat(it.valor_unitario)||'',
+    parseFloat(it.valor_total)||''
+  ].join('|');
+  const seen=new Set(itens.map(itemKey).filter(k=>k.replace(/\|/g,'').trim()));
   (secondary.itens||[]).forEach(it=>{
-    const key=(it.descricao||'').toLowerCase().trim();
+    const key=itemKey(it);
     if(key&&!seen.has(key)){itens.push(it);seen.add(key);}
   });
   out.itens=itens;
@@ -10598,7 +10924,9 @@ function impMergeData(primary,secondary){
 }
 
 function impMergeTrustedLocal(current,local){
-  if(local&&local.tipo==='NFS-e')return impMergeData(local,current||{});
+  if(local&&['NF-e','NFC-e','CT-e','NFS-e'].includes(local.tipo)&&(local.chave||local.doc||(local.itens&&local.itens.length))){
+    return impMergeData(local,current||{});
+  }
   return impMergeData(current||{},local||{});
 }
 
@@ -10640,6 +10968,17 @@ function makeOcrPreprocessedCanvas(srcCanvas){
   return canvas;
 }
 
+function cropOcrCanvas(srcCanvas,xRatio,yRatio,wRatio,hRatio){
+  const sx=Math.max(0,Math.round(srcCanvas.width*xRatio));
+  const sy=Math.max(0,Math.round(srcCanvas.height*yRatio));
+  const sw=Math.max(1,Math.min(srcCanvas.width-sx,Math.round(srcCanvas.width*wRatio)));
+  const sh=Math.max(1,Math.min(srcCanvas.height-sy,Math.round(srcCanvas.height*hRatio)));
+  const canvas=document.createElement('canvas');
+  canvas.width=sw;canvas.height=sh;
+  canvas.getContext('2d').drawImage(srcCanvas,sx,sy,sw,sh,0,0,sw,sh);
+  return canvas;
+}
+
 function loadImageCanvas(file){
   return new Promise((resolve,reject)=>{
     const url=URL.createObjectURL(file);
@@ -10674,9 +11013,9 @@ async function readWithTesseract(file,onStatus){
     });
     return (result&&result.data&&result.data.text)||'';
   };
-  const recognizeCanvas=async(canvas,label)=>{
+  const recognizeCanvas=async(canvas,label,forceEnhanced)=>{
     let text=await recognize(canvas,label);
-    if(text.replace(/\s+/g,'').length<80){
+    if(forceEnhanced||text.replace(/\s+/g,'').length<80){
       const enhanced=makeOcrPreprocessedCanvas(canvas);
       const text2=await recognize(enhanced,label+' com alto contraste');
       text=(text+'\n'+text2).trim();
@@ -10691,11 +11030,16 @@ async function readWithTesseract(file,onStatus){
     for(let pg=1;pg<=pdf.numPages;pg++){
       if(onStatus)onStatus('OCR local gratuito: página '+pg+' de '+pdf.numPages+'…');
       const page=await pdf.getPage(pg);
-      const vp=page.getViewport({scale:2});
+      const vp=page.getViewport({scale:2.8});
       const canvas=document.createElement('canvas');
       canvas.width=Math.round(vp.width);canvas.height=Math.round(vp.height);
       await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
-      texts.push(await recognizeCanvas(canvas,'página '+pg));
+      const fullText=await recognizeCanvas(canvas,'página '+pg);
+      texts.push(fullText);
+      if(pg===1||/nfs|nota\s+fiscal|valor|total|servi/i.test(fullText)){
+        texts.push(await recognizeCanvas(cropOcrCanvas(canvas,0,0.58,1,0.28),'página '+pg+' faixa de totais',true));
+        texts.push(await recognizeCanvas(cropOcrCanvas(canvas,0,0.70,1,0.22),'página '+pg+' rodapé de valores',true));
+      }
     }
   }else{
     const canvas=await loadImageCanvas(file);
@@ -10712,8 +11056,13 @@ async function readWithTesseract(file,onStatus){
 
 
 async function readImportFile(inp){
-  const file=inp.files[0]; if(!file)return;
-  impFile=file; inp.value='';
+  const files=Array.from(inp.files||[]);
+  const file=impPickPrimaryNfFile(files); if(!file)return;
+  const xmlFile=impFindFileByExt(files,'xml');
+  const pdfFile=impFindFileByExt(files,'pdf');
+  impFile=file;
+  impXmlFile=xmlFile;
+  inp.value='';
   document.getElementById('imp-upload').style.display='none';
   document.getElementById('imp-reading').style.display='block';
   document.getElementById('imp-review').style.display='none';
@@ -10723,10 +11072,53 @@ async function readImportFile(inp){
   const errors=[];
   const addErr=(etapa,err)=>errors.push({etapa,erro:impErrorText(err)});
 
-  if(ext==='xml'){
-    _setImpStatus('Lendo XML fiscal localmente…');
-    try{const data=parseNFeXML(await file.text());showImportReview(data);return;}
-    catch(err){addErr('Parser XML fiscal local',err);showImportErrorDetails(file,errors);showManualEntry();return;}
+  if(xmlFile){
+    _setImpStatus(pdfFile?'Lendo XML fiscal e usando PDF como apoio…':'Lendo XML fiscal localmente…');
+    let data;
+    try{
+      data=parseNFeXML(await xmlFile.text());
+      if(pdfFile){
+        try{
+          _setImpStatus('Conferindo PDF para complementar a leitura do XML…');
+          const pdfText=await extractPdfText(pdfFile,_setImpStatus);
+          if(pdfText&&pdfText.trim()){
+            let pdfData=parseNFFromText(pdfText,pdfText.replace(/\D/g,''));
+            if(!impIsComplete(pdfData)){
+              try{
+                const pdfAi=await readInvoiceTextWithAI(pdfText,pdfFile.name,_setImpStatus);
+                if(impHasData(pdfAi))pdfData=impMergeTrustedLocal(pdfAi,pdfData||{});
+              }catch(pdfAiErr){
+                console.warn('[NF Import] Apoio IA do PDF falhou:',pdfAiErr.message);
+                addErr('PDF de apoio + IA',pdfAiErr);
+              }
+            }
+            if(impHasData(pdfData))data=impMergePdfSupport(data,pdfData);
+          }
+        }catch(pdfErr){
+          console.warn('[NF Import] PDF de apoio falhou:',pdfErr.message);
+          addErr('PDF de apoio ao XML',pdfErr);
+        }
+        if(!impIsComplete(data)){
+          try{
+            _setImpStatus('Complementando XML com leitura visual do PDF…');
+            const pdfVisualData=await readInvoiceWithAI(pdfFile,_setImpStatus);
+            if(impHasData(pdfVisualData))data=impMergePdfSupport(data,pdfVisualData);
+          }catch(pdfVisualErr){
+            console.warn('[NF Import] Apoio visual do PDF falhou:',pdfVisualErr.message);
+            addErr('PDF visual de apoio ao XML',pdfVisualErr);
+          }
+        }
+      }
+    }
+    catch(err){
+      addErr('Parser XML fiscal local',err);
+      if(!pdfFile||file===xmlFile){showImportErrorDetails(xmlFile,errors);showManualEntry();return;}
+      _setImpStatus('XML falhou. Tentando leitura pelo PDF…',true);
+    }
+    if(data){
+      try{showImportReview(data);if(pdfFile)toast('XML lido. PDF será anexado como NF visível.');return;}
+      catch(err){addErr('Tela de revisão do XML',err);showImportErrorDetails(xmlFile,errors);showManualEntry();return;}
+    }
   }
 
   if(['txt','html','htm'].includes(ext)){
@@ -10775,6 +11167,7 @@ async function readImportFile(inp){
   let localData=null;
   let tessData=null;
 
+  if(!isPDF){
   try{
     _setImpStatus('Rodando cascata gratuita no servidor…');
     aiData=await readInvoiceWithAI(file,_setImpStatus);
@@ -10785,6 +11178,7 @@ async function readImportFile(inp){
     _setImpStatus('Cascata do servidor falhou: '+err.message,true);
     console.warn('[NF Import] IA falhou:',err.message);
   }
+  }
 
   if(isPDF){
     try{
@@ -10793,11 +11187,15 @@ async function readImportFile(inp){
       if(!pdfText.trim())throw new Error('PDF sem texto extraível. O sistema tentará OCR local nas páginas escaneadas.');
       localData=parseNFFromText(pdfText,pdfText.replace(/\D/g,''));
       if(impHasData(localData)&&aiData)aiData=impMergeTrustedLocal(aiData,localData);
-      if(pdfText.length>20&&(!impHasData(aiData)||!(aiData.itens&&aiData.itens.length))){
+      if(pdfText.length>20){
         try{
           _setImpStatus('Enviando texto completo do PDF para IA em blocos…');
           const textAiData=await readInvoiceTextWithAI(pdfText,file.name,_setImpStatus);
-          if(impHasData(textAiData))aiData=impMergeTrustedLocal(impMergeData(aiData||{},textAiData),localData||{});
+          if(impHasData(textAiData)){
+            const previousAi=aiData||{};
+            const trustedText=impMergeTrustedLocal(textAiData,localData||{});
+            aiData=impMergeData(trustedText,previousAi);
+          }
         }catch(textAiErr){
           console.warn('[NF Import] IA por texto completo falhou:',textAiErr.message);
           addErr('IA por texto completo do PDF',textAiErr);
@@ -10806,6 +11204,19 @@ async function readImportFile(inp){
     }catch(localErr){
       console.warn('[NF Import] Parser local falhou:',localErr.message);
       addErr('PDF.js + parser local',localErr);
+    }
+  }
+
+  if(isPDF&&!impIsComplete(aiData)){
+    try{
+      _setImpStatus('Complementando PDF com cascata visual no servidor...');
+      const directData=await readInvoiceWithAI(file,_setImpStatus);
+      if(directData&&directData._attempts&&directData._attempts.length)console.info('[NF Import] Tentativas do servidor:',directData._attempts);
+      if(impHasData(directData))aiData=impMergeData(aiData||{},directData);
+    }catch(err){
+      aiError=err.message;
+      addErr('Cascata visual no servidor',err);
+      console.warn('[NF Import] IA visual falhou:',err.message);
     }
   }
 
@@ -11000,6 +11411,10 @@ function cleanImpNfNumber(raw,tipo,dateIso){
   if(seriePair)candidate=seriePair[1];
   const beforeSerie=String(candidate).split(/\b(?:s[eé]rie|serie|c[oó]digo|codigo|verifica[çc][aã]o|rps|cnpj|cpf)\b/i)[0];
   const digits=beforeSerie.replace(/\D/g,'');
+  if(tipo==='NFS-e'){
+    const municipal=digits.match(/^20\d{2}0{4,}([1-9]\d{0,8})$/);
+    if(municipal)return municipal[1];
+  }
   return digits?digits.replace(/^0+(?=\d)/,''):'';
 }
 
@@ -11017,7 +11432,7 @@ function findImpDocNumberFromText(text,tipo,decoded){
     const s=String(raw||'').trim();
     const pair=s.match(/^([0-9][0-9.]*)\s*\/\s*\d{1,3}\b/);
     if(pair)return cleanImpNfNumber(pair[1],tipo);
-    const m=s.match(/^([0-9]{1,13})(?=\s|$)/);
+    const m=s.match(/^([0-9]{1,20})(?=\s|$)/);
     return m?cleanImpNfNumber(m[1],tipo):'';
   };
   const label=tipo==='NFS-e'
@@ -11183,7 +11598,7 @@ async function readInvoiceWithAI(file,onStatus){
 
       },
 
-      body:JSON.stringify({imageBase64:imgB64,mediaType}),
+      body:JSON.stringify({imageBase64:imgB64,mediaType,fileName:file.name}),
 
       signal:AbortSignal.timeout(120000)
 
@@ -11318,12 +11733,14 @@ function parseNFeXML(xmlText){
   while((dm=detRe.exec(xmlText))!==null){
     const pb=getBlock(dm[1],'prod');
     if(!pb)continue;
+    const codigo=getTag(pb,'cProd');
     const descricao=getTag(pb,'xProd');
     const quantidade=money(getTag(pb,'qCom'))||money(getTag(pb,'qTrib'))||1;
     const unidade=getTag(pb,'uCom')||getTag(pb,'uTrib')||'UN';
     const valor_unitario=money(getTag(pb,'vUnCom'))||money(getTag(pb,'vUnTrib'));
     const valor_total=money(getTag(pb,'vProd'));
-    if(descricao)itens.push({descricao,quantidade,unidade,valor_unitario,valor_total});
+    const desconto_item=money(getTag(pb,'vDesc'));
+    if(descricao)itens.push({codigo,descricao,quantidade,unidade,valor_unitario,valor_total,desconto:desconto_item});
   }
 
   const parcelas=[];
@@ -11408,16 +11825,294 @@ function impExtractParcelasFromText(text,total){
 function findImpAccessKey(text){
 
   const source=String(text||'');
-  const direct=(source.match(/\b\d{44}\b/)||[])[0];
-  if(direct)return direct;
+  const directMatches=source.match(/\b\d{44}\b/g)||[];
+  for(const direct of directMatches){if(impIsValidAccessKey(direct))return direct;}
+  if(directMatches[0])return directMatches[0];
   const lines=source.replace(/\r/g,'\n').split('\n').map(l=>l.trim().replace(/[ \t]+/g,' ')).filter(Boolean);
   for(let i=0;i<lines.length;i++){
-    if(!/chave\s+de\s+acesso|chave\s+acesso|consulta\s+pela\s+chave/i.test(_norm(lines[i])))continue;
-    const digits=lines.slice(i,i+4).join(' ').replace(/\D/g,'');
+    const n=_norm(lines[i]);
+    const hasChave=/chave\s+de\s+acesso|chave\s+acesso|consulta\s+pela\s+chave|\bchave\b/.test(n);
+    if(!hasChave)continue;
+    const idx=n.indexOf('chave');
+    const block=(idx>=0?lines[i].slice(idx):lines[i])+' '+lines.slice(i+1,i+6).join(' ');
+    const digits=block.replace(/\D/g,'');
+    const valid=impFirstValidAccessKeyFromDigits(digits);
+    if(valid)return valid;
     if(digits.length>=44)return digits.slice(0,44);
   }
+  const valid=impFirstValidAccessKeyFromDigits(source.replace(/\D/g,''));
+  if(valid)return valid;
   return'';
 
+}
+
+function impFirstValidAccessKeyFromDigits(digits){
+  const d=String(digits||'').replace(/\D/g,'');
+  for(let i=0;i<=d.length-44;i++){
+    const c=d.slice(i,i+44);
+    if(impIsValidAccessKey(c))return c;
+  }
+  return'';
+}
+
+function impIsValidAccessKey(raw){
+  const c=String(raw||'').replace(/\D/g,'');
+  if(c.length!==44)return false;
+  let sum=0,weight=2;
+  for(let i=42;i>=0;i--){
+    sum+=Number(c[i])*weight;
+    weight=weight===9?2:weight+1;
+  }
+  const mod=sum%11;
+  const dv=mod<2?0:11-mod;
+  return dv===Number(c[43]);
+}
+
+function impNum(raw){
+  if(raw==null||raw==='')return 0;
+  let s=String(raw).replace(/[^\d,.-]/g,'').trim();
+  if(!s)return 0;
+  if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+  else if(s.includes(','))s=s.replace(',','.');
+  const n=Number(s);
+  return Number.isFinite(n)?Math.round(n*10000)/10000:0;
+}
+
+function impParseDanfeItemsFromText(text){
+  const lines=String(text||'').replace(/\r/g,'\n').split('\n').map(l=>l.trim().replace(/[ \t]+/g,' ')).filter(Boolean);
+  const items=[];
+  const seen=new Set();
+  const rowRe=/^([\d\s]{6,22})\s+(.+?)\s+(\d{8})\s+\d{3,4}\s+\d{4}\s+([A-Z]{1,6})\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})(?:\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2}))?/i;
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    if(!/\d/.test(line)||!/\b(PC|UN|UND|M2|M3|KG|CX|MT|LT|PAR|PCT)\b/i.test(line))continue;
+    const m=line.match(rowRe);
+    if(!m)continue;
+    const codigo=m[1].replace(/\D/g,'');
+    const descricao=m[2].replace(/\s+/g,' ').trim();
+    if(!descricao||descricao.length<3)continue;
+    const item={
+      codigo:codigo||'',
+      descricao,
+      quantidade:impNum(m[5]),
+      unidade:m[4].toUpperCase(),
+      valor_unitario:impNum(m[6]),
+      valor_total:impNum(m[7]),
+      desconto:impNum(m[8])
+    };
+    const key=[item.codigo,item.descricao,item.quantidade,item.valor_total].join('|').toLowerCase();
+    if(seen.has(key))continue;
+    seen.add(key);
+    items.push(item);
+  }
+  return items;
+}
+
+function impCleanCompanyName(raw){
+  return String(raw||'').replace(/\s+/g,' ').trim()
+    .replace(/^(?:raz\S*o\s+social|raz[aã]o\s+social|nome\s+empresarial|nome\s*\/\s*raz\S*o\s+social|nome\s*\/\s*raz[aã]o\s+social)\s*:?\s*/i,'')
+    .replace(/^prestador\s*:\s*/i,'')
+    .replace(/^prestador\s+de\s+servi\S*\s*:?\s*/i,'')
+    .replace(/^(?:cnpj|cpf|cpf\s*\/\s*cnpj)\s*:?\s*[0-9.\-/ ]+/i,'')
+    .trim();
+}
+
+function impFindDanfeIssuerName(text,lines){
+  const rec=String(text||'').match(/recebemos\s+de\s+(.+?)\s+os\s+produtos/i);
+  if(rec&&rec[1])return impCleanCompanyName(rec[1]);
+  const start=lines.findIndex(l=>/identifica[cç][aã]o\s+do\s+emitente/i.test(l));
+  if(start<0)return'';
+  const keep=[];
+  for(let i=start+1;i<Math.min(lines.length,start+9);i++){
+    const s=String(lines[i]||'').replace(/\s+/g,' ').trim();
+    const n=_norm(s);
+    if(!s||/danfe|documento auxiliar|nota fiscal|entrada|saida|chave|consulta|natureza|protocolo/.test(n))continue;
+    if(/\d/.test(s)&&!/\b(ltda|sa|s\/a|me|epp|eireli)\b/i.test(s))continue;
+    if(s.split(/\s+/).length<2)continue;
+    keep.push(s);
+  }
+  return impCleanCompanyName(keep.join(' '));
+}
+
+function impFindDanfeTotals(text,itens){
+  const lines=String(text||'').replace(/\r/g,'\n').split('\n').map(l=>l.trim().replace(/[ \t]+/g,' ')).filter(Boolean);
+  const out={};
+  const moneyList=s=>[...String(s||'').matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/g)].map(m=>impNum(m[1])).filter(v=>Number.isFinite(v));
+  for(let i=0;i<lines.length;i++){
+    const n=_norm(lines[i]);
+    const next=lines[i+1]||'';
+    if(/valor total dos produtos/.test(n)){
+      const vals=moneyList(next);
+      if(vals.length)out.subtotal=vals[vals.length-1];
+    }
+    if(/desconto/.test(n)&&/total da nota/.test(n)){
+      const vals=moneyList(next);
+      if(vals.length>=6){
+        out.frete=vals[0];
+        out.desconto=vals[2];
+        out.valor_total=vals[vals.length-1];
+      }else if(vals.length){
+        out.valor_total=vals[vals.length-1];
+      }
+    }
+  }
+  const header=String(text||'').match(/valor\s+total\s*:\s*r?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/i);
+  if(!out.valor_total&&header)out.valor_total=impNum(header[1]);
+  if(!out.subtotal&&Array.isArray(itens)&&itens.length)out.subtotal=itens.reduce((s,it)=>s+(Number(it.valor_total)||0),0);
+  return out;
+}
+
+function impIsNfseLikeText(normText){
+  return /danfse|documento auxiliar da nfs-?e|chave de acesso da nfs-?e|numero da nfs-?e|emitente da nfs-?e|prestador do servico|prestador de servicos|nota fiscal de servicos|nfs-?e/.test(normText);
+}
+
+function impFindNfsePrestadorBlock(text,lines){
+  const all=(lines&&lines.length?lines:String(text||'').split('\n')).map(l=>String(l||'').trim()).filter(Boolean);
+  const start=all.findIndex(l=>/emitente\s+da\s+nfs-?e|prestador\s+do\s+servi|prestador\s+de\s+servi|dados\s+do\s+prestador/i.test(_norm(l)));
+  if(start<0)return'';
+  let end=all.length;
+  for(let i=start+1;i<all.length;i++){
+    if(/tomador|intermediario|servico\s+prestado|discriminacao|valores/i.test(_norm(all[i]))){end=i;break;}
+  }
+  return all.slice(start,end).join('\n');
+}
+
+function impCleanNfseProviderName(raw){
+  let s=String(raw||'').replace(/\s+/g,' ').trim();
+  s=s.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig,' ');
+  s=s.replace(/^\d{1,3}(?:\.\d{3})*(?:\/\d{4}-\d{2})?\s+/,'');
+  if(/^(?:cnpj|cpf|nif|inscricao municipal|telefone|e-mail|email|nome\s*\/?\s*nome empresarial)\b/i.test(s))return'';
+  s=impCleanCompanyName(s);
+  const n=_norm(s);
+  if(s.length<5||!/[A-Za-zÀ-ÿ]/.test(s))return'';
+  if(/prestador|tomador|servico|endereco|municipio|cep|telefone|email|inscricao|simples nacional|regime/.test(n))return'';
+  return s;
+}
+
+function impFindNfseProviderName(block){
+  const lines=String(block||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  for(let i=0;i<lines.length;i++){
+    const n=_norm(lines[i]);
+    if(!/nome\s*\/?\s*nome empresarial|razao social|nome empresarial|prestador/.test(n))continue;
+    for(let j=i+1;j<=Math.min(i+4,lines.length-1);j++){
+      const c=impCleanNfseProviderName(lines[j]);
+      if(c)return c;
+    }
+  }
+  for(const line of lines){
+    const c=impCleanNfseProviderName(line);
+    if(c)return c;
+  }
+  return'';
+}
+
+function impFindNfseDescription(lines){
+  for(let i=0;i<lines.length;i++){
+    const n=_norm(lines[i]);
+    if(!/descricao\s+do\s+servico|discriminacao\s+do\s+servico/.test(n))continue;
+    const same=lines[i].replace(/^(descri[çc][aã]o|discrimina[çc][aã]o)(?:\s+do\s+servi[çc]o)?\s*:?\s*/i,'').trim();
+    if(same&&!/^do\s+servi/i.test(same)&&same.length>6)return same;
+    const block=[];
+    for(let j=i+1;j<Math.min(lines.length,i+8);j++){
+      const line=String(lines[j]||'').trim();
+      const ln=_norm(line);
+      if(!line)continue;
+      if(/^(tributacao|valor|bc iss|issqn|irrf|pis|cofins|csll|total|codigo de tributacao|pais|municipio)/.test(ln))break;
+      if(/codigo de tributacao|local da prestacao|pais da prestacao/.test(ln))continue;
+      block.push(line);
+    }
+    return block.join(' ').trim();
+  }
+  return'';
+}
+
+function impNfseMoneyList(s){
+  return[...String(s||'').matchAll(/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/g)]
+    .map(m=>impNum(m[1]))
+    .filter(v=>Number.isFinite(v));
+}
+
+function impFindNfseHeaderNumber(lines){
+  const arr=(lines||[]).map(l=>String(l||'').trim()).filter(Boolean);
+  const firstNumber=raw=>{
+    const s=String(raw||'').trim();
+    const pair=s.match(/^([0-9][0-9.]*)\s*\/\s*\d{1,3}\b/);
+    if(pair)return cleanImpNfNumber(pair[1],'NFS-e');
+    const m=s.match(/^([0-9]{1,13})(?=\s|$)/);
+    return m?cleanImpNfNumber(m[1],'NFS-e'):'';
+  };
+  for(let i=0;i<arr.length;i++){
+    const n=_norm(arr[i]);
+    if(!/numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n[ºo.]|nota\s+fiscal\s+de\s+servicos/.test(n))continue;
+    const sameTail=arr[i].replace(/.*(?:numero\s+da\s+(?:nota|nfs-?e)|nfs-?e|nota\s+fiscal\s+de\s+servi[çc]os)\s*[:#-]?/i,'').trim();
+    const sameFirst=firstNumber(sameTail,arr[i+1]||'');
+    if(sameFirst)return sameFirst;
+    const same=arr[i].match(/(?:numero\s+da\s+(?:nota|nfs-?e)|nfs-?e|nota\s+fiscal\s+de\s+servi[çc]os)\s*[:#-]?\s*([0-9]{1,20})(?!\d)/i);
+    if(same)return cleanImpNfNumber(same[1],'NFS-e');
+    const next=firstNumber(arr[i+1]||'',arr[i+2]||'');
+    if(next)return next;
+  }
+  return'';
+}
+
+function impFindNfseTotalValue(text,lines){
+  const arr=(lines&&lines.length?lines:String(text||'').split('\n')).map(l=>String(l||'').trim()).filter(Boolean);
+  const pickLastPositive=(vals)=>vals.filter(v=>v>0).pop()||0;
+  const pickFirstPositive=(vals)=>vals.find(v=>v>0)||0;
+  const valueFromWindow=(start,labelRe,mode)=>{
+    for(let j=start;j<=Math.min(start+4,arr.length-1);j++){
+      const line=arr[j]||'';
+      const n=_norm(line);
+      if(labelRe&&!labelRe.test(n)&&j===start)continue;
+      const vals=impNfseMoneyList(line);
+      if(vals.length)return mode==='first'?pickFirstPositive(vals):pickLastPositive(vals);
+      const nextVals=impNfseMoneyList(arr[j+1]||'');
+      if(nextVals.length)return mode==='first'?pickFirstPositive(nextVals):pickLastPositive(nextVals);
+    }
+    return 0;
+  };
+
+  for(let i=0;i<arr.length;i++){
+    const n=_norm(arr[i]);
+    if(/valor\s+liquido\s+da\s+nfs-?e|valor\s+liquido\s+do\s+documento|valor\s+liquido/.test(n)){
+      const v=valueFromWindow(i,/valor\s+liquido/, 'last');
+      if(v)return v;
+    }
+  }
+  for(let i=0;i<arr.length;i++){
+    const n=_norm(arr[i]);
+    if(/valor\s+(?:total\s+)?da\s+nota/.test(n)){
+      const v=valueFromWindow(i,/valor\s+(?:total\s+)?da\s+nota/, 'last');
+      if(v)return v;
+    }
+  }
+  for(let i=0;i<arr.length;i++){
+    const n=_norm(arr[i]);
+    if(/valor\s+(?:total\s+)?da\s+nota|total\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e/.test(n)){
+      for(let j=i+1;j<=Math.min(i+8,arr.length-1);j++){
+        const nj=_norm(arr[j]);
+        if(/valor\s+liquido\s+da\s+nfs-?e|valor\s+liquido/.test(nj)){
+          const v=valueFromWindow(j,/valor\s+liquido/, 'last');
+          if(v)return v;
+        }
+      }
+      for(let j=i+1;j<=Math.min(i+5,arr.length-1);j++){
+        const nj=_norm(arr[j]);
+        if(/valor\s+do\s+servico|valor\s+dos\s+servicos/.test(nj)){
+          const v=valueFromWindow(j,/valor\s+do\s+servico|valor\s+dos\s+servicos/, 'first');
+          if(v)return v;
+        }
+      }
+    }
+  }
+  for(let i=0;i<arr.length;i++){
+    const n=_norm(arr[i]);
+    if(/valor\s+do\s+servico|valor\s+dos\s+servicos|valor\s+total\s+dos\s+servicos/.test(n)){
+      const v=valueFromWindow(i,/valor\s+(?:do|dos|total\s+dos)\s+servic/, 'first');
+      if(v)return v;
+    }
+  }
+  return 0;
 }
 
 
@@ -11540,10 +12235,11 @@ function parseNFFromText(text, digits){
   const cnpjs=[...text.matchAll(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g)].map(m=>m[0]);
   const rawCnpj=(text.match(/(?:CNPJ|CPF\/CNPJ)[:\s]*([0-9.\-/]{14,18})/i)||[])[1];
   const cnpj=cnpjs[0]||cnpjFmt((rawCnpj||'').replace(/\D/g,''));
-  const chave=findImpAccessKey(text);
+  const nfseLike=impIsNfseLikeText(norm);
+  const chave=nfseLike?'':findImpAccessKey(text);
   const decoded=chave?decodeChave(chave):null;
 
-  let tipo='NF-e';
+  let tipo=nfseLike?'NFS-e':'NF-e';
   if(/nfc-?e|cupom\s+fiscal\s+eletr[oô]nico|danfe\s+nfc/i.test(text)||decoded?.mod==='65')tipo='NFC-e';
   else if(/nfs-?e|nota\s+fiscal\s+de\s+servi[çc]os?|prestador\s+de\s+servi[çc]os?/i.test(text))tipo='NFS-e';
   else if(/ct-?e|dacte|conhecimento\s+de\s+transporte/i.test(text)||decoded?.mod==='57')tipo='CT-e';
@@ -11551,9 +12247,12 @@ function parseNFFromText(text, digits){
   else if(/fatura|invoice|cobran[çc]a|demonstrativo/i.test(text))tipo='Fatura';
   else if(/recibo|recibemos|recebi\b|rpa\b/i.test(text))tipo='Recibo';
   else if(/\b(darf|das|darm|gps|gnre|gare)\b|guia\s+(?:de|do)|tributo|taxa\s+municipal/i.test(text))tipo='Guia';
-  const prestadorBlock=tipo==='NFS-e'?findSection([/^\s*prestador(?:\s+de\s+servi\S*)?\s*:?\s*$/i,/^\s*dados\s+do\s+prestador/i],[/^\s*tomador\b/i,/^\s*intermediario\b/i,/^\s*discriminacao\b/i,/^\s*servicos\b/i,/^\s*valores\b/i]):'';
+  if(!nfseLike&&decoded&&['NF-e','NFC-e','CT-e'].includes(decoded.tipo))tipo=decoded.tipo;
+  const prestadorBlock=tipo==='NFS-e'?impFindNfsePrestadorBlock(text,lines):'';
 
-  const nfNum=findImpDocNumberFromText(text,tipo,decoded);
+  const nfNum=tipo==='NFS-e'
+    ? (decodeNfseKeyNumber(text,'')||impFindNfseHeaderNumber(lines)||findImpDocNumberFromText(text,tipo,decoded))
+    : findImpDocNumberFromText(text,tipo,decoded);
 
   let linhaDigitavel='';
   if(tipo==='Boleto'){
@@ -11565,7 +12264,9 @@ function parseNFFromText(text, digits){
   const date=findDateNear([/data\s+de\s+emiss/i,/emiss[aã]o/i,/compet[eê]ncia/i])||(tipo==='NFS-e'?'':findDateNear([/data/i]))||(decoded?.date||'');
   const venc=findDateNear([/vencimento/i,/venc\./i,/pagar\s+at[eé]/i,/data\s+limite/i]);
 
-  let val=findMoneyNear([/valor\s+(?:total|do\s+documento|da\s+nota|dos?\s+servi[çc]os?|cobrado|a\s+pagar|liquido|l[ií]quido)/i,/total\s+(?:da\s+nota|a\s+pagar|geral|l[ií]quido)/i]);
+  let val=tipo==='NFS-e'
+    ? impFindNfseTotalValue(text,lines)
+    : findMoneyNear([/valor\s+(?:total|do\s+documento|da\s+nota|dos?\s+servi[çc]os?|cobrado|a\s+pagar|liquido|l[ií]quido)/i,/total\s+(?:da\s+nota|a\s+pagar|geral|l[ií]quido)/i]);
   if(!val&&tipo==='Boleto')val=findMoneyNear([/valor\s+do\s+documento/i,/valor\s+cobrado/i,/valor\s+do\s+boleto/i]);
   if(!val&&tipo!=='NFS-e'){
     const allAmts=[...text.matchAll(/R?\$?\s*([\d]{1,3}(?:\.[\d]{3})*,\d{2}|\d+,\d{2})/g)].map(m=>parseFloat(m[1].replace(/\./g,'').replace(',','.'))).filter(v=>v>0);
@@ -11577,6 +12278,10 @@ function parseNFFromText(text, digits){
     ben=findNameInLines(prestadorBlock.split('\n').map(l=>l.trim()).filter(Boolean),[/raz[aã]o\s*social/i,/nome\s*empresarial/i,/nome\/raz[aã]o\s*social/i,/prestador/i]);
   }
   const labels=tipo==='Boleto'?[/(?:benefici[aá]rio|cedente|favorecido)/i]:[/emitente/i,/fornecedor/i,/benefici[aá]rio/i,/raz[aã]o\s*social/i,/empresa\s+prestadora/i];
+  if(tipo==='NFS-e'){
+    const nfseProvider=impFindNfseProviderName(prestadorBlock);
+    if(nfseProvider)ben=nfseProvider;
+  }
   for(let i=0;i<lines.length&&!ben&&tipo!=='NFS-e';i++){
     if(labels.some(re=>re.test(lines[i]))){
       const same=lines[i].replace(labels.find(re=>re.test(lines[i])),'').replace(/[:\-]/,'').trim();
@@ -11587,6 +12292,7 @@ function parseNFFromText(text, digits){
       }
     }
   }
+  if(!ben&&['NF-e','NFC-e'].includes(tipo))ben=impFindDanfeIssuerName(text,lines);
   if(!ben&&tipo!=='NFS-e'){
     for(const l of lines){
       const lt=l.trim();
@@ -11596,11 +12302,12 @@ function parseNFFromText(text, digits){
     }
   }
 
-  const finalCnpj=tipo==='NFS-e'?(cnpjFrom(prestadorBlock)||''):(cnpj||(decoded?.cnpj)||'');
+  const finalCnpj=tipo==='NFS-e'?(cnpjFrom(prestadorBlock)||''):((decoded?.cnpj)||cnpj||'');
   const finalDoc=cleanImpDocNumber(nfNum,tipo);
   const descIdx=lines.findIndex(l=>/(servi[çc]o|refer[eê]ncia|descri[çc][aã]o|hist[oó]rico|discrimina[çc][aã]o)/i.test(l));
   let desc='';
-  if(descIdx>=0){
+  if(tipo==='NFS-e')desc=impFindNfseDescription(lines);
+  if(!desc&&descIdx>=0){
     desc=lines[descIdx].replace(/^(servi[çc]o|refer[eê]ncia|descri[çc][aã]o|hist[oó]rico|discrimina[çc][aã]o)(?:\s+dos?\s+servi[çc]os?)?\s*:?\s*/i,'').trim();
     if(desc.length<6){
       const block=[];
@@ -11611,11 +12318,18 @@ function parseNFFromText(text, digits){
       desc=block.join(' ').trim();
     }
   }
+  const danfeItems=['NF-e','NFC-e'].includes(tipo)?impParseDanfeItemsFromText(text):[];
+  const danfeTotals=['NF-e','NFC-e'].includes(tipo)?impFindDanfeTotals(text,danfeItems):{};
+  if(danfeTotals.valor_total)val=danfeTotals.valor_total;
+  if(danfeItems.length)desc=danfeItems.map(it=>it.descricao).filter(Boolean).join('; ');
   const codigo=linhaDigitavel||chave;
   const parcelas=impExtractParcelasFromText(text,val);
   const vencFinal=venc||(parcelas.find(p=>p.vencimento)||{}).vencimento||'';
+  const subtotal=danfeTotals.subtotal||(danfeItems.length?danfeItems.reduce((s,it)=>s+(Number(it.valor_total)||0),0):val);
+  const desconto=danfeTotals.desconto||0;
+  const frete=danfeTotals.frete||0;
 
-  return {ben,cnpj:finalCnpj,doc:finalDoc,val,date,venc:vencFinal,chave:codigo,desc,discriminacao:desc,tipo,itens:desc?[{descricao:desc,quantidade:1,unidade:tipo==='NF-e'||tipo==='NFC-e'?'UN':'Srv',valor_unitario:val,valor_total:val}]:[],pagForma:parcelas.length>1?'PARCELADO':'A_VISTA',numParcelas:parcelas.length||1,parcelas};
+  return {ben,cnpj:finalCnpj,doc:finalDoc,val,subtotal,desconto,frete,date,venc:vencFinal,chave:codigo,desc,discriminacao:desc,tipo,itens:danfeItems.length?danfeItems:(desc?[{descricao:desc,quantidade:1,unidade:tipo==='NF-e'||tipo==='NFC-e'?'UN':'Srv',valor_unitario:val,valor_total:val}]:[]),pagForma:parcelas.length>1?'PARCELADO':'A_VISTA',numParcelas:parcelas.length||1,parcelas};
 
 }
 
@@ -11669,82 +12383,6 @@ function dataFromDecodedChave(c,d){
   };
 }
 
-async function lookupOfficialByAccessKey(c,onStatus){
-  if(onStatus)onStatus('Consultando XML oficial por chave de acesso...');
-  const edgeUrl=SUPA_URL+'/functions/v1/read-invoice';
-  let resp;
-  try{
-    resp=await fetch(edgeUrl,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':'Bearer '+SUPA_ANON,
-        'apikey':SUPA_ANON
-      },
-      body:JSON.stringify({accessKey:c}),
-      signal:AbortSignal.timeout(60000)
-    });
-  }catch(fetchErr){
-    if(fetchErr.name==='TimeoutError'||fetchErr.name==='AbortError')
-      throw Object.assign(new Error('Tempo esgotado aguardando consulta oficial por chave (60s).'),{payload:null});
-    throw Object.assign(new Error('Erro de rede ao conectar com consulta oficial: '+fetchErr.message),{payload:null});
-  }
-  let payload=null;
-  try{payload=await resp.json();}catch(e){payload={ok:false,error:'Resposta da consulta oficial nao veio em JSON.'};}
-  if(!resp.ok||!payload.ok){
-    const msg=payload?.error||('Servidor retornou HTTP '+resp.status);
-    throw Object.assign(new Error(msg),{payload});
-  }
-  return mapEdgeInvoiceResult(payload);
-}
-
-function showAccessKeyLookupError(c,err){
-  const payload=err?.payload||{};
-  const attempts=Array.isArray(payload.attempts)?payload.attempts:[];
-  const rows=[{
-    etapa:'Consulta oficial por chave',
-    erro:err?.message||'Nao foi possivel consultar a nota pela chave.'
-  }];
-  if(payload.code==='NFE_LOOKUP_NOT_CONFIGURED')rows.push({
-    etapa:'Canal legal pendente',
-    erro:'Para baixar XML completo e itens sem captcha, configure no backend uma API fiscal autorizada ou um conector com certificado A1. A consulta publica da SEFAZ nao pode ser automatizada por captcha.'
-  });
-  if(attempts.length)rows.push({
-    etapa:'Tentativas tecnicas',
-    erro:attempts.join('\n')
-  });
-  showImportErrorDetails({name:'Chave de acesso '+c.slice(0,8)+'...'+c.slice(-6)},rows);
-}
-
-function applyOfficialLookupToOpenReview(data){
-  if(!data)return;
-  const nfTipo=data.tipo||'NF-e';
-  const nfSel=document.getElementById('imp-nftipo');
-  if(nfSel&&![...nfSel.options].some(o=>o.value===nfTipo))nfSel.add(new Option(nfTipo,nfTipo));
-  if(nfSel){nfSel.value=nfTipo;impNfTipoChanged(nfTipo);}
-  const fill=(id,val)=>{const el=document.getElementById(id);if(el&&val&&!el.value)el.value=val;};
-  fill('imp-ben',data.ben);
-  fill('imp-cnpj',data.cnpj);
-  fill('imp-doc',cleanImpDocNumber(data.doc||data.nfNum||'',nfTipo));
-  fill('imp-date',data.date);
-  fill('imp-venc',data.venc);
-  fill('imp-chave',data.chave);
-  if((data.itens||[]).length)impRenderItens(data.itens,data.discriminacao||data.desc||'',nfTipo);
-  if(data.val&&!parseCurrency(document.getElementById('imp-val-input')?.value||''))setCurrencyValue('imp-val-input',data.val);
-  if(data.subtotal&&!parseCurrency(document.getElementById('imp-subtotal')?.value||''))setCurrencyValue('imp-subtotal',data.subtotal);
-  if(data.desconto&&!parseCurrency(document.getElementById('imp-desconto')?.value||''))setCurrencyValue('imp-desconto',data.desconto);
-  if(data.frete&&!parseCurrency(document.getElementById('imp-frete')?.value||''))setCurrencyValue('imp-frete',data.frete);
-  const parcelas=Array.isArray(data.parcelas)?data.parcelas.filter(p=>p&&(p.valor||p.vencimento)):[];
-  if(parcelas.length>1){
-    document.getElementById('imp-pag-forma').value='PARCELADO';
-    document.getElementById('imp-nparcelas').value=parcelas.length;
-    document.getElementById('imp-nparcelas-row').style.display='';
-    impRenderParcelas(parcelas);
-  }
-}
-
-
-
 async function decodePastedChave(){
 
   const raw=document.getElementById('imp-chave-paste').value.trim();
@@ -11756,23 +12394,10 @@ async function decodePastedChave(){
   const d=decodeChave(c);
   if(!d){toast('Chave invalida.');return;}
   const localData=dataFromDecodedChave(c,d);
-  document.getElementById('imp-upload').style.display='none';
-  document.getElementById('imp-review').style.display='none';
-  document.getElementById('imp-reading').style.display='block';
-  try{
-    const officialData=await lookupOfficialByAccessKey(c,_setImpStatus);
-    const merged=impMergeTrustedLocal(officialData,localData);
-    showImportReview(merged);
-    if(!document.getElementById('imp-ben').value)await lookupByCNPJ(true);
-    toast((officialData.itens&&officialData.itens.length)?'XML oficial lido com itens da nota. Confira os dados.':'Consulta oficial concluida. Confira os dados.');
-    if(!impIsComplete(merged))impShowPartialWarning({name:'Chave de acesso '+c.slice(0,8)+'...'+c.slice(-6)},merged,[]);
-  }catch(err){
-    showImportReview(localData);
-    await lookupByCNPJ(true);
-    showAccessKeyLookupError(c,err);
-    if(!document.getElementById('imp-ben').value)
-      toast('Chave decodificada. Consulta oficial ainda precisa de canal autorizado.');
-  }
+  showImportReview(localData);
+  await lookupByCNPJ(true);
+  if(!document.getElementById('imp-ben').value)
+    toast('Chave decodificada. Anexe o PDF/XML para ler itens e valores.');
   return;
 
   if(!d){toast('Chave inválida.');return;}
@@ -12031,8 +12656,6 @@ function impCnpjChanged(){
 
 
 
-let impLastOfficialLookupKey='';
-
 async function impChaveChanged(raw){
 
   const c=raw.replace(/\D/g,'');
@@ -12066,17 +12689,6 @@ async function impChaveChanged(raw){
   // Busca razão social em segundo plano
 
   if(!document.getElementById('imp-ben').value)lookupByCNPJ(true);
-
-  if(impLastOfficialLookupKey===c)return;
-  impLastOfficialLookupKey=c;
-  try{
-    _setImpStatus('Consultando XML oficial por chave de acesso...');
-    const officialData=await lookupOfficialByAccessKey(c,_setImpStatus);
-    applyOfficialLookupToOpenReview(officialData);
-    toast((officialData.itens&&officialData.itens.length)?'XML oficial lido com itens da nota.':'Consulta oficial concluida pela chave.');
-  }catch(err){
-    showAccessKeyLookupError(c,err);
-  }
 
 }
 
@@ -12278,7 +12890,7 @@ function impRenderItens(itens,discriminacao,nfTipo){
       const tipoNome=(MATERIAL_TIPOS.find(m=>m.id===tipo)||{nome:'Outros'}).nome.split(' ')[0];
       const fmtV=v=>v!=null&&v>0?parseFloat(v).toLocaleString('pt-BR',{minimumFractionDigits:2}):'';
       const fmtQ=v=>v!=null&&v>0?parseFloat(v).toLocaleString('pt-BR',{maximumFractionDigits:4}):'';
-      return `<tr data-row="${i}">
+      return `<tr data-row="${i}" data-codigo="${(it.codigo||'').replace(/"/g,'&quot;')}" data-desconto="${it.desconto!=null?parseFloat(it.desconto)||0:''}">
         <td style="text-align:center;width:26px;vertical-align:middle">
           <button type="button" onclick="impRemoveItem(${i})" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:13px;padding:2px 4px;line-height:1">✕</button>
         </td>
@@ -12337,11 +12949,13 @@ function getImpItens(){
   const rows=document.querySelectorAll('#imp-itens-tbody tr[data-row]');
   if(!rows.length)return[];
   return Array.from(rows).map(tr=>({
+    codigo:(tr.getAttribute('data-codigo')||'').trim(),
     descricao:(tr.querySelector('[data-f="desc"]')?.value||'').trim(),
     quantidade:parseCurrency(tr.querySelector('[data-f="qtd"]')?.value||'')||0,
     unidade:(tr.querySelector('[data-f="un"]')?.value||'').trim().toUpperCase()||'UN',
     valor_unitario:parseCurrency(tr.querySelector('[data-f="vunit"]')?.value||'')||0,
     valor_total:parseCurrency(tr.querySelector('[data-f="vtot"]')?.value||'')||0,
+    desconto:parseFloat(tr.getAttribute('data-desconto')||'')||0,
   })).filter(it=>it.descricao);
 }
 
@@ -12567,7 +13181,7 @@ async function confirmImport(){
       const{data:{session:_sess}}=await db.auth.getSession();
       if(!_sess){toast('Sessão expirada. Faça login novamente.');return;}
       const path=await uploadPagDoc(cur.id,impFile,'nf');
-      p.nfDoc={name:impFile.name,storagePath:path,type:impFile.type};
+      p.nfDoc={name:impFile.name,storagePath:path,type:impFile.type||inferType(impFile.name)};
     }catch(e){
       const msg=e?.message||e?.error||String(e);
       console.error('[confirmImport] Falha upload NF:',e);
@@ -12591,7 +13205,7 @@ async function confirmImport(){
 
   cur.pag.push(...pagamentos);
 
-  impFile=null;
+  impFile=null; impXmlFile=null;
 
   persist(cur.id);
 
