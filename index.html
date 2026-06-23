@@ -9741,7 +9741,8 @@ async function uploadPagDoc(obraId,file,tipo){
   const safeName=file.name.replace(/[^a-zA-Z0-9._\-]/g,'_');
   const path=`obra_${obraId}/${tipo}_${ts}/${safeName}`;
 
-  const{error}=await db.storage.from('pagamentos').upload(path,file,{upsert:true});
+  const contentType=file.type||inferType(file.name);
+  const{error}=await db.storage.from('pagamentos').upload(path,file,{upsert:true,contentType});
 
   if(error)throw error;
 
@@ -9772,6 +9773,10 @@ function inferType(path){
   if(/\.(jpg|jpeg|png|gif|webp)$/i.test(path))return'image/jpeg';
 
   if(/\.pdf$/i.test(path))return'application/pdf';
+
+  if(/\.xml$/i.test(path))return'application/xml';
+
+  if(/\.(txt|csv|json|html|htm|md)$/i.test(path))return'text/plain';
 
   return'application/octet-stream';
 
@@ -11346,12 +11351,14 @@ function parseNFeXML(xmlText){
   while((dm=detRe.exec(xmlText))!==null){
     const pb=getBlock(dm[1],'prod');
     if(!pb)continue;
+    const codigo=getTag(pb,'cProd');
     const descricao=getTag(pb,'xProd');
     const quantidade=money(getTag(pb,'qCom'))||money(getTag(pb,'qTrib'))||1;
     const unidade=getTag(pb,'uCom')||getTag(pb,'uTrib')||'UN';
     const valor_unitario=money(getTag(pb,'vUnCom'))||money(getTag(pb,'vUnTrib'));
     const valor_total=money(getTag(pb,'vProd'));
-    if(descricao)itens.push({descricao,quantidade,unidade,valor_unitario,valor_total});
+    const desconto_item=money(getTag(pb,'vDesc'));
+    if(descricao)itens.push({codigo,descricao,quantidade,unidade,valor_unitario,valor_total,desconto:desconto_item});
   }
 
   const parcelas=[];
@@ -12408,7 +12415,7 @@ function impRenderItens(itens,discriminacao,nfTipo){
       const tipoNome=(MATERIAL_TIPOS.find(m=>m.id===tipo)||{nome:'Outros'}).nome.split(' ')[0];
       const fmtV=v=>v!=null&&v>0?parseFloat(v).toLocaleString('pt-BR',{minimumFractionDigits:2}):'';
       const fmtQ=v=>v!=null&&v>0?parseFloat(v).toLocaleString('pt-BR',{maximumFractionDigits:4}):'';
-      return `<tr data-row="${i}">
+      return `<tr data-row="${i}" data-codigo="${(it.codigo||'').replace(/"/g,'&quot;')}" data-desconto="${it.desconto!=null?parseFloat(it.desconto)||0:''}">
         <td style="text-align:center;width:26px;vertical-align:middle">
           <button type="button" onclick="impRemoveItem(${i})" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:13px;padding:2px 4px;line-height:1">✕</button>
         </td>
@@ -12467,11 +12474,13 @@ function getImpItens(){
   const rows=document.querySelectorAll('#imp-itens-tbody tr[data-row]');
   if(!rows.length)return[];
   return Array.from(rows).map(tr=>({
+    codigo:(tr.getAttribute('data-codigo')||'').trim(),
     descricao:(tr.querySelector('[data-f="desc"]')?.value||'').trim(),
     quantidade:parseCurrency(tr.querySelector('[data-f="qtd"]')?.value||'')||0,
     unidade:(tr.querySelector('[data-f="un"]')?.value||'').trim().toUpperCase()||'UN',
     valor_unitario:parseCurrency(tr.querySelector('[data-f="vunit"]')?.value||'')||0,
     valor_total:parseCurrency(tr.querySelector('[data-f="vtot"]')?.value||'')||0,
+    desconto:parseFloat(tr.getAttribute('data-desconto')||'')||0,
   })).filter(it=>it.descricao);
 }
 
@@ -12697,7 +12706,7 @@ async function confirmImport(){
       const{data:{session:_sess}}=await db.auth.getSession();
       if(!_sess){toast('Sessão expirada. Faça login novamente.');return;}
       const path=await uploadPagDoc(cur.id,impFile,'nf');
-      p.nfDoc={name:impFile.name,storagePath:path,type:impFile.type};
+      p.nfDoc={name:impFile.name,storagePath:path,type:impFile.type||inferType(impFile.name)};
     }catch(e){
       const msg=e?.message||e?.error||String(e);
       console.error('[confirmImport] Falha upload NF:',e);
