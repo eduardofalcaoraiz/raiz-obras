@@ -10953,6 +10953,17 @@ function makeOcrPreprocessedCanvas(srcCanvas){
   return canvas;
 }
 
+function cropOcrCanvas(srcCanvas,xRatio,yRatio,wRatio,hRatio){
+  const sx=Math.max(0,Math.round(srcCanvas.width*xRatio));
+  const sy=Math.max(0,Math.round(srcCanvas.height*yRatio));
+  const sw=Math.max(1,Math.min(srcCanvas.width-sx,Math.round(srcCanvas.width*wRatio)));
+  const sh=Math.max(1,Math.min(srcCanvas.height-sy,Math.round(srcCanvas.height*hRatio)));
+  const canvas=document.createElement('canvas');
+  canvas.width=sw;canvas.height=sh;
+  canvas.getContext('2d').drawImage(srcCanvas,sx,sy,sw,sh,0,0,sw,sh);
+  return canvas;
+}
+
 function loadImageCanvas(file){
   return new Promise((resolve,reject)=>{
     const url=URL.createObjectURL(file);
@@ -10987,9 +10998,9 @@ async function readWithTesseract(file,onStatus){
     });
     return (result&&result.data&&result.data.text)||'';
   };
-  const recognizeCanvas=async(canvas,label)=>{
+  const recognizeCanvas=async(canvas,label,forceEnhanced)=>{
     let text=await recognize(canvas,label);
-    if(text.replace(/\s+/g,'').length<80){
+    if(forceEnhanced||text.replace(/\s+/g,'').length<80){
       const enhanced=makeOcrPreprocessedCanvas(canvas);
       const text2=await recognize(enhanced,label+' com alto contraste');
       text=(text+'\n'+text2).trim();
@@ -11004,11 +11015,16 @@ async function readWithTesseract(file,onStatus){
     for(let pg=1;pg<=pdf.numPages;pg++){
       if(onStatus)onStatus('OCR local gratuito: página '+pg+' de '+pdf.numPages+'…');
       const page=await pdf.getPage(pg);
-      const vp=page.getViewport({scale:2});
+      const vp=page.getViewport({scale:2.8});
       const canvas=document.createElement('canvas');
       canvas.width=Math.round(vp.width);canvas.height=Math.round(vp.height);
       await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
-      texts.push(await recognizeCanvas(canvas,'página '+pg));
+      const fullText=await recognizeCanvas(canvas,'página '+pg);
+      texts.push(fullText);
+      if(pg===1||/nfs|nota\s+fiscal|valor|total|servi/i.test(fullText)){
+        texts.push(await recognizeCanvas(cropOcrCanvas(canvas,0,0.58,1,0.28),'página '+pg+' faixa de totais',true));
+        texts.push(await recognizeCanvas(cropOcrCanvas(canvas,0,0.70,1,0.22),'página '+pg+' rodapé de valores',true));
+      }
     }
   }else{
     const canvas=await loadImageCanvas(file);
@@ -12008,10 +12024,13 @@ function impFindNfseHeaderNumber(lines){
   };
   for(let i=0;i<arr.length;i++){
     const n=_norm(arr[i]);
-    if(!/numero\s+da\s+nfs-?e|nfs-?e\s+n[ºo.]|nota\s+fiscal\s+de\s+servicos/.test(n))continue;
-    const same=arr[i].match(/(?:numero\s+da\s+nfs-?e|nfs-?e|nota\s+fiscal\s+de\s+servi[çc]os)\s*[:#-]?\s*([0-9]{1,13})(?!\d)/i);
+    if(!/numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n[ºo.]|nota\s+fiscal\s+de\s+servicos/.test(n))continue;
+    const sameTail=arr[i].replace(/.*(?:numero\s+da\s+(?:nota|nfs-?e)|nfs-?e|nota\s+fiscal\s+de\s+servi[çc]os)\s*[:#-]?/i,'').trim();
+    const sameFirst=firstNumber(sameTail,arr[i+1]||'');
+    if(sameFirst)return sameFirst;
+    const same=arr[i].match(/(?:numero\s+da\s+(?:nota|nfs-?e)|nfs-?e|nota\s+fiscal\s+de\s+servi[çc]os)\s*[:#-]?\s*([0-9]{1,13})(?!\d)/i);
     if(same)return cleanImpNfNumber(same[1],'NFS-e');
-    const next=firstNumber(arr[i+1]||'');
+    const next=firstNumber(arr[i+1]||'',arr[i+2]||'');
     if(next)return next;
   }
   return'';
@@ -12043,7 +12062,14 @@ function impFindNfseTotalValue(text,lines){
   }
   for(let i=0;i<arr.length;i++){
     const n=_norm(arr[i]);
-    if(/valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e/.test(n)){
+    if(/valor\s+da\s+nota/.test(n)){
+      const v=valueFromWindow(i,/valor\s+da\s+nota/, 'last');
+      if(v)return v;
+    }
+  }
+  for(let i=0;i<arr.length;i++){
+    const n=_norm(arr[i]);
+    if(/valor\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e/.test(n)){
       for(let j=i+1;j<=Math.min(i+8,arr.length-1);j++){
         const nj=_norm(arr[j]);
         if(/valor\s+liquido\s+da\s+nfs-?e|valor\s+liquido/.test(nj)){
