@@ -685,18 +685,48 @@ function findMoneyMatches(line: string) {
 
 function findAccessKey(text: string) {
   const source = String(text || '')
-  const direct = (source.match(/\b\d{44}\b/) || [])[0]
-  if (direct) return direct
+  const directMatches = source.match(/\b\d{44}\b/g) || []
+  for (const direct of directMatches) {
+    if (isValidAccessKey(direct)) return direct
+  }
+  if (directMatches[0]) return directMatches[0]
   const lines = source.replace(/\r/g, '\n').split('\n').map((l) => cleanStr(l)).filter(Boolean)
   for (let i = 0; i < lines.length; i++) {
     const norm = stripAccents(lines[i]).toLowerCase()
     if (!/chave\s+de\s+acesso|chave\s+acesso|consulta\s+pela\s+chave|\bchave\b/i.test(norm)) continue
     const idx = norm.indexOf('chave')
-    const block = (idx >= 0 ? lines[i].slice(idx) : lines[i]) + ' ' + lines.slice(i + 1, i + 4).join(' ')
+    const block = (idx >= 0 ? lines[i].slice(idx) : lines[i]) + ' ' + lines.slice(i + 1, i + 6).join(' ')
     const digits = onlyDigits(block)
+    const valid = firstValidAccessKeyFromDigits(digits)
+    if (valid) return valid
     if (digits.length >= 44) return digits.slice(0, 44)
   }
+  const valid = firstValidAccessKeyFromDigits(onlyDigits(source))
+  if (valid) return valid
   return ''
+}
+
+function firstValidAccessKeyFromDigits(digits: string) {
+  const d = onlyDigits(digits)
+  for (let i = 0; i <= d.length - 44; i++) {
+    const c = d.slice(i, i + 44)
+    if (isValidAccessKey(c)) return c
+  }
+  return ''
+}
+
+function isValidAccessKey(raw: string) {
+  const c = onlyDigits(raw)
+  if (c.length !== 44) return false
+  let sum = 0
+  let weight = 2
+  for (let i = 42; i >= 0; i--) {
+    sum += Number(c[i]) * weight
+    weight = weight === 9 ? 2 : weight + 1
+  }
+  const mod = sum % 11
+  const dv = mod < 2 ? 0 : 11 - mod
+  return dv === Number(c[43])
 }
 
 function extractStrictText(rawText: string) {
