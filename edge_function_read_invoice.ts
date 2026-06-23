@@ -112,36 +112,12 @@ Deno.serve(async (req: Request) => {
 
     if (!imageBase64) throw new Error('imageBase64 ou rawText ausente')
 
-    if (geminiKey) {
-      try {
-        const raw = await callGeminiDocument(geminiKey, imageBase64, mediaType)
-        const normalized = normalizeData(raw, 'gemini-direct')
-        if (consider('Gemini direto', normalized) && normalized.tipo_documento !== 'NFS-e') return ok(merged || {}, attempts)
-        if (normalized.tipo_documento === 'NFS-e') attempts.push('Gemini direto NFS-e exige confirmacao por texto/OCR antes de encerrar')
-      } catch (err) {
-        attempts.push('Gemini direto: ' + errorMessage(err))
-      }
-    } else {
-      attempts.push('Secret GEMINI_API_KEY nao configurado')
-    }
-
-    const mistralKey = Deno.env.get('MISTRAL_API_KEY') || ''
-    if (mistralKey) {
-      try {
-        const text = await callMistralOcr(mistralKey, imageBase64, mediaType)
-        const normalized = await extractFromOcrText(text, geminiKey, 'mistral-ocr')
-        if (consider('Mistral OCR + IA', normalized)) return ok(merged || {}, attempts)
-      } catch (err) {
-        attempts.push('Mistral OCR: ' + errorMessage(err))
-      }
-    }
-
     const advancedOcrUrl = (Deno.env.get('ADVANCED_OCR_URL') || Deno.env.get('OPEN_SOURCE_OCR_URL') || '').trim()
     if (advancedOcrUrl && Deno.env.get('ADVANCED_OCR_DISABLED') !== '1') {
       try {
         const text = await callAdvancedOcrService(advancedOcrUrl, imageBase64, mediaType, fileName)
         const normalized = await extractFromOcrText(text, geminiKey, 'advanced-open-source-ocr')
-        if (consider('OCR avancado open-source + IA', normalized)) return ok(merged || {}, attempts)
+        if (consider('OCR avancado open-source', normalized)) return ok(merged || {}, attempts)
       } catch (err) {
         attempts.push('OCR avancado open-source: ' + errorMessage(err))
       }
@@ -153,11 +129,35 @@ Deno.serve(async (req: Request) => {
         const source = ocrSpaceKey === 'helloworld' ? 'ocr-space-free-demo' : 'ocr-space-free'
         const text = await callOcrSpace(ocrSpaceKey, imageBase64, mediaType)
         const normalized = await extractFromOcrText(text, geminiKey, source)
-        if (consider('OCR.space + IA', normalized)) return ok(merged || {}, attempts)
+        if (consider('OCR.space', normalized)) return ok(merged || {}, attempts)
       } catch (err) {
         const hint = ocrSpaceKey === 'helloworld' ? ' (chave demo gratuita, limite bem baixo; configure OCR_SPACE_API_KEY gratuita para producao)' : ''
         attempts.push('OCR.space gratuito' + hint + ': ' + errorMessage(err))
       }
+    }
+
+    const mistralKey = Deno.env.get('MISTRAL_API_KEY') || ''
+    if (mistralKey) {
+      try {
+        const text = await callMistralOcr(mistralKey, imageBase64, mediaType)
+        const normalized = await extractFromOcrText(text, geminiKey, 'mistral-ocr')
+        if (consider('Mistral OCR', normalized)) return ok(merged || {}, attempts)
+      } catch (err) {
+        attempts.push('Mistral OCR: ' + errorMessage(err))
+      }
+    }
+
+    if (geminiKey && Deno.env.get('GEMINI_DIRECT_DISABLED') !== '1') {
+      try {
+        const raw = await callGeminiDocument(geminiKey, imageBase64, mediaType)
+        const normalized = normalizeData(raw, 'gemini-direct')
+        if (consider('Gemini direto (ultimo recurso)', normalized) && normalized.tipo_documento !== 'NFS-e') return ok(merged || {}, attempts)
+        if (normalized.tipo_documento === 'NFS-e') attempts.push('Gemini direto NFS-e exige confirmacao por texto/OCR antes de encerrar')
+      } catch (err) {
+        attempts.push('Gemini direto: ' + errorMessage(err))
+      }
+    } else if (!geminiKey) {
+      attempts.push('Secret GEMINI_API_KEY nao configurado')
     }
 
     if (merged && hasUsefulData(merged)) return ok(merged, attempts)
@@ -170,6 +170,16 @@ Deno.serve(async (req: Request) => {
 async function extractFromOcrText(text: string, geminiKey: string, source: string) {
   if (!text.trim()) throw new Error('OCR sem texto extraido')
   const strictLocal = normalizeData(extractStrictText(text), source + '+regex-estrito')
+  const strictMissing = missingPaymentFields(strictLocal)
+  if (hasUsefulData(strictLocal) && strictMissing.length === 0) {
+    strictLocal._meta = {
+      ...(strictLocal._meta || {}),
+      source: source + '+regex-estrito',
+      textLength: text.length,
+      geminiSkipped: 'regex completo; Gemini preservado para ultimo recurso',
+    }
+    return strictLocal
+  }
 
   if (geminiKey) {
     const chunks = splitTextForGemini(text)
