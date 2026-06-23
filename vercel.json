@@ -1,10 +1,7 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
   "functions": {
-    "api/**/*.py": {
-      "maxDuration": 180,
-      "excludeFiles": "{tmp/**,services/**,supabase/**,logos/**,*.html,*.jpg,*.jpeg,*.png,*.zip,*.sql,*.md,*.bak,prev_*.html,base_*.html,good_*.html,working_version.html,patch_*.py,fix_*.py,rebuild_*.py,extract_*.py,compare_*.py,diagnose*.py,apply_*.py,build_*.py,restructure_*.py,integrate_*.py,safe_*.py,find_*.py,deep_*.py,scan_*.py,full_*.py,check_*.py}"
+    "api/advanced_ocr.py": {
+      "maxDuration": 60
     }
   }
 }
