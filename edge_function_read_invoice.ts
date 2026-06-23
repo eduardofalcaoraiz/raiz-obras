@@ -856,13 +856,15 @@ function isNfseLikeText(normText: string) {
 function findNfsePrestadorBlock(text: string, lines: string[]) {
   const starts = [
     /^\s*emitente\s+da\s+nfs-?e\b/i,
-    /^\s*prestador\s+do\s+servi/i,
-    /^\s*prestador(?:\s+de\s+servi\S*)?\s*:?\s*$/i,
+    /^\s*prestador\s*do\s*servi/i,
+    /^\s*prestador\s*de\s*servi/i,
+    /^\s*prestador(?:\s*de\s*servi\S*)?\s*:?\s*$/i,
     /^\s*dados\s+do\s+prestador/i,
   ]
   const ends = [
     /^\s*tomador\b/i,
-    /^\s*tomador\s+do\s+servi/i,
+    /^\s*tomador\s*do\s*servi/i,
+    /^\s*tomador\s*de\s*servi/i,
     /^\s*intermediario\b/i,
     /^\s*servi[cç]o\s+prestado\b/i,
     /^\s*discriminacao\b/i,
@@ -871,7 +873,7 @@ function findNfsePrestadorBlock(text: string, lines: string[]) {
   const block = findSection(text, starts, ends)
   if (block) return block
   const all = lines.length ? lines : String(text || '').split('\n').map((l) => l.trim()).filter(Boolean)
-  const start = all.findIndex((l) => /emitente\s+da\s+nfs-?e|prestador\s+do\s+servi|dados\s+do\s+prestador/i.test(stripAccents(l)))
+  const start = all.findIndex((l) => /emitente\s+da\s+nfs-?e|prestador\s*do\s*servi|prestador\s*de\s*servi|dados\s+do\s+prestador/i.test(stripAccents(l)))
   if (start < 0) return ''
   let end = all.length
   for (let i = start + 1; i < all.length; i++) {
@@ -904,7 +906,8 @@ function cleanNfseProviderName(raw: string) {
   let s = cleanStr(raw)
   s = s.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, ' ')
   s = s.replace(/^\d{1,3}(?:\.\d{3})*(?:\/\d{4}-\d{2})?\s+/, '')
-  s = s.replace(/^(?:cnpj|cpf|nif|inscricao municipal|telefone|e-mail|email|nome\s*\/?\s*nome empresarial)\b.*$/i, '')
+  s = s.replace(/^(?:cnpj|cpf|nif|inscricao municipal|telefone|e-mail|email)\b.*$/i, '')
+  s = s.replace(/^(?:nome\s*\/?\s*raz[aÃ£]o\s*social|nome\s*\/?\s*nome empresarial|razao social|raz[aÃ£]o social|nome empresarial)\s*:?\s*/i, '')
   s = cleanCompanyName(s)
   const n = stripAccents(s).toLowerCase()
   if (s.length < 5 || !/[A-Za-zÀ-ÿ]/.test(s)) return ''
@@ -913,6 +916,8 @@ function cleanNfseProviderName(raw: string) {
 }
 
 function findNfseDescription(lines: string[]) {
+  const pluralHeaderDescription = findNfsePluralDescription(lines)
+  if (pluralHeaderDescription) return pluralHeaderDescription
   for (let i = 0; i < lines.length; i++) {
     const n = stripAccents(lines[i]).toLowerCase()
     if (!/descricao\s+do\s+servico|discriminacao\s+do\s+servico/.test(n)) continue
@@ -928,6 +933,25 @@ function findNfseDescription(lines: string[]) {
       block.push(line)
     }
     return cleanStr(block.join(' '))
+  }
+  return ''
+}
+
+function findNfsePluralDescription(lines: string[]) {
+  for (let i = 0; i < lines.length; i++) {
+    const n = stripAccents(lines[i]).toLowerCase()
+    if (!/discriminacao\s+d[oo]s?\s+servicos?|descricao\s+d[oo]s?\s+servicos?/.test(n)) continue
+    const block: string[] = []
+    for (let j = i + 1; j < Math.min(lines.length, i + 10); j++) {
+      const line = cleanStr(lines[j])
+      const ln = stripAccents(line).toLowerCase()
+      if (!line) continue
+      if (/^(cnae|subitem|valor|total|tributacao|bc iss|issqn|irrf|pis|cofins|csll|outras informacoes|codigo de tributacao)/i.test(ln)) break
+      if (/dados para pagamento|banco|conta|pix|chave pix/i.test(ln)) break
+      block.push(line)
+    }
+    const text = cleanStr(block.join(' '))
+    if (text.length > 6) return text
   }
   return ''
 }
@@ -957,6 +981,15 @@ function findNfseHeaderNumber(lines: string[]) {
     if (same) return normalizeInvoiceNumber(same[1], 'NFS-e')
     const next = firstNumber(arr[i + 1] || '', arr[i + 2] || '')
     if (next) return next
+    for (let j = i + 1; j <= Math.min(i + 8, arr.length - 1); j++) {
+      const candidate = arr[j]
+      const normalized = stripAccents(candidate).toLowerCase()
+      if (/data|hora|competencia|codigo|verificacao|vencimento/.test(normalized)) continue
+      if (/^\d{1,20}$/.test(onlyDigits(candidate)) && !/\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/.test(candidate)) {
+        const n2 = normalizeInvoiceNumber(candidate, 'NFS-e')
+        if (n2) return n2
+      }
+    }
   }
   return ''
 }
