@@ -1535,7 +1535,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         <div class="ic" style="font-size:28px">📄</div>
 
-        <h3 style="font-size:15px;margin:8px 0 4px">Selecionar arquivo da nota fiscal</h3>
+        <h3 style="font-size:15px;margin:8px 0 4px">Selecionar arquivo(s) da nota fiscal</h3>
 
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:8px 0">
 
@@ -1543,13 +1543,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         </div>
 
-        <p style="color:var(--muted);font-size:12px;margin:4px 0 10px">XML lê todos os campos. PDF, imagem e texto usam IA e fallback local para extração.</p>
+        <p style="color:var(--muted);font-size:12px;margin:4px 0 10px">Pode selecionar PDF + XML juntos: o XML preenche os campos e o PDF fica como NF visível no sistema.</p>
 
-        <button class="btn btn-ink" type="button">Selecionar arquivo</button>
+        <button class="btn btn-ink" type="button">Selecionar arquivo(s)</button>
 
       </div>
 
-      <input type="file" id="imp-file" style="display:none" accept=".xml,.pdf,.jpg,.jpeg,.png,.webp,.txt,.html,.htm,.XML,.PDF,.JPG,.JPEG,.PNG,.WEBP,.TXT,.HTML,.HTM" onchange="readImportFile(this)">
+      <input type="file" id="imp-file" style="display:none" multiple accept=".xml,.pdf,.jpg,.jpeg,.png,.webp,.txt,.html,.htm,.XML,.PDF,.JPG,.JPEG,.PNG,.WEBP,.TXT,.HTML,.HTM" onchange="readImportFile(this)">
 
       <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
 
@@ -9192,16 +9192,16 @@ function anexarComp(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.ge
     }
     inp.value="";};inp.click();}
 
-function anexarNF(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getElementById("nf-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="nf-input";inp.style.display="none";document.body.appendChild(inp);}
+function anexarNF(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getElementById("nf-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="nf-input";inp.style.display="none";document.body.appendChild(inp);}inp.multiple=true;inp.accept=".xml,.pdf,.jpg,.jpeg,.png,.webp,.XML,.PDF,.JPG,.JPEG,.PNG,.WEBP";
 
-  inp.onchange=async()=>{if(!inp.files.length)return;const f=inp.files[0];toast('Enviando nota fiscal…');
+  inp.onchange=async()=>{if(!inp.files.length)return;const files=Array.from(inp.files||[]);const f=impPickPrimaryNfFile(files);if(!f)return;const hasXml=files.some(x=>impFileExt(x)==='xml');const hasPdf=files.some(x=>impFileExt(x)==='pdf');toast(hasXml&&hasPdf?'Enviando PDF como NF visível…':'Enviando nota fiscal…');
     try{
       // Garantir sessão válida antes do upload
       const{data:{session}}=await db.auth.getSession();
       if(!session){toast('Sessão expirada. Faça login novamente.');return;}
       const path=await uploadPagDoc(oid,f,'nf');
-      o.pag[i].nfDoc={name:f.name,storagePath:path,type:f.type};
-      persist(oid);if(cur&&cur.id===oid)renderObra();toast('✓ Nota fiscal anexada e salva.');
+      o.pag[i].nfDoc={name:f.name,storagePath:path,type:f.type||inferType(f.name)};
+      persist(oid);if(cur&&cur.id===oid)renderObra();toast(hasXml&&hasPdf?'✓ PDF anexado como NF visível.':'✓ Nota fiscal anexada e salva.');
     }catch(e){
       const msg=e?.message||e?.error||String(e);
       console.error('upload NF:',e);
@@ -10473,7 +10473,36 @@ let tT;function toast(m){const t=document.getElementById("toast");document.getEl
 
 /* ===== IMPORTAR NOTA / DESPESA ===== */
 
-let impReviewData={}, impFile=null;
+let impReviewData={}, impFile=null, impXmlFile=null;
+
+function impFileExt(file){
+  return (file?.name||'').split('.').pop().toLowerCase();
+}
+
+function impPickPrimaryNfFile(files){
+  const list=Array.from(files||[]).filter(Boolean);
+  return list.find(f=>impFileExt(f)==='pdf')||list.find(f=>impFileExt(f)!=='xml')||list[0]||null;
+}
+
+function impFindFileByExt(files,ext){
+  return Array.from(files||[]).find(f=>impFileExt(f)===ext)||null;
+}
+
+function impMergePdfSupport(xmlData,pdfData){
+  const base={...(xmlData||{})};
+  const aux=pdfData||{};
+  ['ben','cnpj','doc','val','subtotal','desconto','frete','date','venc','chave','desc','discriminacao','tipo'].forEach(k=>{
+    if((base[k]===undefined||base[k]===null||base[k]===''||base[k]===0)&&aux[k])base[k]=aux[k];
+  });
+  if((!base.itens||!base.itens.length)&&Array.isArray(aux.itens)&&aux.itens.length)base.itens=aux.itens;
+  if((!base.parcelas||!base.parcelas.length)&&Array.isArray(aux.parcelas)&&aux.parcelas.length){
+    base.parcelas=aux.parcelas;
+    base.pagForma=aux.pagForma||'PARCELADO';
+    base.numParcelas=aux.numParcelas||aux.parcelas.length;
+    if(!base.venc)base.venc=aux.venc||aux.parcelas[0]?.vencimento||'';
+  }
+  return base;
+}
 
 
 
@@ -10481,7 +10510,7 @@ function openImport(){
 
   if(!cur){toast("Abra uma obra.");return;}
 
-  impReviewData={}; impFile=null;
+  impReviewData={}; impFile=null; impXmlFile=null;
 
   document.getElementById("imp-upload").style.display="block";
   document.getElementById("imp-reading").style.display="none";
@@ -10996,8 +11025,13 @@ async function readWithTesseract(file,onStatus){
 
 
 async function readImportFile(inp){
-  const file=inp.files[0]; if(!file)return;
-  impFile=file; inp.value='';
+  const files=Array.from(inp.files||[]);
+  const file=impPickPrimaryNfFile(files); if(!file)return;
+  const xmlFile=impFindFileByExt(files,'xml');
+  const pdfFile=impFindFileByExt(files,'pdf');
+  impFile=file;
+  impXmlFile=xmlFile;
+  inp.value='';
   document.getElementById('imp-upload').style.display='none';
   document.getElementById('imp-reading').style.display='block';
   document.getElementById('imp-review').style.display='none';
@@ -11007,13 +11041,53 @@ async function readImportFile(inp){
   const errors=[];
   const addErr=(etapa,err)=>errors.push({etapa,erro:impErrorText(err)});
 
-  if(ext==='xml'){
-    _setImpStatus('Lendo XML fiscal localmente…');
+  if(xmlFile){
+    _setImpStatus(pdfFile?'Lendo XML fiscal e usando PDF como apoio…':'Lendo XML fiscal localmente…');
     let data;
-    try{data=parseNFeXML(await file.text());}
-    catch(err){addErr('Parser XML fiscal local',err);showImportErrorDetails(file,errors);showManualEntry();return;}
-    try{showImportReview(data);return;}
-    catch(err){addErr('Tela de revisão do XML',err);showImportErrorDetails(file,errors);showManualEntry();return;}
+    try{
+      data=parseNFeXML(await xmlFile.text());
+      if(pdfFile){
+        try{
+          _setImpStatus('Conferindo PDF para complementar a leitura do XML…');
+          const pdfText=await extractPdfText(pdfFile,_setImpStatus);
+          if(pdfText&&pdfText.trim()){
+            let pdfData=parseNFFromText(pdfText,pdfText.replace(/\D/g,''));
+            if(!impIsComplete(pdfData)){
+              try{
+                const pdfAi=await readInvoiceTextWithAI(pdfText,pdfFile.name,_setImpStatus);
+                if(impHasData(pdfAi))pdfData=impMergeTrustedLocal(pdfAi,pdfData||{});
+              }catch(pdfAiErr){
+                console.warn('[NF Import] Apoio IA do PDF falhou:',pdfAiErr.message);
+                addErr('PDF de apoio + IA',pdfAiErr);
+              }
+            }
+            if(impHasData(pdfData))data=impMergePdfSupport(data,pdfData);
+          }
+        }catch(pdfErr){
+          console.warn('[NF Import] PDF de apoio falhou:',pdfErr.message);
+          addErr('PDF de apoio ao XML',pdfErr);
+        }
+        if(!impIsComplete(data)){
+          try{
+            _setImpStatus('Complementando XML com leitura visual do PDF…');
+            const pdfVisualData=await readInvoiceWithAI(pdfFile,_setImpStatus);
+            if(impHasData(pdfVisualData))data=impMergePdfSupport(data,pdfVisualData);
+          }catch(pdfVisualErr){
+            console.warn('[NF Import] Apoio visual do PDF falhou:',pdfVisualErr.message);
+            addErr('PDF visual de apoio ao XML',pdfVisualErr);
+          }
+        }
+      }
+    }
+    catch(err){
+      addErr('Parser XML fiscal local',err);
+      if(!pdfFile||file===xmlFile){showImportErrorDetails(xmlFile,errors);showManualEntry();return;}
+      _setImpStatus('XML falhou. Tentando leitura pelo PDF…',true);
+    }
+    if(data){
+      try{showImportReview(data);if(pdfFile)toast('XML lido. PDF será anexado como NF visível.');return;}
+      catch(err){addErr('Tela de revisão do XML',err);showImportErrorDetails(xmlFile,errors);showManualEntry();return;}
+    }
   }
 
   if(['txt','html','htm'].includes(ext)){
@@ -13003,7 +13077,7 @@ async function confirmImport(){
 
   cur.pag.push(...pagamentos);
 
-  impFile=null;
+  impFile=null; impXmlFile=null;
 
   persist(cur.id);
 
