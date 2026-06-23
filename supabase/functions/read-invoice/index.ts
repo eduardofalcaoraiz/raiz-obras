@@ -71,6 +71,9 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json()
+    const accessKey = onlyDigits(body?.accessKey || body?.chaveAcesso || body?.chave_acesso || body?.chave || '')
+    if (accessKey) return await handleAccessKeyLookup(accessKey)
+
     const rawText = String(body?.rawText || body?.text || '')
     const imageBase64 = String(body?.imageBase64 || '')
     const mediaType = String(body?.mediaType || 'application/pdf')
@@ -989,6 +992,212 @@ function enrichDataForReturn(data: AnyRecord | null, attempts: string[]) {
     cascadeAttempts: attempts.length,
   }
   return out
+}
+
+async function handleAccessKeyLookup(accessKey: string) {
+  const chave = onlyDigits(accessKey)
+  const attempts: string[] = []
+  if (chave.length !== 44) {
+    return json({
+      ok: false,
+      code: 'INVALID_ACCESS_KEY',
+      error: 'A chave de acesso deve conter exatamente 44 digitos.',
+      attempts,
+    })
+  }
+
+  const decoded = decodeAccessKey(chave)
+  const decodedData = normalizeData({
+    tipo_documento: decoded?.tipo || 'NF-e',
+    numero_nf: decoded?.numero || null,
+    serie: decoded?.serie || null,
+    data_emissao: decoded?.date || null,
+    chave_acesso: chave,
+    emitente: { cnpj: decoded?.cnpj || null },
+  }, 'chave-de-acesso-decodificada')
+
+  attempts.push('Chave decodificada localmente: numero, CNPJ do emitente, modelo e mes de emissao')
+
+  try {
+    const official = await fetchOfficialDfeByAccessKey(chave, attempts)
+    if (official && hasUsefulData(official)) {
+      const merged = mergeNormalizedData(official, decodedData)
+      attempts.push('Consulta oficial por chave: dados recebidos por canal autorizado')
+      return ok(merged, attempts)
+    }
+  } catch (err) {
+    attempts.push('Consulta oficial por chave: ' + errorMessage(err))
+    return json({
+      ok: false,
+      code: 'NFE_LOOKUP_FAILED',
+      error: 'Falha na consulta oficial por chave. ' + errorMessage(err),
+      data: enrichDataForReturn(decodedData, attempts),
+      attempts,
+      warnings: [
+        'A chave foi decodificada, mas o XML oficial nao foi obtido. Anexe o XML/PDF ou configure uma integracao fiscal autorizada.',
+      ],
+    })
+  }
+
+  attempts.push('Consulta oficial por chave: NFE_LOOKUP_URL, DFE_LOOKUP_URL ou FISCAL_LOOKUP_URL nao configurado nos secrets da Edge Function')
+  return json({
+    ok: false,
+    code: 'NFE_LOOKUP_NOT_CONFIGURED',
+    error: 'Consulta automatica completa pela SEFAZ ainda nao esta configurada no backend. Por seguranca e legalidade, a plataforma nao tenta burlar captcha nem acessar certificado instalado no navegador. Configure um provedor fiscal autorizado ou um conector backend com certificado A1.',
+    data: enrichDataForReturn(decodedData, attempts),
+    attempts,
+    warnings: [
+      'Sem canal fiscal autorizado configurado, apenas os campos contidos na chave podem ser preenchidos com seguranca.',
+    ],
+  })
+}
+
+async function fetchOfficialDfeByAccessKey(accessKey: string, attempts: string[]) {
+  const endpoint = Deno.env.get('NFE_LOOKUP_URL') || Deno.env.get('DFE_LOOKUP_URL') || Deno.env.get('FISCAL_LOOKUP_URL') || ''
+  if (!endpoint) return null
+
+  const token = Deno.env.get('NFE_LOOKUP_TOKEN') || Deno.env.get('DFE_LOOKUP_TOKEN') || Deno.env.get('FISCAL_LOOKUP_TOKEN') || ''
+  const method = (Deno.env.get('NFE_LOOKUP_METHOD') || (endpoint.includes('{chave}') || endpoint.includes('{accessKey}') ? 'GET' : 'POST')).toUpperCase()
+  const url = endpoint.replace(/\{chave\}|\{accessKey\}/g, accessKey)
+  const headers: Record<string, string> = {
+    Accept: 'application/json, application/xml, text/xml, text/plain',
+  }
+  if (method !== 'GET') headers['Content-Type'] = 'application/json'
+  if (token) {
+    const headerName = Deno.env.get('NFE_LOOKUP_TOKEN_HEADER') || 'Authorization'
+    const prefix = Deno.env.get('NFE_LOOKUP_TOKEN_PREFIX') ?? (headerName.toLowerCase() === 'authorization' ? 'Bearer ' : '')
+    headers[headerName] = prefix + token
+  }
+
+  attempts.push('Consulta oficial por chave: chamando provedor fiscal autorizado')
+  const resp = await fetchWithTimeout(url, {
+    method,
+    headers,
+    body: method === 'GET' ? undefined : JSON.stringify({ accessKey, chave: accessKey, chave_acesso: accessKey }),
+  }, 45000)
+  const text = await resp.text()
+  if (!resp.ok) throw new Error('provedor retornou HTTP ' + resp.status + (text ? ': ' + text.slice(0, 300) : ''))
+  if (!text.trim()) throw new Error('provedor retornou resposta vazia')
+
+  const trimmed = text.trim()
+  if (trimmed.startsWith('<')) {
+    attempts.push('Consulta oficial por chave: XML recebido')
+    return parseOfficialNfeXml(trimmed, 'provedor-fiscal-xml')
+  }
+
+  let payload: AnyRecord
+  try {
+    payload = JSON.parse(trimmed)
+  } catch {
+    throw new Error('provedor nao retornou JSON nem XML reconhecivel')
+  }
+  return normalizeProviderLookupPayload(payload, attempts)
+}
+
+function normalizeProviderLookupPayload(payload: AnyRecord, attempts: string[]) {
+  let p: AnyRecord = payload || {}
+  if (p.ok && p.data) p = p.data
+  const xml = p.xml || p.procNFe || p.proc_nfe || p.nfeXml || p.nfe_xml || p.documentoXml || p.documento_xml
+  if (typeof xml === 'string' && xml.trim().startsWith('<')) {
+    attempts.push('Consulta oficial por chave: XML extraido do JSON do provedor')
+    return parseOfficialNfeXml(xml, 'provedor-fiscal-json-xml')
+  }
+  if (p.nfe && typeof p.nfe === 'object') p = p.nfe
+  if (p.documento && typeof p.documento === 'object') p = p.documento
+  if (p.numero_nf || p.numero || p.chave_acesso || p.emitente || p.itens || p.valores) {
+    attempts.push('Consulta oficial por chave: JSON normalizado do provedor')
+    return normalizeData({
+      tipo_documento: p.tipo_documento || p.tipo || 'NF-e',
+      numero_nf: p.numero_nf || p.numero || p.nNF || null,
+      serie: p.serie || null,
+      data_emissao: p.data_emissao || p.emissao || p.dhEmi || null,
+      data_vencimento: p.data_vencimento || p.vencimento || null,
+      chave_acesso: p.chave_acesso || p.chave || null,
+      emitente: p.emitente || { razao_social: p.razao_social || p.emitente_nome || null, cnpj: p.cnpj || p.emitente_cnpj || null },
+      itens: p.itens || p.produtos || [],
+      valores: p.valores || { valor_total: p.valor_total || p.total || 0, subtotal: p.subtotal || 0, desconto: p.desconto || 0, frete: p.frete || 0 },
+      pagamento: p.pagamento || { parcelas: p.parcelas || [] },
+      observacoes: p.observacoes || null,
+    }, 'provedor-fiscal-json')
+  }
+  throw new Error('provedor respondeu, mas sem XML ou campos fiscais reconhecidos')
+}
+
+function parseOfficialNfeXml(xml: string, source: string) {
+  const text = String(xml || '')
+  const ide = xmlFirstBlock(text, 'ide')
+  const emit = xmlFirstBlock(text, 'emit')
+  const total = xmlFirstBlock(text, 'ICMSTot')
+  const cobr = xmlFirstBlock(text, 'cobr')
+  const chave = (text.match(/Id=["']NFe(\d{44})["']/i) || text.match(/<chNFe[^>]*>(\d{44})<\/chNFe>/i) || [])[1] || ''
+  const mod = xmlTag(ide, 'mod')
+  const tipo = mod === '65' ? 'NFC-e' : mod === '57' ? 'CT-e' : 'NF-e'
+  const dhEmi = xmlTag(ide, 'dhEmi') || xmlTag(ide, 'dEmi')
+  const dets = xmlBlocks(text, 'det')
+  const itens = dets.map((det) => {
+    const prod = xmlFirstBlock(det, 'prod')
+    return {
+      codigo: xmlTag(prod, 'cProd') || null,
+      descricao: xmlTag(prod, 'xProd') || null,
+      quantidade: num(xmlTag(prod, 'qCom') || xmlTag(prod, 'qTrib') || 1),
+      unidade: xmlTag(prod, 'uCom') || xmlTag(prod, 'uTrib') || 'UN',
+      valor_unitario: num(xmlTag(prod, 'vUnCom') || xmlTag(prod, 'vUnTrib') || 0),
+      valor_total: num(xmlTag(prod, 'vProd') || 0),
+    }
+  }).filter((it) => it.descricao || it.valor_total)
+  const parcelas = xmlBlocks(cobr, 'dup').map((dup, idx) => ({
+    numero: Number(xmlTag(dup, 'nDup')) || idx + 1,
+    valor: num(xmlTag(dup, 'vDup') || 0),
+    vencimento: dateIso(xmlTag(dup, 'dVenc')) || null,
+  })).filter((p) => p.valor || p.vencimento)
+  const valorTotal = num(xmlTag(total, 'vNF') || 0) || sumItems(itens)
+  return normalizeData({
+    tipo_documento: tipo,
+    numero_nf: xmlTag(ide, 'nNF') || null,
+    serie: xmlTag(ide, 'serie') || null,
+    data_emissao: dhEmi ? String(dhEmi).slice(0, 10) : null,
+    data_vencimento: parcelas[0]?.vencimento || null,
+    chave_acesso: chave || null,
+    emitente: {
+      razao_social: xmlTag(emit, 'xNome') || null,
+      cnpj: formatCnpj(xmlTag(emit, 'CNPJ') || ''),
+    },
+    itens,
+    valores: {
+      subtotal: num(xmlTag(total, 'vProd') || 0),
+      desconto: num(xmlTag(total, 'vDesc') || 0),
+      frete: num(xmlTag(total, 'vFrete') || 0),
+      valor_total: valorTotal,
+    },
+    pagamento: {
+      forma: parcelas.length > 1 ? 'PARCELADO' : 'A_VISTA',
+      num_parcelas: parcelas.length || 1,
+      parcelas,
+    },
+    observacoes: xmlTag(xmlFirstBlock(text, 'infAdic'), 'infCpl') || null,
+  }, source)
+}
+
+function xmlBlocks(xml: string, tag: string) {
+  return [...String(xml || '').matchAll(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, 'gi'))].map((m) => m[0])
+}
+
+function xmlFirstBlock(xml: string, tag: string) {
+  return xmlBlocks(xml, tag)[0] || ''
+}
+
+function xmlTag(xml: string, tag: string) {
+  const m = String(xml || '').match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'))
+  return m ? decodeXml(m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')).trim() : ''
+}
+
+function decodeXml(raw: string) {
+  return String(raw || '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
