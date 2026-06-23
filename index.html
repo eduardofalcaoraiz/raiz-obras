@@ -10588,9 +10588,16 @@ function impMergeData(primary,secondary){
   });
   if((!out.parcelas||!out.parcelas.length)&&secondary.parcelas&&secondary.parcelas.length)out.parcelas=secondary.parcelas;
   const itens=[...(out.itens||[])];
-  const seen=new Set(itens.map(it=>(it.descricao||'').toLowerCase().trim()).filter(Boolean));
+  const itemKey=it=>[
+    String(it.codigo||'').replace(/\D/g,''),
+    String(it.descricao||'').toLowerCase().replace(/\s+/g,' ').trim(),
+    parseFloat(it.quantidade)||'',
+    parseFloat(it.valor_unitario)||'',
+    parseFloat(it.valor_total)||''
+  ].join('|');
+  const seen=new Set(itens.map(itemKey).filter(k=>k.replace(/\|/g,'').trim()));
   (secondary.itens||[]).forEach(it=>{
-    const key=(it.descricao||'').toLowerCase().trim();
+    const key=itemKey(it);
     if(key&&!seen.has(key)){itens.push(it);seen.add(key);}
   });
   out.itens=itens;
@@ -10598,7 +10605,9 @@ function impMergeData(primary,secondary){
 }
 
 function impMergeTrustedLocal(current,local){
-  if(local&&local.tipo==='NFS-e')return impMergeData(local,current||{});
+  if(local&&['NF-e','NFC-e','CT-e','NFS-e'].includes(local.tipo)&&(local.chave||local.doc||(local.itens&&local.itens.length))){
+    return impMergeData(local,current||{});
+  }
   return impMergeData(current||{},local||{});
 }
 
@@ -10775,6 +10784,7 @@ async function readImportFile(inp){
   let localData=null;
   let tessData=null;
 
+  if(!isPDF){
   try{
     _setImpStatus('Rodando cascata gratuita no servidor…');
     aiData=await readInvoiceWithAI(file,_setImpStatus);
@@ -10785,6 +10795,7 @@ async function readImportFile(inp){
     _setImpStatus('Cascata do servidor falhou: '+err.message,true);
     console.warn('[NF Import] IA falhou:',err.message);
   }
+  }
 
   if(isPDF){
     try{
@@ -10793,11 +10804,15 @@ async function readImportFile(inp){
       if(!pdfText.trim())throw new Error('PDF sem texto extraível. O sistema tentará OCR local nas páginas escaneadas.');
       localData=parseNFFromText(pdfText,pdfText.replace(/\D/g,''));
       if(impHasData(localData)&&aiData)aiData=impMergeTrustedLocal(aiData,localData);
-      if(pdfText.length>20&&(!impHasData(aiData)||!(aiData.itens&&aiData.itens.length))){
+      if(pdfText.length>20){
         try{
           _setImpStatus('Enviando texto completo do PDF para IA em blocos…');
           const textAiData=await readInvoiceTextWithAI(pdfText,file.name,_setImpStatus);
-          if(impHasData(textAiData))aiData=impMergeTrustedLocal(impMergeData(aiData||{},textAiData),localData||{});
+          if(impHasData(textAiData)){
+            const previousAi=aiData||{};
+            const trustedText=impMergeTrustedLocal(textAiData,localData||{});
+            aiData=impMergeData(trustedText,previousAi);
+          }
         }catch(textAiErr){
           console.warn('[NF Import] IA por texto completo falhou:',textAiErr.message);
           addErr('IA por texto completo do PDF',textAiErr);
@@ -10806,6 +10821,19 @@ async function readImportFile(inp){
     }catch(localErr){
       console.warn('[NF Import] Parser local falhou:',localErr.message);
       addErr('PDF.js + parser local',localErr);
+    }
+  }
+
+  if(isPDF&&!impIsComplete(aiData)){
+    try{
+      _setImpStatus('Complementando PDF com cascata visual no servidor...');
+      const directData=await readInvoiceWithAI(file,_setImpStatus);
+      if(directData&&directData._attempts&&directData._attempts.length)console.info('[NF Import] Tentativas do servidor:',directData._attempts);
+      if(impHasData(directData))aiData=impMergeData(aiData||{},directData);
+    }catch(err){
+      aiError=err.message;
+      addErr('Cascata visual no servidor',err);
+      console.warn('[NF Import] IA visual falhou:',err.message);
     }
   }
 
