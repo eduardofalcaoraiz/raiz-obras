@@ -169,6 +169,7 @@ async function extractFromOcrText(text: string, geminiKey: string, source: strin
 
     if (merged && hasUsefulData(merged)) {
       merged = mergeNormalizedData(strictLocal, merged)
+      merged = enforceFiscalEvidence(merged, strictLocal)
       merged._meta = {
         ...(merged._meta || {}),
         source: source + (chunks.length > 1 ? '+gemini-blocos' : '+gemini'),
@@ -221,7 +222,6 @@ function mergeNormalizedData(primary: AnyRecord | null, secondary: AnyRecord | n
     if (isBlank(out[key]) && !isBlank(secondary[key])) out[key] = secondary[key]
   }
   ;['tipo_documento', 'numero_nf', 'serie', 'data_emissao', 'data_vencimento', 'chave_acesso', 'linha_digitavel', 'codigo_barras', 'codigo_verificacao', 'discriminacao', 'observacoes'].forEach(fill)
-  if (secondary.tipo_documento && (!out.tipo_documento || (out.tipo_documento === 'NF-e' && secondary.tipo_documento !== 'NF-e'))) out.tipo_documento = secondary.tipo_documento
 
   out.emitente = { ...(out.emitente || {}) }
   const secEmit = secondary.emitente || {}
@@ -238,12 +238,41 @@ function mergeNormalizedData(primary: AnyRecord | null, secondary: AnyRecord | n
 
   out.pagamento = { ...(out.pagamento || {}) }
   const secPag = secondary.pagamento || {}
-  if ((out.pagamento.forma === 'A_VISTA' || isBlank(out.pagamento.forma)) && !isBlank(secPag.forma)) out.pagamento.forma = secPag.forma
+  if ((out.pagamento.forma === 'A_VISTA' || isBlank(out.pagamento.forma)) && !isBlank(secPag.forma) && secPag.forma !== 'OUTRO') out.pagamento.forma = secPag.forma
   out.pagamento.num_parcelas = Math.max(Number(out.pagamento.num_parcelas || 1), Number(secPag.num_parcelas || 1))
   out.pagamento.parcelas = mergeParcelas(out.pagamento.parcelas || [], secPag.parcelas || [])
 
   out.itens = mergeItems(out.itens || [], secondary.itens || [])
   out._meta = { ...(out._meta || {}), ...(secondary._meta || {}) }
+  return out
+}
+
+function enforceFiscalEvidence(data: AnyRecord, strictLocal: AnyRecord) {
+  const out: AnyRecord = JSON.parse(JSON.stringify(data || {}))
+  const strict = strictLocal || {}
+  const chave = onlyDigits(strict.chave_acesso || out.chave_acesso || '')
+  const decoded = chave.length === 44 ? decodeAccessKey(chave) : null
+  const strictTipo = strict.tipo_documento
+  if (decoded && ['NF-e', 'NFC-e', 'CT-e'].includes(decoded.tipo)) {
+    out.tipo_documento = decoded.tipo
+    out.chave_acesso = chave
+    out.numero_nf = decoded.numero || out.numero_nf || null
+    out.serie = null
+  } else if (strictTipo && ['NF-e', 'NFC-e', 'NFS-e', 'CT-e'].includes(strictTipo)) {
+    out.tipo_documento = strictTipo
+  }
+  if (strict.emitente?.razao_social) out.emitente = { ...(out.emitente || {}), razao_social: strict.emitente.razao_social }
+  if (strict.emitente?.cnpj) out.emitente = { ...(out.emitente || {}), cnpj: strict.emitente.cnpj }
+  if (strict.valores) {
+    out.valores = { ...(out.valores || {}) }
+    ;['subtotal', 'desconto', 'frete', 'valor_total'].forEach((key) => {
+      if (num(strict.valores[key])) out.valores[key] = strict.valores[key]
+    })
+  }
+  if (Array.isArray(strict.itens) && strict.itens.length) out.itens = strict.itens
+  if (strict.discriminacao) out.discriminacao = strict.discriminacao
+  const parcelas = out.pagamento?.parcelas || []
+  if ((!Array.isArray(parcelas) || parcelas.length <= 1) && out.pagamento?.forma === 'OUTRO') out.pagamento.forma = 'A_VISTA'
   return out
 }
 
@@ -373,7 +402,12 @@ function mergeParcelas(a: AnyRecord[], b: AnyRecord[]) {
 }
 
 function itemKey(item: AnyRecord) {
-  return stripAccents(String(item?.descricao || '')).toLowerCase().replace(/\s+/g, ' ').trim()
+  const desc = stripAccents(String(item?.descricao || '')).toLowerCase().replace(/\s+/g, ' ').trim()
+  const codigo = onlyDigits(item?.codigo || '')
+  const qtd = num(item?.quantidade)
+  const unit = num(item?.valor_unitario)
+  const total = num(item?.valor_total)
+  return [codigo, desc, qtd || '', unit || '', total || ''].join('|')
 }
 
 function isBlank(value: unknown) {
@@ -557,11 +591,13 @@ function normalizeItems(items: AnyRecord[], tipo: string, total: number) {
     const vt = num(it?.valor_total ?? it?.total ?? it?.valor) || total || 0
     const vu = num(it?.valor_unitario ?? it?.unitario) || (qtd ? vt / qtd : vt)
     return {
+      codigo: cleanStr(it?.codigo || it?.cod || it?.cProd) || null,
       descricao: desc,
       quantidade: qtd,
       unidade: cleanStr(it?.unidade || it?.un || unitDefault) || unitDefault,
       valor_unitario: round2(vu),
       valor_total: round2(vt),
+      desconto: num(it?.desconto),
     }
   }).filter(Boolean)
 }
@@ -672,13 +708,15 @@ function extractStrictText(rawText: string) {
   const decoded = chave ? decodeAccessKey(chave) : null
 
   let tipo = decoded?.tipo || 'NF-e'
-  if (/nfs-?e|nota fiscal de servicos|prestador de servicos|danfse/.test(norm)) tipo = 'NFS-e'
-  else if (/ct-?e|dacte|conhecimento de transporte/.test(norm)) tipo = 'CT-e'
-  else if (/nfc-?e|cupom fiscal eletronico/.test(norm)) tipo = 'NFC-e'
-  else if (/boleto|linha digitavel|nosso numero|cedente|sacado/.test(norm)) tipo = 'Boleto'
-  else if (/fatura|invoice|demonstrativo|cobranca/.test(norm)) tipo = 'Fatura'
-  else if (/recibo|recibemos|recebi\b|rpa\b/.test(norm)) tipo = 'Recibo'
-  else if (/\b(darf|das|darm|gps|gnre|gare)\b|guia de|tributo|taxa municipal/.test(norm)) tipo = 'Guia'
+  if (!decoded) {
+    if (/nfs-?e|nota fiscal de servicos|prestador de servicos|danfse/.test(norm)) tipo = 'NFS-e'
+    else if (/ct-?e|dacte|conhecimento de transporte/.test(norm)) tipo = 'CT-e'
+    else if (/nfc-?e|cupom fiscal eletronico/.test(norm)) tipo = 'NFC-e'
+    else if (/boleto|linha digitavel|nosso numero|cedente|sacado/.test(norm)) tipo = 'Boleto'
+    else if (/fatura|invoice|demonstrativo|cobranca/.test(norm)) tipo = 'Fatura'
+    else if (/recibo|recibemos|recebi\b|rpa\b/.test(norm)) tipo = 'Recibo'
+    else if (/\b(darf|das|darm|gps|gnre|gare)\b|guia de|tributo|taxa municipal/.test(norm)) tipo = 'Guia'
+  }
 
   const prestadorBlock = tipo === 'NFS-e' ? findSection(text, [/^\s*prestador(?:\s+de\s+servi\S*)?\s*:?\s*$/i, /^\s*dados\s+do\s+prestador/i], [/^\s*tomador\b/i, /^\s*intermediario\b/i, /^\s*discriminacao\b/i, /^\s*servicos\b/i, /^\s*valores\b/i]) : ''
   const linhaDigitavel = tipo === 'Boleto' ? findLinhaDigitavel(text) : ''
@@ -687,14 +725,19 @@ function extractStrictText(rawText: string) {
     ? (decodeNfseNumberFromKey(chave || text, dataEmissao) || findDocNumber(text, tipo) || '')
     : (['NF-e', 'NFC-e', 'CT-e'].includes(tipo) && decoded?.numero ? decoded.numero : (findDocNumber(text, tipo) || decoded?.numero || ''))
   const dataVenc = findDateNear(lines, [/venc/i, /pagar ate/i, /data limite/i])
-  const cnpj = tipo === 'NFS-e' ? (firstCnpj(prestadorBlock) || '') : (firstCnpj(text) || decoded?.cnpj || '')
-  const razao = findName(lines, tipo, prestadorBlock)
-  const total = findValue(text, lines, tipo)
+  const cnpj = tipo === 'NFS-e' ? (firstCnpj(prestadorBlock) || '') : (decoded?.cnpj || firstCnpj(text) || '')
+  const razao = ['NF-e', 'NFC-e'].includes(tipo) ? (findDanfeIssuerName(text, lines) || findName(lines, tipo, prestadorBlock)) : findName(lines, tipo, prestadorBlock)
+  let total = findValue(text, lines, tipo)
   let desc = findDescription(lines, tipo)
   const danfeItems = ['NF-e', 'NFC-e'].includes(tipo) ? parseDanfeItemsFromText(text) : []
+  const danfeTotals = ['NF-e', 'NFC-e'].includes(tipo) ? findDanfeTotals(text, danfeItems) : {}
+  if (num(danfeTotals.valor_total)) total = num(danfeTotals.valor_total)
   if (danfeItems.length) desc = danfeItems.map((it) => it.descricao).filter(Boolean).join('; ')
   const parcelas = findInstallments(text, total)
   const firstInstallmentDue = parcelas.find((p) => p.vencimento)?.vencimento || ''
+  const subtotal = num(danfeTotals.subtotal) || (danfeItems.length ? sumItems(danfeItems) : total)
+  const desconto = num(danfeTotals.desconto)
+  const frete = num(danfeTotals.frete)
 
   return {
     tipo_documento: tipo,
@@ -709,7 +752,7 @@ function extractStrictText(rawText: string) {
     emitente: { razao_social: cleanCompanyName(razao) || null, cnpj: cnpj || null },
     itens: danfeItems.length ? danfeItems : (desc ? [{ descricao: desc, quantidade: 1, unidade: ['NF-e', 'NFC-e'].includes(tipo) ? 'UN' : 'Srv', valor_unitario: total, valor_total: total }] : []),
     discriminacao: desc || null,
-    valores: { subtotal: total, desconto: 0, frete: 0, valor_total: total },
+    valores: { subtotal, desconto, frete, valor_total: total },
     pagamento: { forma: parcelas.length > 1 ? 'PARCELADO' : (tipo === 'Boleto' ? 'BOLETO' : 'A_VISTA'), num_parcelas: parcelas.length || 1, parcelas },
     observacoes: null,
   }
@@ -919,6 +962,7 @@ function parseDanfeItemsFromText(text: string) {
       unidade: String(m[4] || 'UN').toUpperCase(),
       valor_unitario: num(m[6]),
       valor_total: num(m[7]),
+      desconto: num(m[8]),
     }
     const key = [item.codigo, item.descricao, item.quantidade, item.valor_total].join('|').toLowerCase()
     if (seen.has(key)) continue
@@ -926,6 +970,51 @@ function parseDanfeItemsFromText(text: string) {
     items.push(item)
   }
   return items
+}
+
+function findDanfeIssuerName(text: string, lines: string[]) {
+  const receb = String(text || '').match(/recebemos\s+de\s+(.+?)\s+os\s+produtos/i)
+  if (receb?.[1]) return cleanCompanyName(receb[1])
+  const start = lines.findIndex((l) => /identifica[cç][aã]o\s+do\s+emitente/i.test(stripAccents(l)))
+  if (start < 0) return ''
+  const keep: string[] = []
+  for (let i = start + 1; i < Math.min(lines.length, start + 9); i++) {
+    const s = cleanStr(lines[i])
+    const n = stripAccents(s).toLowerCase()
+    if (!s || /danfe|documento auxiliar|nota fiscal|entrada|saida|chave|consulta|natureza|protocolo/.test(n)) continue
+    if (/\d/.test(s) && !/\b(ltda|sa|s\/a|me|epp|eireli)\b/i.test(s)) continue
+    if (s.split(/\s+/).length < 2) continue
+    keep.push(s)
+  }
+  return cleanCompanyName(keep.join(' '))
+}
+
+function findDanfeTotals(text: string, items: AnyRecord[] = []) {
+  const lines = String(text || '').replace(/\r/g, '\n').split('\n').map((l) => cleanStr(l)).filter(Boolean)
+  const out: AnyRecord = {}
+  const moneyList = (s: string) => [...String(s || '').matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/g)].map((m) => num(m[1])).filter((v) => Number.isFinite(v))
+  for (let i = 0; i < lines.length; i++) {
+    const n = stripAccents(lines[i]).toLowerCase()
+    const next = lines[i + 1] || ''
+    if (/valor total dos produtos/.test(n)) {
+      const vals = moneyList(next)
+      if (vals.length) out.subtotal = vals[vals.length - 1]
+    }
+    if (/desconto/.test(n) && /total da nota/.test(n)) {
+      const vals = moneyList(next)
+      if (vals.length >= 6) {
+        out.frete = vals[0]
+        out.desconto = vals[2]
+        out.valor_total = vals[vals.length - 1]
+      } else if (vals.length) {
+        out.valor_total = vals[vals.length - 1]
+      }
+    }
+  }
+  const headerTotal = String(text || '').match(/valor\s+total\s*:\s*r?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/i)
+  if (!num(out.valor_total) && headerTotal) out.valor_total = num(headerTotal[1])
+  if (!num(out.subtotal) && items.length) out.subtotal = sumItems(items)
+  return out
 }
 
 function decodeAccessKey(chave: string) {
