@@ -731,11 +731,12 @@ function extractStrictText(rawText: string) {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
   const norm = stripAccents(text).toLowerCase()
   const digits = text.replace(/\D/g, '')
-  const chave = findAccessKey(text)
+  const nfseLike = isNfseLikeText(norm)
+  const chave = nfseLike ? '' : findAccessKey(text)
   const decoded = chave ? decodeAccessKey(chave) : null
 
-  let tipo = decoded?.tipo || 'NF-e'
-  if (!decoded) {
+  let tipo = nfseLike ? 'NFS-e' : (decoded?.tipo || 'NF-e')
+  if (!nfseLike && !decoded) {
     if (/nfs-?e|nota fiscal de servicos|prestador de servicos|danfse/.test(norm)) tipo = 'NFS-e'
     else if (/ct-?e|dacte|conhecimento de transporte/.test(norm)) tipo = 'CT-e'
     else if (/nfc-?e|cupom fiscal eletronico/.test(norm)) tipo = 'NFC-e'
@@ -745,7 +746,7 @@ function extractStrictText(rawText: string) {
     else if (/\b(darf|das|darm|gps|gnre|gare)\b|guia de|tributo|taxa municipal/.test(norm)) tipo = 'Guia'
   }
 
-  const prestadorBlock = tipo === 'NFS-e' ? findSection(text, [/^\s*prestador(?:\s+de\s+servi\S*)?\s*:?\s*$/i, /^\s*dados\s+do\s+prestador/i], [/^\s*tomador\b/i, /^\s*intermediario\b/i, /^\s*discriminacao\b/i, /^\s*servicos\b/i, /^\s*valores\b/i]) : ''
+  const prestadorBlock = tipo === 'NFS-e' ? findNfsePrestadorBlock(text, lines) : ''
   const linhaDigitavel = tipo === 'Boleto' ? findLinhaDigitavel(text) : ''
   const dataEmissao = findDateNear(lines, [/emiss/i, /compet/i, /data do documento/i]) || decoded?.date || ''
   const numero = tipo === 'NFS-e'
@@ -753,9 +754,11 @@ function extractStrictText(rawText: string) {
     : (['NF-e', 'NFC-e', 'CT-e'].includes(tipo) && decoded?.numero ? decoded.numero : (findDocNumber(text, tipo) || decoded?.numero || ''))
   const dataVenc = findDateNear(lines, [/venc/i, /pagar ate/i, /data limite/i])
   const cnpj = tipo === 'NFS-e' ? (firstCnpj(prestadorBlock) || '') : (decoded?.cnpj || firstCnpj(text) || '')
-  const razao = ['NF-e', 'NFC-e'].includes(tipo) ? (findDanfeIssuerName(text, lines) || findName(lines, tipo, prestadorBlock)) : findName(lines, tipo, prestadorBlock)
+  const razao = tipo === 'NFS-e'
+    ? (findNfseProviderName(prestadorBlock) || findName(lines, tipo, prestadorBlock))
+    : (['NF-e', 'NFC-e'].includes(tipo) ? (findDanfeIssuerName(text, lines) || findName(lines, tipo, prestadorBlock)) : findName(lines, tipo, prestadorBlock))
   let total = findValue(text, lines, tipo)
-  let desc = findDescription(lines, tipo)
+  let desc = tipo === 'NFS-e' ? (findNfseDescription(lines) || findDescription(lines, tipo)) : findDescription(lines, tipo)
   const danfeItems = ['NF-e', 'NFC-e'].includes(tipo) ? parseDanfeItemsFromText(text) : []
   const danfeTotals = ['NF-e', 'NFC-e'].includes(tipo) ? findDanfeTotals(text, danfeItems) : {}
   if (num(danfeTotals.valor_total)) total = num(danfeTotals.valor_total)
@@ -783,6 +786,89 @@ function extractStrictText(rawText: string) {
     pagamento: { forma: parcelas.length > 1 ? 'PARCELADO' : (tipo === 'Boleto' ? 'BOLETO' : 'A_VISTA'), num_parcelas: parcelas.length || 1, parcelas },
     observacoes: null,
   }
+}
+
+function isNfseLikeText(normText: string) {
+  return /danfse|documento auxiliar da nfs-?e|chave de acesso da nfs-?e|numero da nfs-?e|emitente da nfs-?e|prestador do servico|prestador de servicos|nota fiscal de servicos|nfs-?e/.test(normText)
+}
+
+function findNfsePrestadorBlock(text: string, lines: string[]) {
+  const starts = [
+    /^\s*emitente\s+da\s+nfs-?e\b/i,
+    /^\s*prestador\s+do\s+servi/i,
+    /^\s*prestador(?:\s+de\s+servi\S*)?\s*:?\s*$/i,
+    /^\s*dados\s+do\s+prestador/i,
+  ]
+  const ends = [
+    /^\s*tomador\b/i,
+    /^\s*tomador\s+do\s+servi/i,
+    /^\s*intermediario\b/i,
+    /^\s*servi[cç]o\s+prestado\b/i,
+    /^\s*discriminacao\b/i,
+    /^\s*valores\b/i,
+  ]
+  const block = findSection(text, starts, ends)
+  if (block) return block
+  const all = lines.length ? lines : String(text || '').split('\n').map((l) => l.trim()).filter(Boolean)
+  const start = all.findIndex((l) => /emitente\s+da\s+nfs-?e|prestador\s+do\s+servi|dados\s+do\s+prestador/i.test(stripAccents(l)))
+  if (start < 0) return ''
+  let end = all.length
+  for (let i = start + 1; i < all.length; i++) {
+    if (/tomador|intermediario|servi[cç]o\s+prestado|discriminacao|valores/i.test(stripAccents(all[i]))) {
+      end = i
+      break
+    }
+  }
+  return all.slice(start, end).join('\n')
+}
+
+function findNfseProviderName(block: string) {
+  const lines = String(block || '').split('\n').map((l) => cleanStr(l)).filter(Boolean)
+  for (let i = 0; i < lines.length; i++) {
+    const n = stripAccents(lines[i]).toLowerCase()
+    if (!/nome\s*\/?\s*nome empresarial|razao social|nome empresarial|prestador/.test(n)) continue
+    for (let j = i + 1; j <= Math.min(i + 4, lines.length - 1); j++) {
+      const candidate = cleanNfseProviderName(lines[j])
+      if (candidate) return candidate
+    }
+  }
+  for (const line of lines) {
+    const candidate = cleanNfseProviderName(line)
+    if (candidate) return candidate
+  }
+  return ''
+}
+
+function cleanNfseProviderName(raw: string) {
+  let s = cleanStr(raw)
+  s = s.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, ' ')
+  s = s.replace(/^\d{1,3}(?:\.\d{3})*(?:\/\d{4}-\d{2})?\s+/, '')
+  s = s.replace(/^(?:cnpj|cpf|nif|inscricao municipal|telefone|e-mail|email|nome\s*\/?\s*nome empresarial)\b.*$/i, '')
+  s = cleanCompanyName(s)
+  const n = stripAccents(s).toLowerCase()
+  if (s.length < 5 || !/[A-Za-zÀ-ÿ]/.test(s)) return ''
+  if (/prestador|tomador|servico|endereco|municipio|cep|telefone|email|inscricao|simples nacional|regime/.test(n)) return ''
+  return s
+}
+
+function findNfseDescription(lines: string[]) {
+  for (let i = 0; i < lines.length; i++) {
+    const n = stripAccents(lines[i]).toLowerCase()
+    if (!/descricao\s+do\s+servico|discriminacao\s+do\s+servico/.test(n)) continue
+    const same = cleanStr(lines[i].replace(/^(descri[cç][aã]o|discrimina[cç][aã]o)(?:\s+do\s+servi[cç]o)?\s*:?\s*/i, ''))
+    if (same && !/^do\s+servi/i.test(same) && same.length > 6) return same
+    const block: string[] = []
+    for (let j = i + 1; j < Math.min(lines.length, i + 8); j++) {
+      const line = cleanStr(lines[j])
+      const ln = stripAccents(line).toLowerCase()
+      if (!line) continue
+      if (/^(tributacao|valor|bc iss|issqn|irrf|pis|cofins|csll|total|codigo de tributacao|pais|municipio)/i.test(ln)) break
+      if (/codigo de tributacao|local da prestacao|pais da prestacao/i.test(ln)) continue
+      block.push(line)
+    }
+    return cleanStr(block.join(' '))
+  }
+  return ''
 }
 
 function findLinhaDigitavel(text: string) {
