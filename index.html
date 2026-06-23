@@ -7526,6 +7526,7 @@ function renderDashboard(){
       var base=+c.valor||0,adit=aditPorConstr_[c.seq]||0,total=base+adit,pR=pagoPorConstr_[c.seq]||0,pend=pendPorConstr_[c.seq]||0;
       var pct=total?Math.round(pR/total*100):0,barPct=Math.min(pct,100),saldo=total-pR;
       var cor=saldo<0?'var(--danger)':pct>=100?'var(--ok)':pct>80?'var(--warn)':'var(--info)';
+      var saldoTxt=saldo<0?'Excedeu em '+fmt(-saldo):(pend?'Pendente '+fmt(pend)+' · saldo contratual '+fmt(saldo):'Saldo contratual '+fmt(saldo));
       return'<div style="padding:10px 0;border-bottom:1px solid var(--line)">'
         +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;gap:12px">'
         +'<span style="font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+(c.nome||'Construtora')+'</span>'
@@ -7535,7 +7536,7 @@ function renderDashboard(){
         +'<div style="height:100%;width:'+barPct+'%;background:'+cor+';border-radius:3px;transition:width .5s"></div></div>'
         +'<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:3px;gap:10px;flex-wrap:wrap">'
         +'<span>'+pct+'% executado'+(adit?' · aditivos '+fmt(adit):'')+'</span>'
-        +'<span style="color:'+(saldo<0?'var(--danger)':'var(--muted)')+'">'+(saldo<0?'Excedeu em '+fmt(-saldo):fmt(saldo)+' a pagar')+(pend?' · pendente '+fmt(pend):'')+'</span>'
+        +'<span style="color:'+(saldo<0?'var(--danger)':'var(--muted)')+'">'+saldoTxt+'</span>'
         +'</div></div>';
     }).join('');
     if(semVinculoPago_||aditGeral_)constrRows+='<div style="font-size:12px;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn)33;border-radius:var(--r);padding:8px 10px;margin-top:10px">Sem vínculo direto: '+(semVinculoPago_?fmt(semVinculoPago_)+' pagos sem construtora definida':'')+(semVinculoPago_&&aditGeral_?' · ':'')+(aditGeral_?fmt(aditGeral_)+' em aditivos gerais':'')+'.</div>';
