@@ -71,7 +71,10 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json()
-    const rawText = String(body?.rawText || body?.text || '')
+    const rawTextInput = body?.rawText ?? body?.text ?? ''
+    const rawText = typeof rawTextInput === 'string'
+      ? rawTextInput
+      : String(rawTextInput?.value ?? rawTextInput?.text ?? rawTextInput?.content ?? rawTextInput ?? '')
     const imageBase64 = String(body?.imageBase64 || '')
     const mediaType = String(body?.mediaType || 'application/pdf')
     const fileName = String(body?.fileName || body?.filename || 'documento')
@@ -92,6 +95,15 @@ Deno.serve(async (req: Request) => {
     }
 
     if (rawText.trim()) {
+      if (looksLikeOfficialNfeXml(rawText) || /xml/i.test(mediaType) || /\.xml$/i.test(fileName)) {
+        try {
+          const normalized = parseOfficialNfeXml(rawText, 'xml-fiscal-oficial')
+          if (consider('XML fiscal oficial', normalized)) return ok(merged || {}, attempts)
+          if (merged && hasUsefulData(merged)) return ok(merged, attempts)
+        } catch (err) {
+          attempts.push('XML fiscal oficial: ' + errorMessage(err))
+        }
+      }
       const normalized = await extractFromOcrText(rawText, geminiKey, 'client-text')
       if (consider('Texto completo do cliente', normalized)) return ok(merged || {}, attempts)
       if (merged && hasUsefulData(merged)) return ok(merged, attempts)
@@ -1411,6 +1423,11 @@ function enrichDataForReturn(data: AnyRecord | null, attempts: string[]) {
   return out
 }
 
+function looksLikeOfficialNfeXml(text: string) {
+  const s = String(text || '')
+  return s.includes('<nfeProc') || s.includes('<NFe') || s.includes('<infNFe') || s.includes('<chNFe') || s.includes('Id="NFe')
+}
+
 function parseOfficialNfeXml(xml: string, source: string) {
   const text = String(xml || '')
   const ide = xmlFirstBlock(text, 'ide')
@@ -1439,7 +1456,7 @@ function parseOfficialNfeXml(xml: string, source: string) {
     vencimento: dateIso(xmlTag(dup, 'dVenc')) || null,
   })).filter((p) => p.valor || p.vencimento)
   const valorTotal = num(xmlTag(total, 'vNF') || 0) || sumItems(itens)
-  return normalizeData({
+  return {
     tipo_documento: tipo,
     numero_nf: xmlTag(ide, 'nNF') || null,
     serie: xmlTag(ide, 'serie') || null,
@@ -1463,7 +1480,8 @@ function parseOfficialNfeXml(xml: string, source: string) {
       parcelas,
     },
     observacoes: xmlTag(xmlFirstBlock(text, 'infAdic'), 'infCpl') || null,
-  }, source)
+    _meta: { source },
+  }
 }
 
 function xmlBlocks(xml: string, tag: string) {
