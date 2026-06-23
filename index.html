@@ -11412,12 +11412,55 @@ function findImpAccessKey(text){
   if(direct)return direct;
   const lines=source.replace(/\r/g,'\n').split('\n').map(l=>l.trim().replace(/[ \t]+/g,' ')).filter(Boolean);
   for(let i=0;i<lines.length;i++){
-    if(!/chave\s+de\s+acesso|chave\s+acesso|consulta\s+pela\s+chave/i.test(_norm(lines[i])))continue;
-    const digits=lines.slice(i,i+4).join(' ').replace(/\D/g,'');
+    const n=_norm(lines[i]);
+    const hasChave=/chave\s+de\s+acesso|chave\s+acesso|consulta\s+pela\s+chave|\bchave\b/.test(n);
+    if(!hasChave)continue;
+    const idx=n.indexOf('chave');
+    const block=(idx>=0?lines[i].slice(idx):lines[i])+' '+lines.slice(i+1,i+4).join(' ');
+    const digits=block.replace(/\D/g,'');
     if(digits.length>=44)return digits.slice(0,44);
   }
   return'';
 
+}
+
+function impNum(raw){
+  if(raw==null||raw==='')return 0;
+  let s=String(raw).replace(/[^\d,.-]/g,'').trim();
+  if(!s)return 0;
+  if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+  else if(s.includes(','))s=s.replace(',','.');
+  const n=Number(s);
+  return Number.isFinite(n)?Math.round(n*10000)/10000:0;
+}
+
+function impParseDanfeItemsFromText(text){
+  const lines=String(text||'').replace(/\r/g,'\n').split('\n').map(l=>l.trim().replace(/[ \t]+/g,' ')).filter(Boolean);
+  const items=[];
+  const seen=new Set();
+  const rowRe=/^([\d\s]{6,22})\s+(.+?)\s+(\d{8})\s+\d{3,4}\s+\d{4}\s+([A-Z]{1,6})\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})(?:\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2}))?/i;
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    if(!/\d/.test(line)||!/\b(PC|UN|UND|M2|M3|KG|CX|MT|LT|PAR|PCT)\b/i.test(line))continue;
+    const m=line.match(rowRe);
+    if(!m)continue;
+    const codigo=m[1].replace(/\D/g,'');
+    const descricao=m[2].replace(/\s+/g,' ').trim();
+    if(!descricao||descricao.length<3)continue;
+    const item={
+      codigo:codigo||'',
+      descricao,
+      quantidade:impNum(m[5]),
+      unidade:m[4].toUpperCase(),
+      valor_unitario:impNum(m[6]),
+      valor_total:impNum(m[7])
+    };
+    const key=[item.codigo,item.descricao,item.quantidade,item.valor_total].join('|').toLowerCase();
+    if(seen.has(key))continue;
+    seen.add(key);
+    items.push(item);
+  }
+  return items;
 }
 
 
@@ -11611,11 +11654,13 @@ function parseNFFromText(text, digits){
       desc=block.join(' ').trim();
     }
   }
+  const danfeItems=['NF-e','NFC-e'].includes(tipo)?impParseDanfeItemsFromText(text):[];
+  if(danfeItems.length)desc=danfeItems.map(it=>it.descricao).filter(Boolean).join('; ');
   const codigo=linhaDigitavel||chave;
   const parcelas=impExtractParcelasFromText(text,val);
   const vencFinal=venc||(parcelas.find(p=>p.vencimento)||{}).vencimento||'';
 
-  return {ben,cnpj:finalCnpj,doc:finalDoc,val,date,venc:vencFinal,chave:codigo,desc,discriminacao:desc,tipo,itens:desc?[{descricao:desc,quantidade:1,unidade:tipo==='NF-e'||tipo==='NFC-e'?'UN':'Srv',valor_unitario:val,valor_total:val}]:[],pagForma:parcelas.length>1?'PARCELADO':'A_VISTA',numParcelas:parcelas.length||1,parcelas};
+  return {ben,cnpj:finalCnpj,doc:finalDoc,val,date,venc:vencFinal,chave:codigo,desc,discriminacao:desc,tipo,itens:danfeItems.length?danfeItems:(desc?[{descricao:desc,quantidade:1,unidade:tipo==='NF-e'||tipo==='NFC-e'?'UN':'Srv',valor_unitario:val,valor_total:val}]:[]),pagForma:parcelas.length>1?'PARCELADO':'A_VISTA',numParcelas:parcelas.length||1,parcelas};
 
 }
 
