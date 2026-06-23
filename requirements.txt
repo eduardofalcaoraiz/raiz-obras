@@ -1,3 +1,12 @@
+./vendor/opencv-python
+numpy<3.0.0,>=1.19.5
+onnxruntime>=1.7.0
+opencv-python-headless==4.12.0.88
 pillow>=10.0
 pymupdf>=1.24
-rapidocr-onnxruntime>=1.4.4
+pyclipper>=1.2.0
+PyYAML
+Shapely!=2.0.4,>=1.7.1
+six>=1.15.0
+tqdm
+rapidocr-onnxruntime==1.4.4
