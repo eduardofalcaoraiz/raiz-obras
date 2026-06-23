@@ -10326,7 +10326,9 @@ function impCatChanged(){
 
 function impSetCusto(tipo){
 
-  document.getElementById('imp-custo-val').value=tipo;
+  const custoVal=document.getElementById('imp-custo-val');
+
+  if(custoVal)custoVal.value=tipo;
 
   const CUSTO_COLORS={'material':'var(--info)','servico':'var(--ok)','equipamento':'var(--warn)','outros':'var(--accent)'};
 
@@ -10378,9 +10380,11 @@ function impSetCusto(tipo){
 
   // Preenche tipos de material
 
-  if(tipo==='material'&&!document.getElementById('imp-mat-tipo').innerHTML.includes('<option value="concreto">')){
+  const matTipoEl=document.getElementById('imp-mat-tipo');
 
-    document.getElementById('imp-mat-tipo').innerHTML='<option value="">— Selecione o tipo —</option>'+MATERIAL_TIPOS.map(m=>`<option value="${m.id}">${m.nome}</option>`).join('');
+  if(tipo==='material'&&matTipoEl&&!matTipoEl.innerHTML.includes('<option value="concreto">')){
+
+    matTipoEl.innerHTML='<option value="">— Selecione o tipo —</option>'+MATERIAL_TIPOS.map(m=>`<option value="${m.id}">${m.nome}</option>`).join('');
 
   }
 
@@ -10388,7 +10392,11 @@ function impSetCusto(tipo){
 
 function impMatTipoChanged(){
 
-  const tipoId=document.getElementById('imp-mat-tipo').value;
+  const tipoEl=document.getElementById('imp-mat-tipo');
+
+  if(!tipoEl)return;
+
+  const tipoId=tipoEl.value;
 
   const mt=MATERIAL_TIPOS.find(m=>m.id===tipoId);
 
@@ -10739,8 +10747,11 @@ async function readImportFile(inp){
 
   if(ext==='xml'){
     _setImpStatus('Lendo XML fiscal localmente…');
-    try{const data=parseNFeXML(await file.text());showImportReview(data);return;}
+    let data;
+    try{data=parseNFeXML(await file.text());}
     catch(err){addErr('Parser XML fiscal local',err);showImportErrorDetails(file,errors);showManualEntry();return;}
+    try{showImportReview(data);return;}
+    catch(err){addErr('Tela de revisão do XML',err);showImportErrorDetails(file,errors);showManualEntry();return;}
   }
 
   if(['txt','html','htm'].includes(ext)){
