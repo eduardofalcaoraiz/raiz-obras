@@ -12490,6 +12490,28 @@ async function lookupByCNPJ(silent){
 
   const raw=document.getElementById('imp-cnpj').value.replace(/\D/g,'');
 
+  if(raw.length===14){
+
+    const lookupBtn=document.getElementById('cnpj-lookup-btn');
+
+    if(lookupBtn){lookupBtn.textContent='Buscando...';lookupBtn.disabled=true;}
+
+    try{
+
+      await impPreferOfficialNameFromCNPJ(document.getElementById('imp-ben').value);
+
+      if(!silent&&document.getElementById('imp-ben').value)toast('Razao social atualizada pelo CNPJ.');
+
+    }finally{
+
+      if(lookupBtn){lookupBtn.textContent='Buscar ->';lookupBtn.disabled=false;}
+
+    }
+
+    return;
+
+  }
+
   if(raw.length!==14){if(!silent)toast('Digite um CNPJ válido (14 dígitos).');return;}
 
   const known=Object.entries(CNPJS).find(([,v])=>v.replace(/\D/g,'')===raw);
@@ -12529,6 +12551,62 @@ async function lookupByCNPJ(silent){
 
 
 // Auto-preenche o formulário de investidor ao digitar o CNPJ
+
+async function impPreferOfficialNameFromCNPJ(ocrName){
+
+  const benEl=document.getElementById('imp-ben');
+
+  const cnpjEl=document.getElementById('imp-cnpj');
+
+  const raw=(cnpjEl?.value||'').replace(/\D/g,'');
+
+  if(!benEl)return;
+
+  if(raw.length!==14){
+
+    if(!benEl.value&&ocrName)benEl.value=ocrName;
+
+    return;
+
+  }
+
+  const cnpjFmt=raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
+
+  let official=null;
+
+  try{
+
+    official=parseCNPJData(await fetchCNPJData(raw));
+
+  }catch(e){
+
+    console.warn('[CNPJ Receita]',e?.message||e);
+
+  }
+
+  const cached=FORN_DATA[raw]||{};
+
+  const d=(official&&official.nome)?official:(cached.nome?cached:null);
+
+  if(d&&d.nome){
+
+    benEl.value=d.nome;
+
+    CNPJS[d.nome]=cnpjFmt;
+
+    FORN_DATA[raw]=Object.assign({},cached,d,{nome:d.nome});
+
+    if(impReviewData)impReviewData.ben=d.nome;
+
+    if(official&&official.nome)autoSaveFornecedor(d.nome,cnpjFmt);
+
+    return;
+
+  }
+
+  if(!benEl.value&&ocrName)benEl.value=ocrName;
+
+}
 
 async function invCnpjChanged(){
 
@@ -12688,7 +12766,7 @@ async function impChaveChanged(raw){
 
   // Busca razão social em segundo plano
 
-  if(!document.getElementById('imp-ben').value)lookupByCNPJ(true);
+  impPreferOfficialNameFromCNPJ(document.getElementById('imp-ben').value);
 
 }
 
@@ -12739,6 +12817,8 @@ function showImportReview(data){
   document.getElementById("imp-ben").value=data.ben||'';
 
   document.getElementById("imp-cnpj").value=data.cnpj||'';
+
+  impPreferOfficialNameFromCNPJ(data.ben||'');
 
   // Itens
 
