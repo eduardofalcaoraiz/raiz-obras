@@ -3397,6 +3397,25 @@ function _obraEscolaPagadora(obraAtual){
 function _obraTemInvestidorExterno(obraAtual){
   return !!(obraAtual&&Array.isArray(obraAtual.aportes)&&obraAtual.aportes.some(a=>a&&String(a.inv||'').trim()));
 }
+function _normPagadorNome(nome){
+  return String(nome||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+}
+function _isEscolaPagadora(nome){
+  const k=_normPagadorNome(nome);
+  if(!k)return false;
+  return unidades.some(u=>_normPagadorNome(u.nome)===k);
+}
+function _isInvestidorExternoPagador(nome,obraAtual){
+  const raw=String(nome||'').trim();
+  if(!raw||raw==='—'||raw==='-')return false;
+  const k=_normPagadorNome(raw);
+  if(!k)return false;
+  if(obraAtual&&(_normPagadorNome(_obraEscolaPagadora(obraAtual))===k||_normPagadorNome(obraAtual.nome)===k))return false;
+  if(investidores.some(i=>_normPagadorNome(i.nome)===k))return true;
+  if(obras.some(o=>(o.aportes||[]).some(a=>_normPagadorNome(a.inv)===k)))return true;
+  if(obraAtual&&(obraAtual.aportes||[]).some(a=>_normPagadorNome(a.inv)===k))return true;
+  return !_isEscolaPagadora(raw);
+}
 function _defaultPagadorObra(obraAtual){
   if(!obraAtual)return'';
   const esfera=obraAtual.esfera||'nova';
@@ -3842,7 +3861,7 @@ function calcInvestStats(o){
 
   (o.pag||[]).forEach(p=>{
 
-    if(!p.pagn||p.pagn==='—')return;
+    if(!p.pagn||p.pagn==='—'||!_isInvestidorExternoPagador(p.pagn,o))return;
 
     if(!stats[p.pagn])stats[p.pagn]={nome:p.pagn,aportado:0,utilizado:0,pendente:0,pagamentos:[]};
 
@@ -13737,6 +13756,10 @@ function renderInvestidores(){
 
   const porto={};
 
+  const pago={};
+
+  const pendente={};
+
   obras.forEach(o=>{
 
     (o.aportes||[]).forEach(a=>{
@@ -13751,25 +13774,44 @@ function renderInvestidores(){
 
   });
 
-  // Consolida pagamentos efetivamente feitos por cada investidor (via campo pagn)
-
-  const pago={};
-
   obras.forEach(o=>{
 
-    o.pag.filter(p=>p.st==='PAGO').forEach(p=>{
+    (o.pag||[]).forEach(p=>{
 
       if(!p.pagn||p.pagn==='—')return;
 
-      pago[p.pagn]=(pago[p.pagn]||0)+p.v;
+      const invNome=String(p.pagn||'').trim();
+      if(!_isInvestidorExternoPagador(invNome,o)||(p.escopoFin||'obra')!=='obra')return;
+      if(!porto[invNome])porto[invNome]={total:0,count:0,obras:[]};
+      if(p.st==='PAGO')pago[invNome]=(pago[invNome]||0)+p.v;
+      else pendente[invNome]=(pendente[invNome]||0)+p.v;
+      let mov=porto[invNome].obras.find(x=>x.id===o.id&&x.auto);
+      if(!mov){
+        mov={nome:o.nome,v:0,d:p.pagaEm||p.venc||p.emissao||'',id:o.id,status:o.status,auto:true,pago:0,pendente:0};
+        porto[invNome].obras.push(mov);
+      }
+      mov.v+=(+p.v||0);
+      if(p.st==='PAGO')mov.pago+=(+p.v||0);else mov.pendente+=(+p.v||0);
+      if(!mov.d)mov.d=p.pagaEm||p.venc||p.emissao||'';
 
     });
 
   });
 
-  const totalInv=Object.values(porto).reduce((a,p)=>a+p.total,0);
+  const nomesInvestidores=new Map();
+  investidores.forEach(inv=>{if(inv.nome)nomesInvestidores.set(_normPagadorNome(inv.nome),inv);});
+  Object.keys(porto).forEach(nome=>{
+    const k=_normPagadorNome(nome);
+    if(k&&!nomesInvestidores.has(k))nomesInvestidores.set(k,{id:'auto:'+k,nome,tipo:'AUTO',auto:true});
+  });
+  const allInvestidores=[...nomesInvestidores.values()];
+  const capitalDe=nome=>Math.max((porto[nome]?.total)||0,(pago[nome]||0)+(pendente[nome]||0));
+
+  const totalInv=allInvestidores.reduce((a,inv)=>a+capitalDe(inv.nome),0);
 
   const totalPagoInv=Object.values(pago).reduce((a,v)=>a+v,0);
+
+  const totalPendenteInv=Object.values(pendente).reduce((a,v)=>a+v,0);
 
   const saldoInvGeral=totalInv-totalPagoInv;
 
@@ -13777,25 +13819,25 @@ function renderInvestidores(){
 
   const obrasFinanciadas=new Set(Object.values(porto).flatMap(p=>p.obras.map(o=>o.id))).size;
 
-  const maior=investidores.length?investidores.reduce((a,b)=>(porto[b.nome]?.total||0)>(porto[a.nome]?.total||0)?b:a,investidores[0]):null;
+  const maior=allInvestidores.length?allInvestidores.reduce((a,b)=>capitalDe(b.nome)>capitalDe(a.nome)?b:a,allInvestidores[0]):null;
 
 
 
   document.getElementById('inv-kpis').innerHTML=`
 
-    <div class="kpi"><div class="lab">Investidores cadastrados</div><div class="val">${investidores.length}</div></div>
+    <div class="kpi"><div class="lab">Investidores externos</div><div class="val">${allInvestidores.length}</div><div class="sub">${investidores.length} cadastrado${investidores.length!==1?'s':''} · ${Math.max(allInvestidores.length-investidores.length,0)} automático${Math.max(allInvestidores.length-investidores.length,0)!==1?'s':''}</div></div>
 
-    <div class="kpi"><div class="lab">Capital total aportado</div><div class="val acc">${fmt(totalInv)}</div><div class="sub">${maior&&porto[maior.nome]?escHtml(maior.nome)+' · '+fmt(porto[maior.nome].total):''}</div></div>
+    <div class="kpi"><div class="lab">Capital registrado</div><div class="val acc">${fmt(totalInv)}</div><div class="sub">${maior?escHtml(maior.nome)+' · '+fmt(capitalDe(maior.nome)):''}</div></div>
 
-    <div class="kpi"><div class="lab">Desembolsado</div><div class="val">${fmt(totalPagoInv)}</div><div class="sub">${usoInvPct}% do capital aportado</div></div>
+    <div class="kpi"><div class="lab">Desembolsado</div><div class="val">${fmt(totalPagoInv)}</div><div class="sub">${usoInvPct}% do capital registrado</div></div>
 
-    <div class="kpi"><div class="lab">Saldo a desembolsar</div><div class="val ${saldoInvGeral<0?'dg':'ok'}">${fmt(saldoInvGeral)}</div><div class="sub">${obrasFinanciadas} obra${obrasFinanciadas!==1?'s':''} financiada${obrasFinanciadas!==1?'s':''}</div></div>`;
+    <div class="kpi"><div class="lab">Em aberto</div><div class="val ${totalPendenteInv>0?'dg':'ok'}">${fmt(totalPendenteInv)}</div><div class="sub">Saldo previsto ${fmt(saldoInvGeral)} · ${obrasFinanciadas} obra${obrasFinanciadas!==1?'s':''}</div></div>`;
 
 
 
   const list=document.getElementById('inv-list');
 
-  if(!investidores.length){
+  if(!allInvestidores.length){
 
     list.innerHTML=`<div class="card"><p class="empty">Nenhum investidor cadastrado ainda.<br><span style="font-size:13px">Clique em "+ Novo investidor" para adicionar.</span></p></div>`;
 
@@ -13805,7 +13847,7 @@ function renderInvestidores(){
 
   // Ordena por total investido
 
-  const sorted=[...investidores].sort((a,b)=>(porto[b.nome]?.total||0)-(porto[a.nome]?.total||0));
+  const sorted=[...allInvestidores].sort((a,b)=>capitalDe(b.nome)-capitalDe(a.nome)||a.nome.localeCompare(b.nome,'pt-BR'));
 
   list.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px">${
 
@@ -13815,11 +13857,15 @@ function renderInvestidores(){
 
       const obrasSorted=[...p.obras].sort((a,b)=>b.v-a.v);
 
-      const share=totalInv>0?(p.total/totalInv*100):0;
+      const capReg=capitalDe(inv.nome);
+
+      const share=totalInv>0?(capReg/totalInv*100):0;
 
       const pagTot=pago[inv.nome]||0; // total efetivamente pago pelo investidor
 
-      const execPct=p.total>0?Math.min(Math.round(pagTot/p.total*100),100):0;
+      const pendTot=pendente[inv.nome]||0;
+
+      const execPct=capReg>0?Math.min(Math.round(pagTot/capReg*100),100):0;
 
       return`<div class="card">
 
@@ -13841,9 +13887,9 @@ function renderInvestidores(){
 
           <div style="text-align:right;flex-shrink:0">
 
-            <div style="font-size:11px;color:var(--muted)">Capital comprometido</div>
+            <div style="font-size:11px;color:var(--muted)">Capital registrado</div>
 
-            <div style="font-size:23px;font-weight:800;color:var(--accent);line-height:1.1">${fmt(p.total)}</div>
+            <div style="font-size:23px;font-weight:800;color:var(--accent);line-height:1.1">${fmt(capReg)}</div>
 
             <div style="font-size:11px;color:var(--muted);margin-top:2px">${share.toFixed(1)}% do total investido</div>
 
@@ -13851,11 +13897,11 @@ function renderInvestidores(){
 
         </div>
 
-        ${pagTot>0?`<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-bottom:12px">
+        ${pagTot>0||pendTot>0?`<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-bottom:12px">
 
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
 
-            <span style="font-size:12px;font-weight:600;color:var(--muted)">Já desembolsado (pagamentos lançados)</span>
+            <span style="font-size:12px;font-weight:600;color:var(--muted)">Pagamentos vinculados</span>
 
             <span style="font-weight:700;color:var(--ok)">${fmt(pagTot)}</span>
 
@@ -13867,11 +13913,11 @@ function renderInvestidores(){
 
           </div>
 
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;text-align:right">${execPct}% do capital comprometido · saldo: ${fmt(p.total-pagTot)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;text-align:right">${pendTot>0?'Em aberto '+fmt(pendTot)+' · ':''}${execPct}% do capital registrado · saldo previsto: ${fmt(capReg-pagTot)}</div>
 
         </div>`:''}
 
-        ${p.total>0?`<div style="height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-bottom:12px">
+        ${capReg>0?`<div style="height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-bottom:12px">
 
           <div style="height:100%;width:${Math.min(share,100)}%;background:var(--accent);border-radius:2px"></div>
 
@@ -13902,6 +13948,7 @@ function renderInvestidores(){
             <div style="text-align:right">
 
               <div style="font-size:14px;font-weight:700">${fmt(a.v)}</div>
+              ${a.auto?`<div style="font-size:10.5px;color:var(--muted)">${a.pago>0?'Pago '+fmt(a.pago):''}${a.pago>0&&a.pendente>0?' · ':''}${a.pendente>0?'Aberto '+fmt(a.pendente):''}</div>`:''}
 
               <span class="badge ${a.status==='Concluído'?'b-ok':a.status==='Em andamento'?'b-info':'b-neutral'}" style="font-size:10px">${a.status||'—'}</span>
 
@@ -13915,9 +13962,7 @@ function renderInvestidores(){
 
         <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:10px;border-top:1px solid var(--line)">
 
-          <button class="btn btn-ghost btn-sm" onclick="openInvModal('${inv.id}')">✎ Editar</button>
-
-          <button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)99;font-size:12px" onclick="deleteInvestidor('${inv.id}')">Excluir</button>
+          ${inv.auto?`<button class="btn btn-ghost btn-sm" onclick="openInvAuto('${capexJs(inv.nome)}')">Cadastrar investidor</button>`:`<button class="btn btn-ghost btn-sm" onclick="openInvModal('${inv.id}')">✎ Editar</button><button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)99;font-size:12px" onclick="deleteInvestidor('${inv.id}')">Excluir</button>`}
 
         </div>
 
@@ -13972,6 +14017,12 @@ function openInvModal(id){
 }
 
 function closeInvModal(){document.getElementById('inv-overlay').classList.remove('show');}
+
+function openInvAuto(nome){
+  openInvModal(null);
+  const el=document.getElementById('inv-nome');
+  if(el)el.value=nome||'';
+}
 
 
 
