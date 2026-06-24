@@ -12260,14 +12260,21 @@ function impFindNfseTotalValue(text,lines){
   const arr=(lines&&lines.length?lines:String(text||'').split('\n')).map(l=>String(l||'').trim()).filter(Boolean);
   const pickLastPositive=(vals)=>vals.filter(v=>v>0).pop()||0;
   const pickFirstPositive=(vals)=>vals.find(v=>v>0)||0;
+  const isNetOrRetentionLine=(raw)=>{
+    const n=_norm(raw||'');
+    return /valor\s+liquido|liquido\s+a\s+pagar|valor\s+a\s+receber|retencao|retencoes|deducao|deducoes|cofins|csll|inss|irpj|pis|outras\s+retencoes|valor\s+do\s+iss|issqn/.test(n);
+  };
   const valueFromWindow=(start,labelRe,mode)=>{
     for(let j=start;j<=Math.min(start+4,arr.length-1);j++){
       const line=arr[j]||'';
       const n=_norm(line);
       if(labelRe&&!labelRe.test(n)&&j===start)continue;
+      if(isNetOrRetentionLine(line))continue;
       const vals=impNfseMoneyList(line);
       if(vals.length)return mode==='first'?pickFirstPositive(vals):pickLastPositive(vals);
-      const nextVals=impNfseMoneyList(arr[j+1]||'');
+      const nextLine=arr[j+1]||'';
+      if(isNetOrRetentionLine(nextLine))continue;
+      const nextVals=impNfseMoneyList(nextLine);
       if(nextVals.length)return mode==='first'?pickFirstPositive(nextVals):pickLastPositive(nextVals);
     }
     return 0;
@@ -12275,28 +12282,14 @@ function impFindNfseTotalValue(text,lines){
 
   for(let i=0;i<arr.length;i++){
     const n=_norm(arr[i]);
-    if(/valor\s+liquido\s+da\s+nfs-?e|valor\s+liquido\s+do\s+documento|valor\s+liquido/.test(n)){
-      const v=valueFromWindow(i,/valor\s+liquido/, 'last');
-      if(v)return v;
-    }
-  }
-  for(let i=0;i<arr.length;i++){
-    const n=_norm(arr[i]);
-    if(/valor\s+(?:total\s+)?da\s+nota/.test(n)){
-      const v=valueFromWindow(i,/valor\s+(?:total\s+)?da\s+nota/, 'last');
+    if(/valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e)|valor\s+da\s+nota/.test(n)){
+      const v=valueFromWindow(i,/valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e)|valor\s+da\s+nota/, 'last');
       if(v)return v;
     }
   }
   for(let i=0;i<arr.length;i++){
     const n=_norm(arr[i]);
     if(/valor\s+(?:total\s+)?da\s+nota|total\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e/.test(n)){
-      for(let j=i+1;j<=Math.min(i+8,arr.length-1);j++){
-        const nj=_norm(arr[j]);
-        if(/valor\s+liquido\s+da\s+nfs-?e|valor\s+liquido/.test(nj)){
-          const v=valueFromWindow(j,/valor\s+liquido/, 'last');
-          if(v)return v;
-        }
-      }
       for(let j=i+1;j<=Math.min(i+5,arr.length-1);j++){
         const nj=_norm(arr[j]);
         if(/valor\s+do\s+servico|valor\s+dos\s+servicos/.test(nj)){
@@ -12467,7 +12460,7 @@ function parseNFFromText(text, digits){
 
   let val=tipo==='NFS-e'
     ? impFindNfseTotalValue(text,lines)
-    : findMoneyNear([/valor\s+(?:total|do\s+documento|da\s+nota|dos?\s+servi[çc]os?|cobrado|a\s+pagar|liquido|l[ií]quido)/i,/total\s+(?:da\s+nota|a\s+pagar|geral|l[ií]quido)/i]);
+    : findMoneyNear([/valor\s+(?:total|do\s+documento|da\s+nota|dos?\s+servi[çc]os?|cobrado|a\s+pagar)/i,/total\s+(?:da\s+nota|a\s+pagar|geral)/i]);
   if(!val&&tipo==='Boleto')val=findMoneyNear([/valor\s+do\s+documento/i,/valor\s+cobrado/i,/valor\s+do\s+boleto/i]);
   if(!val&&tipo!=='NFS-e'){
     const allAmts=[...text.matchAll(/R?\$?\s*([\d]{1,3}(?:\.[\d]{3})*,\d{2}|\d+,\d{2})/g)].map(m=>parseFloat(m[1].replace(/\./g,'').replace(',','.'))).filter(v=>v>0);
