@@ -26,9 +26,10 @@ Critical rules:
 7. Dates must be YYYY-MM-DD. Numbers must be plain decimals with dot separator.
 8. Unknown fields must be null, empty arrays, or zero. Return only valid JSON.
 9. Evidence first: if OCR is unclear, fragmented, or ambiguous, return null/0 for that field instead of guessing.
-10. Do not infer totals from the largest number on the page. Use only values explicitly labeled as total, valor da nota, valor total da nota, valor liquido, valor dos servicos, valor do documento, or valor a pagar.
-11. Do not infer company names from arbitrary uppercase lines. For NFS-e, emitente must come from the PRESTADOR/provider block only.
-12. If the document has fatura/duplicatas/parcelamento, extract each visible installment with numero, valor and vencimento. Do not split the total unless the installment schedule is explicit.
+10. Do not infer totals from the largest number on the page. For fiscal invoices, valores.valor_total must be the gross invoice amount explicitly labeled valor da nota, valor total da nota, valor da NFS-e, valor dos servicos, valor total dos servicos, valor do documento, valor a pagar, or total da nota.
+11. Never use valor liquido, valor liquido a pagar, valor liquido da NFS-e, valor a receber, or net amount after retencoes/deducoes as valores.valor_total. Those are auxiliary net-payment values only. If only a net/liquid value is visible and the gross invoice total is not visible, set valores.valor_total to 0 and explain in observacoes.
+12. Do not infer company names from arbitrary uppercase lines. For NFS-e, emitente must come from the PRESTADOR/provider block only.
+13. If the document has fatura/duplicatas/parcelamento, extract each visible installment with numero, valor and vencimento. Do not split the total unless the installment schedule is explicit.
 
 Issuer/provider self-check:
 - NF-e/NFC-e/CT-e: emitente is the company in EMITENTE/REMETENTE, never DESTINATARIO.
@@ -1023,14 +1024,21 @@ function findNfseTotalValue(text: string, lines: string[]) {
   const arr = (lines?.length ? lines : String(text || '').split('\n')).map((l) => cleanStr(l)).filter(Boolean)
   const pickLastPositive = (vals: number[]) => vals.filter((v) => v > 0).pop() || 0
   const pickFirstPositive = (vals: number[]) => vals.find((v) => v > 0) || 0
+  const isNetOrRetentionLine = (raw: string) => {
+    const n = stripAccents(raw || '').toLowerCase()
+    return /valor\s+liquido|liquido\s+a\s+pagar|valor\s+a\s+receber|retencao|retencoes|deducao|deducoes|cofins|csll|inss|irpj|pis|outras\s+retencoes|valor\s+do\s+iss|issqn/.test(n)
+  }
   const valueFromWindow = (start: number, labelRe: RegExp | null, mode: 'first' | 'last') => {
     for (let j = start; j <= Math.min(start + 4, arr.length - 1); j++) {
       const line = arr[j] || ''
       const n = stripAccents(line).toLowerCase()
       if (labelRe && !labelRe.test(n) && j === start) continue
+      if (isNetOrRetentionLine(line)) continue
       const vals = nfseMoneyList(line)
       if (vals.length) return mode === 'first' ? pickFirstPositive(vals) : pickLastPositive(vals)
-      const nextVals = nfseMoneyList(arr[j + 1] || '')
+      const nextLine = arr[j + 1] || ''
+      if (isNetOrRetentionLine(nextLine)) continue
+      const nextVals = nfseMoneyList(nextLine)
       if (nextVals.length) return mode === 'first' ? pickFirstPositive(nextVals) : pickLastPositive(nextVals)
     }
     return 0
@@ -1038,28 +1046,14 @@ function findNfseTotalValue(text: string, lines: string[]) {
 
   for (let i = 0; i < arr.length; i++) {
     const n = stripAccents(arr[i]).toLowerCase()
-    if (/valor\s+liquido\s+da\s+nfs-?e|valor\s+liquido\s+do\s+documento|valor\s+liquido/.test(n)) {
-      const v = valueFromWindow(i, /valor\s+liquido/, 'last')
-      if (v) return v
-    }
-  }
-  for (let i = 0; i < arr.length; i++) {
-    const n = stripAccents(arr[i]).toLowerCase()
-    if (/valor\s+(?:total\s+)?da\s+nota/.test(n)) {
-      const v = valueFromWindow(i, /valor\s+(?:total\s+)?da\s+nota/, 'last')
+    if (/valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e)|valor\s+da\s+nota/.test(n)) {
+      const v = valueFromWindow(i, /valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e)|valor\s+da\s+nota/, 'last')
       if (v) return v
     }
   }
   for (let i = 0; i < arr.length; i++) {
     const n = stripAccents(arr[i]).toLowerCase()
     if (/valor\s+(?:total\s+)?da\s+nota|total\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e/.test(n)) {
-      for (let j = i + 1; j <= Math.min(i + 8, arr.length - 1); j++) {
-        const nj = stripAccents(arr[j]).toLowerCase()
-        if (/valor\s+liquido\s+da\s+nfs-?e|valor\s+liquido/.test(nj)) {
-          const v = valueFromWindow(j, /valor\s+liquido/, 'last')
-          if (v) return v
-        }
-      }
       for (let j = i + 1; j <= Math.min(i + 5, arr.length - 1); j++) {
         const nj = stripAccents(arr[j]).toLowerCase()
         if (/valor\s+do\s+servico|valor\s+dos\s+servicos/.test(nj)) {
@@ -1168,7 +1162,6 @@ function findValue(text: string, lines: string[], tipo: string) {
     /valor do documento/i,
     /valor a pagar/i,
     /valor cobrado/i,
-    /valor liquido/i,
     /valor dos servicos/i,
   ]
   if (tipo === 'Boleto') labels.unshift(/valor do boleto/i)
