@@ -7358,25 +7358,21 @@ function renderDashboard(){
       var base=+c.valor||0,adit=_aditPorConstrDash[c.seq]||0,total=base+adit,pR=_pagoPorConstrDash[c.seq]||0,pend=_pendPorConstrDash[c.seq]||0;
       var pct=total?Math.round(pR/total*100):0,barPct=Math.min(Math.max(pct,0),100),saldo=total-pR;
       var cor=saldo<0?'var(--danger)':pct>=100?'var(--ok)':pct>80?'var(--warn)':'var(--info)';
-      var saldoTxt=saldo<0?'Excedeu em '+fmt(-saldo):(pend?'Pendente '+fmt(pend)+' · saldo contratual '+fmt(saldo):'Saldo contratual '+fmt(saldo));
-      return '<div style="padding:11px 0;border-bottom:1px solid var(--line)">'
-        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:7px">'
-        +'<div style="min-width:160px;flex:1"><div style="font-size:13.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(c.nome||'Construtora')+'</div>'
-        +(c.cnpj?'<div style="font-size:11px;color:var(--muted);margin-top:1px">'+c.cnpj+'</div>':'')+'</div>'
-        +'<div style="text-align:right;flex-shrink:0"><div style="font-size:13.5px;font-weight:800;color:'+cor+'">'+fmt(pR)+' / '+fmt(total)+'</div>'
-        +'<div style="font-size:11px;color:var(--muted)">'+pct+'% executado</div></div></div>'
-        +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:7px">'
-        +'<div style="padding:7px 8px"><div style="font-size:10px;color:var(--muted)">Base</div><div style="font-size:12px;font-weight:700">'+fmt(base)+'</div></div>'
-        +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Aditivos</div><div style="font-size:12px;font-weight:700;color:'+(adit?'var(--warn)':'var(--soft)')+'">'+(adit?'+'+fmt(adit):'—')+'</div></div>'
-        +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Pago</div><div style="font-size:12px;font-weight:700;color:var(--brand-text)">'+fmt(pR)+'</div></div>'
-        +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Saldo</div><div style="font-size:12px;font-weight:700;color:'+(saldo<0?'var(--danger)':'var(--muted)')+'">'+(saldo<0?fmt(-saldo):fmt(saldo))+'</div></div></div>'
-        +'<div style="height:6px;background:var(--line);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+barPct+'%;background:'+cor+';border-radius:4px;transition:width .5s"></div></div>'
-        +'<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:4px;gap:10px;flex-wrap:wrap"><span>'+saldoTxt+'</span>'+(pend?'<span>Em aberto: '+fmt(pend)+'</span>':'')+'</div></div>';
+      var saldoTxt=saldo<0?'Excedeu '+fmt(-saldo):'Saldo '+fmt(saldo);
+      return '<div style="padding:7px 0;border-bottom:1px solid var(--line)">'
+        +'<div style="display:grid;grid-template-columns:minmax(120px,1fr) auto;align-items:start;gap:8px;margin-bottom:5px">'
+        +'<div style="min-width:0"><div style="font-size:12.8px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(c.nome||'Construtora')+'</div>'
+        +(c.cnpj?'<div style="font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+c.cnpj+'</div>':'')+'</div>'
+        +'<div style="text-align:right;white-space:nowrap"><div style="font-size:12.8px;font-weight:800;color:'+cor+'">'+fmt(pR)+' / '+fmt(total)+'</div>'
+        +'<div style="font-size:10.5px;color:var(--muted)">'+pct+'%</div></div></div>'
+        +'<div style="height:4px;background:var(--line);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+barPct+'%;background:'+cor+';border-radius:4px;transition:width .5s"></div></div>'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:10.8px;color:var(--muted);margin-top:4px;line-height:1.35">'
+        +'<span>Base '+fmt(base)+'</span><span>Aditivos '+(adit?'+'+fmt(adit):'—')+'</span><span style="color:'+(saldo<0?'var(--danger)':'var(--muted)')+'">'+saldoTxt+'</span>'+(pend?'<span>Em aberto '+fmt(pend)+'</span>':'')+'</div></div>';
     }).join('');
     if(_semVinculoPagoDash||_aditGeralDash)_constrRowsDash+='<div style="font-size:12px;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn)33;border-radius:var(--r);padding:8px 10px;margin-top:10px">Sem vínculo direto: '+(_semVinculoPagoDash?fmt(_semVinculoPagoDash)+' pagos sem construtora definida':'')+(_semVinculoPagoDash&&_aditGeralDash?' · ':'')+(_aditGeralDash?fmt(_aditGeralDash)+' em aditivos gerais':'')+'.</div>';
-    _constrResumoDash='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:6px"><div><div style="font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Construtoras da obra</div><div class="sub">Contrato base, aditivos, pagamentos e saldo por construtora.</div></div><span style="font-size:11.5px;font-weight:800;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 9px">'+o.construtoras.length+' construtora'+(o.construtoras.length!==1?'s':'')+'</span></div>'+_constrRowsDash+'</div>';
+    _constrResumoDash='<div style="margin-top:10px;padding-top:9px;border-top:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:3px"><div style="font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Construtoras</div><span style="font-size:10.8px;font-weight:800;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 7px">'+o.construtoras.length+'</span></div>'+_constrRowsDash+'</div>';
   }
-  var _contratoCardStyle='padding:14px 16px;'+((o.construtoras&&o.construtoras.length)?'grid-column:1/-1;':'');
+  var _contratoCardStyle='padding:12px 14px;';
   if(!o.contratado&&(!o.constr||o.constr==='—')){
     _dc1='<div class="card" id="obra-contrato-unificado" style="'+_contratoCardStyle+'"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Contrato da Obra</div><div style="text-align:center;padding:10px 0"><div style="font-size:24px;opacity:.25">&#128203;</div><div style="font-size:13px;color:var(--muted);margin:6px 0 10px">Nenhum contrato definido</div><button class="btn btn-primary btn-sm" onclick="openObraModal(cur.id)">Definir contrato</button></div></div>';
   }else{
