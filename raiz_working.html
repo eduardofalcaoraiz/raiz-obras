@@ -4001,8 +4001,8 @@ function sincronizaPagoObra(o){
   return total;
 }
 
-// Saldo simples da obra: contratado + aditivos menos a soma real dos pagamentos pagos.
-const saldoContr=o=>money2(contratadoTotal(o)-pagoTotalOficial(o));
+// Saldo contratual da obra: pagamentos fora da obra pertencem ao caixa da escola e nao consomem contrato.
+const saldoContr=o=>money2(contratadoTotal(o)-pagoObraOficial(o));
 
 // Saldo do investimento: somente pagamentos dentro da obra debitam o teto externo.
 const saldoInv=o=>money2(o.investimento_disponivel>0?o.investimento_disponivel-pagoObraOficial(o):(o.aportado||0)-pagoObraOficial(o));
@@ -4011,7 +4011,7 @@ const saldoInv=o=>money2(o.investimento_disponivel>0?o.investimento_disponivel-p
 
 const margemInv=o=>o.investimento_disponivel>0?money2(o.investimento_disponivel-contratadoTotal(o)):null;
 
-const execObra=o=>contratadoTotal(o)?Math.round(pagoTotalOficial(o)/contratadoTotal(o)*100):0;
+const execObra=o=>contratadoTotal(o)?Math.round(pagoObraOficial(o)/contratadoTotal(o)*100):0;
 
 function normalizeDateISO(v){
   const s=String(v||'').trim();
@@ -4341,7 +4341,7 @@ function updateNavBadge(){const n=allAtrasos().length;const el=document.getEleme
 
 /* GERAL + ESFERAS */
 
-function renderObraCard(o,i){const pct=execObra(o);const _ct=contratadoTotal(o);const _uni=unidades.find(u=>u.obraId===o.id);const e=ESFERAS[o.esfera||'nova'];const marcas=(o.marca||'').split(' + ');const bc=brandColor(marcas[0]);const marcaPills=marcas.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;background:${brandLight(m)};color:${brandColor(m)};padding:2px 8px 2px 4px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid ${brandColor(m)}28"><span style="display:inline-flex;background:white;border-radius:4px;padding:1px 3px;overflow:hidden;height:16px;width:26px;align-items:center;flex-shrink:0">${brandLogoImg(m,'height:14px;width:24px;object-fit:contain')}</span>${m}</span>`).join(' ');return `<div class="pcard" style="animation-delay:${i*55}ms;border-left:4px solid ${bc};background:${_brandSoftGradient(marcas)}" onclick="openObra(${o.id})"><div class="crumb" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${marcaPills}${_uni?`<span style="color:var(--ok);font-size:11.5px">· ${_uni.nome}</span>`:''}</div><h3 style="margin-top:9px">${o.nome}</h3><div class="constr">${o.constr}</div><div class="meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span onclick="event.stopPropagation()"><select style="font-size:11px;padding:2px 8px;height:22px;border-radius:14px;border:1.5px solid ${o.status==='Concluído'?'var(--ok)':o.status==='Em andamento'?'#1976D2':'var(--muted)'};color:${o.status==='Concluído'?'var(--ok)':o.status==='Em andamento'?'#1976D2':'var(--muted)'};background:${o.status==='Concluído'?'#EDF7ED':o.status==='Em andamento'?'#E3F0FC':'var(--surface)'};font-weight:600;cursor:pointer" onchange="setObraStatus(${o.id},this.value)"><option value="Planejamento" ${o.status==='Planejamento'?'selected':''}>📋 Planejamento</option><option value="Em andamento" ${o.status==='Em andamento'?'selected':''}>🏗 Em andamento</option><option value="Concluído" ${o.status==='Concluído'?'selected':''}>✅ Concluído</option></select></span>${pct>100?'<span class="badge b-danger">acima do contrato</span>':''}<span class="badge b-neutral" style="font-size:10px">${e?e.icon:''} ${e?e.label:''}</span><span style="margin-left:auto" onclick="event.stopPropagation()"><button class="iconbtn" style="color:var(--danger);font-size:13px" title="Excluir obra" onclick="deleteObra(${o.id},event)">🗑</button></span></div><div class="bar"><i class="${barClass(pct)}" style="width:${Math.min(pct,100)}%"></i></div><div class="figs"><span>Pago <b>${fmt(pagoTotalOficial(o))}</b></span><span>de ${fmt(_ct)} · <b>${pct}%</b></span></div></div>`;}
+function renderObraCard(o,i){const pct=execObra(o);const _ct=contratadoTotal(o);const _pagoObra=pagoObraOficial(o);const _extra=pagoExtra(o);const _uni=unidades.find(u=>u.obraId===o.id);const e=ESFERAS[o.esfera||'nova'];const marcas=(o.marca||'').split(' + ');const bc=brandColor(marcas[0]);const marcaPills=marcas.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;background:${brandLight(m)};color:${brandColor(m)};padding:2px 8px 2px 4px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid ${brandColor(m)}28"><span style="display:inline-flex;background:white;border-radius:4px;padding:1px 3px;overflow:hidden;height:16px;width:26px;align-items:center;flex-shrink:0">${brandLogoImg(m,'height:14px;width:24px;object-fit:contain')}</span>${m}</span>`).join(' ');return `<div class="pcard" style="animation-delay:${i*55}ms;border-left:4px solid ${bc};background:${_brandSoftGradient(marcas)}" onclick="openObra(${o.id})"><div class="crumb" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${marcaPills}${_uni?`<span style="color:var(--ok);font-size:11.5px">· ${_uni.nome}</span>`:''}</div><h3 style="margin-top:9px">${o.nome}</h3><div class="constr">${o.constr}</div><div class="meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span onclick="event.stopPropagation()"><select style="font-size:11px;padding:2px 8px;height:22px;border-radius:14px;border:1.5px solid ${o.status==='Concluído'?'var(--ok)':o.status==='Em andamento'?'#1976D2':'var(--muted)'};color:${o.status==='Concluído'?'var(--ok)':o.status==='Em andamento'?'#1976D2':'var(--muted)'};background:${o.status==='Concluído'?'#EDF7ED':o.status==='Em andamento'?'#E3F0FC':'var(--surface)'};font-weight:600;cursor:pointer" onchange="setObraStatus(${o.id},this.value)"><option value="Planejamento" ${o.status==='Planejamento'?'selected':''}>📋 Planejamento</option><option value="Em andamento" ${o.status==='Em andamento'?'selected':''}>🏗 Em andamento</option><option value="Concluído" ${o.status==='Concluído'?'selected':''}>✅ Concluído</option></select></span>${pct>100?'<span class="badge b-danger">acima do contrato</span>':''}<span class="badge b-neutral" style="font-size:10px">${e?e.icon:''} ${e?e.label:''}</span><span style="margin-left:auto" onclick="event.stopPropagation()"><button class="iconbtn" style="color:var(--danger);font-size:13px" title="Excluir obra" onclick="deleteObra(${o.id},event)">🗑</button></span></div><div class="bar"><i class="${barClass(pct)}" style="width:${Math.min(pct,100)}%"></i></div><div class="figs"><span>Pago na obra <b>${fmt(_pagoObra)}</b></span><span>de ${fmt(_ct)} · <b>${pct}%</b>${_extra>0?` · fora ${fmt(_extra)}`:''}</span></div></div>`;}
 
 
 
@@ -4362,7 +4362,7 @@ function geralDocCount(){
 
 function renderGeral(){
 
-  const tc=obras.reduce((a,o)=>a+contratadoTotal(o),0),ta=obras.reduce((a,o)=>a+o.aportado,0),tp=obras.reduce((a,o)=>a+pagoTotalOficial(o),0);
+  const tc=obras.reduce((a,o)=>a+contratadoTotal(o),0),ta=obras.reduce((a,o)=>a+o.aportado,0),tpObra=obras.reduce((a,o)=>a+pagoObraOficial(o),0),tpExtra=obras.reduce((a,o)=>a+pagoExtra(o),0),tp=tpObra+tpExtra;
   const pagamentos=[];obras.forEach(o=>(o.pag||[]).forEach((p,i)=>pagamentos.push({o,p,i})));
   const pend=pagamentos.filter(x=>x.p.st==='PENDENTE');
   const atr=allAtrasos();
@@ -4372,7 +4372,7 @@ function renderGeral(){
   const capexBudget=capexBudgetStats(capexItens,{});
   const docTotal=geralDocCount();
   const fornecedores=[...new Set(pagamentos.map(x=>(x.p.ben||'').trim()).filter(Boolean))].length;
-  const execPct=tc?Math.round(tp/tc*100):0;
+  const execPct=tc?Math.round(tpObra/tc*100):0;
   const emAndamento=obras.filter(o=>o.status==='Em andamento').length;
   const estouro=obras.filter(o=>contratadoTotal(o)>0&&saldoContr(o)<0);
   const capexSemOrc=capexItens.filter(i=>!(+i.orcamento||0)&&_ciSit(i)!=='Cancelado').length;
@@ -4380,7 +4380,7 @@ function renderGeral(){
 
   document.getElementById('geral-kpis').innerHTML=`
     <div class="kpi"><div class="lab">Obras e unidades</div><div class="val">${obras.length}<span style="font-size:14px;color:var(--soft)"> obras</span></div><div class="sub">${unidades.length} unidades cadastradas</div></div>
-    <div class="kpi"><div class="lab">Pagamentos lançados</div><div class="val acc">${fmt(tp)}</div><div class="sub">${execPct}% de ${fmt(tc)} contratado/aditivado</div></div>
+    <div class="kpi"><div class="lab">Pago na obra</div><div class="val acc">${fmt(tpObra)}</div><div class="sub">${execPct}% de ${fmt(tc)} contratado/aditivado${tpExtra>0?' · '+fmt(tpExtra)+' fora da obra':''}</div></div>
     <div class="kpi"><div class="lab">Pendências de pagamento</div><div class="val ${atr.length?'dg':''}">${fmt(pendTotal)}</div><div class="sub">${atr.length} atrasado(s) · ${fmt(atrTotal)}</div></div>
     <div class="kpi"><div class="lab">CAPEX de melhorias</div><div class="val">${fmt(capexBudget.saldo)}</div><div class="sub">${fmt(capexBudget.autorizado)} autorizado · ${capexK.aberto} aberto(s)</div></div>`;
 
@@ -4396,7 +4396,7 @@ function renderGeral(){
     marcas.forEach(m=>{
       if(!marcaMap[m])marcaMap[m]={label:m,value:0,pago:0,obras:0,color:brandColor(m)};
       marcaMap[m].value+=contratadoTotal(o)/div;
-      marcaMap[m].pago+=pagoTotalOficial(o)/div;
+      marcaMap[m].pago+=pagoObraOficial(o)/div;
       marcaMap[m].obras++;
     });
   });
@@ -4422,7 +4422,7 @@ function renderGeral(){
   }));
   const riskRows=[
     {title:'Pagamentos em atraso',sub:`${atr.length} lançamento(s), ${fmt(atrTotal)}`,color:atr.length?'var(--danger)':'var(--ok)'},
-    {title:'Obras acima do contratado',sub:`${estouro.length} obra(s) com saldo negativo`,color:estouro.length?'var(--danger)':'var(--ok)'},
+    {title:'Contratos principais excedidos',sub:`${estouro.length} obra(s) com saldo contratual negativo`,color:estouro.length?'var(--danger)':'var(--ok)'},
     {title:'CAPEX disponibilizado',sub:`${fmt(capexBudget.saldo)} disponível de ${fmt(capexBudget.autorizado)} disponibilizado`,color:capexBudget.saldo<0?'var(--danger)':(capexBudget.autorizado?'var(--ok)':'var(--warn)')},
     {title:'CAPEX sem orçamento',sub:`${capexSemOrc} pedido(s) precisam de valor estimado`,color:capexSemOrc?'var(--warn)':'var(--ok)'},
     {title:'Unidades sem documentos',sub:`${unidadesSemDoc} unidade(s) sem arquivo carregado`,color:unidadesSemDoc?'var(--info)':'var(--ok)'}
@@ -4461,7 +4461,7 @@ function renderGeral(){
 
   let body=dashboard;
 
-  for(const[eid,e] of Object.entries(ESFERAS)){const list=obras.filter(o=>(o.esfera||'nova')===eid);if(!list.length)continue;const etc=list.reduce((a,o)=>a+contratadoTotal(o),0),etp=list.reduce((a,o)=>a+pagoTotalOficial(o),0);body+=`<div class="esfera-sec"><div class="esfera-sec-head"><div><h2>${e.icon} ${e.label}</h2><div class="sub">${list.length} obra(s) · ${fmt(etc)} contratado/aditivado · ${fmt(etp)} pago</div></div><button class="btn btn-ghost btn-sm" onclick="go('${eid}')">Ver tudo →</button></div><div class="pgrid">${list.map((o,i)=>renderObraCard(o,i)).join('')}</div></div>`;}
+  for(const[eid,e] of Object.entries(ESFERAS)){const list=obras.filter(o=>(o.esfera||'nova')===eid);if(!list.length)continue;const etc=list.reduce((a,o)=>a+contratadoTotal(o),0),etp=list.reduce((a,o)=>a+pagoObraOficial(o),0),etx=list.reduce((a,o)=>a+pagoExtra(o),0);body+=`<div class="esfera-sec"><div class="esfera-sec-head"><div><h2>${e.icon} ${e.label}</h2><div class="sub">${list.length} obra(s) · ${fmt(etc)} contratado/aditivado · ${fmt(etp)} pago na obra${etx>0?' · '+fmt(etx)+' fora da obra':''}</div></div><button class="btn btn-ghost btn-sm" onclick="go('${eid}')">Ver tudo →</button></div><div class="pgrid">${list.map((o,i)=>renderObraCard(o,i)).join('')}</div></div>`;}
 
   document.getElementById('geral-body').innerHTML=body||'<p class="empty">Nenhuma obra cadastrada. Acesse uma esfera para criar a primeira.</p>';
 
@@ -4513,19 +4513,31 @@ function renderEsfera(){
 
   const list=obras.filter(o=>(o.esfera||'nova')===curEsfera);
 
-  const tc=list.reduce((a,o)=>a+contratadoTotal(o),0),ta=list.reduce((a,o)=>a+o.aportado,0),tp=list.reduce((a,o)=>a+pagoTotalOficial(o),0);
+  const tc=list.reduce((a,o)=>a+contratadoTotal(o),0),ta=list.reduce((a,o)=>a+o.aportado,0),tpObra=list.reduce((a,o)=>a+pagoObraOficial(o),0),tpExtra=list.reduce((a,o)=>a+pagoExtra(o),0);
 
   const pendEsf=allPendentes().filter(x=>(x.o.esfera||'nova')===curEsfera);
 
   const pendValor=pendEsf.reduce((a,x)=>a+x.p.v,0);
 
-  const execPctGeral=tc>0?Math.round(tp/tc*100):0;
+  const execPctGeral=tc>0?Math.round(tpObra/tc*100):0;
+  const saldoContrEsf=money2(tc-tpObra);
+  const obrasAnd=list.filter(o=>o.status==='Em andamento').length;
+  const obrasConc=list.filter(o=>o.status==='Concluído').length;
+  const obrasPlan=list.filter(o=>o.status==='Planejamento').length;
+  const atr=allAtrasos().filter(x=>(x.o.esfera||'nova')===curEsfera);
+  const atrValor=atr.reduce((a,x)=>a+x.p.v,0);
+  const saldoInlineColor=saldoContrEsf<0?'var(--danger)':saldoContrEsf===0?'var(--ok)':'var(--ink)';
+  const extraSub=tpExtra>0?'caixa da escola · fora do contrato':'sem gastos fora da obra';
 
-  document.getElementById('esf-kpis').innerHTML=`<div class="kpi"><div class="lab">Obras em andamento</div><div class="val">${list.filter(o=>o.status==='Em andamento').length}<span style="font-size:14px;color:var(--soft)"> / ${list.length}</span></div><div class="sub">Base total cadastrada</div></div><div class="kpi"><div class="lab">Contratado + aditivos</div><div class="val">${fmt(tc)}</div><div class="sub">${ta>0?'Aportado '+fmt(ta):'Sem aporte externo consolidado'}</div></div><div class="kpi"><div class="lab">Pagamentos pagos</div><div class="val acc">${fmt(tp)}</div><div class="sub">${execPctGeral}% do contratado</div></div><div class="kpi"><div class="lab">Pendências</div><div class="val ${pendValor>0?'dg':''}">${fmt(pendValor)}</div><div class="sub">${pendEsf.length} lançamento${pendEsf.length!==1?'s':''} em aberto</div></div>`;
+  document.getElementById('esf-kpis').innerHTML=`
+    <div class="kpi"><div class="lab">Obras da esfera</div><div class="val">${list.length}</div><div class="sub">${obrasAnd} em andamento · ${obrasConc} concluída${obrasConc!==1?'s':''}${obrasPlan?` · ${obrasPlan} em planejamento`:''}</div></div>
+    <div class="kpi"><div class="lab">Contrato da obra</div><div class="val">${fmt(tc)}</div><div class="sub">${ta>0?'Aporte externo '+fmt(ta):'Contrato principal + aditivos'}</div></div>
+    <div class="kpi"><div class="lab">Pago dentro da obra</div><div class="val acc">${fmt(tpObra)}</div><div class="sub">${execPctGeral}% do contrato · saldo <b style="font-weight:800;color:${saldoInlineColor}">${fmt(saldoContrEsf)}</b></div></div>
+    <div class="kpi"><div class="lab">Financeiro da escola</div><div class="val ${tpExtra>0?'acc':''}">${fmt(tpExtra)}</div><div class="sub">${extraSub}${pendValor>0?` · ${fmt(pendValor)} pendente`:atr.length?` · ${atr.length} atraso${atr.length!==1?'s':''}`:' · sem pendências'}</div></div>`;
 
-  const atr=allAtrasos().filter(x=>(x.o.esfera||'nova')===curEsfera);const estouro=list.filter(o=>contratadoTotal(o)>0&&saldoContr(o)<0);
+  const estouro=list.filter(o=>contratadoTotal(o)>0&&saldoContr(o)<0);
 
-  let al='';if(atr.length)al+=`<div class="alert alert-danger"><span class="ic">▲</span><div><b>${atr.length} pagamento(s) em atraso</b> somando ${fmt(atr.reduce((a,x)=>a+x.p.v,0))}. <a href="#" onclick="go('cobranca');return false" style="color:inherit;font-weight:600">Ir para Cobrança →</a></div></div>`;if(estouro.length)al+=`<div class="alert alert-warn"><span class="ic">●</span><div><b>${estouro.length} obra(s) acima do contratado:</b> ${estouro.map(o=>o.nome.split(' —')[0].split(' (')[0]+' ('+fmt(-saldoContr(o))+')').join(' · ')}.</div></div>`;
+  let al='';if(atr.length)al+=`<div class="alert alert-danger"><span class="ic">▲</span><div><b>${atr.length} pagamento(s) em atraso</b> somando ${fmt(atrValor)}. <a href="#" onclick="go('cobranca');return false" style="color:inherit;font-weight:600">Ir para Cobrança →</a></div></div>`;if(estouro.length)al+=`<div class="alert alert-warn"><span class="ic">●</span><div><b>${estouro.length} obra(s) com contrato principal excedido:</b> ${estouro.map(o=>o.nome.split(' —')[0].split(' (')[0]+' ('+fmt(-saldoContr(o))+')').join(' · ')}.</div></div>`;
 
   document.getElementById('esf-alert').innerHTML=al;
 
