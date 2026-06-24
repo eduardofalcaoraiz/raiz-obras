@@ -7337,11 +7337,51 @@ function renderDashboard(){
   var _ads=o.aditivos_contrato||[];
   var _eb=Math.min(_ep,100);
   var _ec=_ep>=100?'var(--danger)':_ep>80?'var(--warn)':'var(--info)';
+  var _pagoPorConstrDash={},_pendPorConstrDash={},_aditPorConstrDash={},_semVinculoPagoDash=0,_aditGeralDash=0;
+  (o.aditivos_contrato||[]).forEach(function(a){
+    if(a.construtora_seq)_aditPorConstrDash[a.construtora_seq]=(_aditPorConstrDash[a.construtora_seq]||0)+(+a.valor||0);
+    else _aditGeralDash+=(+a.valor||0);
+  });
+  (o.pag||[]).forEach(function(p){
+    if((p.escopoFin||'obra')!=='obra')return;
+    var seq=p.construtora_seq;
+    if(p.st==='PAGO'){
+      if(seq)_pagoPorConstrDash[seq]=(_pagoPorConstrDash[seq]||0)+p.v;
+      else _semVinculoPagoDash+=p.v;
+    }else if(p.st==='PENDENTE'||p.st==='ATRASADO'||isAtraso(p)){
+      if(seq)_pendPorConstrDash[seq]=(_pendPorConstrDash[seq]||0)+p.v;
+    }
+  });
+  var _constrResumoDash='';
+  if(o.construtoras&&o.construtoras.length){
+    var _constrRowsDash=o.construtoras.map(function(c){
+      var base=+c.valor||0,adit=_aditPorConstrDash[c.seq]||0,total=base+adit,pR=_pagoPorConstrDash[c.seq]||0,pend=_pendPorConstrDash[c.seq]||0;
+      var pct=total?Math.round(pR/total*100):0,barPct=Math.min(Math.max(pct,0),100),saldo=total-pR;
+      var cor=saldo<0?'var(--danger)':pct>=100?'var(--ok)':pct>80?'var(--warn)':'var(--info)';
+      var saldoTxt=saldo<0?'Excedeu em '+fmt(-saldo):(pend?'Pendente '+fmt(pend)+' · saldo contratual '+fmt(saldo):'Saldo contratual '+fmt(saldo));
+      return '<div style="padding:11px 0;border-bottom:1px solid var(--line)">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:7px">'
+        +'<div style="min-width:160px;flex:1"><div style="font-size:13.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(c.nome||'Construtora')+'</div>'
+        +(c.cnpj?'<div style="font-size:11px;color:var(--muted);margin-top:1px">'+c.cnpj+'</div>':'')+'</div>'
+        +'<div style="text-align:right;flex-shrink:0"><div style="font-size:13.5px;font-weight:800;color:'+cor+'">'+fmt(pR)+' / '+fmt(total)+'</div>'
+        +'<div style="font-size:11px;color:var(--muted)">'+pct+'% executado</div></div></div>'
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:7px">'
+        +'<div style="padding:7px 8px"><div style="font-size:10px;color:var(--muted)">Base</div><div style="font-size:12px;font-weight:700">'+fmt(base)+'</div></div>'
+        +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Aditivos</div><div style="font-size:12px;font-weight:700;color:'+(adit?'var(--warn)':'var(--soft)')+'">'+(adit?'+'+fmt(adit):'—')+'</div></div>'
+        +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Pago</div><div style="font-size:12px;font-weight:700;color:var(--brand-text)">'+fmt(pR)+'</div></div>'
+        +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Saldo</div><div style="font-size:12px;font-weight:700;color:'+(saldo<0?'var(--danger)':'var(--muted)')+'">'+(saldo<0?fmt(-saldo):fmt(saldo))+'</div></div></div>'
+        +'<div style="height:6px;background:var(--line);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+barPct+'%;background:'+cor+';border-radius:4px;transition:width .5s"></div></div>'
+        +'<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:4px;gap:10px;flex-wrap:wrap"><span>'+saldoTxt+'</span>'+(pend?'<span>Em aberto: '+fmt(pend)+'</span>':'')+'</div></div>';
+    }).join('');
+    if(_semVinculoPagoDash||_aditGeralDash)_constrRowsDash+='<div style="font-size:12px;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn)33;border-radius:var(--r);padding:8px 10px;margin-top:10px">Sem vínculo direto: '+(_semVinculoPagoDash?fmt(_semVinculoPagoDash)+' pagos sem construtora definida':'')+(_semVinculoPagoDash&&_aditGeralDash?' · ':'')+(_aditGeralDash?fmt(_aditGeralDash)+' em aditivos gerais':'')+'.</div>';
+    _constrResumoDash='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:6px"><div><div style="font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Construtoras da obra</div><div class="sub">Contrato base, aditivos, pagamentos e saldo por construtora.</div></div><span style="font-size:11.5px;font-weight:800;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 9px">'+o.construtoras.length+' construtora'+(o.construtoras.length!==1?'s':'')+'</span></div>'+_constrRowsDash+'</div>';
+  }
+  var _contratoCardStyle='padding:14px 16px;'+((o.construtoras&&o.construtoras.length)?'grid-column:1/-1;':'');
   if(!o.contratado&&(!o.constr||o.constr==='—')){
-    _dc1='<div class="card" style="padding:14px 16px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Contrato da Obra</div><div style="text-align:center;padding:10px 0"><div style="font-size:24px;opacity:.25">&#128203;</div><div style="font-size:13px;color:var(--muted);margin:6px 0 10px">Nenhum contrato definido</div><button class="btn btn-primary btn-sm" onclick="openObraModal(cur.id)">Definir contrato</button></div></div>';
+    _dc1='<div class="card" id="obra-contrato-unificado" style="'+_contratoCardStyle+'"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Contrato da Obra</div><div style="text-align:center;padding:10px 0"><div style="font-size:24px;opacity:.25">&#128203;</div><div style="font-size:13px;color:var(--muted);margin:6px 0 10px">Nenhum contrato definido</div><button class="btn btn-primary btn-sm" onclick="openObraModal(cur.id)">Definir contrato</button></div></div>';
   }else{
     var _apc=_sc<0?'var(--danger)':_sc<_ct*0.15?'var(--warn)':'inherit';
-    _dc1='<div class="card" style="padding:14px 16px">'
+    _dc1='<div class="card" id="obra-contrato-unificado" style="'+_contratoCardStyle+'">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
       +'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Contrato da Obra</div>'
       +(o.construtoras&&o.construtoras.length>=2?'<div style="font-size:12.5px;font-weight:500">'+o.construtoras.length+' construtoras</div>':(o.constr&&o.constr!=='—'?'<div style="font-size:12.5px;font-weight:500">'+o.constr+'</div>':''))+'</div>'
@@ -7354,10 +7394,9 @@ function renderDashboard(){
       +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">'+(_sc<0?'Excedido':'Saldo contratual')+'</div><div style="font-size:12.5px;font-weight:700;color:'+_apc+'">'+(_sc<0?fmt(-_sc):fmt(_sc))+'</div></div>'
       +'</div>'
       +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:3px"><div style="height:100%;width:'+_eb+'%;background:'+_ec+';border-radius:3px;transition:width .5s"></div></div>'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;gap:8px;flex-wrap:wrap">'
       +'<span style="color:var(--muted)">'+_ep+'% executado</span>'
-      +(_ads.length>0?'<span style="color:var(--warn)">'+_ads.length+' aditivo'+(_ads.length!==1?'s':'')+'</span>':'')
-      +'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px" onclick="openAditivos()">Aditivos</button></div>'+(function(){if(!o.construtoras||o.construtoras.length<2)return '';var rows=o.construtoras.map(function(c){var cP=(o.pag||[]).filter(function(p){return p.construtora_seq===c.seq&&p.st==='PAGO'&&(p.escopoFin||'obra')==='obra';}).reduce(function(s,p){return s+p.v;},0);var cPct=c.valor>0?Math.min(Math.round(cP/c.valor*100),100):0;var cClr=c.valor>0?(cPct>=100?'var(--danger)':cPct>80?'var(--warn)':'var(--ok)'):'var(--muted)';return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)">'+'<span style="font-size:12.5px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px">'+(c.nome||'Sem nome')+'</span>'+(c.cnpj?'<span style="font-size:10.5px;color:var(--muted);margin-right:6px">'+c.cnpj+'</span>':'')+'<span style="font-size:12px;font-weight:700;color:'+cClr+'">'+fmt(cP)+(c.valor>0?' / '+fmt(c.valor):'')+'</span></div>';}).join('');return '<div style="margin-top:10px"><div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Por construtora</div>'+rows+'</div>';}())+'</div>';
+      +'<span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto">'+(_ads.length>0?'<span style="color:var(--warn)">'+_ads.length+' aditivo'+(_ads.length!==1?'s':'')+'</span>':'')+'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px" onclick="openObraModal(cur.id)">Editar contrato</button><button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px" onclick="openAditivos()">Aditivos</button></span></div>'+_constrResumoDash+'</div>';
   }
   // ── Card _dc2: Externo (com aportes) OU Unificado Escola (interno) ────────
   var _invS=calcInvestStats(o);
@@ -7550,44 +7589,6 @@ function renderDashboard(){
         +'</div></div>';
     }).join('');
     sContr='<div class="card"><h2 style="font-size:15px;margin-bottom:2px">Contratos de serviços</h2><div class="sub" style="margin-bottom:14px">Progresso individual dos contratos de serviços cadastrados dentro da obra</div>'+cRows+'</div>';
-  }
-
-  if(o.construtoras&&o.construtoras.length>0){
-    var pagoPorConstr_={},pendPorConstr_={},aditPorConstr_={},semVinculoPago_=0,aditGeral_=0;
-    (o.aditivos_contrato||[]).forEach(function(a){
-      if(a.construtora_seq)aditPorConstr_[a.construtora_seq]=(aditPorConstr_[a.construtora_seq]||0)+(+a.valor||0);
-      else aditGeral_+=(+a.valor||0);
-    });
-    pagsAll.forEach(function(p){
-      if((p.escopoFin||'obra')!=='obra')return;
-      var seq=p.construtora_seq;
-      if(p.st==='PAGO'){
-        if(seq)pagoPorConstr_[seq]=(pagoPorConstr_[seq]||0)+p.v;
-        else semVinculoPago_+=p.v;
-      }else if(p.st==='PENDENTE'||p.st==='ATRASADO'||isAtraso(p)){
-        if(seq)pendPorConstr_[seq]=(pendPorConstr_[seq]||0)+p.v;
-      }
-    });
-    var constrRows=o.construtoras.map(function(c){
-      var base=+c.valor||0,adit=aditPorConstr_[c.seq]||0,total=base+adit,pR=pagoPorConstr_[c.seq]||0,pend=pendPorConstr_[c.seq]||0;
-      var pct=total?Math.round(pR/total*100):0,barPct=Math.min(pct,100),saldo=total-pR;
-      var cor=saldo<0?'var(--danger)':pct>=100?'var(--ok)':pct>80?'var(--warn)':'var(--info)';
-      var saldoTxt=saldo<0?'Excedeu em '+fmt(-saldo):(pend?'Pendente '+fmt(pend)+' · saldo contratual '+fmt(saldo):'Saldo contratual '+fmt(saldo));
-      return'<div style="padding:10px 0;border-bottom:1px solid var(--line)">'
-        +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;gap:12px">'
-        +'<span style="font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+(c.nome||'Construtora')+'</span>'
-        +'<span style="font-size:12px;color:var(--muted);flex-shrink:0">'+fmt(pR)+' / '+fmt(total)+'</span>'
-        +'</div>'
-        +'<div style="height:6px;background:var(--line);border-radius:3px;overflow:hidden">'
-        +'<div style="height:100%;width:'+barPct+'%;background:'+cor+';border-radius:3px;transition:width .5s"></div></div>'
-        +'<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:3px;gap:10px;flex-wrap:wrap">'
-        +'<span>'+pct+'% executado'+(adit?' · aditivos '+fmt(adit):'')+'</span>'
-        +'<span style="color:'+(saldo<0?'var(--danger)':'var(--muted)')+'">'+saldoTxt+'</span>'
-        +'</div></div>';
-    }).join('');
-    if(semVinculoPago_||aditGeral_)constrRows+='<div style="font-size:12px;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn)33;border-radius:var(--r);padding:8px 10px;margin-top:10px">Sem vínculo direto: '+(semVinculoPago_?fmt(semVinculoPago_)+' pagos sem construtora definida':'')+(semVinculoPago_&&aditGeral_?' · ':'')+(aditGeral_?fmt(aditGeral_)+' em aditivos gerais':'')+'.</div>';
-    var sConstr='<div class="card" id="obra-construtora-contratos"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px"><div><h2 style="font-size:15px;margin-bottom:2px">Contratos de obra com construtoras</h2><div class="sub">Valores cadastrados no contrato da obra com cada construtora, somando aditivos e pagamentos vinculados.</div></div><button class="btn btn-primary btn-sm" onclick="openAditivos()"><span class="ic">+</span> Aditivos</button></div>'+constrRows+'</div>';
-    sContr=sConstr+(sContr?sContr:'');
   }
 
   // ── Vencimentos próximos (EXCLUSIVO) ─────────────────────────────────
