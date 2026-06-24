@@ -151,11 +151,11 @@ button{font-family:inherit;cursor:pointer}
 
 @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}}
 
-.kpi{background:var(--raiz-card-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:17px 19px}
+.kpi{background:var(--raiz-card-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:17px 19px;min-width:0}
 
-.kpi .lab{font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:8px}
+.kpi .lab{font-size:12px;color:var(--muted);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:.035em}
 
-.kpi .val{font-size:22px;font-weight:500;font-family:"Space Grotesk",sans-serif}
+.kpi .val{font-size:22px;font-weight:700;font-family:"Space Grotesk",sans-serif;line-height:1.12;overflow-wrap:anywhere}
 
 .kpi .val.acc{color:var(--accent)}.kpi .val.ok{color:var(--ok)}.kpi .val.dg{color:var(--danger)}
 
@@ -4468,9 +4468,15 @@ function renderEsfera(){
 
   const list=obras.filter(o=>(o.esfera||'nova')===curEsfera);
 
-  const tc=list.reduce((a,o)=>a+o.contratado,0),ta=list.reduce((a,o)=>a+o.aportado,0),tp=list.reduce((a,o)=>a+o.pago,0);
+  const tc=list.reduce((a,o)=>a+contratadoTotal(o),0),ta=list.reduce((a,o)=>a+o.aportado,0),tp=list.reduce((a,o)=>a+(o.pago||0)+pagoExtra(o),0);
 
-  document.getElementById('esf-kpis').innerHTML=`<div class="kpi"><div class="lab">Obras ativas</div><div class="val">${list.filter(o=>o.status==='Em andamento').length}<span style="font-size:14px;color:var(--soft)"> / ${list.length}</span></div></div><div class="kpi"><div class="lab">Total contratado</div><div class="val">${fmt(tc)}</div></div><div class="kpi"><div class="lab">Total aportado</div><div class="val">${fmt(ta)}</div></div><div class="kpi"><div class="lab">Total pago</div><div class="val acc">${fmt(tp)}</div></div>`;
+  const pendEsf=allPendentes().filter(x=>(x.o.esfera||'nova')===curEsfera);
+
+  const pendValor=pendEsf.reduce((a,x)=>a+x.p.v,0);
+
+  const execPctGeral=tc>0?Math.round(tp/tc*100):0;
+
+  document.getElementById('esf-kpis').innerHTML=`<div class="kpi"><div class="lab">Obras em andamento</div><div class="val">${list.filter(o=>o.status==='Em andamento').length}<span style="font-size:14px;color:var(--soft)"> / ${list.length}</span></div><div class="sub">Base total cadastrada</div></div><div class="kpi"><div class="lab">Contratado + aditivos</div><div class="val">${fmt(tc)}</div><div class="sub">${ta>0?'Aportado '+fmt(ta):'Sem aporte externo consolidado'}</div></div><div class="kpi"><div class="lab">Executado</div><div class="val acc">${fmt(tp)}</div><div class="sub">${execPctGeral}% do contratado</div></div><div class="kpi"><div class="lab">Pendências</div><div class="val ${pendValor>0?'dg':''}">${fmt(pendValor)}</div><div class="sub">${pendEsf.length} lançamento${pendEsf.length!==1?'s':''} em aberto</div></div>`;
 
   const atr=allAtrasos().filter(x=>(x.o.esfera||'nova')===curEsfera);const estouro=list.filter(o=>contratadoTotal(o)>0&&saldoContr(o)<0);
 
@@ -6653,7 +6659,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   const _contrTot=contratadoTotal(o);
 
-  const _saldoContr=saldoContr(o);        // A pagar ao contratado (investimento + escola)
+  const _saldoContr=saldoContr(o);        // Saldo contratual restante; se negativo, contrato excedido.
 
   const _saldoInv=saldoInv(o);            // investimento disponível − total pago
 
@@ -6727,13 +6733,13 @@ function renderObra(){const o=cur,pct=execObra(o);
       +(o.constr&&o.constr!=='—'?'<div style="font-size:13px;font-weight:500;margin-top:1px">'+o.constr+'</div>':'')
       +'</div>'
       +'<div style="text-align:right"><div style="font-size:16px;font-weight:800">'+fmt(_contrTot)+'</div>'
-      +(_aditTot>0?'<div style="font-size:11px;color:var(--muted)">'+fmt(o.contratado)+' + '+fmt(_aditTot)+' adits</div>':'')
+      +(_aditTot>0?'<div style="font-size:11px;color:var(--muted)">'+fmt(o.contratado)+' + '+fmt(_aditTot)+' aditivos</div>':'')
       +'</div></div>'
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px">'
       +_cell('Contratado',fmt(o.contratado),'','')
       +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Aditivos</div><div style="font-size:13.5px;font-weight:700;color:'+(_aditTot>0?'var(--warn)':'var(--soft)')+'">'+(_aditTot>0?'+'+fmt(_aditTot):'—')+'</div></div>'
       +_cell('Executado',fmt(o.pago+_pagoExtra),'var(--brand-cur)',_execPct+'%')
-      +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">A pagar</div><div style="font-size:13.5px;font-weight:700;color:'+_aPagarColor+'">'+(_saldoContr<0?'–'+fmt(-_saldoContr):fmt(_saldoContr))+'</div></div>'
+      +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">'+(_saldoContr<0?'Excedido':'Saldo contratual')+'</div><div style="font-size:13.5px;font-weight:700;color:'+_aPagarColor+'">'+(_saldoContr<0?fmt(-_saldoContr):fmt(_saldoContr))+'</div></div>'
       +'</div>'
       +_bar5(Math.min(_execPct,100),_execColor)
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">'
@@ -7300,12 +7306,12 @@ function renderDashboard(){
       +'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Contrato da Obra</div>'
       +(o.construtoras&&o.construtoras.length>=2?'<div style="font-size:12.5px;font-weight:500">'+o.construtoras.length+' construtoras</div>':(o.constr&&o.constr!=='—'?'<div style="font-size:12.5px;font-weight:500">'+o.constr+'</div>':''))+'</div>'
       +'<div style="text-align:right"><div style="font-size:15px;font-weight:800">'+fmt(_ct)+'</div>'
-      +(_at>0?'<div style="font-size:11px;color:var(--muted)">'+fmt(o.contratado)+' + '+fmt(_at)+' adits</div>':'')+'</div></div>'
+      +(_at>0?'<div style="font-size:11px;color:var(--muted)">'+fmt(o.contratado)+' + '+fmt(_at)+' aditivos</div>':'')+'</div></div>'
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:6px">'
       +'<div style="padding:7px 8px"><div style="font-size:10px;color:var(--muted)">Contratado</div><div style="font-size:12.5px;font-weight:700">'+fmt(o.contratado)+'</div></div>'
       +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Aditivos</div><div style="font-size:12.5px;font-weight:700;color:'+(_at>0?'var(--warn)':'var(--soft)')+'">'+(_at>0?'+'+fmt(_at):'—')+'</div></div>'
       +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Executado</div><div style="font-size:12.5px;font-weight:700;color:var(--brand-text)">'+fmt(o.pago+_pe)+'</div><div style="font-size:10px;color:var(--muted)">'+_ep+'%</div></div>'
-      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">A pagar</div><div style="font-size:12.5px;font-weight:700;color:'+_apc+'">'+(_sc<0?'–'+fmt(-_sc):fmt(_sc))+'</div></div>'
+      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">'+(_sc<0?'Excedido':'Saldo contratual')+'</div><div style="font-size:12.5px;font-weight:700;color:'+_apc+'">'+(_sc<0?fmt(-_sc):fmt(_sc))+'</div></div>'
       +'</div>'
       +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:3px"><div style="height:100%;width:'+_eb+'%;background:'+_ec+';border-radius:3px;transition:width .5s"></div></div>'
       +'<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px">'
@@ -7965,17 +7971,17 @@ function renderPag(){const o=cur;
 
 /* COBRANÇA */
 
-function renderCobranca(){const atr=allAtrasos(),pend=allPendentes();const futuras=pend.filter(x=>!isAtraso(x.p));
+function renderCobranca(){const pend=allPendentes();const atr=allAtrasos().slice().sort((a,b)=>diasAtraso(b.p)-diasAtraso(a.p)||b.p.v-a.p.v);const futuras=pend.filter(x=>!isAtraso(x.p)).sort((a,b)=>(a.p.venc||'9999-12-31').localeCompare(b.p.venc||'9999-12-31')||b.p.v-a.p.v);const maiorPend=pend.slice().sort((a,b)=>b.p.v-a.p.v)[0];
 
   document.getElementById("cobr-kpis").innerHTML=`
 
-   <div class="kpi"><div class="lab">Em atraso</div><div class="val dg">${atr.length}</div><div class="sub">${fmt(atr.reduce((a,x)=>a+x.p.v,0))}</div></div>
+   <div class="kpi"><div class="lab">Em atraso</div><div class="val dg">${atr.length}</div><div class="sub">${fmt(atr.reduce((a,x)=>a+x.p.v,0))}${atr.length?' · maior atraso '+diasAtraso(atr[0].p)+'d':''}</div></div>
 
-   <div class="kpi"><div class="lab">A vencer</div><div class="val">${futuras.length}</div><div class="sub">${fmt(futuras.reduce((a,x)=>a+x.p.v,0))}</div></div>
+   <div class="kpi"><div class="lab">A vencer</div><div class="val">${futuras.length}</div><div class="sub">${fmt(futuras.reduce((a,x)=>a+x.p.v,0))}${futuras[0]?' · próximo '+fmtD(futuras[0].p.venc):''}</div></div>
 
-   <div class="kpi"><div class="lab">Total pendente</div><div class="val acc">${fmt(pend.reduce((a,x)=>a+x.p.v,0))}</div></div>
+   <div class="kpi"><div class="lab">Total pendente</div><div class="val acc">${fmt(pend.reduce((a,x)=>a+x.p.v,0))}</div><div class="sub">${pend.length} lançamento${pend.length!==1?'s':''} em aberto</div></div>
 
-   <div class="kpi"><div class="lab">Maior atraso</div><div class="val">${atr.length?diasAtraso(atr[0].p)+'d':'—'}</div></div>`;
+   <div class="kpi"><div class="lab">Maior pendência</div><div class="val">${maiorPend?fmt(maiorPend.p.v):'—'}</div><div class="sub">${maiorPend?escHtml((maiorPend.p.ben||'Sem beneficiário')+' · '+maiorPend.o.nome.split(' —')[0].split(' (')[0]):''}</div></div>`;
 
   const row=(x,late)=>{const _marcas=x.o.marca.split(' + ');const _logos=_marcas.map(m=>`<span style="display:inline-flex;background:white;border-radius:3px;overflow:hidden;height:14px;width:22px;align-items:center;border:1px solid ${brandColor(m)}33">${brandLogoImg(m,'height:12px;width:20px;object-fit:contain')}</span>`).join('');return`<tr><td>${late?`<span class="badge b-danger">${diasAtraso(x.p)}d</span>`:fmtD(x.p.venc)}</td><td style="font-weight:600;text-transform:uppercase;letter-spacing:.03em">${x.p.ben}</td><td class="ref">${x.p.ref}</td><td style="font-size:12.5px"><div style="display:flex;align-items:center;gap:5px">${_logos}<span>${x.o.nome.split(" —")[0].split(" (")[0]}</span></div></td><td>${x.p.pagn||'—'}</td><td class="n">${fmt(x.p.v)}</td><td style="white-space:nowrap"><button class="btn btn-sm btn-primary" onclick="marcarPago(${x.o.id},${x.i})">Marcar pago</button> <button class="iconbtn" title="Excluir" onclick="deletePagment(${x.o.id},${x.i})">🗑</button></td></tr>`;};
 
@@ -8236,15 +8242,21 @@ function renderForn(){
 
   });
 
-  let list=Object.values(map).sort((a,b)=>b.pago-a.pago);
+  const fullList=Object.values(map).sort((a,b)=>b.pago-a.pago);
 
-  const tot=list.reduce((a,f)=>a+f.pago,0);
+  let list=fullList.slice();
 
-  const totN=list.reduce((a,f)=>a+f.n,0);
+  const tot=fullList.reduce((a,f)=>a+f.pago,0);
+
+  const totN=fullList.reduce((a,f)=>a+f.n,0);
+
+  const totPend=fullList.reduce((a,f)=>a+f.pendente,0);
+
+  const fornPend=fullList.filter(f=>f.pendente>0).length;
 
   if(q)list=list.filter(f=>{const fd=FORN_DATA[(CNPJS[f.nome]||'').replace(/\D/g,'')]||{};return f.nome.toLowerCase().includes(q)||(CNPJS[f.nome]||'').includes(q)||(fd.atividade||'').toLowerCase().includes(q)||(fd.municipio||'').toLowerCase().includes(q);});
 
-  const top=list[0];
+  const top=fullList[0];
 
   const concTop=tot>0&&top?(top.pago/tot*100).toFixed(0):0;
 
@@ -8252,11 +8264,11 @@ function renderForn(){
 
     <div class="kpi"><div class="lab">Fornecedores</div><div class="val">${Object.keys(map).length}</div></div>
 
-    <div class="kpi"><div class="lab">Total pago</div><div class="val acc">${fmt(tot)}</div></div>
+    <div class="kpi"><div class="lab">Total pago</div><div class="val acc">${fmt(tot)}</div><div class="sub">${top?escHtml(top.nome)+' · '+concTop+'% no maior fornecedor':''}</div></div>
 
     <div class="kpi"><div class="lab">Ticket médio por NF</div><div class="val">${totN?fmt(tot/totN):'—'}</div><div class="sub">${totN} notas lançadas</div></div>
 
-    <div class="kpi"><div class="lab">Maior fornecedor</div><div class="val" style="font-size:14px">${top?.nome||'—'}</div><div class="sub">${top?fmt(top.pago)+' · '+concTop+'% do total':''}</div></div>`;
+    <div class="kpi"><div class="lab">Pendente com fornecedores</div><div class="val ${totPend>0?'dg':''}">${fmt(totPend)}</div><div class="sub">${fornPend} fornecedor${fornPend!==1?'es':''} com valor em aberto</div></div>`;
 
   const countEl=document.getElementById('forn-count');
 
@@ -13757,6 +13769,12 @@ function renderInvestidores(){
 
   const totalInv=Object.values(porto).reduce((a,p)=>a+p.total,0);
 
+  const totalPagoInv=Object.values(pago).reduce((a,v)=>a+v,0);
+
+  const saldoInvGeral=totalInv-totalPagoInv;
+
+  const usoInvPct=totalInv>0?Math.round(totalPagoInv/totalInv*100):0;
+
   const obrasFinanciadas=new Set(Object.values(porto).flatMap(p=>p.obras.map(o=>o.id))).size;
 
   const maior=investidores.length?investidores.reduce((a,b)=>(porto[b.nome]?.total||0)>(porto[a.nome]?.total||0)?b:a,investidores[0]):null;
@@ -13767,11 +13785,11 @@ function renderInvestidores(){
 
     <div class="kpi"><div class="lab">Investidores cadastrados</div><div class="val">${investidores.length}</div></div>
 
-    <div class="kpi"><div class="lab">Capital total aportado</div><div class="val acc">${fmt(totalInv)}</div></div>
+    <div class="kpi"><div class="lab">Capital total aportado</div><div class="val acc">${fmt(totalInv)}</div><div class="sub">${maior&&porto[maior.nome]?escHtml(maior.nome)+' · '+fmt(porto[maior.nome].total):''}</div></div>
 
-    <div class="kpi"><div class="lab">Obras financiadas</div><div class="val">${obrasFinanciadas}</div></div>
+    <div class="kpi"><div class="lab">Desembolsado</div><div class="val">${fmt(totalPagoInv)}</div><div class="sub">${usoInvPct}% do capital aportado</div></div>
 
-    <div class="kpi"><div class="lab">Maior investidor</div><div class="val" style="font-size:14px">${maior?.nome||'—'}</div><div class="sub">${maior&&porto[maior.nome]?fmt(porto[maior.nome].total):'—'}</div></div>`;
+    <div class="kpi"><div class="lab">Saldo a desembolsar</div><div class="val ${saldoInvGeral<0?'dg':'ok'}">${fmt(saldoInvGeral)}</div><div class="sub">${obrasFinanciadas} obra${obrasFinanciadas!==1?'s':''} financiada${obrasFinanciadas!==1?'s':''}</div></div>`;
 
 
 
