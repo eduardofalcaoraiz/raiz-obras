@@ -431,6 +431,11 @@ td.n{font-family:"Space Grotesk",sans-serif;text-align:right;white-space:nowrap}
 .alert .ic{font-size:18px;margin-top:1px}
 
 .alert-danger{background:var(--danger-bg);color:var(--danger)}.alert-warn{background:var(--warn-bg);color:var(--warn)}.alert b{font-weight:600}
+.dash-alerts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:9px;margin-bottom:12px;align-items:stretch}
+.dash-alert{display:flex;gap:9px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--alert-color);border-radius:10px;padding:9px 11px;min-height:66px;box-shadow:0 8px 20px -24px rgba(23,60,52,.55)}
+.dash-alert .dot{width:8px;height:8px;border-radius:999px;background:var(--alert-color);box-shadow:0 0 0 4px var(--alert-bg);flex:none;margin-top:5px}
+.dash-alert b{display:block;font-size:12.5px;color:var(--ink);line-height:1.2;margin-bottom:2px}
+.dash-alert em{display:block;font-style:normal;font-size:11.7px;color:var(--muted);line-height:1.3}
 
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 
@@ -7356,7 +7361,7 @@ function renderDashboard(){
   });
   var _constrResumoDash='';
   if(o.construtoras&&o.construtoras.length){
-    var _constrRowsDash=o.construtoras.map(function(c){
+    var _constrListDash=o.construtoras.map(function(c){
       var base=money2(+c.valor||0),adit=money2(_aditPorConstrDash[c.seq]||0),total=money2(base+adit),pR=money2(_pagoPorConstrDash[c.seq]||0),pend=money2(_pendPorConstrDash[c.seq]||0);
       var pct=total?Math.round(pR/total*100):0,barPct=Math.min(Math.max(pct,0),100),saldo=money2(total-pR);
       var cor=saldo<0?'var(--danger)':pct>=100?'var(--ok)':pct>80?'var(--warn)':'var(--info)';
@@ -7370,7 +7375,9 @@ function renderDashboard(){
         +'<div style="height:4px;background:var(--line);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+barPct+'%;background:'+cor+';border-radius:4px;transition:width .5s"></div></div>'
         +'<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:10.8px;color:var(--muted);margin-top:4px;line-height:1.35">'
         +'<span>Base '+fmt(base)+'</span><span>Aditivos '+(adit?'+'+fmt(adit):'—')+'</span><span style="color:'+(saldo<0?'var(--danger)':'var(--muted)')+'">'+saldoTxt+'</span>'+(pend?'<span>Em aberto '+fmt(pend)+'</span>':'')+'</div></div>';
-    }).join('');
+    });
+    var _constrRowsDash=_constrListDash.slice(0,4).join('');
+    if(_constrListDash.length>4)_constrRowsDash+='<div style="font-size:11.5px;color:var(--muted);padding-top:7px">+'+(_constrListDash.length-4)+' construtora'+(_constrListDash.length-4!==1?'s':'')+' no cadastro da obra.</div>';
     if(_semVinculoPagoDash||_aditGeralDash)_constrRowsDash+='<div style="font-size:12px;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn)33;border-radius:var(--r);padding:8px 10px;margin-top:10px">Sem vínculo direto: '+(_semVinculoPagoDash?fmt(_semVinculoPagoDash)+' pagos sem construtora definida':'')+(_semVinculoPagoDash&&_aditGeralDash?' · ':'')+(_aditGeralDash?fmt(_aditGeralDash)+' em aditivos gerais':'')+'.</div>';
     _constrResumoDash='<div style="margin-top:10px;padding-top:9px;border-top:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:3px"><div style="font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Construtoras</div><span style="font-size:10.8px;font-weight:800;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 7px">'+o.construtoras.length+'</span></div>'+_constrRowsDash+'</div>';
   }
@@ -7516,7 +7523,7 @@ function renderDashboard(){
     }
     _dc3+='</div>';
   }
-  var sDashCards='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:18px;align-items:start">'+_dc1+_dc2+_dc3+'</div>';
+  var sDashCards='<div id="obra-dashboard-principal" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px;margin-bottom:14px;align-items:start">'+_dc1+_dc2+_dc3+'</div>';
   var pagsAll=o.pag||[];
   var pagsPagos=pagsAll.filter(function(p){return p.st==='PAGO';});
   var pagsPend=pagsAll.filter(function(p){return p.st==='PENDENTE';});
@@ -7527,6 +7534,27 @@ function renderDashboard(){
   var contrTot_=contratadoTotal(o);
   var saldoContr_=saldoContr(o);
   var hoje_=new Date();
+  var pagsAberto_=pagsAll.filter(function(p){return p.st!=='PAGO';});
+  var valorAberto_=pagsAberto_.reduce(function(a,p){return a+(p.v||0);},0);
+  var valorAtr_=pagsAtr.reduce(function(a,p){return a+(p.v||0);},0);
+  var proxPend_=pagsAberto_.filter(function(p){return p.venc&&!isAtraso(p);}).sort(function(a,b){return normalizeDateISO(a.venc).localeCompare(normalizeDateISO(b.venc));})[0];
+  function miniDash_(titulo,valor,sub,cor){
+    return '<div class="card" style="padding:10px 12px;min-height:82px;border-left:3px solid '+cor+';display:flex;flex-direction:column;justify-content:space-between">'
+      +'<div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">'+titulo+'</div>'
+      +'<div style="font-size:18px;font-weight:850;font-family:&quot;Space Grotesk&quot;,sans-serif;color:'+cor+';line-height:1.15">'+valor+'</div>'
+      +'<div style="font-size:11.5px;color:var(--muted);line-height:1.25">'+sub+'</div></div>';
+  }
+  var saldoExecCor=saldoContr_<0?'var(--danger)':saldoContr_===0?'var(--ok)':saldoContr_<contrTot_*0.12?'var(--warn)':'var(--ok)';
+  var agendaValor='Sem aberto',agendaSub='nenhum pagamento pendente',agendaCor='var(--ok)';
+  if(pagsAtr.length){agendaValor=pagsAtr.length+' em atraso';agendaSub=fmt(valorAtr_);agendaCor='var(--danger)';}
+  else if(proxPend_){agendaValor=fmtD(proxPend_.venc);agendaSub=(proxPend_.ben||'Pagamento')+' - '+fmt(proxPend_.v||0);agendaCor='var(--warn)';}
+  else if(valorAberto_>0){agendaValor=fmt(valorAberto_);agendaSub='em aberto sem vencimento';agendaCor='var(--warn)';}
+  var sExecutiveCards='<div id="obra-dashboard-resumo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,185px),1fr));gap:10px;margin-bottom:12px;align-items:stretch">'
+    +miniDash_('Contrato total',fmt(contrTot_),(_at>0?fmt(o.contratado)+' + '+fmt(_at)+' aditivos':'base contratual'),contrTot_>0?'var(--brand-text)':'var(--muted)')
+    +miniDash_('Pago lançado',fmt(totalPago_),_ep+'% executado',_ep>=100?'var(--ok)':_ep>80?'var(--warn)':'var(--brand-text)')
+    +miniDash_(saldoContr_<0?'Excedido':'Saldo contratual',fmt(Math.abs(saldoContr_)),saldoContr_<0?'acima do contratado':(saldoContr_===0?'contrato zerado':'a pagar pelo contrato'),saldoExecCor)
+    +miniDash_('Agenda',agendaValor,agendaSub,agendaCor)
+    +'</div>';
 
   // Velocidade e projeção (EXCLUSIVO — não está nos cards consolidados)
   var velMensal=0, mesesAtivos=0;
@@ -7542,12 +7570,17 @@ function renderDashboard(){
 
   // ── Alertas contextuais ──────────────────────────────────────────────
   var al='';
-  if(pagsAtr.length>0)al+='<div class="alert alert-danger"><span class="ic">⚠</span><div><b>'+pagsAtr.length+' pagamento'+(pagsAtr.length!==1?'s':'')+' em atraso</b> — regularize para evitar penalidades.</div></div>';
-  if(saldoContr_<0)al+='<div class="alert alert-danger"><span class="ic">▲</span><div>Pagamentos ultrapassaram o valor contratado em <b>'+fmt(-saldoContr_)+'</b>.</div></div>';
-  if(invBase_>0&&saldoInv_<0)al+='<div class="alert alert-danger"><span class="ic">💸</span><div>Investimento esgotado — supera o teto em <b>'+fmt(-saldoInv_)+'</b>.</div></div>';
-  if(contrTot_>0&&saldoContr_>0&&saldoContr_<contrTot_*0.12&&totalPago_>0)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam apenas <b>'+fmt(saldoContr_)+'</b>.</div></div>';
-  if(invBase_>0&&saldoInv_>=0&&saldoInv_<invBase_*0.08)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Saldo do investimento crítico — restam <b>'+fmt(saldoInv_)+'</b>.</div></div>';
-  if(projMeses>=0&&projMeses<=3&&velMensal>500)al+='<div class="alert alert-warn"><span class="ic">⏱</span><div>No ritmo atual, o investimento dura <b>'+projLabel+'</b>.</div></div>';
+  function addDashAlert_(tipo,titulo,detalhe){
+    var cor=tipo==='danger'?'var(--danger)':tipo==='warn'?'var(--warn)':'var(--info)';
+    var bg=tipo==='danger'?'var(--danger-bg)':tipo==='warn'?'var(--warn-bg)':'var(--info-bg)';
+    al+='<div class="dash-alert" style="--alert-color:'+cor+';--alert-bg:'+bg+'"><span class="dot"></span><div><b>'+titulo+'</b><em>'+detalhe+'</em></div></div>';
+  }
+  if(pagsAtr.length>0)addDashAlert_('danger',pagsAtr.length+' pagamento'+(pagsAtr.length!==1?'s':'')+' em atraso',fmt(valorAtr_)+' pendente de regularização');
+  if(saldoContr_<0)addDashAlert_('danger','Contrato excedido',fmt(-saldoContr_)+' acima do valor contratado');
+  if(invBase_>0&&saldoInv_<0)addDashAlert_('danger','Investimento excedido',fmt(-saldoInv_)+' acima do teto disponível');
+  if(contrTot_>0&&saldoContr_>0&&saldoContr_<contrTot_*0.12&&totalPago_>0)addDashAlert_('warn','Contrato perto do limite',fmt(saldoContr_)+' de saldo contratual');
+  if(invBase_>0&&saldoInv_>=0&&saldoInv_<invBase_*0.08)addDashAlert_('warn','Saldo de investimento baixo',fmt(saldoInv_)+' disponível');
+  if(projMeses>=0&&projMeses<=3&&velMensal>500)addDashAlert_('warn','Ritmo de uso elevado','investimento dura '+projLabel);
 
   // ── Insights de tempo (EXCLUSIVO — não está nos cards consolidados) ────
   var sInsights='';
@@ -7588,7 +7621,8 @@ function renderDashboard(){
   if(o.contratos.length>0){
     var pagoPorC_={};
     pagsAll.filter(function(p){return p.st==='PAGO'&&p.contratoSeq;}).forEach(function(p){pagoPorC_[p.contratoSeq]=(pagoPorC_[p.contratoSeq]||0)+p.v;});
-    var cRows=o.contratos.map(function(c){
+    var cListDash_=o.contratos.slice(0,5);
+    var cRows=cListDash_.map(function(c){
       var vTot=valorContrTotal(c),pR=pagoPorC_[c.seq]||0;
       var pct=vTot?Math.min(Math.round(pR/vTot*100),100):0;
       var cor=pct>=100?'var(--ok)':pct>70?'var(--info)':'var(--muted)';
@@ -7605,14 +7639,15 @@ function renderDashboard(){
         +'<span>'+fmt(resto)+' a pagar</span>'
         +'</div></div>';
     }).join('');
-    sContr='<div class="card"><h2 style="font-size:15px;margin-bottom:2px">Contratos de serviços</h2><div class="sub" style="margin-bottom:14px">Progresso individual dos contratos de serviços cadastrados dentro da obra</div>'+cRows+'</div>';
+    if(o.contratos.length>cListDash_.length)cRows+='<div style="font-size:11.5px;color:var(--muted);padding-top:8px">+'+(o.contratos.length-cListDash_.length)+' contrato'+(o.contratos.length-cListDash_.length!==1?'s':'')+' na aba de contratos.</div>';
+    sContr='<div class="card" style="padding:14px 16px"><h2 style="font-size:15px;margin-bottom:2px">Contratos de serviços</h2><div class="sub" style="margin-bottom:12px">Progresso dos contratos cadastrados</div>'+cRows+'</div>';
   }
 
   // ── Vencimentos próximos (EXCLUSIVO) ─────────────────────────────────
   var sUrg='';
   var hoje30=new Date(hoje_); hoje30.setDate(hoje30.getDate()+30);
   var vencProx_=pagsPend.filter(function(p){var d=dateObj(p.venc);return d&&d<=hoje30;}).sort(function(a,b){return normalizeDateISO(a.venc).localeCompare(normalizeDateISO(b.venc));});
-  var urgAll=pagsAtr.concat(vencProx_.filter(function(p){return!isAtraso(p);})).slice(0,8);
+  var urgAll=pagsAtr.concat(vencProx_.filter(function(p){return!isAtraso(p);})).slice(0,5);
   if(urgAll.length>0){
     var urgRows=urgAll.map(function(p){
       var atr_=isAtraso(p);
@@ -7628,7 +7663,7 @@ function renderDashboard(){
         +'<div style="font-size:15px;font-weight:800;font-family:"Space Grotesk",sans-serif;color:'+uc+';flex-shrink:0">'+fmt(p.v)+'</div>'
         +'</div>';
     }).join('');
-    sUrg='<div class="card"><h2 style="font-size:15px;margin-bottom:2px">Próximos vencimentos</h2><div class="sub" style="margin-bottom:14px">'+urgAll.length+' pagamento'+(urgAll.length!==1?'s':'')+' nos próximos 30 dias ou em atraso</div>'+urgRows+'</div>';
+    sUrg='<div class="card" style="padding:14px 16px"><h2 style="font-size:15px;margin-bottom:2px">Próximos vencimentos</h2><div class="sub" style="margin-bottom:12px">'+urgAll.length+' pagamento'+(urgAll.length!==1?'s':'')+' em atenção</div>'+urgRows+'</div>';
   }
 
   // ── Evolução mensal (EXCLUSIVO) ───────────────────────────────────────
@@ -7695,21 +7730,22 @@ function renderDashboard(){
 
   // ── Montar dashboard ─────────────────────────────────────────────────
   var html='';
+  html+=sExecutiveCards;
   html+=sDashCards;
-  if(sForn)html+=sForn;
-  if(sInsights)html+=sInsights;
-  if(al)html+='<div class="card" style="margin-bottom:16px">'+al+'</div>';
+  if(al)html+='<div class="dash-alerts" id="obra-dashboard-alertas">'+al+'</div>';
   // Contratos + Urgentes lado a lado
-  if(sContr||sUrg)html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px;margin-bottom:16px">'+(sContr||'')+(sUrg||'')+'</div>';
+  if(sContr||sUrg)html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:12px;margin-bottom:14px;align-items:start">'+(sContr||'')+(sUrg||'')+'</div>';
   // Evolução + Categorias lado a lado
   if(chartH_||catRows_){
-    html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px;margin-bottom:16px">';
-    if(chartH_)html+='<div class="card"><h2 style="font-size:15px;margin-bottom:12px">Evolução mensal</h2>'+chartH_+'</div>';
-    if(catRows_)html+='<div class="card"><h2 style="font-size:15px;margin-bottom:12px">Distribuição por categoria</h2>'+catRows_+'</div>';
+    html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:12px;margin-bottom:14px;align-items:start">';
+    if(chartH_)html+='<div class="card" style="padding:14px 16px"><h2 style="font-size:15px;margin-bottom:12px">Evolução mensal</h2>'+chartH_+'</div>';
+    if(catRows_)html+='<div class="card" style="padding:14px 16px"><h2 style="font-size:15px;margin-bottom:12px">Distribuição por categoria</h2>'+catRows_+'</div>';
     html+='</div>';
   }
+  if(sInsights)html+=sInsights;
+  if(sForn)html+=sForn;
   // Últimas movimentações
-  if(ultRows_)html+='<div class="card"><h2 style="font-size:15px;margin-bottom:2px">Últimas movimentações</h2><div class="sub" style="margin-bottom:12px">Pagamentos mais recentes realizados</div>'+ultRows_+'</div>';
+  if(ultRows_)html+='<div class="card" style="padding:14px 16px"><h2 style="font-size:15px;margin-bottom:2px">Últimas movimentações</h2><div class="sub" style="margin-bottom:12px">Pagamentos mais recentes realizados</div>'+ultRows_+'</div>';
 
   // ── Seção Investidores e Aportes (integrada do antigo tab Aportes) ──────
   var sAportes='';
