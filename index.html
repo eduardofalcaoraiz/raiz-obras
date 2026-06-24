@@ -7401,9 +7401,9 @@ function renderDashboard(){
   var _invL=_invS.filter(function(s){return s.aportado>0||s.utilizado>0;});
   var _totA=_invL.reduce(function(a,s){return a+s.aportado;},0);
   var _uso=_di>0?Math.min(Math.round(_po/_di*100),100):0;
-  var _sClr=_si<0?'var(--danger)':_si<_di*0.1?'var(--warn)':'var(--ok)';
+  var _sClr=_si<0?'var(--danger)':_si===0?'var(--ok)':_si<_di*0.1?'var(--warn)':'var(--ok)';
   var _compr=Math.max(0,_sc);var _livre=Math.max(0,_si-_compr);
-  var _usoClr=_uso>=100?'var(--danger)':_uso>80?'var(--warn)':'var(--ok)';
+  var _usoClr=_si<0?'var(--danger)':_uso>=100?'var(--ok)':_uso>80?'var(--warn)':'var(--ok)';
   // Cálculos do caixa escola (usados em _dc3 separado ou no card unificado)
   var _ep2=_te>0?Math.min(Math.round(_ga/_te*100),100):0;
   var _ec2=_ga>_te?'var(--danger)':_ga>_te*0.9?'var(--warn)':'var(--ok)';
@@ -7439,6 +7439,25 @@ function renderDashboard(){
         :(_ga>0
           ?'<div style="font-size:13px;font-weight:600;color:var(--warn)">'+fmt(_ga)+' gastos fora da obra</div>'
           :'<div style="font-size:13px;color:var(--soft)">Sem gastos fora da obra registrados.</div>'))
+      +'</div>';
+    var _foraResumo=_te>0?fmt(_ga)+' / '+fmt(_te):(_ga>0?fmt(_ga):'R$ 0,00');
+    var _foraSub=_te>0?('Saldo '+fmt(_te-_ga)):(_ga>0?'gastos fora da obra':'sem gastos fora da obra');
+    var _foraClr=_te>0?_ec2:(_ga>0?'var(--warn)':'var(--soft)');
+    _dc2='<div class="card" style="padding:12px 14px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">'
+      +'<div><div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Financeiro da Escola</div><div style="font-size:12px;color:var(--soft);margin-top:1px">obra financiada pela unidade</div></div>'
+      +'<span style="font-size:11px;font-weight:800;color:'+_usoClr+';background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px 8px">'+_uso+'%</span></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-bottom:8px">'
+      +'<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 8px"><div style="font-size:9.8px;color:var(--muted);text-transform:uppercase;font-weight:700">Contratado</div><div style="font-size:12.5px;font-weight:800">'+fmt(_di)+'</div></div>'
+      +'<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 8px"><div style="font-size:9.8px;color:var(--muted);text-transform:uppercase;font-weight:700">Pago</div><div style="font-size:12.5px;font-weight:800;color:var(--brand-text)">'+fmt(_po)+'</div></div>'
+      +'<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 8px"><div style="font-size:9.8px;color:var(--muted);text-transform:uppercase;font-weight:700">Comprom.</div><div style="font-size:12.5px;font-weight:800;color:var(--warn)">'+fmt(_compr)+'</div></div>'
+      +'<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 8px"><div style="font-size:9.8px;color:var(--muted);text-transform:uppercase;font-weight:700">Saldo</div><div style="font-size:12.5px;font-weight:800;color:'+_sClr+'">'+fmt(_livre)+'</div></div></div>'
+      +'<div style="height:4px;background:var(--line);border-radius:999px;overflow:hidden;margin-bottom:7px"><div style="height:100%;width:'+_uso+'%;background:'+_usoClr+';border-radius:999px;transition:width .5s"></div></div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px">'
+      +'<div style="min-width:0"><div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Fora da obra</div><div style="font-size:11.5px;color:var(--soft)">caixa próprio</div></div>'
+      +'<div style="text-align:right;min-width:120px"><div style="font-size:12.5px;font-weight:800;color:'+_foraClr+'">'+_foraResumo+'</div><div style="font-size:10.5px;color:var(--muted)">'+_foraSub+'</div></div>'
+      +'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="editarTetoEscola()">Teto</button></div>'
+      +(_te>0?'<div style="height:3px;background:var(--line);border-radius:999px;overflow:hidden;margin-top:6px"><div style="height:100%;width:'+_ep2+'%;background:'+_ec2+';border-radius:999px;transition:width .5s"></div></div>':'')
       +'</div>';
   }else if(_di>0||_invL.length>0){
     // ── Card Investimento Externo (com investidores) ──────────────────────────
@@ -7497,7 +7516,7 @@ function renderDashboard(){
     }
     _dc3+='</div>';
   }
-  var sDashCards='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:18px">'+_dc1+_dc2+_dc3+'</div>';
+  var sDashCards='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:18px;align-items:start">'+_dc1+_dc2+_dc3+'</div>';
   var pagsAll=o.pag||[];
   var pagsPagos=pagsAll.filter(function(p){return p.st==='PAGO';});
   var pagsPend=pagsAll.filter(function(p){return p.st==='PENDENTE';});
