@@ -10804,7 +10804,7 @@ function impMergePdfSupport(xmlData,pdfData){
   ['ben','cnpj','doc','val','subtotal','desconto','frete','date','venc','chave','desc','discriminacao','tipo'].forEach(k=>{
     if((base[k]===undefined||base[k]===null||base[k]===''||base[k]===0)&&aux[k])base[k]=aux[k];
   });
-  if((!base.itens||!base.itens.length)&&Array.isArray(aux.itens)&&aux.itens.length)base.itens=aux.itens;
+  base.itens=impMergeItemLists(base.itens||[],aux.itens||[]);
   if((!base.parcelas||!base.parcelas.length)&&Array.isArray(aux.parcelas)&&aux.parcelas.length){
     base.parcelas=aux.parcelas;
     base.pagForma=aux.pagForma||'PARCELADO';
@@ -10812,6 +10812,33 @@ function impMergePdfSupport(xmlData,pdfData){
     if(!base.venc)base.venc=aux.venc||aux.parcelas[0]?.vencimento||'';
   }
   return base;
+}
+
+function impItemKey(it){
+  const code=String(it?.codigo||'').replace(/\D/g,'');
+  if(code)return'cod:'+code;
+  const desc=_norm(it?.descricao||'').replace(/[^a-z0-9]+/g,' ').trim();
+  const qtd=Number(it?.quantidade)||0;
+  const total=Number(it?.valor_total)||0;
+  return[desc,qtd.toFixed(4),total.toFixed(2)].join('|');
+}
+
+function impMergeItemLists(baseItems,auxItems){
+  const base=Array.isArray(baseItems)?baseItems.filter(Boolean):[];
+  const aux=Array.isArray(auxItems)?auxItems.filter(Boolean):[];
+  if(!base.length)return aux;
+  if(!aux.length)return base;
+  const primary=aux.length>base.length?aux:base;
+  const secondary=aux.length>base.length?base:aux;
+  const out=[];
+  const seen=new Set();
+  primary.concat(secondary).forEach(it=>{
+    const key=impItemKey(it);
+    if(!key||seen.has(key))return;
+    seen.add(key);
+    out.push(it);
+  });
+  return out;
 }
 
 
@@ -12177,12 +12204,22 @@ function impParseDanfeItemsFromText(text){
   const lines=String(text||'').replace(/\r/g,'\n').split('\n').map(l=>l.trim().replace(/[ \t]+/g,' ')).filter(Boolean);
   const items=[];
   const seen=new Set();
-  const rowRe=/^([\d\s]{6,22})\s+(.+?)\s+(\d{8})\s+\d{3,4}\s+\d{4}\s+([A-Z]{1,6})\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})(?:\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2}))?/i;
+  const rowRe=/^(\d{1,20})\s+(.+?)\s+(\d{8})\s+[0-9A-Z]{1,4}(?:\/[0-9A-Z]{1,3})?\s+\d{4}\s+([A-Z]{1,6})\s+(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})(?:\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2}))?/i;
+  const isHeader=line=>/^(DADOS|C[ÓO]DIGO|INFORMA[ÇC][ÕO]ES|RESERVADO|C[ÁA]LCULO|TRANSPORTADOR|BASE|VALOR|NOME|ENDERE[ÇC]O|MUNIC[ÍI]PIO|QUANTIDADE|Inf\.|Impresso)/i.test(line);
+  let last=null;
   for(let i=0;i<lines.length;i++){
     const line=lines[i];
-    if(!/\d/.test(line)||!/\b(PC|UN|UND|M2|M3|KG|CX|MT|LT|PAR|PCT)\b/i.test(line))continue;
     const m=line.match(rowRe);
-    if(!m)continue;
+    if(!m){
+      if(isHeader(line)){last=null;continue;}
+      if(last&&line.length<=90&&!/:/.test(line)&&!rowRe.test(line)&&!/^\d{2}\.\d{3}\.\d{3}/.test(line)){
+        const moneyCount=(line.match(/\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2}/g)||[]).length;
+        if(moneyCount===0){
+          last.descricao=(last.descricao+' '+line).replace(/\s+/g,' ').trim();
+        }
+      }
+      continue;
+    }
     const codigo=m[1].replace(/\D/g,'');
     const descricao=m[2].replace(/\s+/g,' ').trim();
     if(!descricao||descricao.length<3)continue;
@@ -12199,6 +12236,7 @@ function impParseDanfeItemsFromText(text){
     if(seen.has(key))continue;
     seen.add(key);
     items.push(item);
+    last=item;
   }
   return items;
 }
