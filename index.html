@@ -3967,25 +3967,43 @@ function deleteAporte(idx){if(['leitor','doc'].includes(currentProfile?.role)){t
 
 /* helpers financeiros */
 
-const aditivosTotal=o=>(o.aditivos_contrato||[]).reduce((a,d)=>a+(d.valor||0),0);
+const aditivosTotal=o=>(o.aditivos_contrato||[]).reduce((a,d)=>a+(+d.valor||0),0);
 
-const contratadoTotal=o=>o.contratado+aditivosTotal(o);
+const contratadoTotal=o=>(+o.contratado||0)+aditivosTotal(o);
 
-// Saldo do contrato: quanto falta pagar à construtora
+const pagamentosPagos=o=>(o.pag||[]).filter(p=>p.st==='PAGO');
 
-const saldoContr=o=>contratadoTotal(o)-(o.pago+pagoExtra(o));
+const somaPagamentos=rows=>rows.reduce((a,p)=>a+(+p.v||0),0);
 
-// Saldo do investimento: cada pagamento debita do teto disponível
+const pagoTotalLancado=o=>somaPagamentos(pagamentosPagos(o));
 
-const saldoInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-(o.pago||0):(o.aportado||0)-(o.pago||0);
+const pagoObraLancado=o=>somaPagamentos(pagamentosPagos(o).filter(p=>(p.escopoFin||'obra')==='obra'));
+
+// Pagamentos extra ficam separados do investimento, mas continuam visiveis no total pago da obra.
+const pagoExtra=o=>somaPagamentos(pagamentosPagos(o).filter(p=>(p.escopoFin||'obra')==='extra'));
+
+const pagoObraOficial=o=>(o.pag&&o.pag.length)?pagoObraLancado(o):(+o.pago||0);
+
+const pagoTotalOficial=o=>(o.pag&&o.pag.length)?pagoTotalLancado(o):((+o.pago||0)+pagoExtra(o));
+
+function sincronizaPagoObra(o){
+  if(!o)return 0;
+  const total=pagoObraLancado(o);
+  o.pago=total;
+  return total;
+}
+
+// Saldo simples da obra: contratado + aditivos menos a soma real dos pagamentos pagos.
+const saldoContr=o=>contratadoTotal(o)-pagoTotalOficial(o);
+
+// Saldo do investimento: somente pagamentos dentro da obra debitam o teto externo.
+const saldoInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-pagoObraOficial(o):(o.aportado||0)-pagoObraOficial(o);
 
 // Margem: diferença entre investimento disponível e o total contratado (para outros gastos além da construtora)
 
 const margemInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-contratadoTotal(o):null;
 
-const execObra=o=>contratadoTotal(o)?Math.round((o.pago+pagoExtra(o))/contratadoTotal(o)*100):0;
-// Pagamentos 'extra' (escola paga do próprio caixa — não debitam investimento)
-const pagoExtra=o=>(o.pag||[]).filter(p=>p.st==='PAGO'&&p.escopoFin==='extra').reduce((a,p)=>a+p.v,0);
+const execObra=o=>contratadoTotal(o)?Math.round(pagoTotalOficial(o)/contratadoTotal(o)*100):0;
 
 function normalizeDateISO(v){
   const s=String(v||'').trim();
@@ -4315,7 +4333,7 @@ function updateNavBadge(){const n=allAtrasos().length;const el=document.getEleme
 
 /* GERAL + ESFERAS */
 
-function renderObraCard(o,i){const pct=execObra(o);const _ct=contratadoTotal(o);const _uni=unidades.find(u=>u.obraId===o.id);const e=ESFERAS[o.esfera||'nova'];const marcas=(o.marca||'').split(' + ');const bc=brandColor(marcas[0]);const marcaPills=marcas.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;background:${brandLight(m)};color:${brandColor(m)};padding:2px 8px 2px 4px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid ${brandColor(m)}28"><span style="display:inline-flex;background:white;border-radius:4px;padding:1px 3px;overflow:hidden;height:16px;width:26px;align-items:center;flex-shrink:0">${brandLogoImg(m,'height:14px;width:24px;object-fit:contain')}</span>${m}</span>`).join(' ');return `<div class="pcard" style="animation-delay:${i*55}ms;border-left:4px solid ${bc};background:${_brandSoftGradient(marcas)}" onclick="openObra(${o.id})"><div class="crumb" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${marcaPills}${_uni?`<span style="color:var(--ok);font-size:11.5px">· ${_uni.nome}</span>`:''}</div><h3 style="margin-top:9px">${o.nome}</h3><div class="constr">${o.constr}</div><div class="meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span onclick="event.stopPropagation()"><select style="font-size:11px;padding:2px 8px;height:22px;border-radius:14px;border:1.5px solid ${o.status==='Concluído'?'var(--ok)':o.status==='Em andamento'?'#1976D2':'var(--muted)'};color:${o.status==='Concluído'?'var(--ok)':o.status==='Em andamento'?'#1976D2':'var(--muted)'};background:${o.status==='Concluído'?'#EDF7ED':o.status==='Em andamento'?'#E3F0FC':'var(--surface)'};font-weight:600;cursor:pointer" onchange="setObraStatus(${o.id},this.value)"><option value="Planejamento" ${o.status==='Planejamento'?'selected':''}>📋 Planejamento</option><option value="Em andamento" ${o.status==='Em andamento'?'selected':''}>🏗 Em andamento</option><option value="Concluído" ${o.status==='Concluído'?'selected':''}>✅ Concluído</option></select></span>${pct>100?'<span class="badge b-danger">acima do contrato</span>':''}<span class="badge b-neutral" style="font-size:10px">${e?e.icon:''} ${e?e.label:''}</span><span style="margin-left:auto" onclick="event.stopPropagation()"><button class="iconbtn" style="color:var(--danger);font-size:13px" title="Excluir obra" onclick="deleteObra(${o.id},event)">🗑</button></span></div><div class="bar"><i class="${barClass(pct)}" style="width:${Math.min(pct,100)}%"></i></div><div class="figs"><span>Pago <b>${fmt(o.pago+pagoExtra(o))}</b></span><span>de ${fmt(_ct)} · <b>${pct}%</b></span></div></div>`;}
+function renderObraCard(o,i){const pct=execObra(o);const _ct=contratadoTotal(o);const _uni=unidades.find(u=>u.obraId===o.id);const e=ESFERAS[o.esfera||'nova'];const marcas=(o.marca||'').split(' + ');const bc=brandColor(marcas[0]);const marcaPills=marcas.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;background:${brandLight(m)};color:${brandColor(m)};padding:2px 8px 2px 4px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid ${brandColor(m)}28"><span style="display:inline-flex;background:white;border-radius:4px;padding:1px 3px;overflow:hidden;height:16px;width:26px;align-items:center;flex-shrink:0">${brandLogoImg(m,'height:14px;width:24px;object-fit:contain')}</span>${m}</span>`).join(' ');return `<div class="pcard" style="animation-delay:${i*55}ms;border-left:4px solid ${bc};background:${_brandSoftGradient(marcas)}" onclick="openObra(${o.id})"><div class="crumb" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${marcaPills}${_uni?`<span style="color:var(--ok);font-size:11.5px">· ${_uni.nome}</span>`:''}</div><h3 style="margin-top:9px">${o.nome}</h3><div class="constr">${o.constr}</div><div class="meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span onclick="event.stopPropagation()"><select style="font-size:11px;padding:2px 8px;height:22px;border-radius:14px;border:1.5px solid ${o.status==='Concluído'?'var(--ok)':o.status==='Em andamento'?'#1976D2':'var(--muted)'};color:${o.status==='Concluído'?'var(--ok)':o.status==='Em andamento'?'#1976D2':'var(--muted)'};background:${o.status==='Concluído'?'#EDF7ED':o.status==='Em andamento'?'#E3F0FC':'var(--surface)'};font-weight:600;cursor:pointer" onchange="setObraStatus(${o.id},this.value)"><option value="Planejamento" ${o.status==='Planejamento'?'selected':''}>📋 Planejamento</option><option value="Em andamento" ${o.status==='Em andamento'?'selected':''}>🏗 Em andamento</option><option value="Concluído" ${o.status==='Concluído'?'selected':''}>✅ Concluído</option></select></span>${pct>100?'<span class="badge b-danger">acima do contrato</span>':''}<span class="badge b-neutral" style="font-size:10px">${e?e.icon:''} ${e?e.label:''}</span><span style="margin-left:auto" onclick="event.stopPropagation()"><button class="iconbtn" style="color:var(--danger);font-size:13px" title="Excluir obra" onclick="deleteObra(${o.id},event)">🗑</button></span></div><div class="bar"><i class="${barClass(pct)}" style="width:${Math.min(pct,100)}%"></i></div><div class="figs"><span>Pago <b>${fmt(pagoTotalOficial(o))}</b></span><span>de ${fmt(_ct)} · <b>${pct}%</b></span></div></div>`;}
 
 
 
@@ -4336,7 +4354,7 @@ function geralDocCount(){
 
 function renderGeral(){
 
-  const tc=obras.reduce((a,o)=>a+contratadoTotal(o),0),ta=obras.reduce((a,o)=>a+o.aportado,0),tp=obras.reduce((a,o)=>a+o.pago+pagoExtra(o),0);
+  const tc=obras.reduce((a,o)=>a+contratadoTotal(o),0),ta=obras.reduce((a,o)=>a+o.aportado,0),tp=obras.reduce((a,o)=>a+pagoTotalOficial(o),0);
   const pagamentos=[];obras.forEach(o=>(o.pag||[]).forEach((p,i)=>pagamentos.push({o,p,i})));
   const pend=pagamentos.filter(x=>x.p.st==='PENDENTE');
   const atr=allAtrasos();
@@ -4354,7 +4372,7 @@ function renderGeral(){
 
   document.getElementById('geral-kpis').innerHTML=`
     <div class="kpi"><div class="lab">Obras e unidades</div><div class="val">${obras.length}<span style="font-size:14px;color:var(--soft)"> obras</span></div><div class="sub">${unidades.length} unidades cadastradas</div></div>
-    <div class="kpi"><div class="lab">Financeiro executado</div><div class="val acc">${fmt(tp)}</div><div class="sub">${execPct}% de ${fmt(tc)} contratado/aditivado</div></div>
+    <div class="kpi"><div class="lab">Pagamentos lançados</div><div class="val acc">${fmt(tp)}</div><div class="sub">${execPct}% de ${fmt(tc)} contratado/aditivado</div></div>
     <div class="kpi"><div class="lab">Pendências de pagamento</div><div class="val ${atr.length?'dg':''}">${fmt(pendTotal)}</div><div class="sub">${atr.length} atrasado(s) · ${fmt(atrTotal)}</div></div>
     <div class="kpi"><div class="lab">CAPEX de melhorias</div><div class="val">${fmt(capexBudget.saldo)}</div><div class="sub">${fmt(capexBudget.autorizado)} autorizado · ${capexK.aberto} aberto(s)</div></div>`;
 
@@ -4370,7 +4388,7 @@ function renderGeral(){
     marcas.forEach(m=>{
       if(!marcaMap[m])marcaMap[m]={label:m,value:0,pago:0,obras:0,color:brandColor(m)};
       marcaMap[m].value+=contratadoTotal(o)/div;
-      marcaMap[m].pago+=(o.pago+pagoExtra(o))/div;
+      marcaMap[m].pago+=pagoTotalOficial(o)/div;
       marcaMap[m].obras++;
     });
   });
@@ -4435,7 +4453,7 @@ function renderGeral(){
 
   let body=dashboard;
 
-  for(const[eid,e] of Object.entries(ESFERAS)){const list=obras.filter(o=>(o.esfera||'nova')===eid);if(!list.length)continue;const etc=list.reduce((a,o)=>a+contratadoTotal(o),0),etp=list.reduce((a,o)=>a+o.pago+pagoExtra(o),0);body+=`<div class="esfera-sec"><div class="esfera-sec-head"><div><h2>${e.icon} ${e.label}</h2><div class="sub">${list.length} obra(s) · ${fmt(etc)} contratado/aditivado · ${fmt(etp)} pago</div></div><button class="btn btn-ghost btn-sm" onclick="go('${eid}')">Ver tudo →</button></div><div class="pgrid">${list.map((o,i)=>renderObraCard(o,i)).join('')}</div></div>`;}
+  for(const[eid,e] of Object.entries(ESFERAS)){const list=obras.filter(o=>(o.esfera||'nova')===eid);if(!list.length)continue;const etc=list.reduce((a,o)=>a+contratadoTotal(o),0),etp=list.reduce((a,o)=>a+pagoTotalOficial(o),0);body+=`<div class="esfera-sec"><div class="esfera-sec-head"><div><h2>${e.icon} ${e.label}</h2><div class="sub">${list.length} obra(s) · ${fmt(etc)} contratado/aditivado · ${fmt(etp)} pago</div></div><button class="btn btn-ghost btn-sm" onclick="go('${eid}')">Ver tudo →</button></div><div class="pgrid">${list.map((o,i)=>renderObraCard(o,i)).join('')}</div></div>`;}
 
   document.getElementById('geral-body').innerHTML=body||'<p class="empty">Nenhuma obra cadastrada. Acesse uma esfera para criar a primeira.</p>';
 
@@ -4487,7 +4505,7 @@ function renderEsfera(){
 
   const list=obras.filter(o=>(o.esfera||'nova')===curEsfera);
 
-  const tc=list.reduce((a,o)=>a+contratadoTotal(o),0),ta=list.reduce((a,o)=>a+o.aportado,0),tp=list.reduce((a,o)=>a+(o.pago||0)+pagoExtra(o),0);
+  const tc=list.reduce((a,o)=>a+contratadoTotal(o),0),ta=list.reduce((a,o)=>a+o.aportado,0),tp=list.reduce((a,o)=>a+pagoTotalOficial(o),0);
 
   const pendEsf=allPendentes().filter(x=>(x.o.esfera||'nova')===curEsfera);
 
@@ -4495,7 +4513,7 @@ function renderEsfera(){
 
   const execPctGeral=tc>0?Math.round(tp/tc*100):0;
 
-  document.getElementById('esf-kpis').innerHTML=`<div class="kpi"><div class="lab">Obras em andamento</div><div class="val">${list.filter(o=>o.status==='Em andamento').length}<span style="font-size:14px;color:var(--soft)"> / ${list.length}</span></div><div class="sub">Base total cadastrada</div></div><div class="kpi"><div class="lab">Contratado + aditivos</div><div class="val">${fmt(tc)}</div><div class="sub">${ta>0?'Aportado '+fmt(ta):'Sem aporte externo consolidado'}</div></div><div class="kpi"><div class="lab">Executado</div><div class="val acc">${fmt(tp)}</div><div class="sub">${execPctGeral}% do contratado</div></div><div class="kpi"><div class="lab">Pendências</div><div class="val ${pendValor>0?'dg':''}">${fmt(pendValor)}</div><div class="sub">${pendEsf.length} lançamento${pendEsf.length!==1?'s':''} em aberto</div></div>`;
+  document.getElementById('esf-kpis').innerHTML=`<div class="kpi"><div class="lab">Obras em andamento</div><div class="val">${list.filter(o=>o.status==='Em andamento').length}<span style="font-size:14px;color:var(--soft)"> / ${list.length}</span></div><div class="sub">Base total cadastrada</div></div><div class="kpi"><div class="lab">Contratado + aditivos</div><div class="val">${fmt(tc)}</div><div class="sub">${ta>0?'Aportado '+fmt(ta):'Sem aporte externo consolidado'}</div></div><div class="kpi"><div class="lab">Pagamentos pagos</div><div class="val acc">${fmt(tp)}</div><div class="sub">${execPctGeral}% do contratado</div></div><div class="kpi"><div class="lab">Pendências</div><div class="val ${pendValor>0?'dg':''}">${fmt(pendValor)}</div><div class="sub">${pendEsf.length} lançamento${pendEsf.length!==1?'s':''} em aberto</div></div>`;
 
   const atr=allAtrasos().filter(x=>(x.o.esfera||'nova')===curEsfera);const estouro=list.filter(o=>contratadoTotal(o)>0&&saldoContr(o)<0);
 
@@ -6686,6 +6704,8 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   const _temInv=o.investimento_disponivel>0;
   const _pagoExtra=pagoExtra(o); // gastos fora do investimento (escola paga do próprio caixa)
+  const _pagoObra=pagoObraOficial(o);
+  const _pagoTotal=pagoTotalOficial(o);
 
   const _execPct=execObra(o);
 
@@ -6723,7 +6743,7 @@ function renderObra(){const o=cur,pct=execObra(o);
   });
   var _comprometido=_comprometidoInv;
   var _saldoLivre=Math.max(0,_saldoInv-_comprometidoInv);
-  const _usadoPct2=_invBase>0?Math.min(Math.round(o.pago/_invBase*100),100):0;
+  const _usadoPct2=_invBase>0?Math.min(Math.round(_pagoObra/_invBase*100),100):0;
   const _saldoColor=_saldoInv<0?'var(--danger)':_saldoInv<_invBase*0.1?'var(--warn)':'var(--ok)';
   const _execColor=_execPct>=100?'var(--danger)':_execPct>80?'var(--warn)':'var(--info)';
 
@@ -6757,7 +6777,7 @@ function renderObra(){const o=cur,pct=execObra(o);
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px">'
       +_cell('Contratado',fmt(o.contratado),'','')
       +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Aditivos</div><div style="font-size:13.5px;font-weight:700;color:'+(_aditTot>0?'var(--warn)':'var(--soft)')+'">'+(_aditTot>0?'+'+fmt(_aditTot):'—')+'</div></div>'
-      +_cell('Executado',fmt(o.pago+_pagoExtra),'var(--brand-cur)',_execPct+'%')
+      +_cell('Pago lançado',fmt(_pagoTotal),'var(--brand-cur)',_execPct+'%')
       +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">'+(_saldoContr<0?'Excedido':'Saldo contratual')+'</div><div style="font-size:13.5px;font-weight:700;color:'+_aPagarColor+'">'+(_saldoContr<0?fmt(-_saldoContr):fmt(_saldoContr))+'</div></div>'
       +'</div>'
       +_bar5(Math.min(_execPct,100),_execColor)
@@ -6802,7 +6822,7 @@ function renderObra(){const o=cur,pct=execObra(o);
       +(_invRows?'<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-bottom:4px;padding-bottom:3px;border-bottom:1px solid var(--line)"><span>Investidor</span><span>%</span><span>Aportado</span><span style="min-width:80px;text-align:right">Saldo</span></div>'+_invRows+'</div>':'')
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px">'
       +_cell('Investido',fmt(_invBase),'','')
-      +_cell('Pago',fmt(o.pago),'var(--brand-cur)',_usadoPct2+'%')
+      +_cell('Pago',fmt(_pagoObra),'var(--brand-cur)',_usadoPct2+'%')
       +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Comprometido</div><div style="font-size:13.5px;font-weight:700;color:var(--warn)">'+fmt(_comprometidoInv)+'</div><div style="font-size:11px;color:var(--soft)">obrig. contratos</div></div>'
       +'<div style="padding:8px 10px;border-left:1px solid var(--line)"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px">Saldo livre</div><div style="font-size:13.5px;font-weight:700;color:'+_saldoColor+'">'+fmt(_saldoLivre)+'</div></div>'
       +'</div>'
@@ -6855,7 +6875,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   const cats=CATS.filter(c=>gastoCat(o,c.id)>0).sort((a,b)=>gastoCat(o,b.id)-gastoCat(o,a.id)).map(c=>{const g=gastoCat(o,c.id),p=Math.round(g/tot*100);return `<div class="catbar"><span class="nm">${c.nome}</span><div class="bar"><i style="width:${p}%"></i></div><span class="vv">${fmt(g)} · ${p}%</span></div>`;}).join("");
 
-  const f=porFonte(o);const fH=Object.keys(f).length?`<div class="invgrid">${Object.entries(f).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="invc"><div class="nm">${k}</div><div class="v">${fmt(v)}</div><div class="pc">${o.pago>0?Math.round(v/o.pago*100):0}% do investimento</div></div>`).join("")}</div>${_temInv?`<p style="font-size:12.5px;color:var(--muted);margin-top:10px">Cada fonte acima contribuiu com o investimento de ${fmt(o.investimento_disponivel)}${_pagoExtra>0?`. Gastos fora do investimento: ${fmt(_pagoExtra)}.`:'.'}</p>`:''}`:""
+  const f=porFonte(o);const fH=Object.keys(f).length?`<div class="invgrid">${Object.entries(f).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="invc"><div class="nm">${k}</div><div class="v">${fmt(v)}</div><div class="pc">${_pagoTotal>0?Math.round(v/_pagoTotal*100):0}% do total pago</div></div>`).join("")}</div>${_temInv?`<p style="font-size:12.5px;color:var(--muted);margin-top:10px">Cada fonte acima contribuiu com o investimento de ${fmt(o.investimento_disponivel)}${_pagoExtra>0?`. Gastos fora do investimento: ${fmt(_pagoExtra)}.`:'.'}</p>`:''}`:""
 
   const chartH=renderChart(o);
 
@@ -6894,7 +6914,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   // Contrato perto do limite (últimos 15%) — só se tem contrato e ainda não estourou
 
-  if(_temContr&&_saldoContr>=0&&_saldoContr<contratadoTotal(o)*0.15&&o.pago>0)al+=`<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam apenas <b>${fmt(_saldoContr)}</b> (${_execPct}% executado).</div></div>`;
+  if(_temContr&&_saldoContr>=0&&_saldoContr<contratadoTotal(o)*0.15&&_pagoTotal>0)al+=`<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam apenas <b>${fmt(_saldoContr)}</b> (${_execPct}% executado).</div></div>`;
 
 
 
@@ -6912,7 +6932,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   // Obra com pagamentos mas sem contrato definido (lembrete)
 
-  if(!_temContr&&o.pago>0)al+=`<div class="alert alert-warn"><span class="ic">ℹ</span><div>Esta obra tem <b>${fmt(o.pago)} em pagamentos</b> mas nenhum valor contratado definido. Considere registrar o contrato na aba Contratos.</div></div>`;
+  if(!_temContr&&_pagoTotal>0)al+=`<div class="alert alert-warn"><span class="ic">ℹ</span><div>Esta obra tem <b>${fmt(_pagoTotal)} em pagamentos</b> mas nenhum valor contratado definido. Considere registrar o contrato na aba Contratos.</div></div>`;
 
   /* pane-resumo agora gerado por renderDashboard() */
 
@@ -7292,7 +7312,7 @@ function setPagPage(p){pagPage=p;renderPag();}
 
 function setPagBusca(v){pagBusca=v;pagPage=0;renderPag();}
 
-function marcarPagoLista(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==='PAGO'){toast('Pagamento já estava marcado como pago.');return;}const hoje=new Date().toISOString().slice(0,10);const dt=prompt('Data do pagamento (AAAA-MM-DD):',hoje)||hoje;o.pag[i].st='PAGO';o.pag[i].pagaEm=dt;if(o.pag[i].escopoFin!=='extra')o.pago+=o.pag[i].v;persist(oid);renderObra();updateNavBadge();toast('✓ Pago em '+dt.split('-').reverse().join('/'));}
+function marcarPagoLista(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==='PAGO'){toast('Pagamento já estava marcado como pago.');return;}const hoje=new Date().toISOString().slice(0,10);const dt=prompt('Data do pagamento (AAAA-MM-DD):',hoje)||hoje;o.pag[i].st='PAGO';o.pag[i].pagaEm=dt;sincronizaPagoObra(o);persist(oid);renderObra();updateNavBadge();toast('✓ Pago em '+dt.split('-').reverse().join('/'));}
 
 
 
@@ -7310,6 +7330,7 @@ function renderDashboard(){
   if(_isInterno&&contratadoTotal(o))_di=contratadoTotal(o);
   var _ct=contratadoTotal(o);var _sc=saldoContr(o);var _si=saldoInv(o);
   var _ep=execObra(o);var _pe=pagoExtra(o);var _at=aditivosTotal(o);
+  var _po=pagoObraOficial(o),_pt=pagoTotalOficial(o);
   var _te=o.teto_escola||0;var _ga=_pe;
   // Card contrato
   var _dc1='';
@@ -7329,7 +7350,7 @@ function renderDashboard(){
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:6px">'
       +'<div style="padding:7px 8px"><div style="font-size:10px;color:var(--muted)">Contratado</div><div style="font-size:12.5px;font-weight:700">'+fmt(o.contratado)+'</div></div>'
       +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Aditivos</div><div style="font-size:12.5px;font-weight:700;color:'+(_at>0?'var(--warn)':'var(--soft)')+'">'+(_at>0?'+'+fmt(_at):'—')+'</div></div>'
-      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Executado</div><div style="font-size:12.5px;font-weight:700;color:var(--brand-text)">'+fmt(o.pago+_pe)+'</div><div style="font-size:10px;color:var(--muted)">'+_ep+'%</div></div>'
+      +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Pago lançado</div><div style="font-size:12.5px;font-weight:700;color:var(--brand-text)">'+fmt(_pt)+'</div><div style="font-size:10px;color:var(--muted)">'+_ep+'%</div></div>'
       +'<div style="padding:7px 8px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">'+(_sc<0?'Excedido':'Saldo contratual')+'</div><div style="font-size:12.5px;font-weight:700;color:'+_apc+'">'+(_sc<0?fmt(-_sc):fmt(_sc))+'</div></div>'
       +'</div>'
       +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:3px"><div style="height:100%;width:'+_eb+'%;background:'+_ec+';border-radius:3px;transition:width .5s"></div></div>'
@@ -7342,7 +7363,7 @@ function renderDashboard(){
   var _invS=calcInvestStats(o);
   var _invL=_invS.filter(function(s){return s.aportado>0||s.utilizado>0;});
   var _totA=_invL.reduce(function(a,s){return a+s.aportado;},0);
-  var _uso=_di>0?Math.min(Math.round(o.pago/_di*100),100):0;
+  var _uso=_di>0?Math.min(Math.round(_po/_di*100),100):0;
   var _sClr=_si<0?'var(--danger)':_si<_di*0.1?'var(--warn)':'var(--ok)';
   var _compr=Math.max(0,_sc);var _livre=Math.max(0,_si-_compr);
   var _usoClr=_uso>=100?'var(--danger)':_uso>80?'var(--warn)':'var(--ok)';
@@ -7360,7 +7381,7 @@ function renderDashboard(){
       +'<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Dentro da obra</div>'
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:6px">'
       +'<div style="padding:7px 9px"><div style="font-size:10px;color:var(--muted)">Contratado</div><div style="font-size:13px;font-weight:700">'+fmt(_di)+'</div></div>'
-      +'<div style="padding:7px 9px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Pago</div><div style="font-size:13px;font-weight:700;color:var(--brand-text)">'+fmt(o.pago)+'</div></div>'
+      +'<div style="padding:7px 9px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Pago</div><div style="font-size:13px;font-weight:700;color:var(--brand-text)">'+fmt(_po)+'</div></div>'
       +'<div style="padding:7px 9px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Comprometido</div><div style="font-size:13px;font-weight:700;color:var(--warn)">'+fmt(_compr)+'</div></div>'
       +'<div style="padding:7px 9px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Saldo</div><div style="font-size:13px;font-weight:700;color:'+_sClr+'">'+fmt(_livre)+'</div></div>'
       +'</div>'
@@ -7409,7 +7430,7 @@ function renderDashboard(){
       +'<button class="btn btn-primary btn-sm" style="font-size:11.5px" onclick="openAporteModal()"><span class="ic">＋</span> Aporte</button></div>'
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px">'
       +'<div style="padding:7px 9px"><div style="font-size:10px;color:var(--muted)">Investido</div><div style="font-size:12.5px;font-weight:700">'+fmt(_di)+'</div></div>'
-      +'<div style="padding:7px 9px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Pago</div><div style="font-size:12.5px;font-weight:700;color:var(--brand-text)">'+fmt(o.pago)+'</div><div style="font-size:10px;color:var(--muted)">'+_uso+'%</div></div>'
+      +'<div style="padding:7px 9px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Pago</div><div style="font-size:12.5px;font-weight:700;color:var(--brand-text)">'+fmt(_po)+'</div><div style="font-size:10px;color:var(--muted)">'+_uso+'%</div></div>'
       +'<div style="padding:7px 9px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Comprometido</div><div style="font-size:12.5px;font-weight:700;color:var(--warn)">'+fmt(_compr)+'</div></div>'
       +'<div style="padding:7px 9px;border-left:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">Saldo livre</div><div style="font-size:12.5px;font-weight:700;color:'+_sClr+'">'+fmt(_livre)+'</div></div>'
       +'</div>'
@@ -8012,7 +8033,7 @@ function renderCobranca(){const pend=allPendentes();const atr=allAtrasos().slice
 
 }
 
-function marcarPago(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==="PAGO"){toast("Pagamento já estava marcado como pago.");return;}const hoje=new Date().toISOString().slice(0,10);const dt=prompt("Data do pagamento (AAAA-MM-DD):",hoje)||hoje;o.pag[i].st="PAGO";o.pag[i].pagaEm=dt;if(o.pag[i].escopoFin!=="extra")o.pago+=o.pag[i].v;persist(oid);renderCobranca();updateNavBadge();toast("✓ Pago em "+dt.split("-").reverse().join("/"));}
+function marcarPago(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==="PAGO"){toast("Pagamento já estava marcado como pago.");return;}const hoje=new Date().toISOString().slice(0,10);const dt=prompt("Data do pagamento (AAAA-MM-DD):",hoje)||hoje;o.pag[i].st="PAGO";o.pag[i].pagaEm=dt;sincronizaPagoObra(o);persist(oid);renderCobranca();updateNavBadge();toast("✓ Pago em "+dt.split("-").reverse().join("/"));}
 
 let confirmCb=null;
 
@@ -8020,7 +8041,7 @@ function askConfirm(msg,cb){document.getElementById("confirm-msg").textContent=m
 
 function closeConfirm(){document.getElementById("confirm-overlay").classList.remove("show");confirmCb=null;}
 
-function deletePagment(oid,i){const o=obras.find(x=>x.id===oid);const p=o.pag[i];askConfirm(`Excluir o lançamento "${p.ben} · ${fmt(p.v)}"? Esta ação não pode ser desfeita.`,()=>{if(p.st==="PAGO"&&(p.escopoFin||'obra')==='obra')o.pago-=p.v;o.pag.splice(i,1);persist(oid);if(cur&&cur.id===oid)renderObra();renderPainel();renderCobranca();updateNavBadge();toast("Lançamento excluído.");});}
+function deletePagment(oid,i){const o=obras.find(x=>x.id===oid);const p=o.pag[i];askConfirm(`Excluir o lançamento "${p.ben} · ${fmt(p.v)}"? Esta ação não pode ser desfeita.`,()=>{o.pag.splice(i,1);sincronizaPagoObra(o);persist(oid);if(cur&&cur.id===oid)renderObra();renderPainel();renderCobranca();updateNavBadge();toast("Lançamento excluído.");});}
 
 
 
@@ -9195,7 +9216,7 @@ function csvToggleAll(checked){_csvRows.forEach((_,i)=>{_csvRows[i].include=chec
 
 function _updateCsvCount(){const inc=_csvRows.filter(r=>r.include);document.getElementById('csv-count-msg').textContent=`${inc.length} lançamento(s) selecionado(s) · Total: ${fmt(inc.reduce((a,r)=>a+r.v,0))}`;}
 
-function confirmCsvImport(){if(!cur)return;const pagante=document.getElementById('csv-pagante').value;const toAdd=_csvRows.filter(r=>r.include);if(!toAdd.length){toast('Nenhum lançamento selecionado.');return;}toAdd.forEach(r=>{const p={ben:r.ben,v:r.v,ref:r.ref,cat:r.cat,sub:0,pagn:pagante,st:r.st,venc:r.venc,nfTipo:'Sem nota',comp:''};if(r.st==='PAGO')cur.pago+=r.v;cur.pag.push(p);});persist(cur.id);closeCsvImport();renderObra();renderPainel();updateNavBadge();toast(`${toAdd.length} pagamento(s) importados com sucesso.`);}
+function confirmCsvImport(){if(!cur)return;const pagante=document.getElementById('csv-pagante').value;const toAdd=_csvRows.filter(r=>r.include);if(!toAdd.length){toast('Nenhum lançamento selecionado.');return;}toAdd.forEach(r=>{const p={ben:r.ben,v:r.v,ref:r.ref,cat:r.cat,sub:0,pagn:pagante,st:r.st,venc:r.venc,nfTipo:'Sem nota',comp:''};cur.pag.push(p);});sincronizaPagoObra(cur);persist(cur.id);closeCsvImport();renderObra();renderPainel();updateNavBadge();toast(`${toAdd.length} pagamento(s) importados com sucesso.`);}
 
 function saveObra(){
 
@@ -9363,9 +9384,10 @@ function savePag(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Se
   const stVal=oldPag?(oldPag.st||'PENDENTE'):'PENDENTE';
   const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=stVal==='PAGO'?(oldPag?.pagaEm||''):'';const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const _pmCrRow=document.getElementById('pm-constr-row');const _pmCrSel=document.getElementById('pm-constr-sel');const _pmCrSeq=_pmCrRow&&_pmCrRow.style.display!=='none'&&_pmCrSel&&_pmCrSel.value?+_pmCrSel.value:null;const _pmTk=(document.getElementById('pm-ticket')?.value||'').trim().toUpperCase();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:stVal,venc:g("pm-venc"),emissao,pagaEm,nfTipo:pmNfTipo,contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin,construtora_seq:_pmCrSeq,ticketRaiz:_pmTk};
 
-  if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];const wasPago=(old.st||'')==="PAGO";const willPago=obj.st==="PAGO";const oldEscopo=(old.escopoFin||'obra');const newEscopo=escopoFin||'obra';cur.pago+=(willPago&&newEscopo==='obra'?obj.v:0)-(wasPago&&oldEscopo==='obra'?(old.v||0):0);cur.pag[pagEditIdx]={...old,...obj};}
+  if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];cur.pag[pagEditIdx]={...old,...obj};sincronizaPagoObra(cur);}
 
   else{cur.pag.push({...obj,comp:""});}
+  sincronizaPagoObra(cur);
 
   persist(cur.id);closePagModal();renderObra();renderPainel();updateNavBadge();toast(pagEditIdx!==null?"Pagamento atualizado":"Pagamento lançado");}
 
@@ -10475,8 +10497,9 @@ async function persist(obraId){
   try{
 
     const ts=obraId!=null?obras.filter(o=>o.id===obraId):obras;
+    ts.forEach(sincronizaPagoObra);
 
-    if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:(o.pag||[]).filter(p=>p.st==='PAGO'&&(p.escopoFin||'obra')==='obra').reduce((a,p)=>a+p.v,0)||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,teto_escola:o.teto_escola||0,aditivos_contrato:o.aditivos_contrato||[],construtoras:o.construtoras||[]})));
+    if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:pagoObraOficial(o)||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,teto_escola:o.teto_escola||0,aditivos_contrato:o.aditivos_contrato||[],construtoras:o.construtoras||[]})));
 
     for(const o of ts){
 
@@ -10571,6 +10594,7 @@ async function loadFromDB(){
       contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||'',aditivos:Array.isArray(c.aditivos)?c.aditivos:[],pct_investimento:c.pct_investimento!==null?+c.pct_investimento:100,valor_investimento:c.valor_investimento!==null&&c.valor_investimento!==undefined?+c.valor_investimento:null}))
 
     }));
+    obras.forEach(sincronizaPagoObra);
 
     nextObraId=obras.reduce((m,o)=>Math.max(m,o.id),0)+1;
 
@@ -13462,6 +13486,7 @@ async function confirmImport(){
   }):[p];
 
   cur.pag.push(...pagamentos);
+  sincronizaPagoObra(cur);
 
   impFile=null; impXmlFile=null;
 
