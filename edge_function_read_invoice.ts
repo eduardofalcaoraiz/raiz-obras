@@ -1261,11 +1261,22 @@ function parseDanfeItemsFromText(text: string) {
   const lines = String(text || '').replace(/\r/g, '\n').split('\n').map((l) => cleanStr(l)).filter(Boolean)
   const items: AnyRecord[] = []
   const seen = new Set<string>()
-  const rowRe = /^([\d\s]{6,22})\s+(.+?)\s+(\d{8})\s+\d{3,4}\s+\d{4}\s+([A-Z]{1,6})\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})(?:\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2}))?/i
+  const rowRe = /^(\d{1,20})\s+(.+?)\s+(\d{8})\s+[0-9A-Z]{1,4}(?:\/[0-9A-Z]{1,3})?\s+\d{4}\s+([A-Z]{1,6})\s+(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})(?:\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2}))?/i
+  const isHeader = (line: string) => /^(DADOS|C[ÓO]DIGO|INFORMA[ÇC][ÕO]ES|RESERVADO|C[ÁA]LCULO|TRANSPORTADOR|BASE|VALOR|NOME|ENDERE[ÇC]O|MUNIC[ÍI]PIO|QUANTIDADE|Inf\.|Impresso)/i.test(line)
+  let last: AnyRecord | null = null
   for (const line of lines) {
-    if (!/\d/.test(line) || !/\b(PC|UN|UND|M2|M3|KG|CX|MT|LT|PAR|PCT)\b/i.test(line)) continue
     const m = line.match(rowRe)
-    if (!m) continue
+    if (!m) {
+      if (isHeader(line)) {
+        last = null
+        continue
+      }
+      if (last && line.length <= 90 && !/:/.test(line) && !rowRe.test(line) && !/^\d{2}\.\d{3}\.\d{3}/.test(line)) {
+        const moneyCount = (line.match(/\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2}/g) || []).length
+        if (moneyCount === 0) last.descricao = cleanStr(`${last.descricao || ''} ${line}`)
+      }
+      continue
+    }
     const codigo = onlyDigits(m[1])
     const descricao = cleanStr(m[2])
     if (!descricao || descricao.length < 3) continue
@@ -1282,6 +1293,7 @@ function parseDanfeItemsFromText(text: string) {
     if (seen.has(key)) continue
     seen.add(key)
     items.push(item)
+    last = item
   }
   return items
 }
