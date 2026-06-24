@@ -3967,13 +3967,15 @@ function deleteAporte(idx){if(['leitor','doc'].includes(currentProfile?.role)){t
 
 /* helpers financeiros */
 
-const aditivosTotal=o=>(o.aditivos_contrato||[]).reduce((a,d)=>a+(+d.valor||0),0);
+function money2(n){const r=Math.round((+n||0)*100)/100;return Math.abs(r)<0.005?0:r;}
 
-const contratadoTotal=o=>(+o.contratado||0)+aditivosTotal(o);
+const aditivosTotal=o=>money2((o.aditivos_contrato||[]).reduce((a,d)=>a+(+d.valor||0),0));
+
+const contratadoTotal=o=>money2((+o.contratado||0)+aditivosTotal(o));
 
 const pagamentosPagos=o=>(o.pag||[]).filter(p=>p.st==='PAGO');
 
-const somaPagamentos=rows=>rows.reduce((a,p)=>a+(+p.v||0),0);
+const somaPagamentos=rows=>money2(rows.reduce((a,p)=>a+(+p.v||0),0));
 
 const pagoTotalLancado=o=>somaPagamentos(pagamentosPagos(o));
 
@@ -3994,14 +3996,14 @@ function sincronizaPagoObra(o){
 }
 
 // Saldo simples da obra: contratado + aditivos menos a soma real dos pagamentos pagos.
-const saldoContr=o=>contratadoTotal(o)-pagoTotalOficial(o);
+const saldoContr=o=>money2(contratadoTotal(o)-pagoTotalOficial(o));
 
 // Saldo do investimento: somente pagamentos dentro da obra debitam o teto externo.
-const saldoInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-pagoObraOficial(o):(o.aportado||0)-pagoObraOficial(o);
+const saldoInv=o=>money2(o.investimento_disponivel>0?o.investimento_disponivel-pagoObraOficial(o):(o.aportado||0)-pagoObraOficial(o));
 
 // Margem: diferença entre investimento disponível e o total contratado (para outros gastos além da construtora)
 
-const margemInv=o=>o.investimento_disponivel>0?o.investimento_disponivel-contratadoTotal(o):null;
+const margemInv=o=>o.investimento_disponivel>0?money2(o.investimento_disponivel-contratadoTotal(o)):null;
 
 const execObra=o=>contratadoTotal(o)?Math.round(pagoTotalOficial(o)/contratadoTotal(o)*100):0;
 
@@ -4032,7 +4034,7 @@ function gastoCat(o,cid){return o.pag.filter(p=>p.st==="PAGO"&&p.cat===cid).redu
 
 function porFonte(o){const m={};o.pag.filter(p=>p.st==="PAGO").forEach(p=>{if(p.pagn&&p.pagn!=="—")m[p.pagn]=(m[p.pagn]||0)+p.v;});return m;}
 
-function barClass(pct){return pct>100?"b-danger":pct>=90?"b-warn":pct<70?"b-ok":"";}
+function barClass(pct){return pct>100?"b-danger":pct>=100?"b-ok":pct>=90?"b-warn":pct<70?"b-ok":"";}
 
 function fmtD(iso){if(!iso)return"—";const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;}
 
@@ -6745,7 +6747,7 @@ function renderObra(){const o=cur,pct=execObra(o);
   var _saldoLivre=Math.max(0,_saldoInv-_comprometidoInv);
   const _usadoPct2=_invBase>0?Math.min(Math.round(_pagoObra/_invBase*100),100):0;
   const _saldoColor=_saldoInv<0?'var(--danger)':_saldoInv<_invBase*0.1?'var(--warn)':'var(--ok)';
-  const _execColor=_execPct>=100?'var(--danger)':_execPct>80?'var(--warn)':'var(--info)';
+  const _execColor=_saldoContr<0?'var(--danger)':_execPct>=100?'var(--ok)':_execPct>80?'var(--warn)':'var(--info)';
 
   // Helper: mini barra de progresso (sem template literal)
   function _bar5(pct,col){return '<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:6px"><div style="height:100%;width:'+Math.min(pct,100)+'%;background:'+col+';border-radius:3px;transition:width .5s"></div></div>';}
@@ -6914,7 +6916,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   // Contrato perto do limite (últimos 15%) — só se tem contrato e ainda não estourou
 
-  if(_temContr&&_saldoContr>=0&&_saldoContr<contratadoTotal(o)*0.15&&_pagoTotal>0)al+=`<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam apenas <b>${fmt(_saldoContr)}</b> (${_execPct}% executado).</div></div>`;
+  if(_temContr&&_saldoContr>0&&_saldoContr<contratadoTotal(o)*0.15&&_pagoTotal>0)al+=`<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam apenas <b>${fmt(_saldoContr)}</b> (${_execPct}% executado).</div></div>`;
 
 
 
@@ -7336,7 +7338,7 @@ function renderDashboard(){
   var _dc1='';
   var _ads=o.aditivos_contrato||[];
   var _eb=Math.min(_ep,100);
-  var _ec=_ep>=100?'var(--danger)':_ep>80?'var(--warn)':'var(--info)';
+  var _ec=_sc<0?'var(--danger)':_ep>=100?'var(--ok)':_ep>80?'var(--warn)':'var(--info)';
   var _pagoPorConstrDash={},_pendPorConstrDash={},_aditPorConstrDash={},_semVinculoPagoDash=0,_aditGeralDash=0;
   (o.aditivos_contrato||[]).forEach(function(a){
     if(a.construtora_seq)_aditPorConstrDash[a.construtora_seq]=(_aditPorConstrDash[a.construtora_seq]||0)+(+a.valor||0);
@@ -7355,8 +7357,8 @@ function renderDashboard(){
   var _constrResumoDash='';
   if(o.construtoras&&o.construtoras.length){
     var _constrRowsDash=o.construtoras.map(function(c){
-      var base=+c.valor||0,adit=_aditPorConstrDash[c.seq]||0,total=base+adit,pR=_pagoPorConstrDash[c.seq]||0,pend=_pendPorConstrDash[c.seq]||0;
-      var pct=total?Math.round(pR/total*100):0,barPct=Math.min(Math.max(pct,0),100),saldo=total-pR;
+      var base=money2(+c.valor||0),adit=money2(_aditPorConstrDash[c.seq]||0),total=money2(base+adit),pR=money2(_pagoPorConstrDash[c.seq]||0),pend=money2(_pendPorConstrDash[c.seq]||0);
+      var pct=total?Math.round(pR/total*100):0,barPct=Math.min(Math.max(pct,0),100),saldo=money2(total-pR);
       var cor=saldo<0?'var(--danger)':pct>=100?'var(--ok)':pct>80?'var(--warn)':'var(--info)';
       var saldoTxt=saldo<0?'Excedeu '+fmt(-saldo):'Saldo '+fmt(saldo);
       return '<div style="padding:7px 0;border-bottom:1px solid var(--line)">'
@@ -7376,7 +7378,7 @@ function renderDashboard(){
   if(!o.contratado&&(!o.constr||o.constr==='—')){
     _dc1='<div class="card" id="obra-contrato-unificado" style="'+_contratoCardStyle+'"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Contrato da Obra</div><div style="text-align:center;padding:10px 0"><div style="font-size:24px;opacity:.25">&#128203;</div><div style="font-size:13px;color:var(--muted);margin:6px 0 10px">Nenhum contrato definido</div><button class="btn btn-primary btn-sm" onclick="openObraModal(cur.id)">Definir contrato</button></div></div>';
   }else{
-    var _apc=_sc<0?'var(--danger)':_sc<_ct*0.15?'var(--warn)':'inherit';
+    var _apc=_sc<0?'var(--danger)':_sc===0?'var(--ok)':_sc<_ct*0.15?'var(--warn)':'inherit';
     _dc1='<div class="card" id="obra-contrato-unificado" style="'+_contratoCardStyle+'">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
       +'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Contrato da Obra</div>'
@@ -7524,7 +7526,7 @@ function renderDashboard(){
   if(pagsAtr.length>0)al+='<div class="alert alert-danger"><span class="ic">⚠</span><div><b>'+pagsAtr.length+' pagamento'+(pagsAtr.length!==1?'s':'')+' em atraso</b> — regularize para evitar penalidades.</div></div>';
   if(saldoContr_<0)al+='<div class="alert alert-danger"><span class="ic">▲</span><div>Pagamentos ultrapassaram o valor contratado em <b>'+fmt(-saldoContr_)+'</b>.</div></div>';
   if(invBase_>0&&saldoInv_<0)al+='<div class="alert alert-danger"><span class="ic">💸</span><div>Investimento esgotado — supera o teto em <b>'+fmt(-saldoInv_)+'</b>.</div></div>';
-  if(contrTot_>0&&saldoContr_>=0&&saldoContr_<contrTot_*0.12&&totalPago_>0)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam apenas <b>'+fmt(saldoContr_)+'</b>.</div></div>';
+  if(contrTot_>0&&saldoContr_>0&&saldoContr_<contrTot_*0.12&&totalPago_>0)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Contrato quase no limite — faltam apenas <b>'+fmt(saldoContr_)+'</b>.</div></div>';
   if(invBase_>0&&saldoInv_>=0&&saldoInv_<invBase_*0.08)al+='<div class="alert alert-warn"><span class="ic">⚠</span><div>Saldo do investimento crítico — restam <b>'+fmt(saldoInv_)+'</b>.</div></div>';
   if(projMeses>=0&&projMeses<=3&&velMensal>500)al+='<div class="alert alert-warn"><span class="ic">⏱</span><div>No ritmo atual, o investimento dura <b>'+projLabel+'</b>.</div></div>';
 
