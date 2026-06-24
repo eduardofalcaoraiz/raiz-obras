@@ -9375,13 +9375,52 @@ function pmStChange(){
   if(pr)pr.style.display='none';
 }
 
-function savePag(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const pmNfTipo=document.getElementById("pm-nf")?.value||'Sem nota';const nfNum=cleanImpDocNumber((document.getElementById("pm-nfnum")?.value||'').trim(),pmNfTipo);const cSeq=document.getElementById("pm-contrato")?.value||'';
+function localTodayISO(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10);}
+
+function isPastForecastDate(venc){const iso=normalizeDateISO(venc);return !!iso&&iso<localTodayISO();}
+
+function askPastDuePaidDate(p,label){
+  return new Promise(resolve=>{
+    let ov=document.getElementById('past-pay-overlay');
+    if(!ov){ov=document.createElement('div');ov.id='past-pay-overlay';ov.className='overlay';document.body.appendChild(ov);}
+    const today=localTodayISO();
+    const venc=normalizeDateISO((p&&p.venc)||'');
+    const title=label||(p&&p.ref)||(p&&p.ben)||'pagamento';
+    ov.innerHTML='<div class="modal" style="max-width:500px"><div class="mhead"><h2>Previsão vencida</h2><button class="x" id="past-pay-cancel">×</button></div><div class="mbody">'
+      +'<div class="alert alert-warn" style="margin-bottom:14px"><span class="ic">!</span><div>Este lançamento tem previsão de pagamento em <b>'+fmtD(venc)+'</b>, antes de hoje (<b>'+fmtD(today)+'</b>). Ele já foi pago?</div></div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:12px">'+escHtml(title)+'</div>'
+      +'<div class="frow"><label class="fl">Data efetiva do pagamento</label><input class="fi" id="past-pay-date" type="date" value="'+today+'" max="'+today+'"></div>'
+      +'<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;flex-wrap:wrap"><button class="btn btn-ghost" id="past-pay-pending">Ainda pendente</button><button class="btn btn-primary" id="past-pay-paid">Já foi pago</button></div>'
+      +'</div></div>';
+    const close=ans=>{ov.classList.remove('show');resolve(ans);};
+    ov.querySelector('#past-pay-cancel').onclick=()=>close(null);
+    ov.querySelector('#past-pay-pending').onclick=()=>close({paid:false});
+    ov.querySelector('#past-pay-paid').onclick=()=>{
+      const dt=ov.querySelector('#past-pay-date')?.value||'';
+      if(!dt){toast('Informe a data efetiva do pagamento.');return;}
+      if(dt>today){toast('A data do pagamento não pode ser futura.');return;}
+      close({paid:true,pagaEm:dt});
+    };
+    ov.classList.add('show');
+  });
+}
+
+async function applyPastDuePaidCheck(p,label){
+  if(!p||p.st==='PAGO'||!isPastForecastDate(p.venc))return true;
+  const ans=await askPastDuePaidDate(p,label);
+  if(!ans)return false;
+  if(ans.paid){p.st='PAGO';p.pagaEm=ans.pagaEm;}
+  return true;
+}
+
+async function savePag(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const pmNfTipo=document.getElementById("pm-nf")?.value||'Sem nota';const nfNum=cleanImpDocNumber((document.getElementById("pm-nfnum")?.value||'').trim(),pmNfTipo);const cSeq=document.getElementById("pm-contrato")?.value||'';
   // Preserva tipoCusto existente se for mat/svc/eqp; senão marca como 'outros' (categorizado)
   const oldPag=pagEditIdx!==null?cur.pag[pagEditIdx]:null;
   const _existTipo=oldPag?(oldPag.tipoCusto||''):'';
   const tipoCusto=['material','servico','equipamento'].includes(_existTipo)?_existTipo:'outros';
   const stVal=oldPag?(oldPag.st||'PENDENTE'):'PENDENTE';
   const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=stVal==='PAGO'?(oldPag?.pagaEm||''):'';const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const _pmCrRow=document.getElementById('pm-constr-row');const _pmCrSel=document.getElementById('pm-constr-sel');const _pmCrSeq=_pmCrRow&&_pmCrRow.style.display!=='none'&&_pmCrSel&&_pmCrSel.value?+_pmCrSel.value:null;const _pmTk=(document.getElementById('pm-ticket')?.value||'').trim().toUpperCase();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:stVal,venc:g("pm-venc"),emissao,pagaEm,nfTipo:pmNfTipo,contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin,construtora_seq:_pmCrSeq,ticketRaiz:_pmTk};
+  if(!(await applyPastDuePaidCheck(obj,obj.ref||obj.ben)))return;
 
   if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];cur.pag[pagEditIdx]={...old,...obj};sincronizaPagoObra(cur);}
 
@@ -13476,6 +13515,11 @@ async function confirmImport(){
     return{...p,ref:ref+' - '+parcelaLabel,v:parseFloat((+par.valor||0).toFixed(2)),venc:par.vencimento||p.venc,pagForma:'PARCELADO',parcelas:parcelasLidas,obs:p.obs?p.obs+' | '+parcelaLabel:parcelaLabel};
 
   }):[p];
+
+  for(let i=0;i<pagamentos.length;i++){
+    const label=pagamentos.length>1?pagamentos[i].ref:(pagamentos[i].ref||pagamentos[i].ben);
+    if(!(await applyPastDuePaidCheck(pagamentos[i],label)))return;
+  }
 
   cur.pag.push(...pagamentos);
   sincronizaPagoObra(cur);
