@@ -2754,7 +2754,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div class="capex-form-title">Descrição do lançamento</div>
       <div class="frow"><label class="fl">Pedido</label><textarea class="fi" id="ci-m-pedido" rows="4" style="resize:vertical" placeholder="Descreva a melhoria, compra, reparo ou solicitação"></textarea></div>
 
-      <div class="fgrid"><div class="frow"><label class="fl">Ticket / referência</label><input class="fi" id="ci-m-ref" placeholder="Número do ticket, chamado ou referência interna"></div><div class="frow"><label class="fl">Setor responsável pela resolução</label><select class="fi" id="ci-m-setor"></select></div></div>
+      <div class="fgrid"><div class="frow"><label class="fl">Ticket / referência</label><input class="fi" id="ci-m-ref" placeholder="Número do ticket, chamado ou referência interna" oninput="updateCapexTrDuplicateHint(this.value)"><div id="capex-tr-dup-hint" style="display:none;margin-top:6px;font-size:12px;line-height:1.35;color:var(--warn);font-weight:750"></div></div><div class="frow"><label class="fl">Setor responsável pela resolução</label><select class="fi" id="ci-m-setor"></select></div></div>
     </div>
 
     <div class="capex-form-card">
@@ -4856,20 +4856,66 @@ function capexTrKey(v){
   return String(v||'').toUpperCase().replace(/^TR[\s\-:]*/,'').replace(/[^A-Z0-9]/g,'');
 }
 
-function capexTrDuplicateKey(v){
-  const digits=capexTrDigits(v);
-  if(digits)return'D:'+(digits.replace(/^0+/,'')||'0');
-  const key=capexTrKey(v);
-  return key?'K:'+key:'';
+function capexTrNormNumber(v){
+  const n=String(v||'').replace(/\D/g,'').replace(/^0+/,'');
+  return n||'0';
+}
+
+function capexTrLooksLikeYear(n){
+  const y=+n;
+  return n.length===4&&y>=2020&&y<=2040;
+}
+
+function capexTrNumberSet(v){
+  const raw=String(v||'').toUpperCase().trim();
+  if(!raw)return new Set();
+  const groups=(raw.match(/\d+/g)||[]).map(capexTrNormNumber).filter(Boolean);
+  const allDigits=capexTrNormNumber(raw);
+  let tokens=groups.length>1?[allDigits]:groups;
+  const nonYears=groups.filter(n=>!capexTrLooksLikeYear(n));
+  if(groups.length>1&&nonYears.length&&nonYears.length<groups.length)tokens=nonYears;
+  const out=new Set(tokens);
+  if(groups.length<=1&&allDigits&&(!capexTrLooksLikeYear(allDigits)||!out.size))out.add(allDigits);
+  return out;
+}
+
+function capexTrSameNumber(a,b){
+  const aa=capexTrNumberSet(a),bb=capexTrNumberSet(b);
+  if(!aa.size||!bb.size)return false;
+  for(const n of aa){if(bb.has(n))return true;}
+  return false;
+}
+
+function capexTrPrimaryNumber(v){
+  const nums=[...capexTrNumberSet(v)];
+  return nums[0]||'';
 }
 
 function capexTrDuplicateMatches(ref,editId){
-  const key=capexTrDuplicateKey(ref);
-  if(!key)return[];
+  if(!capexTrNumberSet(ref).size)return[];
   return capexItens.filter(it=>{
     if(String(it.id)===String(editId))return false;
-    return capexTrDuplicateKey(it.referencia)===key;
+    return capexTrSameNumber(ref,it.referencia);
   });
+}
+
+async function capexTrDuplicateMatchesLive(ref,editId){
+  const local=capexTrDuplicateMatches(ref,editId);
+  if(!capexTrNumberSet(ref).size||!db)return local;
+  try{
+    const{data,error}=await selectAllRows('capex_itens',{columns:'id,ano,referencia,pedido,unidade,situacao,marca,realizado',order:'id',ascending:false});
+    if(error||!data)return local;
+    const map=new Map();
+    local.forEach(it=>map.set(String(it.id),it));
+    data.forEach(it=>{
+      if(String(it.id)===String(editId))return;
+      if(capexTrSameNumber(ref,it.referencia))map.set(String(it.id),it);
+    });
+    return[...map.values()];
+  }catch(e){
+    console.warn('capexTrDuplicateMatchesLive:',e);
+    return local;
+  }
 }
 
 function capexTrDuplicateRow(it){
@@ -4888,8 +4934,23 @@ function capexTrDuplicateRow(it){
 
 function showCapexDuplicateTrWarning(ref,matches){
   const body=document.getElementById('capex-tr-dup-body');
-  if(body)body.innerHTML=`<div style="font-size:12px;color:var(--muted);font-weight:750;margin-bottom:2px">TR informado: <span class="num" style="color:var(--ink)">${escHtml(ref)}</span></div>`+matches.map(capexTrDuplicateRow).join('');
+  const numero=capexTrPrimaryNumber(ref);
+  if(body)body.innerHTML=`<div style="font-size:12px;color:var(--muted);font-weight:750;margin-bottom:2px">Número do TR informado: <span class="num" style="color:var(--ink)">${escHtml(numero||ref)}</span></div>`+matches.map(capexTrDuplicateRow).join('');
   document.getElementById('capex-tr-dup-overlay')?.classList.add('show');
+}
+
+function updateCapexTrDuplicateHint(ref){
+  const hint=document.getElementById('capex-tr-dup-hint');
+  if(!hint)return;
+  const matches=capexTrDuplicateMatches(ref,capexEditId);
+  if(!String(ref||'').trim()||!matches.length){
+    hint.style.display='none';
+    hint.innerHTML='';
+    return;
+  }
+  const numero=capexTrPrimaryNumber(ref)||ref;
+  hint.style.display='block';
+  hint.innerHTML=`Atenção: o TR ${escHtml(numero)} já existe em ${matches.length} pedido${matches.length!==1?'s':''}. Ao salvar, o sistema vai pedir confirmação.`;
 }
 
 function closeCapexTrDuplicateWarning(){
@@ -6944,6 +7005,7 @@ function openCapexItemModal(id){
   document.getElementById('ci-m-pedido').value=it?.pedido||'';
 
   document.getElementById('ci-m-ref').value=it?.referencia||'';
+  updateCapexTrDuplicateHint(it?.referencia||'');
 
   populateCapexSetorSelect(it?.setor||'COMPRAS');
 
@@ -6993,7 +7055,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
   const obj={ano,fonte,unidade,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||''};
 
   if(!options.skipDuplicateTr){
-    const duplicados=capexTrDuplicateMatches(referencia,editId);
+    const duplicados=await capexTrDuplicateMatchesLive(referencia,editId);
     if(duplicados.length){
       showCapexDuplicateTrWarning(referencia,duplicados);
       return;
