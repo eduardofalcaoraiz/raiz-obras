@@ -236,13 +236,49 @@ button{font-family:inherit;cursor:pointer}
 
 .badge-select.b-ok{background:var(--ok-bg);color:var(--ok)}.badge-select.b-warn{background:var(--warn-bg);color:var(--warn)}.badge-select.b-info{background:var(--info-bg);color:var(--info)}.badge-select.b-neutral{background:var(--surface-2);color:var(--muted)}
 
-.cyear-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;margin-top:4px}
+.cyear-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:4px;align-items:stretch}
 
-.cyear-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px 28px;cursor:pointer;transition:transform .14s,box-shadow .16s;animation:fade .4s ease both}
+.cyear-card{--cyear-accent:var(--accent);--cyear-soft:var(--surface-2);background:linear-gradient(180deg,var(--surface) 0%,color-mix(in srgb,var(--cyear-soft) 30%,var(--surface)) 100%);border:1px solid color-mix(in srgb,var(--cyear-accent) 18%,var(--line));border-radius:18px;padding:0;cursor:pointer;transition:transform .14s,box-shadow .16s,border-color .16s;animation:fade .4s ease both;overflow:hidden;min-height:286px;display:flex;flex-direction:column;box-shadow:0 10px 26px -24px rgba(15,42,36,.4)}
 
-.cyear-card:hover{transform:translateY(-3px);box-shadow:0 10px 28px -16px rgba(23,60,52,.4)}
+.cyear-card:hover{transform:translateY(-2px);box-shadow:0 16px 34px -24px rgba(15,42,36,.5);border-color:color-mix(in srgb,var(--cyear-accent) 45%,var(--line))}
 
-.cyear-num{font-family:"Outfit",system-ui,sans-serif;font-size:42px;font-weight:600;color:var(--ink-2);line-height:1;margin-bottom:16px}
+.cyear-card.empty{background:linear-gradient(180deg,var(--surface) 0%,var(--surface-2) 100%);border-style:dashed;box-shadow:none}
+
+.cyear-head{padding:18px 20px 14px;background:linear-gradient(135deg,color-mix(in srgb,var(--cyear-accent) 66%,#fff 34%) 0%,color-mix(in srgb,var(--cyear-accent) 24%,var(--surface)) 100%);position:relative;color:var(--cyear-text,#fff)}
+
+.cyear-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+
+.cyear-kicker{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;font-weight:850;color:var(--cyear-sub,rgba(255,255,255,.78));margin-bottom:3px}
+
+.cyear-num{font-family:"Outfit",system-ui,sans-serif;font-size:43px;font-weight:700;line-height:.95;color:var(--cyear-text,#fff);text-shadow:var(--cyear-shadow,none)}
+
+.cyear-badge{display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb,var(--cyear-text,#fff) 42%,transparent);background:rgba(255,255,255,.14);color:var(--cyear-text,#fff);border-radius:999px;padding:5px 9px;font-size:11px;font-weight:850;white-space:nowrap}
+
+.cyear-logos{display:flex;gap:5px;flex-wrap:wrap;margin-top:12px;min-height:24px}
+
+.cyear-logos img{height:24px;max-width:68px;background:white;border-radius:6px;padding:3px 6px;object-fit:contain;flex:none;border:1px solid rgba(0,0,0,.08)}
+
+.cyear-summary{font-size:12.2px;color:var(--cyear-sub,rgba(255,255,255,.84));font-weight:750;margin-top:9px}
+
+.cyear-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:13px;flex:1}
+
+.cyear-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+
+.cyear-metric{border:1px solid var(--line);background:rgba(255,255,255,.68);border-radius:10px;padding:9px 10px;min-width:0}
+
+.cyear-metric span{display:block;font-size:10px;color:var(--muted);font-weight:850;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.cyear-metric b{display:block;font-family:"Space Grotesk",sans-serif;font-size:17px;line-height:1.1;margin-top:4px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.cyear-status-row{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:11.5px;color:var(--muted);font-weight:650}
+
+.cyear-open{margin-top:auto;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:12px;color:var(--cyear-accent);font-size:11.5px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
+
+.cyear-open i{font-style:normal;width:28px;height:28px;border-radius:999px;background:color-mix(in srgb,var(--cyear-accent) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--cyear-accent) 32%,var(--line));display:inline-flex;align-items:center;justify-content:center;font-size:17px}
+
+.cyear-empty-msg{border:1px solid var(--line);background:rgba(255,255,255,.7);border-radius:12px;padding:14px 15px;color:var(--muted);font-size:13px;line-height:1.45}
+
+.cyear-empty-msg b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
 
 .cprog{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:8px 0 14px}
 
@@ -6040,7 +6076,7 @@ function populateCapexYearSelect(currentYear){
 
 
 
-function renderCapexYears(){
+function renderCapexYearsLegacy(){
 
   clearCapexLooseKpis();
 
@@ -6066,11 +6102,17 @@ function renderCapexYears(){
 
     const unis=[...new Set([...its.map(i=>i.unidade),...saldoRows.map(r=>r.unidade)].filter(Boolean))];
 
-    const yr=ano%10;
+    const hasData=!!(its.length||saldoRows.length);
 
-    const gradColors=['#F88808','#D66D06','#F6A13A','#C45A04','#A84B04','#9B4303','#F9B45C'];
+    const budget=capexBudgetStats(its,{ano});
 
-    const gc=gradColors[yr%gradColors.length];
+    const ciclo=ano===new Date().getFullYear()?'Ciclo atual':(ano<new Date().getFullYear()?'Hist&oacute;rico':'Planejado');
+
+    const primaryMarca=marcas.length===1?marcas[0]:'RAIZ';
+
+    const gc=brandColor(primaryMarca);
+
+    const gs=brandLight(primaryMarca);
 
     const yc=readableTextOnColor(gc);
 
@@ -6106,6 +6148,104 @@ function renderCapexYears(){
 
         </div>
 
+      </div>
+
+    </div>`;
+
+  }
+
+  html+='</div>';
+
+  document.getElementById('esf-capex-drill').innerHTML=html;
+
+}
+
+function renderCapexYears(){
+
+  clearCapexLooseKpis();
+
+  const anos=_ciVisibleYears();
+
+  if(!anos.length)anos.push(new Date().getFullYear());
+
+  const currentYear=new Date().getFullYear();
+
+  let html=renderCapexTabs();
+
+  html+=renderCapexTrSearch();
+
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Pedidos de CAPEX por ano</h2><span style="font-size:12px;color:var(--muted)">Abra um ano para ver marcas, unidades e pedidos.</span></div><div class="cyear-grid">';
+
+  for(const ano of anos){
+
+    const its=capexItens.filter(i=>+i.ano===ano);
+
+    const c=_ciKpis(its);
+
+    const saldoRows=capexSaldoRows({ano});
+
+    const marcas=[...new Set([...its.map(i=>extractMarca(i)),...saldoRows.map(r=>capexSaldoMarca(r))].filter(Boolean))];
+
+    const unis=[...new Set([...its.map(i=>i.unidade),...saldoRows.map(r=>r.unidade)].filter(Boolean))];
+
+    const hasData=!!(its.length||saldoRows.length);
+
+    const budget=capexBudgetStats(its,{ano});
+
+    const ciclo=ano===currentYear?'Ciclo atual':(ano<currentYear?'Hist&oacute;rico':'Planejado');
+
+    const primaryMarca=marcas.length===1?marcas[0]:'RAIZ';
+
+    const gc=brandColor(primaryMarca);
+
+    const gs=brandLight(primaryMarca);
+
+    const yc=readableTextOnColor(gc);
+
+    const ys=softTextOnColor(gc);
+
+    const ysh=textShadowOnColor(gc);
+
+    const logoImgs=marcas.slice(0,5).map(m=>BRAND_LOGOS[m]?`<img src="${BRAND_LOGOS[m]}" loading="lazy" alt="${escHtml(m)}">`:``).filter(Boolean).join('');
+
+    const moreLogo=marcas.length>5?`<span style="height:24px;border-radius:6px;background:rgba(255,255,255,.88);border:1px solid rgba(0,0,0,.08);padding:4px 7px;font-size:10.5px;font-weight:850;color:var(--ink);display:inline-flex;align-items:center">+${marcas.length-5}</span>`:'';
+
+    const summary=hasData?`${c.total} pedido${c.total!==1?'s':''} &middot; ${marcas.length} marca${marcas.length!==1?'s':''} &middot; ${unis.length} unidade${unis.length!==1?'s':''}`:'Sem pedidos cadastrados';
+
+    const saldoLabel=budget.saldo<0?'Excedido':'Saldo';
+
+    const saldoColor=budget.saldo<0?'var(--danger)':(budget.autorizado>0?'var(--ok)':'var(--muted)');
+
+    const budgetTxt=budget.autorizado>0?fmt(budget.autorizado):'Sem verba';
+
+    html+=`<div class="cyear-card ${hasData?'':'empty'}" onclick="drillCapex(${ano},null,null)" style="--cyear-accent:${gc};--cyear-soft:${gs};--cyear-text:${yc};--cyear-sub:${ys};--cyear-shadow:${ysh}">
+
+      <div class="cyear-head">
+        <div class="cyear-top">
+          <div><div class="cyear-kicker">CAPEX</div><div class="cyear-num">${ano}</div></div>
+          <span class="cyear-badge">${ciclo}</span>
+        </div>
+        ${logoImgs||moreLogo?`<div class="cyear-logos">${logoImgs}${moreLogo}</div>`:''}
+        <div class="cyear-summary">${summary}</div>
+      </div>
+
+      <div class="cyear-body">
+        ${hasData?`
+          <div class="cyear-metrics">
+            <div class="cyear-metric"><span>Pedidos</span><b>${c.total}</b></div>
+            <div class="cyear-metric"><span>Em andamento</span><b style="color:var(--info)">${c.ea}</b></div>
+            <div class="cyear-metric"><span>Disponibilizado</span><b style="color:${gc}">${budgetTxt}</b></div>
+            <div class="cyear-metric"><span>${saldoLabel}</span><b style="color:${saldoColor}">${budget.autorizado>0||budget.comprometido>0?fmt(Math.abs(budget.saldo)):'-'}</b></div>
+          </div>
+          <div>
+            <div class="cyear-status-row"><span>${c.pctRes}% resolvido</span><span>${c.res} resolvido${c.res!==1?'s':''}${c.canc?` &middot; ${c.canc} cancelado${c.canc!==1?'s':''}`:''}</span></div>
+            ${_ciStatusTrack(c)}
+          </div>
+          <div class="cyear-open"><span>Abrir dashboard do ano</span><i>&rarr;</i></div>
+        `:`
+          <div class="cyear-empty-msg"><b>Nenhum pedido em ${ano}</b><span>Abra este ciclo para cadastrar o primeiro pedido de CAPEX do ano.</span></div>
+          <div class="cyear-open"><span>Cadastrar primeiro pedido</span><i>&rarr;</i></div>
+        `}
       </div>
 
     </div>`;
