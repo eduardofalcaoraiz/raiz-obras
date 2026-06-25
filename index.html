@@ -147,7 +147,7 @@ button{font-family:inherit;cursor:pointer}
 
 .linkbtn:hover{color:var(--ink)}
 
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
 .kpis:empty{display:none;margin-bottom:0}
 
 @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}}
@@ -162,7 +162,7 @@ button{font-family:inherit;cursor:pointer}
 
 .kpi .sub{font-size:12px;color:var(--soft);font-weight:500;margin-top:4px}
 
-.card{background:var(--raiz-panel-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px 24px;margin-bottom:18px}
+.card{background:var(--raiz-panel-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px 24px;margin-bottom:14px}
 
 .card>h2{font-size:19px;margin-bottom:4px}.card .sub{color:var(--muted);font-size:13.5px;font-weight:500;margin-bottom:16px}
 
@@ -248,7 +248,7 @@ button{font-family:inherit;cursor:pointer}
 
 .cprog-bar{height:100%;background:var(--ok);border-radius:3px;transition:width .6s}
 
-.capex-dashboard{display:grid;grid-template-columns:minmax(320px,1.2fr) minmax(260px,.8fr);gap:16px;margin-bottom:18px;align-items:start}
+.capex-dashboard{display:grid;grid-template-columns:minmax(320px,1.2fr) minmax(260px,.8fr);gap:10px;margin-bottom:14px;align-items:start}
 .capex-panel{background:var(--raiz-panel-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:16px 18px;overflow:hidden}
 .capex-panel h3{font-size:16px;margin:0 0 4px}
 .capex-panel .sub{font-size:12.5px;color:var(--muted);font-weight:500;margin-bottom:14px}
@@ -383,7 +383,7 @@ button{font-family:inherit;cursor:pointer}
 .obra-nf-result .capex-tr-code{background:var(--surface-2);border-color:rgba(23,60,52,.16);color:var(--ink)}
 .obra-nf-result.exact{background:#FFFBF4;border-color:rgba(248,136,8,.32)}
 @media(max-width:760px){.capex-tr-search{grid-template-columns:1fr}.capex-tr-result{grid-template-columns:1fr}.capex-tr-code,.capex-tr-status{width:max-content}}
-.global-dashboard{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin-bottom:22px;align-items:start}
+.global-dashboard{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin-bottom:16px;align-items:start}
 .gd-span-12{grid-column:span 12}.gd-span-8{grid-column:span 8}.gd-span-6{grid-column:span 6}.gd-span-4{grid-column:span 4}
 .gd-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
 .gd-panel-head h3{margin:0;font-size:16px}.gd-panel-head .sub{margin:3px 0 0}
@@ -467,6 +467,17 @@ td.n{font-family:"Space Grotesk",sans-serif;text-align:right;white-space:nowrap}
 .dash-alert .dot{width:8px;height:8px;border-radius:999px;background:var(--alert-color);box-shadow:0 0 0 4px var(--alert-bg);flex:none;margin-top:5px}
 .dash-alert b{display:block;font-size:12.5px;color:var(--ink);line-height:1.2;margin-bottom:2px}
 .dash-alert em{display:block;font-style:normal;font-size:11.7px;color:var(--muted);line-height:1.3}
+.obra-dashboard-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:0 0 10px;align-items:stretch}
+.obra-dashboard-kpi{background:linear-gradient(135deg,var(--surface) 0%,rgba(255,255,255,.72) 100%);border:1px solid var(--line);border-radius:10px;padding:10px 11px;min-width:0;box-shadow:0 8px 18px -24px rgba(23,60,52,.55)}
+.obra-dashboard-kpi .lab{font-size:9.8px;color:var(--muted);font-weight:850;text-transform:uppercase;letter-spacing:.045em;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.obra-dashboard-kpi .val{font-family:"Space Grotesk",sans-serif;font-size:17px;line-height:1.08;font-weight:800;color:var(--ink);overflow-wrap:anywhere}
+.obra-dashboard-kpi .sub{font-size:11px;color:var(--soft);font-weight:600;line-height:1.25;margin-top:4px}
+.obra-dashboard-principal{display:grid;grid-template-columns:minmax(360px,1.35fr) minmax(300px,.9fr);gap:10px;margin-bottom:12px;align-items:start}
+.obra-dashboard-side{display:grid;gap:10px;align-content:start}
+.obra-dashboard-principal .card{margin-bottom:0}
+.obra-dashboard-side>div{min-width:0}
+@media(max-width:980px){.obra-dashboard-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.obra-dashboard-principal{grid-template-columns:1fr}}
+@media(max-width:620px){.obra-dashboard-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 
@@ -7854,21 +7865,27 @@ function renderDashboard(){
       }).join('')
       +'</div>';
   }
-  var _dc2Render=_dc2,_dc3Render=_dc3;
-  if(sForn){
-    if(_isInterno){
-      _dc2Render='<div style="display:grid;gap:12px;align-content:start">'+_dc2+sForn+'</div>';
-    }else if(_dc3){
-      _dc3Render='<div style="display:grid;gap:12px;align-content:start">'+_dc3+sForn+'</div>';
-    }else{
-      _dc2Render='<div style="display:grid;gap:12px;align-content:start">'+_dc2+sForn+'</div>';
-    }
-  }
-  var sDashCards='<div id="obra-dashboard-principal" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px;margin-bottom:14px;align-items:start">'+_dc1+_dc2Render+_dc3Render+'</div>';
+  var _pendTotalDash=pagsPend.reduce(function(a,p){return a+(+p.v||0);},0);
+  var _proxPend=pagsPend.slice().sort(function(a,b){return(normalizeDateISO(a.venc)||'9999-99-99').localeCompare(normalizeDateISO(b.venc)||'9999-99-99');})[0];
+  var _proxVal=_proxPend?fmt(_proxPend.v):'--';
+  var _proxSub=_proxPend?((_proxPend.venc?fmtD(_proxPend.venc):'sem data')+' - '+((_proxPend.ben||'fornecedor').slice(0,28))):'sem pagamentos pendentes';
+  var _saldoLabel=_sc<0?'Excedido':'Saldo contratual';
+  var _saldoVal=_sc<0?fmt(-_sc):fmt(_sc);
+  var _kpiSaldoColor=_sc<0?'var(--danger)':_sc===0?'var(--ok)':(_sc<_ct*0.15?'var(--warn)':'var(--ink)');
+  var _kpiPendColor=pagsAtr.length?'var(--danger)':(_pendTotalDash>0?'var(--warn)':'var(--ok)');
+  var sDashKpis='<div class="obra-dashboard-kpis">'
+    +'<div class="obra-dashboard-kpi"><div class="lab">Contrato total</div><div class="val">'+fmt(_ct)+'</div><div class="sub">'+fmt(o.contratado)+' base'+(_at>0?' + '+fmt(_at)+' aditivos':'')+'</div></div>'
+    +'<div class="obra-dashboard-kpi"><div class="lab">Pago na obra</div><div class="val" style="color:var(--brand-text)">'+fmt(_po)+'</div><div class="sub">'+_ep+'% executado</div></div>'
+    +'<div class="obra-dashboard-kpi"><div class="lab">'+_saldoLabel+'</div><div class="val" style="color:'+_kpiSaldoColor+'">'+_saldoVal+'</div><div class="sub">'+(_sc<0?'acima do contratado':'contrato - pagos')+'</div></div>'
+    +'<div class="obra-dashboard-kpi"><div class="lab">Em aberto</div><div class="val" style="color:'+_kpiPendColor+'">'+fmt(_pendTotalDash)+'</div><div class="sub">'+pagsPend.length+' pagamento'+(pagsPend.length!==1?'s':'')+(valorAtr_>0?' - '+fmt(valorAtr_)+' atrasado':'')+'</div></div>'
+    +'<div class="obra-dashboard-kpi"><div class="lab">Fora da obra</div><div class="val" style="color:'+(_pe>0?'var(--warn)':'var(--ok)')+'">'+fmt(_pe)+'</div><div class="sub">'+(_te>0?'teto '+fmt(_te):'caixa da escola')+'</div></div>'
+    +'<div class="obra-dashboard-kpi"><div class="lab">Pr&oacute;ximo venc.</div><div class="val" style="color:'+(_proxPend&&(isAtraso(_proxPend)||dateObj(_proxPend.venc)&&dateObj(_proxPend.venc)<=hoje30)?'var(--warn)':'var(--ink)')+'">'+_proxVal+'</div><div class="sub">'+_proxSub+'</div></div>'
+    +'</div>';
+  var sDashCards='<div id="obra-dashboard-principal" class="obra-dashboard-principal">'+_dc1+'<div class="obra-dashboard-side">'+_dc2+_dc3+sForn+'</div></div>';
 
   // ── Montar dashboard ─────────────────────────────────────────────────
   var html='';
-  html+=sDashCards;
+  html+=sDashKpis+sDashCards;
   if(al)html+='<div class="dash-alerts" id="obra-dashboard-alertas">'+al+'</div>';
   // Contratos + Urgentes lado a lado
   if(sContr||sUrg)html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:12px;margin-bottom:14px;align-items:start">'+(sContr||'')+(sUrg||'')+'</div>';
