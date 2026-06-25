@@ -2706,7 +2706,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <div class="capex-form-card">
       <div class="capex-form-title">Contexto do pedido</div>
-      <div class="fgrid"><div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="ci-m-ano" onchange="updateCapexUnitHint()"><option value="2026">2026</option><option value="2025">2025</option></select></div><div class="frow"><label class="fl">Fonte solicitante</label><select class="fi" id="ci-m-fonte"><option>UNIDADE</option><option>MANUTENÇÃO</option><option>ARQUITETURA</option><option>TI</option><option>RH</option></select></div></div>
+      <div class="fgrid"><div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="ci-m-ano" onchange="updateCapexUnitHint()"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option></select></div><div class="frow"><label class="fl">Fonte solicitante</label><select class="fi" id="ci-m-fonte"><option>UNIDADE</option><option>MANUTENÇÃO</option><option>ARQUITETURA</option><option>TI</option><option>RH</option></select></div></div>
 
       <div class="fgrid">
         <div class="frow"><label class="fl">Unidade / escola</label><select class="fi" id="ci-m-unidade" onchange="updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
@@ -4706,6 +4706,7 @@ function renderEsfera(){
 /* CAPEX — DRILL-DOWN HIERÁRQUICO */
 
 const _ciSitClass={'Resolvido':'b-ok','Em Andamento':'b-info','Cancelado':'b-neutral'};
+const CAPEX_BASE_YEARS=[2024,2025,2026];
 
 let capexDrillYear=null,capexDrillMarca=null,capexDrillUnidade=null,capexTab='dashboard',capexShowEmpty=false;
 let capexDashControls={focusDim:'',focusValue:''};
@@ -6001,7 +6002,21 @@ function _ciAvailableYears(currentYear){
 
   const now=new Date().getFullYear();
 
-  const years=new Set([2025,2026,now,now+1]);
+  const years=new Set([...CAPEX_BASE_YEARS,now,now+1]);
+
+  capexItens.forEach(i=>{if(+i.ano)years.add(+i.ano);});
+
+  capexSaldos.forEach(i=>{if(+i.ano)years.add(+i.ano);});
+
+  if(+currentYear)years.add(+currentYear);
+
+  return[...years].sort((a,b)=>b-a);
+
+}
+
+function _ciVisibleYears(currentYear){
+
+  const years=new Set(CAPEX_BASE_YEARS);
 
   capexItens.forEach(i=>{if(+i.ano)years.add(+i.ano);});
 
@@ -6029,7 +6044,7 @@ function renderCapexYears(){
 
   clearCapexLooseKpis();
 
-  const anos=[...new Set([...capexItens.map(i=>+i.ano),...capexSaldos.map(i=>+i.ano)].filter(Boolean))].sort((a,b)=>b-a);
+  const anos=_ciVisibleYears();
 
   if(!anos.length)anos.push(new Date().getFullYear());
 
