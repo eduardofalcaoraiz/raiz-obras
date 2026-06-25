@@ -2742,7 +2742,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <div class="capex-form-card">
       <div class="capex-form-title">Contexto do pedido</div>
-      <div class="fgrid"><div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="ci-m-ano" onchange="updateCapexUnitHint()"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option></select></div><div class="frow"><label class="fl">Fonte solicitante</label><select class="fi" id="ci-m-fonte"><option>UNIDADE</option><option>MANUTENÇÃO</option><option>ARQUITETURA</option><option>TI</option><option>RH</option></select></div></div>
+      <div class="fgrid"><div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="ci-m-ano" onchange="updateCapexUnitHint();syncCapexResolvedState()"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option></select></div><div class="frow"><label class="fl">Fonte solicitante</label><select class="fi" id="ci-m-fonte"><option>UNIDADE</option><option>MANUTENÇÃO</option><option>ARQUITETURA</option><option>TI</option><option>RH</option></select></div></div>
 
       <div class="fgrid">
         <div class="frow"><label class="fl">Unidade / escola</label><select class="fi" id="ci-m-unidade" onchange="updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
@@ -4741,11 +4741,13 @@ function renderEsfera(){
 
 const _ciSitClass={'Resolvido':'b-ok','Em Andamento':'b-info','Cancelado':'b-neutral'};
 const CAPEX_BASE_YEARS=[2024,2025,2026];
+const CAPEX_AUTO_FINALIZED_YEAR=2024;
 
 let capexDrillYear=null,capexDrillMarca=null,capexDrillUnidade=null,capexTab='dashboard',capexShowEmpty=false;
 let capexDashControls={focusDim:'',focusValue:''};
 let capexListStatus='Todos';
 let capexTrSearchQuery='';
+let capexAutoFinalizeSyncing={};
 
 const CAPEX_UNIT_EXCEPTIONS=[
   {nome:'QI Metropolitano',marca:'QI',tipo:'Agregado CAPEX'}
@@ -5183,6 +5185,8 @@ function drillCapex(year,marca,unidade,tab){
   }
 
   capexTab=tab||(unidade?'dashboard':(marca?'pedidos':(year?'dashboard':'pedidos')));
+
+  if(capexIsAutoFinalizedYear(year))syncCapexAutoFinalizedYear(year);
 
   renderCapexView();
 
@@ -5820,9 +5824,23 @@ function renderCapexDrill(){
 
 
 
-function _ciSit(i){
+function capexIsAutoFinalizedYear(v){
+  const ano=typeof v==='object'?+v?.ano:+v;
+  return ano===CAPEX_AUTO_FINALIZED_YEAR;
+}
+
+function _ciRawSit(i){
   const s=(i?.situacao||'Em Andamento').trim();
   return(!s||s==='Pendente'||s==='-')?'Em Andamento':s;
+}
+
+function _ciSit(i){
+  if(capexIsAutoFinalizedYear(i))return'Resolvido';
+  return _ciRawSit(i);
+}
+
+function capexIsFinalizado(i){
+  return capexIsAutoFinalizedYear(i)||!!i?.realizado;
 }
 
 function capexSetorOptions(current){
@@ -5849,9 +5867,34 @@ function populateCapexSetorSelect(current){
 }
 
 function syncCapexResolvedState(){
-  const sit=document.getElementById('ci-m-sit')?.value||'';
+  const sitEl=document.getElementById('ci-m-sit');
+  const sit=sitEl?.value||'';
   const real=document.getElementById('ci-m-real');
-  if(real&&sit==='Resolvido')real.checked=true;
+  const auto=capexIsAutoFinalizedYear(document.getElementById('ci-m-ano')?.value);
+  if(sitEl){sitEl.disabled=auto;if(auto)sitEl.value='Resolvido';}
+  if(real){
+    real.disabled=auto;
+    if(auto||sit==='Resolvido')real.checked=true;
+  }
+}
+
+async function syncCapexAutoFinalizedYear(year){
+  if(!capexIsAutoFinalizedYear(year)||capexAutoFinalizeSyncing[year])return;
+  const rows=capexItens.filter(i=>+i.ano===+year&&(_ciRawSit(i)!=='Resolvido'||!i.realizado));
+  if(!rows.length)return;
+  rows.forEach(i=>{i.situacao='Resolvido';i.realizado=true;});
+  if(['leitor','doc'].includes(currentProfile?.role))return;
+  const ids=rows.map(i=>i.id).filter(id=>id!==undefined&&id!==null);
+  if(!ids.length||!db)return;
+  capexAutoFinalizeSyncing[year]=true;
+  try{
+    const{error}=await db.from('capex_itens').update({situacao:'Resolvido',realizado:true}).in('id',ids);
+    if(error)console.warn('syncCapexAutoFinalizedYear error:',error.message);
+  }catch(e){
+    console.warn('syncCapexAutoFinalizedYear exception:',e);
+  }finally{
+    capexAutoFinalizeSyncing[year]=false;
+  }
 }
 
 function _ciKpis(its){
@@ -5866,7 +5909,7 @@ function _ciKpis(its){
 
   const orc=its.reduce((a,i)=>a+(+i.orcamento||0),0);
 
-  const realizado=its.filter(i=>!!i.realizado).length;
+  const realizado=its.filter(i=>capexIsFinalizado(i)).length;
 
   const marcas=[...new Set(its.map(i=>extractMarca(i)).filter(Boolean))].length;
 
@@ -5926,7 +5969,7 @@ function _ciGroupStats(its,keyFn){
 
     if(_ciSit(i)==='Em Andamento')map[key].aberto++;
 
-    if(i.realizado)map[key].realizado++;
+    if(capexIsFinalizado(i))map[key].realizado++;
 
   });
 
@@ -6510,6 +6553,7 @@ function renderCapexUnitItems(){
       const obsTxt=escHtml((it.observacoes||'').trim());
 
       const sit=_ciSit(it);
+      const autoFinalizado=capexIsAutoFinalizedYear(it);
 
       const catId=capexCategoriaId(it);
 
@@ -6521,7 +6565,7 @@ function renderCapexUnitItems(){
 
             <div class="capex-item-meta">
 
-              <select class="badge-select ${_ciSitClass[sit]||'b-neutral'}" onchange="updateCapexSituacao(${it.id},this.value,this)">
+              <select class="badge-select ${_ciSitClass[sit]||'b-neutral'}" onchange="updateCapexSituacao(${it.id},this.value,this)" ${autoFinalizado?'disabled title="Pedidos de 2024 ficam resolvidos por exceção"':''}>
 
                 <option ${sit==='Em Andamento'?'selected':''}>Em Andamento</option>
 
@@ -6569,7 +6613,7 @@ function renderCapexUnitItems(){
             </select>
           </div>
 
-          <label class="capex-flag"><input type="checkbox" ${it.realizado?'checked':''} onchange="updateCapexFlag(${it.id},'realizado',this.checked,this)"> Finalizado</label>
+          <label class="capex-flag"><input type="checkbox" ${capexIsFinalizado(it)?'checked':''} ${autoFinalizado?'disabled title="Pedidos de 2024 ficam finalizados por exceção"':''} onchange="updateCapexFlag(${it.id},'realizado',this.checked,this)"> Finalizado</label>
 
         </div>
 
@@ -6589,6 +6633,10 @@ function renderCapexUnitItems(){
 
 async function updateCapexSituacao(id,sit,sel){
 
+  const itAtual=capexItens.find(i=>i.id===id);
+  if(capexIsAutoFinalizedYear(itAtual))sit='Resolvido';
+
+  if(sel)sel.value=sit;
   sel.className='badge-select '+(_ciSitClass[sit]||'b-neutral');
 
   const payload={situacao:sit};
@@ -6651,6 +6699,13 @@ async function updateCapexOrcamento(id,raw,input){
 async function updateCapexFlag(id,field,checked,input){
 
   if(!['realizado'].includes(field)){toast('Campo inválido.');return;}
+
+  const row=capexItens.find(i=>i.id===id);
+  if(capexIsAutoFinalizedYear(row)){
+    if(input)input.checked=true;
+    toast('Pedidos de 2024 ficam finalizados por exceção.');
+    return;
+  }
 
   const payload={};payload[field]=!!checked;
 
@@ -6868,9 +6923,11 @@ async function saveCapexItem(){if(['leitor','doc'].includes(currentProfile?.role
   const fonte=g('ci-m-fonte');
   const referencia=g('ci-m-ref');
   const setor=g('ci-m-setor')||'COMPRAS';
-  const situacao=document.getElementById('ci-m-sit').value;
+  const ano=+document.getElementById('ci-m-ano').value;
+  const autoFinalizado=capexIsAutoFinalizedYear(ano);
+  const situacao=autoFinalizado?'Resolvido':document.getElementById('ci-m-sit').value;
   const antigo=wasEdit?capexItens.find(i=>i.id===editId):null;
-  const obj={ano:+document.getElementById('ci-m-ano').value,fonte,unidade,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||''};
+  const obj={ano,fonte,unidade,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||''};
 
   if(wasEdit){
 
