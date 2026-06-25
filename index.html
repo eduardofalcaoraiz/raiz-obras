@@ -976,7 +976,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 @media(max-width:768px){
   #overlay,#viewer-overlay,#contr-overlay,#forn-detail-overlay,
   #csv-overlay,#aditivo-overlay,#aporte-overlay,#aporteContr-overlay,
-  #cat-overlay,#confirm-overlay,#invest-overlay,#obra-overlay,#capex-item-overlay{
+  #cat-overlay,#confirm-overlay,#invest-overlay,#obra-overlay,#capex-item-overlay,#capex-tr-dup-overlay{
     max-width:100%!important;
     width:100%!important;
   }
@@ -2766,6 +2766,22 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px"><button class="btn btn-ghost" onclick="closeCapexItemModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCapexItem()"><span class="ic">✓</span> Salvar</button></div>
 
+  </div>
+
+</div></div>
+
+
+<div class="overlay" id="capex-tr-dup-overlay"><div class="modal" style="max-width:620px">
+
+  <div class="mhead"><h2 style="font-size:18px">TR já utilizado</h2><button class="x" onclick="closeCapexTrDuplicateWarning()">×</button></div>
+
+  <div class="mbody">
+    <p style="color:var(--muted);font-size:13.5px;line-height:1.5;margin-bottom:12px">Este número de TR já aparece em outro pedido de CAPEX. Confira antes de continuar para evitar lançamento duplicado.</p>
+    <div id="capex-tr-dup-body" style="display:flex;flex-direction:column;gap:8px;max-height:310px;overflow:auto;border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:10px"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="closeCapexTrDuplicateWarning()">Voltar e revisar</button>
+      <button class="btn btn-primary" onclick="confirmCapexDuplicateTrSave()">Salvar mesmo assim</button>
+    </div>
   </div>
 
 </div></div>
@@ -4840,6 +4856,51 @@ function capexTrKey(v){
   return String(v||'').toUpperCase().replace(/^TR[\s\-:]*/,'').replace(/[^A-Z0-9]/g,'');
 }
 
+function capexTrDuplicateKey(v){
+  const digits=capexTrDigits(v);
+  if(digits)return'D:'+(digits.replace(/^0+/,'')||'0');
+  const key=capexTrKey(v);
+  return key?'K:'+key:'';
+}
+
+function capexTrDuplicateMatches(ref,editId){
+  const key=capexTrDuplicateKey(ref);
+  if(!key)return[];
+  return capexItens.filter(it=>{
+    if(String(it.id)===String(editId))return false;
+    return capexTrDuplicateKey(it.referencia)===key;
+  });
+}
+
+function capexTrDuplicateRow(it){
+  const marca=extractMarca(it);
+  const meta=[it.ano,marca,it.unidade,_ciSit(it)].filter(Boolean).map(escHtml).join(' &middot; ');
+  const title=escHtml((it.pedido||'Pedido sem descrição').slice(0,150));
+  const ref=escHtml(it.referencia||'');
+  return`<div style="border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:9px 10px">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+      <div style="min-width:0"><div style="font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em">TR ${ref}</div><div style="font-size:13px;font-weight:750;color:var(--ink);line-height:1.35;margin-top:3px">${title}</div></div>
+      <span class="badge ${_ciSitClass[_ciSit(it)]||'b-neutral'}" style="font-size:10.5px">${escHtml(_ciSit(it))}</span>
+    </div>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:6px">${meta}</div>
+  </div>`;
+}
+
+function showCapexDuplicateTrWarning(ref,matches){
+  const body=document.getElementById('capex-tr-dup-body');
+  if(body)body.innerHTML=`<div style="font-size:12px;color:var(--muted);font-weight:750;margin-bottom:2px">TR informado: <span class="num" style="color:var(--ink)">${escHtml(ref)}</span></div>`+matches.map(capexTrDuplicateRow).join('');
+  document.getElementById('capex-tr-dup-overlay')?.classList.add('show');
+}
+
+function closeCapexTrDuplicateWarning(){
+  document.getElementById('capex-tr-dup-overlay')?.classList.remove('show');
+}
+
+async function confirmCapexDuplicateTrSave(){
+  closeCapexTrDuplicateWarning();
+  await saveCapexItem({skipDuplicateTr:true});
+}
+
 function capexTrSearchResults(query){
   const q=String(query||'').trim();
   if(!q)return[];
@@ -6906,7 +6967,9 @@ function closeCapexItemModal(){document.getElementById('capex-item-overlay').cla
 
 
 
-async function saveCapexItem(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+
+  options=options||{};
 
   const g=id=>(document.getElementById(id)?.value||'').trim();
 
@@ -6928,6 +6991,14 @@ async function saveCapexItem(){if(['leitor','doc'].includes(currentProfile?.role
   const situacao=autoFinalizado?'Resolvido':document.getElementById('ci-m-sit').value;
   const antigo=wasEdit?capexItens.find(i=>i.id===editId):null;
   const obj={ano,fonte,unidade,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||''};
+
+  if(!options.skipDuplicateTr){
+    const duplicados=capexTrDuplicateMatches(referencia,editId);
+    if(duplicados.length){
+      showCapexDuplicateTrWarning(referencia,duplicados);
+      return;
+    }
+  }
 
   if(wasEdit){
 
