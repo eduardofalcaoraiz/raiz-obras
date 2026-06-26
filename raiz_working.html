@@ -723,7 +723,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 #view-obra .card,#view-obra .kpi,#view-obra .pag-row,#view-obra .tablewrap,#view-obra .tabs,#view-obra .imp-sec{background:linear-gradient(135deg,var(--surface) 0%,var(--brand-cur-light) 145%);position:relative}
 
-#view-uni .card,#view-uni .kpi,#view-uni .tablewrap{background:linear-gradient(135deg,var(--surface) 0%,var(--brand-cur-light) 145%);position:relative}
+#view-uni .card,#view-uni .kpi,#view-uni .tablewrap{background:var(--raiz-panel-gradient);position:relative}
 
 #view-escolas .esc-card,#view-escolas .card,#view-escolas .kpi{background:var(--raiz-panel-gradient);position:relative}
 
@@ -4618,9 +4618,10 @@ function _pageArtMarcasForActiveView(){
   var view=document.querySelector('.view.active');
   var id=view?.id||'';
   if(id==='view-obra'&&cur&&cur.marca)return _normalizePageArtMarcas(cur.marca);
-  if(id==='view-uni'&&curUni&&curUni.marca)return _normalizePageArtMarcas(curUni.marca);
+  if(id==='view-uni')return ['RAIZ'];
   if(id==='view-esfera'&&curEsfera==='capex'&&capexDrillMarca)return _normalizePageArtMarcas(capexDrillMarca);
-  if(id==='view-escolas'){
+  if(id==='view-escolas')return ['RAIZ'];
+  if(false){
     var all=[...new Set(unidades.map(function(u){return u.marca;}).filter(function(m){return m&&m!=='\u2014'&&m!=='—';}))];
     return all.length?all.slice(0,4):['RAIZ'];
   }
@@ -10518,7 +10519,7 @@ function renderEscolas(){
 
   const allMarcas=[...new Set(unidades.map(u=>u.marca).filter(m=>m&&m!=='—'))];
 
-  setTimeout(()=>updatePageArt('esc-page-art',allMarcas.slice(0,4)),80);
+  setTimeout(()=>updatePageArt('esc-page-art',['RAIZ']),80);
 
   const q=(document.getElementById('esc-busca')?.value||'').trim().toLowerCase();
 
