@@ -53,6 +53,14 @@ body{min-height:100vh;min-height:100dvh;font-family:"Manrope",system-ui,sans-ser
 
 h1,h2,h3{font-family:"Manrope",system-ui,sans-serif;font-weight:700;line-height:1.15;letter-spacing:-.02em}
 
+body,body :where(p,span,div,label,small,a,button,input,select,textarea,td,th,li,option){
+  font-weight:700!important
+}
+body :where(h1,h2,h3,h4,h5,h6,b,strong,.brand b,.mobile-brand,.phead .eyebrow,.kpi .val,.num,.cyear-num,.obra-fases-title){
+  font-weight:800!important
+}
+#login-screen .lbrand b{font-weight:900!important}
+
 button{font-family:inherit;cursor:pointer}
 
 .app{display:flex;position:fixed;inset:0;min-height:0;width:auto;height:100vh;height:100dvh;overflow:hidden;background:var(--paper)}
