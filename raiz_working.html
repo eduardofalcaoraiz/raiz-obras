@@ -168,6 +168,14 @@ button{font-family:inherit;cursor:pointer}
 
 .card>h2{font-size:19px;margin-bottom:4px}.card .sub{color:var(--muted);font-size:13.5px;font-weight:500;margin-bottom:16px}
 
+.interactive-card,.kpi-action{cursor:pointer;transition:transform .14s ease,box-shadow .16s ease,border-color .16s ease,background .16s ease}
+.interactive-card:hover,.kpi-action:hover{transform:translateY(-2px);box-shadow:0 14px 30px -24px rgba(15,42,36,.55);border-color:color-mix(in srgb,var(--brand-cur,var(--accent)) 34%,var(--line))}
+.interactive-card:focus-visible,.kpi-action:focus-visible,.tabbtn:focus-visible,.chip:focus-visible,.btn:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(248,136,8,.18),0 0 0 1px var(--accent)}
+.kpi-action{position:relative}
+.kpi-action:after{content:"Abrir";position:absolute;right:12px;top:10px;font-size:9.5px;font-weight:850;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);opacity:0;transform:translateY(-2px);transition:opacity .14s,transform .14s}
+.kpi-action:hover:after,.kpi-action:focus-visible:after{opacity:.78;transform:none}
+.flow-row{cursor:pointer}
+
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
 
 .chip{border:1px solid var(--line-2);background:var(--surface);padding:7px 15px;border-radius:30px;font-size:13.5px;color:var(--muted)}
@@ -197,6 +205,7 @@ button{font-family:inherit;cursor:pointer}
 .pcard .figs b{color:var(--ink);font-weight:500;font-family:"Space Grotesk",sans-serif}
 
 .obra-card{position:relative;overflow:hidden;min-height:252px;display:flex;flex-direction:column;padding:0;background:#fff;cursor:default;border-color:color-mix(in srgb,var(--brand-cur,var(--accent)) 18%,var(--line));box-shadow:0 10px 26px -22px rgba(15,42,36,.5)}
+.obra-card.interactive-card{cursor:pointer}
 .obra-card:before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:linear-gradient(90deg,var(--brand-cur,var(--accent)),color-mix(in srgb,var(--brand-cur,var(--accent)) 15%,#fff));opacity:.9}
 .obra-card:hover{transform:translateY(-2px);box-shadow:0 16px 30px -24px rgba(15,42,36,.55)}
 .obra-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 15px 0;position:relative;z-index:1;min-width:0}
@@ -503,12 +512,16 @@ button{font-family:inherit;cursor:pointer}
 .obra-fase-item:last-child{border-bottom:0}
 .obra-fase-item input{width:18px;height:18px;margin-top:1px;accent-color:var(--brand-cur)}
 .obra-fase-item.done .obra-fase-item-name{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}
+.obra-fase-item.done{border-left:3px solid var(--ok)}
 .obra-fase-item.not-done{background:rgba(166,96,20,.055)}
+.obra-fase-item.not-done{border-left:3px solid var(--warn)}
 .obra-fase-item.not-done .obra-fase-item-name{color:var(--ink)}
 .obra-fase-item-name{font-size:13px;font-weight:650;color:var(--ink);line-height:1.4}
 .obra-fase-statusline{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:10.8px;font-weight:750;margin-top:5px}
 .obra-fase-statusline.ok{color:var(--ok)}
 .obra-fase-statusline.warn{color:var(--warn)}
+.obra-fase-date{width:136px!important;height:28px!important;margin:0!important;padding:4px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);color:var(--ink);font:700 11.5px "Space Grotesk",system-ui,sans-serif;accent-color:auto}
+.obra-fase-date:focus{outline:0;border-color:var(--brand-cur);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-cur) 15%,transparent)}
 .obra-fase-reason{font-size:11.5px;color:var(--muted);line-height:1.45;margin-top:4px;background:rgba(255,255,255,.58);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 .obra-fase-history{display:flex;flex-direction:column;gap:3px;margin-top:6px;padding-left:8px;border-left:2px solid var(--line)}
 .obra-fase-history div{font-size:10.8px;color:var(--soft);line-height:1.35}
@@ -1229,42 +1242,59 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 #login-screen{
   position:fixed;inset:0;z-index:900;
   display:flex;align-items:center;justify-content:center;
-  /* Dark gradiente sutil — profundidade sem cor */
+  padding:24px;
   background:
-    radial-gradient(ellipse 120% 100% at 50% -10%,#0f1e38 0%,#07101c 55%),
-    #07101c;
+    radial-gradient(ellipse 62% 44% at 92% 0%,rgba(248,136,8,.20),transparent 70%),
+    radial-gradient(ellipse 58% 40% at 0% 100%,rgba(77,126,92,.16),transparent 72%),
+    linear-gradient(135deg,var(--paper) 0%,#F6F1E8 52%,#FDF8EF 100%);
   overflow:hidden
 }
-/* Luz suave sem malha de pontos */
+#login-screen,#login-screen *{box-sizing:border-box}
 #login-screen::before{
+  content:'';position:absolute;inset:-12% -8%;pointer-events:none;
+  background:
+    radial-gradient(ellipse 42% 24% at 78% 18%,rgba(248,136,8,.12),transparent 74%),
+    radial-gradient(ellipse 42% 26% at 18% 78%,rgba(23,60,52,.10),transparent 72%);
+  filter:blur(10px);opacity:.95
+}
+#login-screen::after{
   content:'';position:absolute;inset:0;pointer-events:none;
   background:
-    radial-gradient(ellipse 46% 30% at 16% 8%,rgba(248,136,8,.18),transparent 72%),
-    radial-gradient(ellipse 34% 28% at 88% 82%,rgba(77,126,92,.14),transparent 74%);
-  opacity:.78
+    linear-gradient(145deg,rgba(255,255,255,.50),transparent 42%),
+    linear-gradient(315deg,rgba(248,136,8,.06),transparent 58%);
+  opacity:.8
 }
-/* Card */
 #login-screen .lcard{
   position:relative;z-index:2;margin:auto;
-  background:#fff;
+  background:rgba(255,252,246,.94);
+  border:1px solid rgba(23,60,52,.14);
   border-radius:18px;
-  padding:36px 32px;
-  width:calc(100% - 32px);max-width:420px;
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,.07),
-    0 8px 24px rgba(0,0,0,.3),
-    0 32px 72px rgba(0,0,0,.45)
+  padding:32px 32px 30px;
+  width:100%;max-width:430px;
+  box-shadow:0 22px 60px -42px rgba(23,60,52,.55),0 1px 0 rgba(255,255,255,.9) inset;
+  backdrop-filter:blur(10px)
 }
-/* Faixa topo do card — cor da marca RAIZ, margens negativas para preencher */
 #login-screen .lbrand{
-  background:#F88808;
-  margin:-36px -32px 28px;
-  border-radius:18px 18px 0 0;
-  padding:22px 28px 20px
+  background:linear-gradient(135deg,rgba(248,136,8,.13) 0%,rgba(77,126,92,.10) 100%);
+  border:1px solid rgba(23,60,52,.10);
+  margin:0 0 24px;
+  border-radius:14px;
+  padding:16px 18px;
+  overflow:hidden
+}
+#login-screen .lbrand .mk{box-shadow:0 8px 18px -16px rgba(23,60,52,.55);border:1px solid rgba(23,60,52,.10)}
+#login-screen .lbrand b{color:var(--ink-2)}
+#login-screen .lbrand span{color:var(--muted)}
+#login-screen .fi{background:rgba(255,255,255,.82)}
+#login-screen .btn-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-readable)}
+#login-screen .linkbtn{color:var(--accent-text)}
+@supports not (backdrop-filter:blur(10px)){
+  #login-screen .lcard{background:#FFFCF6}
 }
 @media(max-width:500px){
-  #login-screen .lcard{padding:28px 20px;border-radius:14px}
-  #login-screen .lbrand{margin:-28px -20px 24px;border-radius:14px 14px 0 0}
+  #login-screen{padding:14px;align-items:flex-start;overflow-y:auto}
+  #login-screen .lcard{padding:22px 18px;border-radius:14px;margin:18px auto}
+  #login-screen .lbrand{margin:0 0 20px;border-radius:12px;padding:14px}
 }
 </style>
 
@@ -2782,6 +2812,10 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
   <div class="mbody">
     <div id="fase-nao-context" style="font-size:13px;color:var(--muted);line-height:1.45;margin-bottom:14px"></div>
+    <div class="frow">
+      <label class="fl" for="fase-nao-data">Data do registro</label>
+      <input class="fi" id="fase-nao-data" type="date">
+    </div>
     <label class="fl" for="fase-nao-motivo">Motivo</label>
     <textarea class="fi" id="fase-nao-motivo" rows="4" style="height:auto;resize:vertical" placeholder="Explique por que esta etapa nao foi realizada ou nao se aplica nesta obra."></textarea>
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
@@ -3418,6 +3452,16 @@ let capexItens=[],capexSaldos=[],capexEditId=null;
 function setEsfBusca(v){esfBusca=v;renderEsfera();}
 
 function setEsfFiltro(m){esfFiltroMarca=m;renderEsfera();}
+
+function cardKeyOpen(e){
+  if(!e||e.target!==e.currentTarget)return false;
+  if(e.key==='Enter'||e.key===' '){e.preventDefault();return true;}
+  return false;
+}
+
+function tabPaneIntoView(pane){
+  if(pane&&window.innerWidth<760)setTimeout(function(){pane.scrollIntoView({behavior:'smooth',block:'start'});},40);
+}
 
 function nfSearchKey(v){
   return String(v||'').replace(/\D/g,'').replace(/^0+(?=\d)/,'');
@@ -4791,10 +4835,10 @@ function renderObraCard(o,i){
   const constrHtml=constrNames.map(n=>`<span class="obra-card-builder">${escHtml(n)}</span>`).join('');
   const anoFim=_obraEndYear(o)||'a definir';
   const entregaText=isDone?(anoFim==='a definir'?'ENTREGUE':`ENTREGUE EM ${anoFim}`):(anoFim==='a definir'?'PREVIS\u00c3O DE ENTREGA A DEFINIR':`PREVIS\u00c3O DE ENTREGA EM ${anoFim}`);
-  return `<div class="pcard obra-card" style="animation-delay:${i*55}ms;--brand-cur:${bc};--brand-text:${brandText};--brand-cur-light:${brandLight(marcaBase)};--brand-readable:${brandReadable};--brand-readable-shadow:${brandShadow}">
+  return `<div class="pcard obra-card interactive-card" role="button" tabindex="0" onclick="openObra(${o.id})" onkeydown="if(cardKeyOpen(event))openObra(${o.id})" style="animation-delay:${i*55}ms;--brand-cur:${bc};--brand-text:${brandText};--brand-cur-light:${brandLight(marcaBase)};--brand-readable:${brandReadable};--brand-readable-shadow:${brandShadow}">
     <div class="obra-card-head">
       <div class="obra-card-brands">${marcaPills}</div>
-      <select class="obra-status-select" style="border:1px solid ${stColor};color:${stColor};background:${stBg}" onchange="setObraStatus(${o.id},this.value)">
+      <select class="obra-status-select" style="border:1px solid ${stColor};color:${stColor};background:${stBg}" onclick="event.stopPropagation()" onchange="event.stopPropagation();setObraStatus(${o.id},this.value)">
         <option value="Planejamento" ${st==='Planejamento'?'selected':''}>Planejamento</option>
         <option value="Em andamento" ${st==='Em andamento'?'selected':''}>Em andamento</option>
         <option value="Conclu&#237;do" ${isDone?'selected':''}>Conclu&iacute;do</option>
@@ -4811,7 +4855,7 @@ function renderObraCard(o,i){
         <span class="obra-card-pill entrega">${escHtml(entregaText)}</span>
       </div>
     </div>
-    <button type="button" class="obra-card-btn" onclick="openObra(${o.id})">Abrir obra</button>
+    <button type="button" class="obra-card-btn" onclick="event.stopPropagation();openObra(${o.id})">Abrir obra</button>
   </div>`;
 }
 
@@ -6688,7 +6732,7 @@ function renderCapexYears(){
 
     const budgetTxt=budget.autorizado>0?fmt(budget.autorizado):'Sem verba';
 
-    html+=`<div class="cyear-card ${hasData?'':'empty'}" onclick="drillCapex(${ano},null,null)" style="--cyear-accent:${gc};--cyear-soft:${gs};--cyear-text:${yc};--cyear-sub:${ys};--cyear-shadow:${ysh}">
+    html+=`<div class="cyear-card interactive-card ${hasData?'':'empty'}" role="button" tabindex="0" onclick="drillCapex(${ano},null,null)" onkeydown="if(cardKeyOpen(event))drillCapex(${ano},null,null)" style="--cyear-accent:${gc};--cyear-soft:${gs};--cyear-text:${yc};--cyear-sub:${ys};--cyear-shadow:${ysh}">
 
       <div class="cyear-head">
         <div class="cyear-top">
@@ -6780,7 +6824,7 @@ function renderCapexBrands(){
 
     const tsh=brandTextShadow(m);
 
-    html+=`<div class="pcard" onclick="drillCapex(${capexDrillYear},'${ms}',null)" style="padding:0;overflow:hidden;border:none;box-shadow:0 2px 16px rgba(0,0,0,.1)">
+    html+=`<div class="pcard interactive-card" role="button" tabindex="0" onclick="drillCapex(${capexDrillYear},'${ms}',null)" onkeydown="if(cardKeyOpen(event))drillCapex(${capexDrillYear},'${ms}',null)" style="padding:0;overflow:hidden;border:none;box-shadow:0 2px 16px rgba(0,0,0,.1)">
 
       <div style="background:${_brandGradient([m])};padding:18px 22px;display:flex;align-items:center;gap:14px">
 
@@ -6863,7 +6907,7 @@ function renderCapexUnidades(){
     const hasBudget=!!capexSaldoRow(capexDrillYear,uni);
     const budgetBtn=capexBudgetAction(capexDrillYear,uni,hasBudget?'Editar CAPEX disponibilizado':'Adicionar CAPEX disponibilizado',capexDrillMarca,'ghost');
 
-    html+=`<div class="pcard" onclick="drillCapex(${capexDrillYear},'${ms}','${us}')" style="padding:0;overflow:hidden;border:none;box-shadow:0 2px 16px rgba(0,0,0,.1)">
+    html+=`<div class="pcard interactive-card" role="button" tabindex="0" onclick="drillCapex(${capexDrillYear},'${ms}','${us}')" onkeydown="if(cardKeyOpen(event))drillCapex(${capexDrillYear},'${ms}','${us}')" style="padding:0;overflow:hidden;border:none;box-shadow:0 2px 16px rgba(0,0,0,.1)">
 
       <div style="background:${_brandGradient([capexDrillMarca])};padding:11px 16px;display:flex;align-items:center;gap:10px">
 
@@ -7405,7 +7449,14 @@ function openObra(id){
 
 }
 
-function showTab(t){document.querySelectorAll("#view-obra .tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));document.querySelectorAll("#view-obra .tabpane").forEach(p=>p.classList.toggle("active",p.dataset.tab===t));}
+function showTab(t){
+  document.querySelectorAll("#view-obra .tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));
+  document.querySelectorAll("#view-obra .tabpane").forEach(p=>p.classList.toggle("active",p.dataset.tab===t));
+  if(t==='fases')renderObraFases();
+  const pane=document.querySelector('#view-obra .tabpane[data-tab="'+t+'"]');
+  tabPaneIntoView(pane);
+  scheduleActivePageArt(cur&&cur.marca?cur.marca.split(' + '):['RAIZ']);
+}
 
 function openAditivos(){
 
@@ -8576,13 +8627,13 @@ function renderDashboard(){
   var _kpiSaldoColor=_sc<0?'var(--danger)':_sc===0?'var(--ok)':(_sc<_ct*0.15?'var(--warn)':'var(--ink)');
   var _kpiPendColor=pagsAtr.length?'var(--danger)':(_pendTotalDash>0?'var(--warn)':'var(--ok)');
   var sDashKpis='<div class="obra-dashboard-kpis">'
-    +'<div class="obra-dashboard-kpi"><div class="lab">Contrato da obra</div><div class="val">'+fmt(_ct)+'</div><div class="sub">'+fmt(o.contratado)+' base'+(_at>0?' + '+fmt(_at)+' aditivos':'')+'</div></div>'
-    +'<div class="obra-dashboard-kpi"><div class="lab">Pago na obra</div><div class="val" style="color:var(--brand-text)">'+fmt(_po)+'</div><div class="sub">'+_ep+'% executado</div></div>'
-    +'<div class="obra-dashboard-kpi"><div class="lab">'+_saldoLabel+'</div><div class="val" style="color:'+_kpiSaldoColor+'">'+_saldoVal+'</div><div class="sub">'+(_sc<0?'acima do contratado':'contrato - pagamentos pagos')+'</div></div>'
-    +'<div class="obra-dashboard-kpi"><div class="lab">Pendencias</div><div class="val" style="color:'+_kpiPendColor+'">'+fmt(_pendTotalDash)+'</div><div class="sub">'+pagsPend.length+' pagamento'+(pagsPend.length!==1?'s':'')+(valorAtr_>0?' - '+fmt(valorAtr_)+' atrasado':'')+'</div></div>'
-    +'<div class="obra-dashboard-kpi"><div class="lab">Fases da obra</div><div class="val" style="color:var(--brand-text)">'+_faseStatsDash.pct+'%</div><div class="sub">'+_faseStatsDash.doneFases+'/'+_faseStatsDash.totalFases+' fases - '+_faseStatsDash.notDone+' nao realizados</div></div>'
+    +'<div class="obra-dashboard-kpi kpi-action" role="button" tabindex="0" onclick="showTab(&quot;contr&quot;)" onkeydown="if(cardKeyOpen(event))showTab(&quot;contr&quot;)"><div class="lab">Contrato da obra</div><div class="val">'+fmt(_ct)+'</div><div class="sub">'+fmt(o.contratado)+' base'+(_at>0?' + '+fmt(_at)+' aditivos':'')+'</div></div>'
+    +'<div class="obra-dashboard-kpi kpi-action" role="button" tabindex="0" onclick="drillPag(&quot;obra&quot;);showTab(&quot;pag&quot;)" onkeydown="if(cardKeyOpen(event)){drillPag(&quot;obra&quot;);showTab(&quot;pag&quot;)}"><div class="lab">Pago na obra</div><div class="val" style="color:var(--brand-text)">'+fmt(_po)+'</div><div class="sub">'+_ep+'% executado</div></div>'
+    +'<div class="obra-dashboard-kpi kpi-action" role="button" tabindex="0" onclick="showTab(&quot;contr&quot;)" onkeydown="if(cardKeyOpen(event))showTab(&quot;contr&quot;)"><div class="lab">'+_saldoLabel+'</div><div class="val" style="color:'+_kpiSaldoColor+'">'+_saldoVal+'</div><div class="sub">'+(_sc<0?'acima do contratado':'contrato - pagamentos pagos')+'</div></div>'
+    +'<div class="obra-dashboard-kpi kpi-action" role="button" tabindex="0" onclick="drillPag(&quot;obra&quot;);setPagFiltro(&quot;pend&quot;);showTab(&quot;pag&quot;)" onkeydown="if(cardKeyOpen(event)){drillPag(&quot;obra&quot;);setPagFiltro(&quot;pend&quot;);showTab(&quot;pag&quot;)}"><div class="lab">Pendencias</div><div class="val" style="color:'+_kpiPendColor+'">'+fmt(_pendTotalDash)+'</div><div class="sub">'+pagsPend.length+' pagamento'+(pagsPend.length!==1?'s':'')+(valorAtr_>0?' - '+fmt(valorAtr_)+' atrasado':'')+'</div></div>'
+    +'<div class="obra-dashboard-kpi kpi-action" role="button" tabindex="0" onclick="showTab(&quot;fases&quot;)" onkeydown="if(cardKeyOpen(event))showTab(&quot;fases&quot;)"><div class="lab">Fases da obra</div><div class="val" style="color:var(--brand-text)">'+_faseStatsDash.pct+'%</div><div class="sub">'+_faseStatsDash.doneFases+'/'+_faseStatsDash.totalFases+' fases - '+_faseStatsDash.notDone+' nao realizados</div></div>'
     +'</div>';
-  var sFasesCard='<div class="card" style="padding:12px 14px;border-left:4px solid var(--brand-cur)">'
+  var sFasesCard='<div class="card interactive-card" role="button" tabindex="0" onclick="showTab(&quot;fases&quot;)" onkeydown="if(cardKeyOpen(event))showTab(&quot;fases&quot;)" style="padding:12px 14px;border-left:4px solid var(--brand-cur)">'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">'
     +'<div><div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Fases da Obra</div><div style="font-size:12px;color:var(--soft);margin-top:1px">controle operacional do projeto</div></div>'
     +'<span style="font-size:16px;font-weight:900;color:var(--brand-text)">'+_faseStatsDash.pct+'%</span></div>'
@@ -8591,7 +8642,7 @@ function renderDashboard(){
     +'<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 8px"><div style="font-size:9.8px;color:var(--muted);text-transform:uppercase;font-weight:800">Resolvidos</div><div style="font-size:12.5px;font-weight:900">'+_faseStatsDash.resolved+'/'+_faseStatsDash.total+'</div></div>'
     +'<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 8px"><div style="font-size:9.8px;color:var(--muted);text-transform:uppercase;font-weight:800">Fases</div><div style="font-size:12.5px;font-weight:900">'+_faseStatsDash.doneFases+'/'+_faseStatsDash.totalFases+'</div></div>'
     +'<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 8px"><div style="font-size:9.8px;color:var(--muted);text-transform:uppercase;font-weight:800">Nao realizados</div><div style="font-size:12.5px;font-weight:900">'+_faseStatsDash.notDone+'</div></div></div>'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="font-size:11.5px;color:var(--muted);min-width:0">Atual: <b style="color:var(--ink)">'+escHtml(_faseAtualDash)+'</b></div><button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;flex-shrink:0" onclick="showTab(&quot;fases&quot;)">Abrir</button></div></div>';
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="font-size:11.5px;color:var(--muted);min-width:0">Atual: <b style="color:var(--ink)">'+escHtml(_faseAtualDash)+'</b></div><button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;flex-shrink:0" onclick="event.stopPropagation();showTab(&quot;fases&quot;)">Abrir</button></div></div>';
   var sDashCards='<div id="obra-dashboard-principal" class="obra-dashboard-principal">'+_dc1+'<div class="obra-dashboard-side">'+sFasesCard+_dc2+_dc3+'</div></div>'+(sForn?'<div class="obra-dashboard-wide">'+sForn+'</div>':'');
 
   // ── Montar dashboard ─────────────────────────────────────────────────
@@ -8694,7 +8745,7 @@ function renderPag(){const o=cur;
   if(!pagEscopo){
     const summaryCard=(rows,allRows,titulo,icon,escopo,accentColor)=>{
       const tp=sumPago(allRows),tpe=sumPend(allRows),natr=allRows.filter(r=>isAtraso(r.p)).length;
-      return`<div class="card" onclick="drillPag('${escopo}')" style="cursor:pointer;border-top:4px solid ${accentColor};transition:box-shadow .15s;padding:22px 24px" onmouseenter="this.style.boxShadow='0 6px 24px rgba(0,0,0,.12)'" onmouseleave="this.style.boxShadow=''">
+      return`<div class="card interactive-card" role="button" tabindex="0" onclick="drillPag('${escopo}')" onkeydown="if(cardKeyOpen(event))drillPag('${escopo}')" style="cursor:pointer;border-top:4px solid ${accentColor};padding:22px 24px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
           <div>
             <div style="font-size:22px;font-weight:800;color:${accentColor};margin-bottom:2px">${icon} ${titulo}</div>
@@ -8850,7 +8901,7 @@ function renderPag(){const o=cur;
     var _btnDel='<button onclick="event.stopPropagation();deletePagment('+o.id+','+i+')" style="'+_bs+'color:var(--danger);background:var(--danger)08;border-color:var(--danger)30">&#128465; Excluir</button>';
     // ── Montar chips do bloco esquerdo ───────────────────────────────────────
     var _infoChips=[_nfInteg,_rowCat,_tkBadge,_constrTag,_pagante].filter(function(x){return x;}).join('');
-    var _collapsedHtml='<div onclick="togglePagRow('+i+')" style="padding:12px 14px;cursor:pointer;border-left:4px solid '+stColor+';'+_rowBg+'transition:background .12s" onmouseenter="this.style.background=\'var(--surface-2)\'" onmouseleave="this.style.background=\'\'">'
+    var _collapsedHtml='<div class="flow-row" role="button" tabindex="0" onclick="togglePagRow('+i+')" onkeydown="if(cardKeyOpen(event))togglePagRow('+i+')" style="padding:12px 14px;cursor:pointer;border-left:4px solid '+stColor+';'+_rowBg+'transition:background .12s" onmouseenter="this.style.background=\'var(--surface-2)\'" onmouseleave="this.style.background=\'\'">'
       +'<div class="pag-card-grid" style="display:grid;grid-template-columns:1.5fr 2.4fr 1.1fr;gap:0 14px;align-items:start">'
       // ── Bloco esquerdo: nome + chips ──────────────────────────────────────
       +'<div style="min-width:0">'
@@ -9012,7 +9063,7 @@ function renderDocs(){
 
       const n=Object.values(u.docs).reduce((a,arr)=>a+arr.length,0);
 
-      html+=`<div class="uni-card" onclick="openUni('${u.id}')" style="cursor:pointer;background:${_brandSoftGradient([marca])}">
+      html+=`<div class="uni-card interactive-card" role="button" tabindex="0" onclick="openUni('${u.id}')" onkeydown="if(cardKeyOpen(event))openUni('${u.id}')" style="cursor:pointer;background:${_brandSoftGradient([marca])}">
 
         <div class="uc-bar" style="background:${bc}"></div>
 
@@ -9245,7 +9296,7 @@ function renderForn(){
 
     const nameEnc=encodeURIComponent(f.nome);
 
-    return`<div class="card" onclick="openFornDetail('${nameEnc}')" style="cursor:pointer;transition:box-shadow .15s,transform .15s" onmouseenter="this.style.cssText+='box-shadow:0 8px 28px -12px rgba(23,60,52,.3);transform:translateY(-2px)'" onmouseleave="this.style.boxShadow='';this.style.transform=''">
+    return`<div class="card interactive-card" role="button" tabindex="0" onclick="openFornDetail('${nameEnc}')" onkeydown="if(cardKeyOpen(event))openFornDetail('${nameEnc}')" style="cursor:pointer">
 
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
 
@@ -9806,7 +9857,16 @@ function ensureObraFases(o){if(!o)return buildDefaultObraFases();o.fases_obra=no
 function obraFaseAddHistory(it,status,reason){it.history=_cleanObraFaseHistory(it.history);it.history.push({at:new Date().toISOString(),status,reason:String(reason||'').trim().slice(0,700)});if(it.history.length>80)it.history=it.history.slice(-80);}
 function obraFasesStats(o){const fases=ensureObraFases(o).fases;let total=0,done=0,notDone=0,resolved=0,docs=0,doneFases=0;fases.forEach(f=>{let fr=0;f.itens.forEach(it=>{total++;const st=obraFaseStatus(it);if(st==='done')done++;if(st==='not_done')notDone++;if(st==='done'||st==='not_done'){resolved++;fr++;}docs+=(it.docs||[]).length;});if(f.itens.length&&fr===f.itens.length)doneFases++;});const pct=total?Math.round(resolved/total*100):0;const atual=fases.find(f=>f.itens.some(it=>obraFaseStatus(it)==='pending'))||fases[fases.length-1];return{total,done,notDone,resolved,docs,pct,doneFases,totalFases:fases.length,atual};}
 function findObraFaseItem(fid,iid){const fases=ensureObraFases(cur).fases;const fase=fases.find(f=>f.id===fid);const item=fase?.itens?.find(it=>it.id===iid);return{fase,item};}
-function obraFaseHistoryHtml(it){const hist=_cleanObraFaseHistory(it.history).slice(-4).reverse();if(!hist.length)return'';const labels={done:'Concluido',not_done:'Nao realizado',reopen:'Reaberto',pending:'Pendente'};return'<div class="obra-fase-history">'+hist.map(h=>'<div><b>'+escHtml(labels[h.status]||h.status||'Registro')+'</b>'+(h.at?' - '+fmtD(String(h.at).slice(0,10)):'')+(h.reason?': '+escHtml(h.reason):'')+'</div>').join('')+'</div>';}
+function obraFaseHistoryHtml(it){const hist=_cleanObraFaseHistory(it.history).slice(-4).reverse();if(!hist.length)return'';const labels={done:'Concluido',not_done:'Nao realizado',reopen:'Reaberto',pending:'Pendente',date_done:'Data de conclusao ajustada',date_not_done:'Data de nao realizado ajustada'};return'<div class="obra-fase-history">'+hist.map(h=>'<div><b>'+escHtml(labels[h.status]||h.status||'Registro')+'</b>'+(h.at?' - '+fmtD(String(h.at).slice(0,10)):'')+(h.reason?': '+escHtml(h.reason):'')+'</div>').join('')+'</div>';}
+
+function obraFaseStatusDateHtml(fid,iid,it,status,canEdit){
+  const isDone=status==='done';
+  const dt=isDone?(it.doneAt||''):(it.notDoneAt||'');
+  const label=isDone?'Concluido em':'Nao realizado em';
+  const cls=isDone?'ok':'warn';
+  if(!canEdit)return'<div class="obra-fase-statusline '+cls+'">'+label+' '+(dt?fmtD(dt):'data nao informada')+'</div>';
+  return'<div class="obra-fase-statusline '+cls+'"><span>'+label+'</span><input class="obra-fase-date" type="date" value="'+escHtml(dt)+'" onclick="event.stopPropagation()" onchange="setObraFaseDate(\''+fid+'\',\''+iid+'\',\''+status+'\',this.value)"></div>';
+}
 
 function renderObraFases(){
   const pane=document.getElementById('pane-fases');if(!pane||!cur)return;
@@ -9832,9 +9892,9 @@ function renderObraFases(){
       const isDone=status==='done';
       const isNotDone=status==='not_done';
       const docs=(it.docs||[]).map((d,di)=>'<span class="obra-fase-doc" title="'+escHtml(d.name||'Documento')+'"><button class="linkbtn" style="font-size:11px;font-weight:750;color:var(--brand-text)" onclick="viewObraFaseDoc(\''+f.id+'\',\''+it.id+'\','+di+')">'+escHtml(d.name||'Documento')+'</button>'+(canEdit?'<button class="obra-fase-doc-del" title="Excluir documento" onclick="deleteObraFaseDoc(\''+f.id+'\',\''+it.id+'\','+di+')">x</button>':'')+'</span>').join('');
-      const statusHtml=isDone&&it.doneAt?'<div class="obra-fase-statusline ok">Concluido em '+fmtD(it.doneAt)+'</div>':(isNotDone?'<div class="obra-fase-statusline warn">Nao realizado'+(it.notDoneAt?' em '+fmtD(it.notDoneAt):'')+'</div><div class="obra-fase-reason"><b>Motivo:</b> '+escHtml(it.notDoneReason||'Motivo nao informado')+'</div>':'');
+      const statusHtml=isDone?obraFaseStatusDateHtml(f.id,it.id,it,'done',canEdit):(isNotDone?obraFaseStatusDateHtml(f.id,it.id,it,'not_done',canEdit)+'<div class="obra-fase-reason"><b>Motivo:</b> '+escHtml(it.notDoneReason||'Motivo nao informado')+'</div>':'');
       const histHtml=obraFaseHistoryHtml(it);
-      const actions=canEdit?'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="openObraFaseNaoModal(\''+f.id+'\',\''+it.id+'\')" title="Registrar etapa nao realizada">'+(isNotDone?'Editar motivo':'Nao realizado')+'</button>'+(status!=='pending'?'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="reabrirObraFaseItem(\''+f.id+'\',\''+it.id+'\')" title="Voltar esta etapa para pendente">Reabrir</button>':'')+'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="anexarObraFaseDoc(\''+f.id+'\',\''+it.id+'\')" title="Anexar documento deste item">Anexar</button>':'';
+      const actions=canEdit?(status!=='done'?'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;color:var(--ok)" onclick="toggleObraFaseItem(\''+f.id+'\',\''+it.id+'\',true)" title="Concluir esta etapa">Concluir</button>':'')+'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="openObraFaseNaoModal(\''+f.id+'\',\''+it.id+'\')" title="Registrar etapa nao realizada">'+(isNotDone?'Editar motivo':'Nao realizado')+'</button>'+(status!=='pending'?'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="reabrirObraFaseItem(\''+f.id+'\',\''+it.id+'\')" title="Voltar esta etapa para pendente">Reabrir</button>':'')+'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="anexarObraFaseDoc(\''+f.id+'\',\''+it.id+'\')" title="Anexar documento deste item">Anexar</button>':'';
       return'<div class="obra-fase-item '+(isDone?'done':(isNotDone?'not-done':''))+'"><input type="checkbox" '+(isDone?'checked':'')+' '+(!canEdit?'disabled':'')+' onchange="toggleObraFaseItem(\''+f.id+'\',\''+it.id+'\',this.checked)"><div><div class="obra-fase-item-name">'+escHtml(it.nome)+'</div>'+statusHtml+(docs?'<div class="obra-fase-docs">'+docs+'</div>':'')+histHtml+'</div><div class="obra-fase-actions">'+actions+'</div></div>';
     }).join('');
     return'<details class="obra-fase-card '+(phaseDone?'is-done':'')+'" '+(f.id===openPhaseId?'open':'')+'><summary class="obra-fase-summary"><span class="obra-fase-index">'+String(fi+1).padStart(2,'0')+'</span><span style="min-width:0"><span class="obra-fase-name">'+escHtml(f.nome)+'</span><span class="obra-fase-count">'+resolvedCount+' de '+f.itens.length+' itens resolvidos'+(notDoneCount?' - '+notDoneCount+' nao realizados':'')+'</span></span><span class="obra-fase-meter"><span style="display:flex;justify-content:space-between;gap:10px;font-size:11.5px;font-weight:800;color:'+(phaseDone?'var(--ok)':'var(--brand-text)')+'"><span>'+pct+'%</span><span>'+docsCount+' doc'+(docsCount!==1?'s':'')+'</span></span><span class="obra-fase-meter-bar"><i style="width:'+pct+'%"></i></span></span><span class="obra-fase-pill">'+(phaseDone?'Resolvida':'Em andamento')+'</span><span class="obra-fase-chevron">&rsaquo;</span></summary><div class="obra-fase-list">'+itemRows+'</div></details>';
@@ -9844,10 +9904,11 @@ function renderObraFases(){
 
 async function persistObraFases(){if(!cur)return false;cur.fases_obra=normalizeObraFases(cur.fases_obra);cur.fases_obra.atualizado_em=new Date().toISOString();const{error}=await db.from('obras').update({fases_obra:cur.fases_obra}).eq('id',cur.id);if(error){console.error('persistObraFases:',error);toast('Erro ao salvar fases da obra: '+error.message);return false;}return true;}
 async function toggleObraFaseItem(fid,iid,checked){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');renderObraFases();return;}const found=findObraFaseItem(fid,iid);if(!found.item)return;const oldStatus=obraFaseStatus(found.item);if(checked){found.item.status='done';found.item.done=true;found.item.doneAt=_faseHoje();found.item.notDone=false;found.item.notDoneAt='';found.item.notDoneReason='';obraFaseAddHistory(found.item,'done','');}else{found.item.status='pending';found.item.done=false;found.item.doneAt='';found.item.notDone=false;found.item.notDoneAt='';found.item.notDoneReason='';if(oldStatus!=='pending')obraFaseAddHistory(found.item,'reopen','');}if(await persistObraFases()){renderObraFases();renderDashboard();toast(checked?'Etapa concluida.':'Etapa reaberta.');}}
+async function setObraFaseDate(fid,iid,status,value){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');renderObraFases();return;}const dt=String(value||'').trim();if(!dt){toast('Informe uma data valida.');renderObraFases();return;}const found=findObraFaseItem(fid,iid);if(!found.item)return;if(status==='not_done'){found.item.status='not_done';found.item.done=false;found.item.doneAt='';found.item.notDone=true;found.item.notDoneAt=dt;obraFaseAddHistory(found.item,'date_not_done','Data ajustada para '+fmtD(dt));}else{found.item.status='done';found.item.done=true;found.item.doneAt=dt;found.item.notDone=false;found.item.notDoneAt='';found.item.notDoneReason='';obraFaseAddHistory(found.item,'date_done','Data ajustada para '+fmtD(dt));}if(await persistObraFases()){renderObraFases();renderDashboard();toast('Data da etapa atualizada.');}}
 let obraFaseNaoCtx=null;
-function openObraFaseNaoModal(fid,iid){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');return;}const found=findObraFaseItem(fid,iid);if(!found.item)return;obraFaseNaoCtx={fid,iid};document.getElementById('fase-nao-context').innerHTML='<b>'+escHtml(found.fase?.nome||'Fase')+'</b><br>'+escHtml(found.item.nome||'Etapa');document.getElementById('fase-nao-motivo').value=found.item.notDoneReason||'';document.getElementById('fase-nao-overlay').classList.add('show');setTimeout(()=>document.getElementById('fase-nao-motivo')?.focus(),60);}
+function openObraFaseNaoModal(fid,iid){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');return;}const found=findObraFaseItem(fid,iid);if(!found.item)return;obraFaseNaoCtx={fid,iid};document.getElementById('fase-nao-context').innerHTML='<b>'+escHtml(found.fase?.nome||'Fase')+'</b><br>'+escHtml(found.item.nome||'Etapa');document.getElementById('fase-nao-data').value=found.item.notDoneAt||_faseHoje();document.getElementById('fase-nao-motivo').value=found.item.notDoneReason||'';document.getElementById('fase-nao-overlay').classList.add('show');setTimeout(()=>document.getElementById('fase-nao-motivo')?.focus(),60);}
 function closeObraFaseNaoModal(){obraFaseNaoCtx=null;document.getElementById('fase-nao-overlay').classList.remove('show');}
-async function saveObraFaseNaoRealizada(){if(!obraFaseNaoCtx)return;const motivo=(document.getElementById('fase-nao-motivo').value||'').trim();if(motivo.length<3){toast('Informe o motivo da etapa nao realizada.');return;}const found=findObraFaseItem(obraFaseNaoCtx.fid,obraFaseNaoCtx.iid);if(!found.item){closeObraFaseNaoModal();return;}found.item.status='not_done';found.item.done=false;found.item.doneAt='';found.item.notDone=true;found.item.notDoneAt=_faseHoje();found.item.notDoneReason=motivo;obraFaseAddHistory(found.item,'not_done',motivo);if(await persistObraFases()){closeObraFaseNaoModal();renderObraFases();renderDashboard();toast('Etapa registrada como nao realizada.');}}
+async function saveObraFaseNaoRealizada(){if(!obraFaseNaoCtx)return;const motivo=(document.getElementById('fase-nao-motivo').value||'').trim();const data=(document.getElementById('fase-nao-data')?.value||_faseHoje()).trim()||_faseHoje();if(motivo.length<3){toast('Informe o motivo da etapa nao realizada.');return;}const found=findObraFaseItem(obraFaseNaoCtx.fid,obraFaseNaoCtx.iid);if(!found.item){closeObraFaseNaoModal();return;}found.item.status='not_done';found.item.done=false;found.item.doneAt='';found.item.notDone=true;found.item.notDoneAt=data;found.item.notDoneReason=motivo;obraFaseAddHistory(found.item,'not_done',motivo);if(await persistObraFases()){closeObraFaseNaoModal();renderObraFases();renderDashboard();toast('Etapa registrada como nao realizada.');}}
 async function reabrirObraFaseItem(fid,iid){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');return;}const found=findObraFaseItem(fid,iid);if(!found.item)return;found.item.status='pending';found.item.done=false;found.item.doneAt='';found.item.notDone=false;found.item.notDoneAt='';found.item.notDoneReason='';obraFaseAddHistory(found.item,'reopen','');if(await persistObraFases()){renderObraFases();renderDashboard();toast('Etapa reaberta.');}}
 function anexarObraFaseDoc(fid,iid){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');return;}if(!cur){toast('Abra uma obra.');return;}let inp=document.getElementById('obra-fase-doc-input');if(!inp){inp=document.createElement('input');inp.type='file';inp.id='obra-fase-doc-input';inp.multiple=true;inp.style.display='none';document.body.appendChild(inp);}inp.onchange=async()=>{if(!inp.files.length)return;const found=findObraFaseItem(fid,iid);if(!found.item){inp.value='';return;}let ok=0;for(const f of Array.from(inp.files)){const safeName=f.name.replace(/[^a-zA-Z0-9._-]/g,'_');const path='obra_'+cur.id+'/fases/'+fid+'/'+iid+'/'+Date.now()+'_'+safeName;const{error}=await db.storage.from('documentos').upload(path,f,{upsert:true,contentType:f.type||inferType(f.name)});if(error){console.error('anexarObraFaseDoc:',error);toast('Erro ao enviar: '+f.name);continue;}found.item.docs=found.item.docs||[];found.item.docs.push({name:f.name,storagePath:path,bucket:'documentos',type:f.type||inferType(f.name)});ok++;}inp.value='';if(ok&&await persistObraFases()){renderObraFases();renderDashboard();toast(ok>1?ok+' documentos anexados.':'Documento anexado.');}};inp.click();}
 function viewObraFaseDoc(fid,iid,di){const found=findObraFaseItem(fid,iid);const d=found.item?.docs?.[di];if(!d){toast('Documento nao encontrado.');return;}viewFile({...d,bucket:d.bucket||'documentos'});}
@@ -10565,7 +10626,7 @@ function renderEscolas(){
 
     list.forEach(u=>{
 
-      html+=`<div class="uni-card" style="background:${_brandSoftGradient([marca])}">
+      html+=`<div class="uni-card interactive-card" role="button" tabindex="0" onclick="openUni('${u.id}')" onkeydown="if(cardKeyOpen(event))openUni('${u.id}')" style="cursor:pointer;background:${_brandSoftGradient([marca])}">
 
         <div class="uc-bar" style="background:${bc}"></div>
 
@@ -10590,12 +10651,12 @@ function renderEscolas(){
           <div style="font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(u.endereco||'Endereço não informado')}</div>
 
           <div style="margin-top:auto;padding-top:9px;border-top:1px solid var(--line)">
-            <button class="btn btn-primary btn-sm" style="font-size:12px;padding:6px 11px;width:100%;justify-content:center;background:${bc};border-color:${bc};color:${btc};text-shadow:${bsh}" onclick="openUni('${u.id}')">Documentos</button>
+            <button class="btn btn-primary btn-sm" style="font-size:12px;padding:6px 11px;width:100%;justify-content:center;background:${bc};border-color:${bc};color:${btc};text-shadow:${bsh}" onclick="event.stopPropagation();openUni('${u.id}')">Documentos</button>
           </div>
 
         </div>
 
-        <div class="uc-acts">
+        <div class="uc-acts" onclick="event.stopPropagation()">
 
           <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:13px" title="Editar" onclick="openUniModal('${u.id}')">✎</button>
 
