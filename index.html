@@ -4493,18 +4493,28 @@ function _makePageArt(colors,w,h,marcas){
 
   var logos=marcas.map(logoUrl).filter(Boolean);
   if(!logos.length)logos=[logoUrl('RAIZ')].filter(Boolean);
-  var positions=[
-    {x:.190,y:.305,w:.620,h:.325,rot:0,op:.145},
-    {x:-.025,y:.725,w:.300,h:.190,rot:0,op:.185},
-    {x:.700,y:.725,w:.300,h:.190,rot:0,op:.185}
+  var compact=(typeof window!=='undefined'&&window.innerWidth<700);
+  var viewportH=(typeof window!=='undefined'&&window.innerHeight)?window.innerHeight:h;
+  var visualH=Math.min(h,viewportH||h);
+  var positions=compact?[
+    {x:.155,y:.420,w:.690,hr:.430,rot:0,op:.125,max:330},
+    {x:-.100,bottom:34,w:.390,hr:.540,rot:0,op:.165,max:170},
+    {x:.710,bottom:34,w:.390,hr:.540,rot:0,op:.165,max:170}
+  ]:[
+    {x:.190,y:.305,w:.620,hr:.430,rot:0,op:.145,max:1180},
+    {x:-.035,bottom:30,w:.300,hr:.520,rot:0,op:.185,max:520},
+    {x:.720,bottom:30,w:.300,hr:.520,rot:0,op:.185,max:520}
   ];
   positions.forEach(function(p,i){
     var url=logos[i%logos.length];
-    var x=w*p.x,y=h*p.y,pw=w*p.w,ph=h*p.h;
+    var pw=Math.min(w*p.w,p.max||w*p.w);
+    var ph=pw*p.hr;
+    var x=w*p.x;
+    var y=(p.bottom!=null)?Math.max(visualH-ph-p.bottom,visualH*.50):(visualH*p.y);
     svg+='<image href="'+safeUrl(url)+'" x="'+n(x)+'" y="'+n(y)+'" width="'+n(pw)+'" height="'+n(ph)+'" opacity="'+p.op+'" preserveAspectRatio="xMidYMid meet" transform="rotate('+p.rot+' '+n(x+pw/2)+' '+n(y+ph/2)+')"/>';
   });
 
-  return'<svg data-art-style="organic-watercolor-no-dots" width="100%" height="100%" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'+svg+'</svg>';
+  return'<svg data-art-style="organic-watercolor-no-dots" width="100%" height="100%" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">'+svg+'</svg>';
 }
 
 function updateSideArtLegacy(marcas){
@@ -4623,8 +4633,13 @@ function updatePageArt(elId,marcas){
   marcas=_normalizePageArtMarcas(marcas&&marcas.length?marcas:_pageArtMarcasForActiveView());
   const cols=marcas.map(m=>brandColor(m)).filter(c=>c&&!c.startsWith('var('));
   const finalCols=cols.length?cols:['#F88808'];
-  const w=Math.max(window.innerWidth,1200);
-  const h=Math.max(el.closest('.view')?.scrollHeight||window.innerHeight,820);
+  const view=el.closest('.view');
+  const rect=el.getBoundingClientRect();
+  const compact=window.innerWidth<700;
+  const minW=compact?520:(window.innerWidth<1024?900:1200);
+  const minH=compact?760:820;
+  const w=Math.max(rect.width||window.innerWidth,minW);
+  const h=Math.max(rect.height||view?.scrollHeight||window.innerHeight,minH);
   el.innerHTML=_makePageArt(finalCols,w,h,marcas);
 }
 
