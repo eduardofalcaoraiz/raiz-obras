@@ -469,6 +469,36 @@ button{font-family:inherit;cursor:pointer}
 
 .tabpane{display:none;animation:fade .3s ease both}.tabpane.active{display:block}
 
+.obra-fases-head{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.8fr);gap:14px;margin-bottom:16px;align-items:stretch}
+.obra-fases-hero{padding:18px 20px;border:1px solid var(--line);border-radius:var(--r-lg);background:linear-gradient(135deg,var(--surface) 0%,var(--brand-cur-light) 150%)}
+.obra-fases-title{font-family:Outfit,sans-serif;font-size:22px;font-weight:800;color:var(--ink);margin:0 0 4px}
+.obra-fases-sub{font-size:13px;color:var(--muted);line-height:1.5;max-width:820px}
+.obra-fases-progress{height:8px;background:var(--line);border-radius:999px;overflow:hidden;margin-top:14px}
+.obra-fases-progress>i{display:block;height:100%;background:var(--brand-cur);border-radius:999px;transition:width .25s ease}
+.obra-fases-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.obra-fases-kpi{padding:13px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.obra-fases-kpi .lab{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.obra-fases-kpi .val{font-family:"Space Grotesk",sans-serif;font-size:22px;font-weight:800;color:var(--brand-text);line-height:1.05;margin-top:4px}
+.obra-fases-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,390px),1fr));gap:12px;align-items:start}
+.obra-fase-card{border:1px solid var(--line);border-left:4px solid var(--brand-cur);border-radius:var(--r-lg);background:linear-gradient(135deg,var(--surface) 0%,var(--brand-cur-light) 165%);overflow:hidden}
+.obra-fase-card.is-done{border-left-color:var(--ok)}
+.obra-fase-top{padding:14px 16px 12px;border-bottom:1px solid var(--line);display:flex;gap:12px;justify-content:space-between;align-items:flex-start}
+.obra-fase-num{font-size:10px;font-weight:800;color:var(--brand-text);background:var(--brand-cur-light);border:1px solid var(--brand-cur)33;border-radius:999px;padding:3px 8px;white-space:nowrap}
+.obra-fase-name{font-size:15px;font-weight:800;color:var(--ink);line-height:1.25}
+.obra-fase-count{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.obra-fase-list{display:flex;flex-direction:column}
+.obra-fase-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:11px 14px;border-bottom:1px solid var(--line)}
+.obra-fase-item:last-child{border-bottom:0}
+.obra-fase-item input{width:18px;height:18px;margin-top:1px;accent-color:var(--brand-cur)}
+.obra-fase-item.done .obra-fase-item-name{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}
+.obra-fase-item-name{font-size:13px;font-weight:650;color:var(--ink);line-height:1.4}
+.obra-fase-docs{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.obra-fase-doc{font-size:11px;font-weight:650;color:var(--brand-text);background:var(--surface);border:1px solid var(--brand-cur)35;border-radius:999px;padding:3px 8px;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.obra-fase-doc-del{border:0;background:transparent;color:var(--danger);font-weight:800;margin-left:4px;cursor:pointer}
+.obra-fase-actions{display:flex;gap:5px;align-items:center}
+@media(max-width:900px){.obra-fases-head{grid-template-columns:1fr}.obra-fases-kpis{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:620px){.obra-fases-kpis{grid-template-columns:1fr}.obra-fase-item{grid-template-columns:auto minmax(0,1fr)}.obra-fase-actions{grid-column:2;justify-content:flex-start}}
+
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 
 .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface)}
@@ -1466,6 +1496,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         <button class="tabbtn" data-tab="contr" onclick="showTab('contr')">Contratos</button>
 
+        <button class="tabbtn" data-tab="fases" onclick="showTab('fases')">Fases da Obra</button>
+
         
 
         
@@ -1477,6 +1509,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div class="tabpane" data-tab="pag" id="pane-pag"></div>
 
       <div class="tabpane" data-tab="contr" id="pane-contr"></div>
+
+      <div class="tabpane" data-tab="fases" id="pane-fases"></div>
 
       
 
@@ -7485,7 +7519,7 @@ function renderObra(){const o=cur,pct=execObra(o);
 
   /* pane-resumo agora gerado por renderDashboard() */
 
-  renderPag();renderDashboard();
+  renderPag();renderDashboard();renderObraFases();
 
   // Calcula quanto foi pago por contrato via pagamentos vinculados
 
@@ -8251,6 +8285,8 @@ function renderDashboard(){
   var _proxPend=pagsPend.slice().sort(function(a,b){return(normalizeDateISO(a.venc)||'9999-99-99').localeCompare(normalizeDateISO(b.venc)||'9999-99-99');})[0];
   var _proxVal=_proxPend?fmt(_proxPend.v):'--';
   var _proxSub=_proxPend?((_proxPend.venc?fmtD(_proxPend.venc):'sem data')+' - '+((_proxPend.ben||'fornecedor').slice(0,28))):'sem pagamentos pendentes';
+  var _faseStatsDash=obraFasesStats(o);
+  var _faseAtualDash=_faseStatsDash.atual?_faseStatsDash.atual.nome:'Trilha finalizada';
   var _saldoLabel=_sc<0?'Excedido':'Saldo contratual';
   var _saldoVal=_sc<0?fmt(-_sc):fmt(_sc);
   var _kpiSaldoColor=_sc<0?'var(--danger)':_sc===0?'var(--ok)':(_sc<_ct*0.15?'var(--warn)':'var(--ink)');
@@ -8262,8 +8298,19 @@ function renderDashboard(){
     +'<div class="obra-dashboard-kpi"><div class="lab">Em aberto</div><div class="val" style="color:'+_kpiPendColor+'">'+fmt(_pendTotalDash)+'</div><div class="sub">'+pagsPend.length+' pagamento'+(pagsPend.length!==1?'s':'')+(valorAtr_>0?' - '+fmt(valorAtr_)+' atrasado':'')+'</div></div>'
     +'<div class="obra-dashboard-kpi"><div class="lab">Fora da obra</div><div class="val" style="color:'+(_pe>0?'var(--warn)':'var(--ok)')+'">'+fmt(_pe)+'</div><div class="sub">'+(_te>0?'teto '+fmt(_te):'caixa da escola')+'</div></div>'
     +'<div class="obra-dashboard-kpi"><div class="lab">Pr&oacute;ximo venc.</div><div class="val" style="color:'+(_proxPend&&(isAtraso(_proxPend)||dateObj(_proxPend.venc)&&dateObj(_proxPend.venc)<=hoje30)?'var(--warn)':'var(--ink)')+'">'+_proxVal+'</div><div class="sub">'+_proxSub+'</div></div>'
+    +'<div class="obra-dashboard-kpi"><div class="lab">Fases da obra</div><div class="val" style="color:var(--brand-text)">'+_faseStatsDash.pct+'%</div><div class="sub">'+_faseStatsDash.doneFases+'/'+_faseStatsDash.totalFases+' fases - '+_faseStatsDash.docs+' docs</div></div>'
     +'</div>';
-  var sDashCards='<div id="obra-dashboard-principal" class="obra-dashboard-principal">'+_dc1+'<div class="obra-dashboard-side">'+_dc2+_dc3+sForn+'</div></div>';
+  var sFasesCard='<div class="card" style="padding:12px 14px;border-left:4px solid var(--brand-cur)">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">'
+    +'<div><div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Fases da Obra</div><div style="font-size:12px;color:var(--soft);margin-top:1px">controle operacional do projeto</div></div>'
+    +'<span style="font-size:16px;font-weight:900;color:var(--brand-text)">'+_faseStatsDash.pct+'%</span></div>'
+    +'<div style="height:5px;background:var(--line);border-radius:999px;overflow:hidden;margin-bottom:8px"><div style="height:100%;width:'+_faseStatsDash.pct+'%;background:var(--brand-cur);border-radius:999px;transition:width .5s"></div></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">'
+    +'<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 8px"><div style="font-size:9.8px;color:var(--muted);text-transform:uppercase;font-weight:800">Itens</div><div style="font-size:12.5px;font-weight:900">'+_faseStatsDash.done+'/'+_faseStatsDash.total+'</div></div>'
+    +'<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 8px"><div style="font-size:9.8px;color:var(--muted);text-transform:uppercase;font-weight:800">Fases</div><div style="font-size:12.5px;font-weight:900">'+_faseStatsDash.doneFases+'/'+_faseStatsDash.totalFases+'</div></div>'
+    +'<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 8px"><div style="font-size:9.8px;color:var(--muted);text-transform:uppercase;font-weight:800">Docs</div><div style="font-size:12.5px;font-weight:900">'+_faseStatsDash.docs+'</div></div></div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="font-size:11.5px;color:var(--muted);min-width:0">Atual: <b style="color:var(--ink)">'+escHtml(_faseAtualDash)+'</b></div><button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;flex-shrink:0" onclick="showTab(&quot;fases&quot;)">Abrir</button></div></div>';
+  var sDashCards='<div id="obra-dashboard-principal" class="obra-dashboard-principal">'+_dc1+'<div class="obra-dashboard-side">'+sFasesCard+_dc2+_dc3+sForn+'</div></div>';
 
   // ── Montar dashboard ─────────────────────────────────────────────────
   var html='';
@@ -9447,6 +9494,43 @@ function deleteAditivo(idx){if(['leitor','doc'].includes(currentProfile?.role)){
 
 }
 
+const OBRA_FASES_TEMPLATE=[
+  {id:'f00',nome:'Viabilidade e Analise do Terreno',itens:['Levantamento documental do terreno (matricula, certidoes, onus, escritura)','Verificacao de zoneamento e parametros urbanisticos (LUOS, taxa de ocupacao, gabarito, recuos, afastamentos)','Analise de enquadramento de uso do solo para fim educacional','Levantamento topografico','Levantamento cadastral/arquitetonico (caso haja edificacao existente)','Sondagem do solo (quando aplicavel)','Analise de infraestrutura disponivel (agua, esgoto, energia, drenagem)','Verificacao de restricoes ambientais, APP e patrimonio historico','Analise de acessos, logistica e mobilidade (vias, transporte escolar)','Levantamento fotografico do estado atual do imovel','Definicao preliminar do programa de necessidades (capacidade de alunos, segmentos, metodologia)','Parecer de viabilidade tecnica e urbanistica consolidado']},
+  {id:'f01',nome:'Estudos Preliminares',itens:['Estudo de massa / implantacao','Estudo de insolacao e ventilacao natural','Estudo do programa pedagogico (alinhado a metodologia da escola)','Estudo de capacidade x area (parametros minimos por segmento)','Estudo de acessibilidade (NBR 9050)','Estimativa de custo por ordem de grandeza','Apresentacao e validacao interna (Coordenacao de Arquitetura / Diretoria)']},
+  {id:'f02',nome:'Legal - Estudos, Documentacao e Aprovacoes',itens:['Consulta previa a Prefeitura (viabilidade de uso e ocupacao)','Projeto legal conforme codigo de obras do municipio','Protocolo e aprovacao na Prefeitura / Secretaria de Urbanismo','Licenca de funcionamento para uso educacional','Projeto de prevencao e combate a incendio (Corpo de Bombeiros - normas tecnicas aplicaveis, incl. exaustao de cozinha quando houver)','Aprovacao no Corpo de Bombeiros (CLCB)','Documentacao para vistoria/aprovacao SEEDUC (quando aplicavel)','Alvara de construcao','ART/RRT dos responsaveis tecnicos','Licenciamento ambiental (quando exigido)','Aprovacao junto as concessionarias (agua/esgoto, energia)','Habite-se / Certificado de conclusao de obra','Arquivo consolidado de toda documentacao legal do imovel e do projeto']},
+  {id:'f03',nome:'Anteprojeto',itens:['Plantas de implantacao','Plantas de todos os pavimentos','Cortes e fachadas','Estudo volumetrico / render preliminar','Memorial de partido arquitetonico','Estimativa de custo em nivel de anteprojeto','Validacao com Coordenacao/Diretoria']},
+  {id:'f04',nome:'Projeto Arquitetonico (Projeto Legal)',itens:['Compatibilizacao com a legislacao vigente','Plantas, cortes, fachadas e implantacao detalhados','Quadro de areas','Memorial descritivo do projeto legal','Pecas graficas formatadas conforme exigencia do orgao de aprovacao']},
+  {id:'f05',nome:'Projeto Executivo',itens:['Detalhamento construtivo (plantas, cortes e fachadas em escala executiva)','Detalhamento de esquadrias','Detalhamento de revestimentos e acabamentos','Detalhamento de mobiliario fixo','Paginacao de piso e forro','Detalhamento de acessibilidade','Compatibilizacao entre arquitetura e projetos complementares']},
+  {id:'f06',nome:'Projetos Complementares',itens:['Estrutural','Eletrico','Hidrossanitario','SPDA (para-raios)','Climatizacao / AVAC','Incendio (hidrantes, sprinklers, exaustao de cozinha conforme norma aplicavel)','Cabeamento estruturado / dados / CFTV','Paisagismo','Acustico (quando aplicavel)','Compatibilizacao geral entre todas as disciplinas (clash detection)']},
+  {id:'f07',nome:'Levantamentos - Mobiliario, Equipamentos e Insumos',itens:['Levantamento quantitativo de mobiliario por ambiente (salas, biblioteca, refeitorio, administracao, etc.)','Levantamento quantitativo de equipamentos (cozinha, laboratorios, quadra, playground)','Levantamento de equipamentos de tecnologia e audiovisual (quando aplicavel)','Levantamento de luminarias e itens eletricos especiais especificados em projeto','Levantamento de sinalizacao e comunicacao visual','Levantamento de itens de acabamento especificados fora da obra civil (ex.: persianas, cortinas, tapetes)','Planilha consolidada de compras (descricao, quantidade, unidade, valor unitario, valor total, fornecedor)','Cotacao com fornecedores','Fechamento e formalizacao das compras']},
+  {id:'f08',nome:'Orcamentos',itens:['Orcamento preliminar (fase de estudo preliminar)','Orcamento de anteprojeto','Orcamento executivo detalhado (com BDI)','Cotacoes com fornecedores e prestadores','Planilha de composicao de custos','Validacao orcamentaria com Diretoria/Financeiro','Cronograma fisico-financeiro']},
+  {id:'f09',nome:'Memorial Descritivo',itens:['Memorial de partido / conceito','Memorial tecnico de materiais e acabamentos','Memorial do projeto legal (para protocolo)','Memorial executivo (especificacoes detalhadas)']},
+  {id:'f10',nome:'Caderno de Obra',itens:['Especificacoes tecnicas de execucao','Caderno de encargos','Detalhamentos construtivos para a equipe de obra','Cronograma de execucao','Plano de logistica de obra','Plano de seguranca do trabalho (NRs aplicaveis)']},
+  {id:'f11',nome:'Execucao / Obra',itens:['Mobilizacao de equipe e fornecedores','Contratacao de empreiteiros e prestadores','Acompanhamento de fundacao e estrutura','Acompanhamento de instalacoes','Acompanhamento de acabamentos','Controle de qualidade e conformidade ao projeto','Gestao de pendencias e solicitacoes de informacao (RFIs)','Atas de reuniao de obra']},
+  {id:'f12',nome:'Acompanhamento',itens:['Visitas tecnicas periodicas','Relatorios fotograficos de avanco','Controle de cronograma fisico-financeiro','Gestao de aditivos e mudancas de escopo','Comunicacao periodica com stakeholders (Diretoria, Coordenacao)']},
+  {id:'f13',nome:'Montagem e Entrega',itens:['Montagem de mobiliario e equipamentos','Testes de instalacoes (eletrica, hidraulica, incendio)','Vistoria final de obra','Checklist de entrega (punch list)','Correcao de pendencias apontadas na vistoria','Entrega formal a unidade escolar']},
+  {id:'f14',nome:'Pos-Obra',itens:['As built completo (arquitetonico e complementares)','Manuais de uso e operacao dos sistemas instalados','Garantias de fornecedores e prestadores arquivadas','Relatorio fotografico final da obra concluida','Documentacao de habite-se e licencas finais arquivadas']},
+  {id:'f15',nome:'Passagem para o Time de Manutencao',itens:['Reuniao de handoff com o time de manutencao','Entrega do as built e manuais tecnicos','Entrega da lista de fornecedores e contatos de garantia','Treinamento da equipe local de manutencao (quando aplicavel)','Definicao do plano de manutencao preventiva','Registro de pendencias remanescentes e responsaveis','Encerramento formal do projeto (sign-off)']}
+];
+
+function canEditObraFluxo(){return!['leitor','doc'].includes(currentProfile?.role);}
+function buildDefaultObraFases(){return{versao:1,atualizado_em:'',fases:OBRA_FASES_TEMPLATE.map((f,fi)=>({id:f.id,nome:f.nome,ordem:fi,itens:f.itens.map((nome,ii)=>({id:f.id+'_i'+String(ii).padStart(2,'0'),nome,done:false,doneAt:'',docs:[]}))}))};}
+function normalizeObraFases(raw){const base=buildDefaultObraFases();const old=raw&&Array.isArray(raw.fases)?raw:null;if(!old)return base;const oldPhaseMap=new Map(old.fases.map(f=>[f.id,f]));base.fases.forEach(f=>{const of=oldPhaseMap.get(f.id);if(!of||!Array.isArray(of.itens))return;const oldItemMap=new Map(of.itens.map(it=>[it.id,it]));f.itens.forEach(it=>{const oi=oldItemMap.get(it.id);if(!oi)return;it.done=!!oi.done;it.doneAt=oi.doneAt||'';it.docs=Array.isArray(oi.docs)?oi.docs.filter(d=>d&&d.storagePath).map(d=>({name:d.name||'Documento',storagePath:d.storagePath,bucket:d.bucket||'documentos',type:d.type||inferType(d.name||d.storagePath||'')})):[];});});base.atualizado_em=old.atualizado_em||'';return base;}
+function ensureObraFases(o){if(!o)return buildDefaultObraFases();o.fases_obra=normalizeObraFases(o.fases_obra);return o.fases_obra;}
+function obraFasesStats(o){const fases=ensureObraFases(o).fases;let total=0,done=0,docs=0,doneFases=0;fases.forEach(f=>{let fd=0;f.itens.forEach(it=>{total++;if(it.done){done++;fd++;}docs+=(it.docs||[]).length;});if(f.itens.length&&fd===f.itens.length)doneFases++;});const pct=total?Math.round(done/total*100):0;const atual=fases.find(f=>f.itens.some(it=>!it.done))||fases[fases.length-1];return{total,done,docs,pct,doneFases,totalFases:fases.length,atual};}
+function findObraFaseItem(fid,iid){const fases=ensureObraFases(cur).fases;const fase=fases.find(f=>f.id===fid);const item=fase?.itens?.find(it=>it.id===iid);return{fase,item};}
+
+function renderObraFases(){const pane=document.getElementById('pane-fases');if(!pane||!cur)return;const fases=ensureObraFases(cur).fases;const st=obraFasesStats(cur);const canEdit=canEditObraFluxo();const kpis=[['Avanco',st.pct+'%',st.done+' de '+st.total+' itens'],['Fases concluidas',st.doneFases+'/'+st.totalFases,st.atual?'Atual: '+st.atual.nome:'Trilha finalizada'],['Documentos',String(st.docs),st.docs===1?'1 arquivo vinculado':st.docs+' arquivos vinculados']].map(k=>'<div class="obra-fases-kpi"><div class="lab">'+k[0]+'</div><div class="val">'+k[1]+'</div><div class="sub">'+escHtml(k[2])+'</div></div>').join('');
+  const cards=fases.map((f,fi)=>{const doneCount=f.itens.filter(it=>it.done).length;const phaseDone=f.itens.length&&doneCount===f.itens.length;const itemRows=f.itens.map(it=>{const docs=(it.docs||[]).map((d,di)=>'<span class="obra-fase-doc" title="'+escHtml(d.name||'Documento')+'"><button class="linkbtn" style="font-size:11px;font-weight:750;color:var(--brand-text)" onclick="viewObraFaseDoc(\''+f.id+'\',\''+it.id+'\','+di+')">'+escHtml(d.name||'Documento')+'</button>'+(canEdit?'<button class="obra-fase-doc-del" title="Excluir documento" onclick="deleteObraFaseDoc(\''+f.id+'\',\''+it.id+'\','+di+')">x</button>':'')+'</span>').join('');return'<div class="obra-fase-item '+(it.done?'done':'')+'"><input type="checkbox" '+(it.done?'checked':'')+' '+(!canEdit?'disabled':'')+' onchange="toggleObraFaseItem(\''+f.id+'\',\''+it.id+'\',this.checked)"><div><div class="obra-fase-item-name">'+escHtml(it.nome)+'</div>'+(it.done&&it.doneAt?'<div style="font-size:10.8px;color:var(--ok);font-weight:700;margin-top:3px">Concluido em '+fmtD(it.doneAt)+'</div>':'')+(docs?'<div class="obra-fase-docs">'+docs+'</div>':'')+'</div><div class="obra-fase-actions">'+(canEdit?'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="anexarObraFaseDoc(\''+f.id+'\',\''+it.id+'\')" title="Anexar documento deste item">Anexar</button>':'')+'</div></div>';}).join('');return'<div class="obra-fase-card '+(phaseDone?'is-done':'')+'"><div class="obra-fase-top"><div style="min-width:0"><div style="display:flex;gap:8px;align-items:center;margin-bottom:7px"><span class="obra-fase-num">'+String(fi).padStart(2,'0')+'</span><span class="obra-fase-count">'+doneCount+'/'+f.itens.length+' concluidos</span></div><div class="obra-fase-name">'+escHtml(f.nome)+'</div></div><div style="font-size:18px;font-weight:800;color:'+(phaseDone?'var(--ok)':'var(--brand-text)')+'">'+Math.round(doneCount/(f.itens.length||1)*100)+'%</div></div><div class="obra-fase-list">'+itemRows+'</div></div>';}).join('');
+  pane.innerHTML='<div class="obra-fases-head"><div class="obra-fases-hero"><div class="obra-fases-title">Fases da Obra</div><div class="obra-fases-sub">Trilha operacional do projeto arquitetonico, da viabilidade ate a passagem para manutencao. Marque o que foi concluido e vincule os documentos gerados em cada etapa.</div><div class="obra-fases-progress"><i style="width:'+st.pct+'%"></i></div></div><div class="obra-fases-kpis">'+kpis+'</div></div>'+(!canEdit?'<div class="alert alert-warn" style="margin-bottom:14px"><span class="ic">i</span><div>Seu perfil permite apenas visualizar as fases e documentos desta obra.</div></div>':'')+'<div class="obra-fases-grid">'+cards+'</div>';
+}
+
+async function persistObraFases(){if(!cur)return false;cur.fases_obra=normalizeObraFases(cur.fases_obra);cur.fases_obra.atualizado_em=new Date().toISOString();const{error}=await db.from('obras').update({fases_obra:cur.fases_obra}).eq('id',cur.id);if(error){console.error('persistObraFases:',error);toast('Erro ao salvar fases da obra: '+error.message);return false;}return true;}
+async function toggleObraFaseItem(fid,iid,checked){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');renderObraFases();return;}const found=findObraFaseItem(fid,iid);if(!found.item)return;found.item.done=!!checked;found.item.doneAt=checked?new Date().toISOString().slice(0,10):'';if(await persistObraFases()){renderObraFases();renderDashboard();toast(checked?'Etapa concluida.':'Etapa reaberta.');}}
+function anexarObraFaseDoc(fid,iid){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');return;}if(!cur){toast('Abra uma obra.');return;}let inp=document.getElementById('obra-fase-doc-input');if(!inp){inp=document.createElement('input');inp.type='file';inp.id='obra-fase-doc-input';inp.multiple=true;inp.style.display='none';document.body.appendChild(inp);}inp.onchange=async()=>{if(!inp.files.length)return;const found=findObraFaseItem(fid,iid);if(!found.item){inp.value='';return;}let ok=0;for(const f of Array.from(inp.files)){const safeName=f.name.replace(/[^a-zA-Z0-9._-]/g,'_');const path='obra_'+cur.id+'/fases/'+fid+'/'+iid+'/'+Date.now()+'_'+safeName;const{error}=await db.storage.from('documentos').upload(path,f,{upsert:true,contentType:f.type||inferType(f.name)});if(error){console.error('anexarObraFaseDoc:',error);toast('Erro ao enviar: '+f.name);continue;}found.item.docs=found.item.docs||[];found.item.docs.push({name:f.name,storagePath:path,bucket:'documentos',type:f.type||inferType(f.name)});ok++;}inp.value='';if(ok&&await persistObraFases()){renderObraFases();renderDashboard();toast(ok>1?ok+' documentos anexados.':'Documento anexado.');}};inp.click();}
+function viewObraFaseDoc(fid,iid,di){const found=findObraFaseItem(fid,iid);const d=found.item?.docs?.[di];if(!d){toast('Documento nao encontrado.');return;}viewFile({...d,bucket:d.bucket||'documentos'});}
+async function deleteObraFaseDoc(fid,iid,di){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');return;}const found=findObraFaseItem(fid,iid);const d=found.item?.docs?.[di];if(!d)return;askConfirm('Excluir o documento "'+(d.name||'Documento')+'"? Esta acao nao pode ser desfeita.',async()=>{if(d.storagePath)await db.storage.from(d.bucket||'documentos').remove([d.storagePath]).catch(e=>console.warn('deleteObraFaseDoc storage:',e));found.item.docs.splice(di,1);if(await persistObraFases()){renderObraFases();renderDashboard();toast('Documento removido.');}});}
+
 function setObraStatus(id,st){const o=obras.find(x=>x.id===id);if(!o)return;o.status=st;persist(id);const cv=document.querySelector('.view.active')?.id?.replace('view-','');if(cv==='esfera')renderEsfera();if(cur&&cur.id===id)renderObra();toast("Status: "+st);}
 
 async function deleteObra(id,e){
@@ -9858,7 +9942,7 @@ function saveObra(){
 
     if(oldEscola)oldEscola.obraId=null;
 
-    Object.assign(o,{marca,constr,nome,contratado,investimento_disponivel,tem_construtora,construtoras,modelo_contrato,aportado:totalAportado||o.aportado,ano_inauguracao,endereco_obra,esfera:o.esfera});
+    Object.assign(o,{marca,constr,nome,contratado,investimento_disponivel,tem_construtora,construtoras,modelo_contrato,aportado:totalAportado||o.aportado,ano_inauguracao,endereco_obra,esfera:o.esfera,fases_obra:ensureObraFases(o)});
 
     o.taxa.total=taxaTotal;if(_omInvAct==='sim')o.aportes=novosAportes;
 
@@ -9868,7 +9952,7 @@ function saveObra(){
 
     const newId=nextObraId;
 
-    obras.push({id:nextObraId++,nome,marca,constr,tem_construtora,construtoras,modelo_contrato,status:'Planejamento',esfera,contratado,investimento_disponivel,aportado:totalAportado,pago:0,taxa:{total:taxaTotal,pago:0},aportes:novosAportes,contratos:[],pag:[],aditivos_contrato:[],ano_inauguracao,endereco_obra});
+    obras.push({id:nextObraId++,nome,marca,constr,tem_construtora,construtoras,modelo_contrato,status:'Planejamento',esfera,contratado,investimento_disponivel,aportado:totalAportado,pago:0,taxa:{total:taxaTotal,pago:0},aportes:novosAportes,contratos:[],pag:[],aditivos_contrato:[],fases_obra:buildDefaultObraFases(),ano_inauguracao,endereco_obra});
 
     escolaObj.obraId=newId;
 
@@ -11127,7 +11211,7 @@ async function persist(obraId){
     const ts=obraId!=null?obras.filter(o=>o.id===obraId):obras;
     ts.forEach(sincronizaPagoObra);
 
-    if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:pagoObraOficial(o)||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,teto_escola:o.teto_escola||0,aditivos_contrato:o.aditivos_contrato||[],construtoras:o.construtoras||[]})));
+    if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:pagoObraOficial(o)||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,teto_escola:o.teto_escola||0,aditivos_contrato:o.aditivos_contrato||[],construtoras:o.construtoras||[],fases_obra:ensureObraFases(o)})));
 
     for(const o of ts){
 
@@ -11212,6 +11296,7 @@ async function loadFromDB(){
       teto_escola:+o.teto_escola||0,
 
       aditivos_contrato:Array.isArray(o.aditivos_contrato)?o.aditivos_contrato:[],
+      fases_obra:normalizeObraFases(o.fases_obra),
 
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
 
