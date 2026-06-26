@@ -8145,7 +8145,7 @@ function renderDashboard(){
   if(invBase_>0&&saldoInv_<0)addDashAlert_('danger','Investimento excedido',fmt(-saldoInv_)+' acima do teto disponível');
   if(contrTot_>0&&saldoContr_>0&&saldoContr_<contrTot_*0.12&&_po>0)addDashAlert_('warn','Contrato da obra perto do limite',fmt(saldoContr_)+' de saldo contratual');
   if(invBase_>0&&saldoInv_>=0&&saldoInv_<invBase_*0.08)addDashAlert_('warn','Saldo de investimento baixo',fmt(saldoInv_)+' disponível');
-  if(projMeses>=0&&projMeses<=3&&velMensal>500)addDashAlert_('warn','Ritmo de uso elevado','investimento dura '+projLabel);
+  // Evita alerta projetivo: dashboard deve priorizar fatos registrados, nao estimativas frageis.
 
   // ── Insights de tempo (EXCLUSIVO — não está nos cards consolidados) ────
   var sInsights='';
@@ -8182,6 +8182,48 @@ function renderDashboard(){
   }
 
   // ── Progresso individual dos contratos (EXCLUSIVO) ───────────────────
+  sInsights='';
+  var _insightCards='';
+  if(velMensal>100){
+    _insightCards+='<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 13px">'
+      +'<div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Media mensal paga</div>'
+      +'<div style="font-size:21px;font-weight:900;font-family:&quot;Space Grotesk&quot;,sans-serif;color:var(--ink)">'+fmt(Math.round(velMensal))+'<span style="font-size:12.5px;font-weight:700;color:var(--muted)">/mes</span></div>'
+      +'<div style="font-size:11.5px;color:var(--muted);margin-top:2px">historico de '+mesesAtivos+(mesesAtivos===1?' mes':' meses')+'</div>'
+      +'</div>';
+  }
+  if(invBase_>0){
+    _insightCards+='<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 13px">'
+      +'<div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Saldo do investimento</div>'
+      +'<div style="font-size:21px;font-weight:900;font-family:&quot;Space Grotesk&quot;,sans-serif;color:'+(saldoInv_<0?'var(--danger)':saldoInv_===0?'var(--ok)':'var(--brand-text)')+'">'+fmt(saldoInv_)+'</div>'
+      +'<div style="font-size:11.5px;color:var(--muted);margin-top:2px">sobre '+fmt(invBase_)+' disponibilizado</div>'
+      +'</div>';
+  }
+  if(_te>0||_pe>0){
+    _insightCards+='<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 13px">'
+      +'<div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Financeiro da escola</div>'
+      +'<div style="font-size:21px;font-weight:900;font-family:&quot;Space Grotesk&quot;,sans-serif;color:'+(_pe>0?'var(--warn)':'var(--ok)')+'">'+fmt(_pe)+'</div>'
+      +'<div style="font-size:11.5px;color:var(--muted);margin-top:2px">'+(_te>0?'fora da obra sobre teto de '+fmt(_te):'pagamentos fora da obra')+'</div>'
+      +'</div>';
+  }
+  var _mapMesReal={};
+  pagsPagos.forEach(function(p){var k=dateMonthKey(p.pagaEm||p.venc);if(k)_mapMesReal[k]=(_mapMesReal[k]||0)+p.v;});
+  var _mesPicoReal=Object.entries(_mapMesReal).sort(function(a,b){return b[1]-a[1];})[0];
+  if(_mesPicoReal){
+    var _mpK=_mesPicoReal[0],_mpV=_mesPicoReal[1];
+    var _mpLabel=MESES&&MESES[+_mpK.slice(5)-1]?MESES[+_mpK.slice(5)-1]+' '+_mpK.slice(2,4):_mpK;
+    _insightCards+='<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 13px">'
+      +'<div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Maior desembolso mensal</div>'
+      +'<div style="font-size:21px;font-weight:900;font-family:&quot;Space Grotesk&quot;,sans-serif;color:var(--ink)">'+fmt(_mpV)+'</div>'
+      +'<div style="font-size:11.5px;color:var(--muted);margin-top:2px">'+_mpLabel+'</div>'
+      +'</div>';
+  }
+  if(_insightCards){
+    sInsights='<div class="obra-dashboard-wide"><div class="card" style="padding:14px 16px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px"><div><h2 style="font-size:15px;margin-bottom:2px">Leitura executiva</h2><div class="sub">Indicadores historicos e saldos reais desta obra</div></div></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px">'+_insightCards+'</div>'
+      +'</div></div>';
+  }
+
   var sContr='';
   if(o.contratos.length>0){
     var pagoPorC_={};
@@ -8336,7 +8378,7 @@ function renderDashboard(){
     if(catRows_)html+='<div class="card" style="padding:14px 16px"><h2 style="font-size:15px;margin-bottom:12px">Distribuição por categoria</h2>'+catRows_+'</div>';
     html+='</div>';
   }
-  // Insights de ritmo ficam fora desta versao mais objetiva do dashboard.
+  if(sInsights)html+=sInsights;
   // Últimas movimentações
   if(ultRows_)html+='<div class="card" style="padding:14px 16px"><h2 style="font-size:15px;margin-bottom:2px">Últimas movimentações</h2><div class="sub" style="margin-bottom:12px">Pagamentos mais recentes realizados</div>'+ultRows_+'</div>';
 
