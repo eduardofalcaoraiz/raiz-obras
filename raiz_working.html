@@ -479,17 +479,24 @@ button{font-family:inherit;cursor:pointer}
 .obra-fases-kpi{padding:13px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
 .obra-fases-kpi .lab{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 .obra-fases-kpi .val{font-family:"Space Grotesk",sans-serif;font-size:22px;font-weight:800;color:var(--brand-text);line-height:1.05;margin-top:4px}
-.obra-fases-grid{display:flex;gap:14px;align-items:stretch;overflow-x:auto;overflow-y:hidden;padding:2px 2px 14px;scroll-snap-type:x proximity;scrollbar-color:var(--brand-cur) var(--line);scrollbar-width:thin}
-.obra-fases-grid::-webkit-scrollbar{height:10px}
-.obra-fases-grid::-webkit-scrollbar-track{background:var(--line);border-radius:999px}
-.obra-fases-grid::-webkit-scrollbar-thumb{background:var(--brand-cur);border-radius:999px;border:2px solid var(--line)}
-.obra-fase-card{border:1px solid var(--line);border-left:4px solid var(--brand-cur);border-radius:var(--r-lg);background:linear-gradient(135deg,var(--surface) 0%,var(--brand-cur-light) 165%);overflow:hidden;flex:0 0 clamp(360px,38vw,470px);scroll-snap-align:start;display:flex;flex-direction:column;max-height:640px}
+.obra-fases-grid{display:grid;gap:10px;align-items:start}
+.obra-fase-card{border:1px solid var(--line);border-left:4px solid var(--brand-cur);border-radius:var(--r-lg);background:linear-gradient(135deg,var(--surface) 0%,var(--brand-cur-light) 185%);overflow:hidden;box-shadow:0 12px 30px -28px rgba(23,60,52,.65)}
 .obra-fase-card.is-done{border-left-color:var(--ok)}
-.obra-fase-top{padding:14px 16px 12px;border-bottom:1px solid var(--line);display:flex;gap:12px;justify-content:space-between;align-items:flex-start}
-.obra-fase-num{font-size:10px;font-weight:800;color:var(--brand-text);background:var(--brand-cur-light);border:1px solid var(--brand-cur)33;border-radius:999px;padding:3px 8px;white-space:nowrap}
-.obra-fase-name{font-size:15px;font-weight:800;color:var(--ink);line-height:1.25}
-.obra-fase-count{font-size:11.5px;color:var(--muted);white-space:nowrap}
-.obra-fase-list{display:flex;flex-direction:column;overflow-y:auto;min-height:0}
+.obra-fase-card summary{list-style:none}
+.obra-fase-card summary::-webkit-details-marker{display:none}
+.obra-fase-summary{display:grid;grid-template-columns:auto minmax(0,1.35fr) minmax(150px,.55fr) minmax(118px,.45fr) auto;gap:14px;align-items:center;padding:13px 16px;cursor:pointer}
+.obra-fase-summary:hover{background:rgba(255,255,255,.45)}
+.obra-fase-index{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:var(--brand-cur-light);border:1px solid var(--brand-cur)33;color:var(--brand-text);font-family:"Space Grotesk",sans-serif;font-size:14px;font-weight:900}
+.obra-fase-name{display:block;font-size:15px;font-weight:850;color:var(--ink);line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.obra-fase-count{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;margin-top:3px}
+.obra-fase-meter{display:block;min-width:0}
+.obra-fase-meter-bar{display:block;height:6px;background:var(--line);border-radius:999px;overflow:hidden;margin-top:5px}
+.obra-fase-meter-bar i{display:block;height:100%;background:var(--brand-cur);border-radius:999px}
+.obra-fase-card.is-done .obra-fase-meter-bar i{background:var(--ok)}
+.obra-fase-pill{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font-size:11.5px;font-weight:800;padding:5px 9px;white-space:nowrap}
+.obra-fase-chevron{width:28px;height:28px;border-radius:999px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--brand-text);background:var(--surface);font-weight:900;transition:transform .18s ease}
+.obra-fase-card[open] .obra-fase-chevron{transform:rotate(90deg)}
+.obra-fase-list{display:flex;flex-direction:column;border-top:1px solid var(--line);background:rgba(255,255,255,.52)}
 .obra-fase-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:11px 14px;border-bottom:1px solid var(--line)}
 .obra-fase-item:last-child{border-bottom:0}
 .obra-fase-item input{width:18px;height:18px;margin-top:1px;accent-color:var(--brand-cur)}
@@ -500,7 +507,8 @@ button{font-family:inherit;cursor:pointer}
 .obra-fase-doc-del{border:0;background:transparent;color:var(--danger);font-weight:800;margin-left:4px;cursor:pointer}
 .obra-fase-actions{display:flex;gap:5px;align-items:center}
 @media(max-width:900px){.obra-fases-head{grid-template-columns:1fr}.obra-fases-kpis{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:620px){.obra-fases-kpis{grid-template-columns:1fr}.obra-fase-card{flex-basis:min(88vw,390px);max-height:70vh}.obra-fase-item{grid-template-columns:auto minmax(0,1fr)}.obra-fase-actions{grid-column:2;justify-content:flex-start}}
+@media(max-width:760px){.obra-fase-summary{grid-template-columns:auto minmax(0,1fr) auto;gap:10px}.obra-fase-meter,.obra-fase-pill{grid-column:2}.obra-fase-chevron{grid-column:3;grid-row:1 / span 2}}
+@media(max-width:620px){.obra-fases-kpis{grid-template-columns:1fr}.obra-fase-item{grid-template-columns:auto minmax(0,1fr)}.obra-fase-actions{grid-column:2;justify-content:flex-start}}
 
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 
@@ -536,16 +544,17 @@ td.n{font-family:"Space Grotesk",sans-serif;text-align:right;white-space:nowrap}
 .dash-alert .dot{width:8px;height:8px;border-radius:999px;background:var(--alert-color);box-shadow:0 0 0 4px var(--alert-bg);flex:none;margin-top:5px}
 .dash-alert b{display:block;font-size:12.5px;color:var(--ink);line-height:1.2;margin-bottom:2px}
 .dash-alert em{display:block;font-style:normal;font-size:11.7px;color:var(--muted);line-height:1.3}
-.obra-dashboard-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:0 0 10px;align-items:stretch}
-.obra-dashboard-kpi{background:linear-gradient(135deg,var(--surface) 0%,rgba(255,255,255,.72) 100%);border:1px solid var(--line);border-radius:10px;padding:10px 11px;min-width:0;box-shadow:0 8px 18px -24px rgba(23,60,52,.55)}
+.obra-dashboard-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:0 0 14px;align-items:stretch}
+.obra-dashboard-kpi{background:linear-gradient(135deg,var(--surface) 0%,rgba(255,255,255,.72) 100%);border:1px solid var(--line);border-radius:12px;padding:12px 13px;min-width:0;box-shadow:0 10px 24px -26px rgba(23,60,52,.6)}
 .obra-dashboard-kpi .lab{font-size:9.8px;color:var(--muted);font-weight:850;text-transform:uppercase;letter-spacing:.045em;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .obra-dashboard-kpi .val{font-family:"Space Grotesk",sans-serif;font-size:17px;line-height:1.08;font-weight:800;color:var(--ink);overflow-wrap:anywhere}
 .obra-dashboard-kpi .sub{font-size:11px;color:var(--soft);font-weight:600;line-height:1.25;margin-top:4px}
-.obra-dashboard-principal{display:grid;grid-template-columns:minmax(360px,1.35fr) minmax(300px,.9fr);gap:10px;margin-bottom:12px;align-items:start}
-.obra-dashboard-side{display:grid;gap:10px;align-content:start}
+.obra-dashboard-principal{display:grid;grid-template-columns:minmax(430px,1.15fr) minmax(340px,.85fr);gap:14px;margin-bottom:14px;align-items:start}
+.obra-dashboard-side{display:grid;gap:12px;align-content:start}
 .obra-dashboard-principal .card{margin-bottom:0}
 .obra-dashboard-side>div{min-width:0}
-@media(max-width:980px){.obra-dashboard-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.obra-dashboard-principal{grid-template-columns:1fr}}
+.obra-dashboard-wide{margin-bottom:14px}
+@media(max-width:1100px){.obra-dashboard-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.obra-dashboard-principal{grid-template-columns:1fr}}
 @media(max-width:620px){.obra-dashboard-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
@@ -8295,12 +8304,10 @@ function renderDashboard(){
   var _kpiSaldoColor=_sc<0?'var(--danger)':_sc===0?'var(--ok)':(_sc<_ct*0.15?'var(--warn)':'var(--ink)');
   var _kpiPendColor=pagsAtr.length?'var(--danger)':(_pendTotalDash>0?'var(--warn)':'var(--ok)');
   var sDashKpis='<div class="obra-dashboard-kpis">'
-    +'<div class="obra-dashboard-kpi"><div class="lab">Contrato total</div><div class="val">'+fmt(_ct)+'</div><div class="sub">'+fmt(o.contratado)+' base'+(_at>0?' + '+fmt(_at)+' aditivos':'')+'</div></div>'
+    +'<div class="obra-dashboard-kpi"><div class="lab">Contrato da obra</div><div class="val">'+fmt(_ct)+'</div><div class="sub">'+fmt(o.contratado)+' base'+(_at>0?' + '+fmt(_at)+' aditivos':'')+'</div></div>'
     +'<div class="obra-dashboard-kpi"><div class="lab">Pago na obra</div><div class="val" style="color:var(--brand-text)">'+fmt(_po)+'</div><div class="sub">'+_ep+'% executado</div></div>'
-    +'<div class="obra-dashboard-kpi"><div class="lab">'+_saldoLabel+'</div><div class="val" style="color:'+_kpiSaldoColor+'">'+_saldoVal+'</div><div class="sub">'+(_sc<0?'acima do contratado':'contrato - pagos')+'</div></div>'
-    +'<div class="obra-dashboard-kpi"><div class="lab">Em aberto</div><div class="val" style="color:'+_kpiPendColor+'">'+fmt(_pendTotalDash)+'</div><div class="sub">'+pagsPend.length+' pagamento'+(pagsPend.length!==1?'s':'')+(valorAtr_>0?' - '+fmt(valorAtr_)+' atrasado':'')+'</div></div>'
-    +'<div class="obra-dashboard-kpi"><div class="lab">Fora da obra</div><div class="val" style="color:'+(_pe>0?'var(--warn)':'var(--ok)')+'">'+fmt(_pe)+'</div><div class="sub">'+(_te>0?'teto '+fmt(_te):'caixa da escola')+'</div></div>'
-    +'<div class="obra-dashboard-kpi"><div class="lab">Pr&oacute;ximo venc.</div><div class="val" style="color:'+(_proxPend&&(isAtraso(_proxPend)||dateObj(_proxPend.venc)&&dateObj(_proxPend.venc)<=hoje30)?'var(--warn)':'var(--ink)')+'">'+_proxVal+'</div><div class="sub">'+_proxSub+'</div></div>'
+    +'<div class="obra-dashboard-kpi"><div class="lab">'+_saldoLabel+'</div><div class="val" style="color:'+_kpiSaldoColor+'">'+_saldoVal+'</div><div class="sub">'+(_sc<0?'acima do contratado':'contrato - pagamentos pagos')+'</div></div>'
+    +'<div class="obra-dashboard-kpi"><div class="lab">Pendencias</div><div class="val" style="color:'+_kpiPendColor+'">'+fmt(_pendTotalDash)+'</div><div class="sub">'+pagsPend.length+' pagamento'+(pagsPend.length!==1?'s':'')+(valorAtr_>0?' - '+fmt(valorAtr_)+' atrasado':'')+'</div></div>'
     +'<div class="obra-dashboard-kpi"><div class="lab">Fases da obra</div><div class="val" style="color:var(--brand-text)">'+_faseStatsDash.pct+'%</div><div class="sub">'+_faseStatsDash.doneFases+'/'+_faseStatsDash.totalFases+' fases - '+_faseStatsDash.docs+' docs</div></div>'
     +'</div>';
   var sFasesCard='<div class="card" style="padding:12px 14px;border-left:4px solid var(--brand-cur)">'
@@ -8313,12 +8320,13 @@ function renderDashboard(){
     +'<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 8px"><div style="font-size:9.8px;color:var(--muted);text-transform:uppercase;font-weight:800">Fases</div><div style="font-size:12.5px;font-weight:900">'+_faseStatsDash.doneFases+'/'+_faseStatsDash.totalFases+'</div></div>'
     +'<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 8px"><div style="font-size:9.8px;color:var(--muted);text-transform:uppercase;font-weight:800">Docs</div><div style="font-size:12.5px;font-weight:900">'+_faseStatsDash.docs+'</div></div></div>'
     +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="font-size:11.5px;color:var(--muted);min-width:0">Atual: <b style="color:var(--ink)">'+escHtml(_faseAtualDash)+'</b></div><button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;flex-shrink:0" onclick="showTab(&quot;fases&quot;)">Abrir</button></div></div>';
-  var sDashCards='<div id="obra-dashboard-principal" class="obra-dashboard-principal">'+_dc1+'<div class="obra-dashboard-side">'+sFasesCard+_dc2+_dc3+sForn+'</div></div>';
+  var sDashCards='<div id="obra-dashboard-principal" class="obra-dashboard-principal">'+_dc1+'<div class="obra-dashboard-side">'+sFasesCard+_dc2+_dc3+'</div></div>'+(sForn?'<div class="obra-dashboard-wide">'+sForn+'</div>':'');
 
   // ── Montar dashboard ─────────────────────────────────────────────────
   var html='';
-  html+=sDashKpis+sDashCards;
+  html+=sDashKpis;
   if(al)html+='<div class="dash-alerts" id="obra-dashboard-alertas">'+al+'</div>';
+  html+=sDashCards;
   // Contratos + Urgentes lado a lado
   if(sContr||sUrg)html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:12px;margin-bottom:14px;align-items:start">'+(sContr||'')+(sUrg||'')+'</div>';
   // Evolução + Categorias lado a lado
@@ -8328,7 +8336,7 @@ function renderDashboard(){
     if(catRows_)html+='<div class="card" style="padding:14px 16px"><h2 style="font-size:15px;margin-bottom:12px">Distribuição por categoria</h2>'+catRows_+'</div>';
     html+='</div>';
   }
-  if(sInsights)html+=sInsights;
+  // Insights de ritmo ficam fora desta versao mais objetiva do dashboard.
   // Últimas movimentações
   if(ultRows_)html+='<div class="card" style="padding:14px 16px"><h2 style="font-size:15px;margin-bottom:2px">Últimas movimentações</h2><div class="sub" style="margin-bottom:12px">Pagamentos mais recentes realizados</div>'+ultRows_+'</div>';
 
@@ -9523,8 +9531,8 @@ function ensureObraFases(o){if(!o)return buildDefaultObraFases();o.fases_obra=no
 function obraFasesStats(o){const fases=ensureObraFases(o).fases;let total=0,done=0,docs=0,doneFases=0;fases.forEach(f=>{let fd=0;f.itens.forEach(it=>{total++;if(it.done){done++;fd++;}docs+=(it.docs||[]).length;});if(f.itens.length&&fd===f.itens.length)doneFases++;});const pct=total?Math.round(done/total*100):0;const atual=fases.find(f=>f.itens.some(it=>!it.done))||fases[fases.length-1];return{total,done,docs,pct,doneFases,totalFases:fases.length,atual};}
 function findObraFaseItem(fid,iid){const fases=ensureObraFases(cur).fases;const fase=fases.find(f=>f.id===fid);const item=fase?.itens?.find(it=>it.id===iid);return{fase,item};}
 
-function renderObraFases(){const pane=document.getElementById('pane-fases');if(!pane||!cur)return;const fases=ensureObraFases(cur).fases;const st=obraFasesStats(cur);const canEdit=canEditObraFluxo();const kpis=[['Avanco',st.pct+'%',st.done+' de '+st.total+' itens'],['Fases concluidas',st.doneFases+'/'+st.totalFases,st.atual?'Atual: '+st.atual.nome:'Trilha finalizada'],['Documentos',String(st.docs),st.docs===1?'1 arquivo vinculado':st.docs+' arquivos vinculados']].map(k=>'<div class="obra-fases-kpi"><div class="lab">'+k[0]+'</div><div class="val">'+k[1]+'</div><div class="sub">'+escHtml(k[2])+'</div></div>').join('');
-  const cards=fases.map((f,fi)=>{const doneCount=f.itens.filter(it=>it.done).length;const phaseDone=f.itens.length&&doneCount===f.itens.length;const itemRows=f.itens.map(it=>{const docs=(it.docs||[]).map((d,di)=>'<span class="obra-fase-doc" title="'+escHtml(d.name||'Documento')+'"><button class="linkbtn" style="font-size:11px;font-weight:750;color:var(--brand-text)" onclick="viewObraFaseDoc(\''+f.id+'\',\''+it.id+'\','+di+')">'+escHtml(d.name||'Documento')+'</button>'+(canEdit?'<button class="obra-fase-doc-del" title="Excluir documento" onclick="deleteObraFaseDoc(\''+f.id+'\',\''+it.id+'\','+di+')">x</button>':'')+'</span>').join('');return'<div class="obra-fase-item '+(it.done?'done':'')+'"><input type="checkbox" '+(it.done?'checked':'')+' '+(!canEdit?'disabled':'')+' onchange="toggleObraFaseItem(\''+f.id+'\',\''+it.id+'\',this.checked)"><div><div class="obra-fase-item-name">'+escHtml(it.nome)+'</div>'+(it.done&&it.doneAt?'<div style="font-size:10.8px;color:var(--ok);font-weight:700;margin-top:3px">Concluido em '+fmtD(it.doneAt)+'</div>':'')+(docs?'<div class="obra-fase-docs">'+docs+'</div>':'')+'</div><div class="obra-fase-actions">'+(canEdit?'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="anexarObraFaseDoc(\''+f.id+'\',\''+it.id+'\')" title="Anexar documento deste item">Anexar</button>':'')+'</div></div>';}).join('');return'<div class="obra-fase-card '+(phaseDone?'is-done':'')+'"><div class="obra-fase-top"><div style="min-width:0"><div style="display:flex;gap:8px;align-items:center;margin-bottom:7px"><span class="obra-fase-num">'+String(fi).padStart(2,'0')+'</span><span class="obra-fase-count">'+doneCount+'/'+f.itens.length+' concluidos</span></div><div class="obra-fase-name">'+escHtml(f.nome)+'</div></div><div style="font-size:18px;font-weight:800;color:'+(phaseDone?'var(--ok)':'var(--brand-text)')+'">'+Math.round(doneCount/(f.itens.length||1)*100)+'%</div></div><div class="obra-fase-list">'+itemRows+'</div></div>';}).join('');
+function renderObraFases(){const pane=document.getElementById('pane-fases');if(!pane||!cur)return;const fases=ensureObraFases(cur).fases;const st=obraFasesStats(cur);const canEdit=canEditObraFluxo();const openPhaseId=st.atual?st.atual.id:(fases[0]?.id||'');const kpis=[['Avanco',st.pct+'%',st.done+' de '+st.total+' itens'],['Fases concluidas',st.doneFases+'/'+st.totalFases,st.atual?'Atual: '+st.atual.nome:'Trilha finalizada'],['Documentos',String(st.docs),st.docs===1?'1 arquivo vinculado':st.docs+' arquivos vinculados']].map(k=>'<div class="obra-fases-kpi"><div class="lab">'+k[0]+'</div><div class="val">'+k[1]+'</div><div class="sub">'+escHtml(k[2])+'</div></div>').join('');
+  const cards=fases.map((f,fi)=>{const doneCount=f.itens.filter(it=>it.done).length;const docsCount=f.itens.reduce((a,it)=>a+((it.docs||[]).length),0);const phaseDone=f.itens.length&&doneCount===f.itens.length;const pct=Math.round(doneCount/(f.itens.length||1)*100);const itemRows=f.itens.map(it=>{const docs=(it.docs||[]).map((d,di)=>'<span class="obra-fase-doc" title="'+escHtml(d.name||'Documento')+'"><button class="linkbtn" style="font-size:11px;font-weight:750;color:var(--brand-text)" onclick="viewObraFaseDoc(\''+f.id+'\',\''+it.id+'\','+di+')">'+escHtml(d.name||'Documento')+'</button>'+(canEdit?'<button class="obra-fase-doc-del" title="Excluir documento" onclick="deleteObraFaseDoc(\''+f.id+'\',\''+it.id+'\','+di+')">x</button>':'')+'</span>').join('');return'<div class="obra-fase-item '+(it.done?'done':'')+'"><input type="checkbox" '+(it.done?'checked':'')+' '+(!canEdit?'disabled':'')+' onchange="toggleObraFaseItem(\''+f.id+'\',\''+it.id+'\',this.checked)"><div><div class="obra-fase-item-name">'+escHtml(it.nome)+'</div>'+(it.done&&it.doneAt?'<div style="font-size:10.8px;color:var(--ok);font-weight:700;margin-top:3px">Concluido em '+fmtD(it.doneAt)+'</div>':'')+(docs?'<div class="obra-fase-docs">'+docs+'</div>':'')+'</div><div class="obra-fase-actions">'+(canEdit?'<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="anexarObraFaseDoc(\''+f.id+'\',\''+it.id+'\')" title="Anexar documento deste item">Anexar</button>':'')+'</div></div>';}).join('');return'<details class="obra-fase-card '+(phaseDone?'is-done':'')+'" '+(f.id===openPhaseId?'open':'')+'><summary class="obra-fase-summary"><span class="obra-fase-index">'+String(fi+1).padStart(2,'0')+'</span><span style="min-width:0"><span class="obra-fase-name">'+escHtml(f.nome)+'</span><span class="obra-fase-count">'+doneCount+' de '+f.itens.length+' itens concluidos</span></span><span class="obra-fase-meter"><span style="display:flex;justify-content:space-between;gap:10px;font-size:11.5px;font-weight:800;color:'+(phaseDone?'var(--ok)':'var(--brand-text)')+'"><span>'+pct+'%</span><span>'+docsCount+' doc'+(docsCount!==1?'s':'')+'</span></span><span class="obra-fase-meter-bar"><i style="width:'+pct+'%"></i></span></span><span class="obra-fase-pill">'+(phaseDone?'Concluida':'Em andamento')+'</span><span class="obra-fase-chevron">&rsaquo;</span></summary><div class="obra-fase-list">'+itemRows+'</div></details>';}).join('');
   pane.innerHTML='<div class="obra-fases-head"><div class="obra-fases-hero"><div class="obra-fases-title">Fases da Obra</div><div class="obra-fases-sub">Trilha operacional do projeto arquitetonico, da viabilidade ate a passagem para manutencao. Marque o que foi concluido e vincule os documentos gerados em cada etapa.</div><div class="obra-fases-progress"><i style="width:'+st.pct+'%"></i></div></div><div class="obra-fases-kpis">'+kpis+'</div></div>'+(!canEdit?'<div class="alert alert-warn" style="margin-bottom:14px"><span class="ic">i</span><div>Seu perfil permite apenas visualizar as fases e documentos desta obra.</div></div>':'')+'<div class="obra-fases-grid">'+cards+'</div>';
 }
 
