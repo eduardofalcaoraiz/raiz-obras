@@ -703,11 +703,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 /* Arte de página — faixas transversais artísticas */
 
-.page-art-layer{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;overflow:hidden;z-index:0;min-height:100vh}
+.view.has-page-art{position:relative;isolation:isolate;min-height:calc(100vh - 80px)}
 
-#view-obra,#view-escolas{position:relative}
+.page-art-layer{position:absolute;inset:-24px -24px -80px;pointer-events:none;overflow:hidden;z-index:0;min-height:calc(100vh + 80px)}
 
-#view-obra .wrap,#view-escolas .wrap{position:relative;z-index:1}
+.page-art-layer svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+.view.has-page-art>*:not(.page-art-layer){position:relative;z-index:1}
 
 #view-obra .card,#view-obra .kpi,#view-obra .pag-row,#view-obra .tablewrap,#view-obra .tabs,#view-obra .imp-sec{background:linear-gradient(135deg,var(--surface) 0%,var(--brand-cur-light) 145%);position:relative}
 
@@ -1223,13 +1225,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
     #07101c;
   overflow:hidden
 }
-/* Grade de pontos quase invisível — toque técnico premium */
+/* Luz suave sem malha de pontos */
 #login-screen::before{
   content:'';position:absolute;inset:0;pointer-events:none;
-  background-image:radial-gradient(rgba(255,255,255,.06) 1px,transparent 1px);
-  background-size:28px 28px;
-  mask-image:radial-gradient(ellipse 70% 80% at 50% 50%,black 20%,transparent 80%);
-  -webkit-mask-image:radial-gradient(ellipse 70% 80% at 50% 50%,black 20%,transparent 80%)
+  background:
+    radial-gradient(ellipse 46% 30% at 16% 8%,rgba(248,136,8,.18),transparent 72%),
+    radial-gradient(ellipse 34% 28% at 88% 82%,rgba(77,126,92,.14),transparent 74%);
+  opacity:.78
 }
 /* Card */
 #login-screen .lcard{
@@ -4257,7 +4259,7 @@ function _prng(seed){let s=seed;return()=>{s=(s*16807+0)%2147483647;return(s-1)/
 
 // Arte da pagina: fitas ondulantes vivas — cobre toda a pagina, logos em posicoes artisticas
 
-function _makePageArt(colors,w,h,marcas){
+function _makePageArtLegacy(colors,w,h,marcas){
   if(!colors||!colors.length)colors=['#F88808'];
   var rand=_prng(colors.join('').length*42+w);
   var svg='';
@@ -4377,6 +4379,114 @@ function _makePageArt(colors,w,h,marcas){
 
 
 
+// Versao ativa da arte de pagina: aquarela organica sem pontinhos, grao ou linhas tecnicas.
+// Mantem a assinatura antiga para nao quebrar os pontos que ja chamam _makePageArt().
+function _normalizePageArtMarcas(marcas){
+  var raw=Array.isArray(marcas)?marcas:[marcas];
+  var out=[];
+  raw.forEach(function(m){
+    String(m||'').split('+').forEach(function(part){
+      var v=part.trim();
+      if(v&&v!=='\u2014'&&v!=='—'&&v!=='-'&&!out.includes(v))out.push(v);
+    });
+  });
+  return out.length?out:['RAIZ'];
+}
+
+function _pageArtHex(color,fallback){
+  var c=String(color||'').trim();
+  if(/^#[0-9a-f]{6}$/i.test(c))return c;
+  if(/^#[0-9a-f]{3}$/i.test(c))return '#'+c[1]+c[1]+c[2]+c[2]+c[3]+c[3];
+  return fallback||'#F88808';
+}
+
+function _pageArtHash(text){
+  var h=2166136261;
+  String(text||'RAIZ').split('').forEach(function(ch){
+    h^=ch.charCodeAt(0);
+    h+=(h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24);
+  });
+  return Math.abs(h>>>0)||12345;
+}
+
+function _makePageArt(colors,w,h,marcas){
+  marcas=_normalizePageArtMarcas(marcas);
+  colors=(colors||[]).map(function(c){return _pageArtHex(c,'');}).filter(Boolean);
+  if(!colors.length)colors=marcas.map(function(m){return _pageArtHex(brandColor(m),'');}).filter(Boolean);
+  if(!colors.length)colors=['#F88808'];
+
+  var seed=_pageArtHash(marcas.join('|')+'|'+colors.join('|'));
+  var rand=_prng(seed);
+  var c1=colors[0]||'#F88808';
+  var c2=colors[1]||_pageArtHex(brandLight(marcas[0]),'#FDE9D2');
+  var c3=colors[2]||colors[1]||c1;
+  var uid='pa'+seed.toString(36);
+
+  function n(v){return Number(v).toFixed(1);}
+  function logoUrl(m){return (typeof getBrandLogoUrl==='function'?getBrandLogoUrl(m):'')||'';}
+  function safeUrl(url){return String(url||'').replace(/"/g,'%22');}
+
+  var topPath=[
+    'M',n(-120),n(-90),
+    'C',n(w*.08),n(h*.10),n(w*.25),n(-60),n(w*.42),n(h*.05),
+    'C',n(w*.60),n(h*.16),n(w*.78),n(-30),n(w+160),n(h*.06),
+    'L',n(w+160),n(h*.36),
+    'C',n(w*.82),n(h*.24),n(w*.66),n(h*.34),n(w*.48),n(h*.22),
+    'C',n(w*.28),n(h*.10),n(w*.10),n(h*.30),n(-140),n(h*.18),
+    'Z'
+  ].join(' ');
+  var rightPath=[
+    'M',n(w+180),n(h*.04),
+    'C',n(w*.92),n(h*.18),n(w*.98),n(h*.32),n(w*.88),n(h*.48),
+    'C',n(w*.78),n(h*.63),n(w*.98),n(h*.80),n(w+130),n(h+80),
+    'L',n(w+180),n(h+100),'Z'
+  ].join(' ');
+  var bottomPath=[
+    'M',n(-160),n(h+120),
+    'C',n(w*.12),n(h*.80),n(w*.30),n(h*.94),n(w*.48),n(h*.82),
+    'C',n(w*.70),n(h*.68),n(w*.86),n(h*.92),n(w+160),n(h*.74),
+    'L',n(w+160),n(h+160),'L',n(-160),n(h+160),'Z'
+  ].join(' ');
+
+  var svg='';
+  svg+='<defs>';
+  svg+='<radialGradient id="'+uid+'Top" cx="16%" cy="8%" r="82%"><stop offset="0" stop-color="'+c1+'" stop-opacity=".36"/><stop offset=".45" stop-color="'+c2+'" stop-opacity=".18"/><stop offset="1" stop-color="'+c1+'" stop-opacity="0"/></radialGradient>';
+  svg+='<radialGradient id="'+uid+'Right" cx="96%" cy="34%" r="78%"><stop offset="0" stop-color="'+c2+'" stop-opacity=".28"/><stop offset=".52" stop-color="'+c1+'" stop-opacity=".12"/><stop offset="1" stop-color="'+c2+'" stop-opacity="0"/></radialGradient>';
+  svg+='<radialGradient id="'+uid+'Bottom" cx="70%" cy="100%" r="88%"><stop offset="0" stop-color="'+c3+'" stop-opacity=".18"/><stop offset=".45" stop-color="'+c1+'" stop-opacity=".12"/><stop offset="1" stop-color="'+c3+'" stop-opacity="0"/></radialGradient>';
+  svg+='<linearGradient id="'+uid+'Wash" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="'+c1+'" stop-opacity=".10"/><stop offset=".50" stop-color="'+c2+'" stop-opacity=".07"/><stop offset="1" stop-color="'+c3+'" stop-opacity=".10"/></linearGradient>';
+  svg+='<filter id="'+uid+'Blur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="34"/></filter>';
+  svg+='<filter id="'+uid+'SoftBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="58"/></filter>';
+  svg+='</defs>';
+  svg+='<rect width="'+w+'" height="'+h+'" fill="url(#'+uid+'Wash)" opacity=".40"/>';
+  svg+='<path d="'+topPath+'" fill="url(#'+uid+'Top)" filter="url(#'+uid+'Blur)" opacity=".92"/>';
+  svg+='<path d="'+rightPath+'" fill="url(#'+uid+'Right)" filter="url(#'+uid+'SoftBlur)" opacity=".86"/>';
+  svg+='<path d="'+bottomPath+'" fill="url(#'+uid+'Bottom)" filter="url(#'+uid+'SoftBlur)" opacity=".90"/>';
+
+  colors.slice(0,4).forEach(function(col,i){
+    var cx=[w*.18,w*.86,w*.64,w*.08][i]||w*(.15+rand()*.7);
+    var cy=[h*.10,h*.42,h*.88,h*.70][i]||h*(.12+rand()*.76);
+    var rx=w*(.24+rand()*.12);
+    var ry=h*(.12+rand()*.10);
+    svg+='<ellipse cx="'+n(cx)+'" cy="'+n(cy)+'" rx="'+n(rx)+'" ry="'+n(ry)+'" fill="'+col+'" opacity="'+(.060+i*.018).toFixed(3)+'" filter="url(#'+uid+'SoftBlur)" transform="rotate('+n((rand()-.5)*26)+' '+n(cx)+' '+n(cy)+')"/>';
+  });
+
+  var logos=marcas.map(logoUrl).filter(Boolean);
+  if(!logos.length)logos=[logoUrl('RAIZ')].filter(Boolean);
+  var positions=[
+    {x:.74,y:.035,w:.22,h:.13,rot:-4,op:.20},
+    {x:.80,y:.62,w:.24,h:.17,rot:5,op:.14},
+    {x:.035,y:.78,w:.20,h:.13,rot:-6,op:.12},
+    {x:.055,y:.08,w:.17,h:.11,rot:4,op:.10}
+  ];
+  logos.slice(0,4).forEach(function(url,i){
+    var p=positions[i%positions.length];
+    var x=w*p.x+(i?rand()*22-11:0),y=h*p.y+(i?rand()*18-9:0),pw=w*p.w,ph=h*p.h;
+    svg+='<image href="'+safeUrl(url)+'" x="'+n(x)+'" y="'+n(y)+'" width="'+n(pw)+'" height="'+n(ph)+'" opacity="'+p.op+'" preserveAspectRatio="xMidYMid meet" transform="rotate('+p.rot+' '+n(x+pw/2)+' '+n(y+ph/2)+')"/>';
+  });
+
+  return'<svg data-art-style="organic-watercolor-no-dots" width="100%" height="100%" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'+svg+'</svg>';
+}
+
 function updateSideArt(marcas){
   var el=document.getElementById('side-color-layer');
   if(!el)return;
@@ -4412,7 +4522,7 @@ function updateSideArt(marcas){
   if(side)side.style.borderRight='none';
 }
 
-function updatePageArt(elId,marcas){
+function updatePageArtLegacy(elId,marcas){
 
   const el=document.getElementById(elId);
 
@@ -4433,6 +4543,70 @@ function updatePageArt(elId,marcas){
 }
 
 
+
+function _pageArtViewForId(elId){
+  if(elId==='o-page-art')return document.getElementById('view-obra');
+  if(elId==='esc-page-art')return document.getElementById('view-escolas');
+  return document.querySelector('.view.active');
+}
+
+function ensurePageArtLayer(elId){
+  var el=elId?document.getElementById(elId):null;
+  if(el){
+    var v=el.closest('.view');
+    if(v)v.classList.add('has-page-art');
+    return el;
+  }
+  var view=_pageArtViewForId(elId);
+  if(!view)return null;
+  el=document.createElement('div');
+  el.className='page-art-layer';
+  if(elId)el.id=elId;
+  view.insertBefore(el,view.firstChild);
+  view.classList.add('has-page-art');
+  return el;
+}
+
+function _pageArtMarcasForActiveView(){
+  var view=document.querySelector('.view.active');
+  var id=view?.id||'';
+  if(id==='view-obra'&&cur&&cur.marca)return _normalizePageArtMarcas(cur.marca);
+  if(id==='view-uni'&&curUni&&curUni.marca)return _normalizePageArtMarcas(curUni.marca);
+  if(id==='view-esfera'&&curEsfera==='capex'&&capexDrillMarca)return _normalizePageArtMarcas(capexDrillMarca);
+  if(id==='view-escolas'){
+    var all=[...new Set(unidades.map(function(u){return u.marca;}).filter(function(m){return m&&m!=='\u2014'&&m!=='—';}))];
+    return all.length?all.slice(0,4):['RAIZ'];
+  }
+  return ['RAIZ'];
+}
+
+function updatePageArt(elId,marcas){
+  const el=ensurePageArtLayer(elId);
+  if(!el)return;
+  marcas=_normalizePageArtMarcas(marcas&&marcas.length?marcas:_pageArtMarcasForActiveView());
+  const cols=marcas.map(m=>brandColor(m)).filter(c=>c&&!c.startsWith('var('));
+  const finalCols=cols.length?cols:['#F88808'];
+  const w=Math.max(window.innerWidth,1200);
+  const h=Math.max(el.closest('.view')?.scrollHeight||window.innerHeight,820);
+  el.innerHTML=_makePageArt(finalCols,w,h,marcas);
+}
+
+let _pageArtTimer=null;
+function updateActivePageArt(marcas){
+  var view=document.querySelector('.view.active');
+  if(!view)return;
+  var id=view.id==='view-obra'?'o-page-art':(view.id==='view-escolas'?'esc-page-art':'page-art-'+view.id);
+  updatePageArt(id,marcas||_pageArtMarcasForActiveView());
+}
+
+function scheduleActivePageArt(marcas){
+  clearTimeout(_pageArtTimer);
+  _pageArtTimer=setTimeout(function(){updateActivePageArt(marcas);},80);
+}
+
+if(typeof window!=='undefined'){
+  window.addEventListener('resize',function(){scheduleActivePageArt();},{passive:true});
+}
 
 function _brandGradient(marcas){
 
@@ -4528,7 +4702,7 @@ function go(view){
 
   if(view==="geral")view="escolas";
 
-  const esferaViews=['capex','expansao','nova'];document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById("view-"+(esferaViews.includes(view)?'esfera':view)).classList.add("active");document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===view||(view==="obra"&&b.dataset.nav===(cur?.esfera||curEsfera))||(view==="uni"&&b.dataset.nav==="escolas")));const _main=document.querySelector(".main");if(_main)_main.scrollTo(0,0);window.scrollTo(0,0);if(esferaViews.includes(view)){curEsfera=view;esfBusca='';esfFiltroMarca='Todas';esfNfSearchQuery='';renderEsfera();}if(view==="escolas")renderEscolas();if(view==="cobranca")renderCobranca();if(view==="forn")renderForn();if(view==="admin")renderAdmin();if(view==="investidores")renderInvestidores();updateNavBadge();}
+  const esferaViews=['capex','expansao','nova'];document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById("view-"+(esferaViews.includes(view)?'esfera':view)).classList.add("active");document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===view||(view==="obra"&&b.dataset.nav===(cur?.esfera||curEsfera))||(view==="uni"&&b.dataset.nav==="escolas")));const _main=document.querySelector(".main");if(_main)_main.scrollTo(0,0);window.scrollTo(0,0);if(esferaViews.includes(view)){curEsfera=view;esfBusca='';esfFiltroMarca='Todas';esfNfSearchQuery='';renderEsfera();}if(view==="escolas")renderEscolas();if(view==="cobranca")renderCobranca();if(view==="forn")renderForn();if(view==="admin")renderAdmin();if(view==="investidores")renderInvestidores();updateNavBadge();scheduleActivePageArt();}
 
 function updateNavBadge(){const n=allAtrasos().length;const el=document.getElementById("nav-cobr");el.textContent=n||"";el.style.display=n?"inline-block":"none";}
 
@@ -5462,6 +5636,7 @@ function renderCapexView(){
     else renderCapexScopedDashboard();
   }
   else renderCapexDrill();
+  scheduleActivePageArt();
 }
 
 function clearCapexLooseKpis(){
