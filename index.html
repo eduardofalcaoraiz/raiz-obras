@@ -4494,14 +4494,13 @@ function _makePageArt(colors,w,h,marcas){
   var logos=marcas.map(logoUrl).filter(Boolean);
   if(!logos.length)logos=[logoUrl('RAIZ')].filter(Boolean);
   var positions=[
-    {x:.74,y:.035,w:.22,h:.13,rot:-4,op:.20},
-    {x:.80,y:.62,w:.24,h:.17,rot:5,op:.14},
-    {x:.035,y:.78,w:.20,h:.13,rot:-6,op:.12},
-    {x:.055,y:.08,w:.17,h:.11,rot:4,op:.10}
+    {x:.190,y:.305,w:.620,h:.325,rot:0,op:.145},
+    {x:-.025,y:.725,w:.300,h:.190,rot:0,op:.185},
+    {x:.700,y:.725,w:.300,h:.190,rot:0,op:.185}
   ];
-  logos.slice(0,4).forEach(function(url,i){
-    var p=positions[i%positions.length];
-    var x=w*p.x+(i?rand()*22-11:0),y=h*p.y+(i?rand()*18-9:0),pw=w*p.w,ph=h*p.h;
+  positions.forEach(function(p,i){
+    var url=logos[i%logos.length];
+    var x=w*p.x,y=h*p.y,pw=w*p.w,ph=h*p.h;
     svg+='<image href="'+safeUrl(url)+'" x="'+n(x)+'" y="'+n(y)+'" width="'+n(pw)+'" height="'+n(ph)+'" opacity="'+p.op+'" preserveAspectRatio="xMidYMid meet" transform="rotate('+p.rot+' '+n(x+pw/2)+' '+n(y+ph/2)+')"/>';
   });
 
