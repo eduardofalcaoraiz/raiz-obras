@@ -254,7 +254,7 @@ function splitTextForGemini(text: string, targetSize = 60000, overlap = 2500) {
   return chunks
 }
 
-function mergeNormalizedData(primary: AnyRecord | null, secondary: AnyRecord | null) {
+function mergeNormalizedData(primary: AnyRecord | null, secondary: AnyRecord | null): AnyRecord {
   if (!secondary) return primary || {}
   if (!primary) return JSON.parse(JSON.stringify(secondary))
   const out: AnyRecord = JSON.parse(JSON.stringify(primary))
@@ -631,7 +631,7 @@ async function callOcrSpace(key: string, imageBase64: string, mediaType: string)
   return text
 }
 
-function normalizeData(input: AnyRecord, source: string) {
+function normalizeData(input: AnyRecord, source: string): AnyRecord {
   const valores = input?.valores || {}
   const pagamento = input?.pagamento || {}
   const tipo = normalizeTipo(input?.tipo_documento || input?.tipo || input?.document_type)
@@ -678,16 +678,16 @@ function normalizeData(input: AnyRecord, source: string) {
   }
 }
 
-function normalizeItems(items: AnyRecord[], tipo: string, total: number) {
+function normalizeItems(items: AnyRecord[], tipo: string, total: number): AnyRecord[] {
   if (!Array.isArray(items)) return []
   const unitDefault = ['NFS-e', 'CT-e', 'Boleto', 'Fatura', 'Recibo', 'Guia'].includes(tipo) ? 'Srv' : 'UN'
-  return items.map((it) => {
+  return items.reduce((out: AnyRecord[], it) => {
     const desc = cleanStr(it?.descricao || it?.description || it?.nome || it?.servico)
-    if (!desc) return null
+    if (!desc) return out
     const qtd = num(it?.quantidade ?? it?.qtd) || 1
     const vt = num(it?.valor_total ?? it?.total ?? it?.valor) || total || 0
     const vu = num(it?.valor_unitario ?? it?.unitario) || (qtd ? vt / qtd : vt)
-    return {
+    out.push({
       codigo: cleanStr(it?.codigo || it?.cod || it?.cProd) || null,
       descricao: desc,
       quantidade: qtd,
@@ -695,8 +695,9 @@ function normalizeItems(items: AnyRecord[], tipo: string, total: number) {
       valor_unitario: round2(vu),
       valor_total: round2(vt),
       desconto: num(it?.desconto),
-    }
-  }).filter(Boolean)
+    })
+    return out
+  }, [])
 }
 
 function normalizeParcelas(items: AnyRecord[], total: number) {
@@ -951,7 +952,7 @@ function cleanNfseProviderName(raw: string) {
   s = s.replace(/^(?:nome\s*\/?\s*raz[aÃƒÂ£]o\s*social|nome\s*\/?\s*nome empresarial|razao social|raz[aÃƒÂ£]o social|nome empresarial)\s*:?\s*/i, '')
   s = cleanCompanyName(s)
   const n = stripAccents(s).toLowerCase()
-  if (s.length < 5 || !/[A-Za-zÃ€-Ã¿]/.test(s)) return ''
+  if (s.length < 5 || !/[A-Za-z]/.test(stripAccents(s))) return ''
   if (/prestador|tomador|servico|endereco|municipio|cep|telefone|email|inscricao|simples nacional|regime/.test(n)) return ''
   return s
 }
@@ -1012,17 +1013,17 @@ function findNfseHeaderNumber(lines: string[]) {
     const m = s.match(/^([0-9]{1,20})(?=\s|$)/)
     return m ? normalizeInvoiceNumber(m[1], 'NFS-e') : ''
   }
-  const strongLabel = /numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n[ºo.]|nota\s*:\s*\d|nfs-?e\s+\d/i
+  const strongLabel = /numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n(?:o|ro)?\.?|nota\s*:\s*\d|nfs-?e\s+\d/i
   for (let i = 0; i < arr.length; i++) {
     const line = arr[i]
     const n = stripAccents(line).toLowerCase()
     if (!strongLabel.test(n)) continue
-    const same = line.match(/(?:numero\s+da\s+(?:nota|nfs-?e)|nota\s*:|nfs-?e\s*n?[ºo.]?)\s*[:#-]?\s*([0-9][0-9.\-\/ ]{0,24})/i)
+    const same = line.match(/(?:numero\s+da\s+(?:nota|nfs-?e)|nota\s*:|nfs-?e\s*n(?:o|ro)?\.?)\s*[:#-]?\s*([0-9][0-9.\-\/ ]{0,24})/i)
     if (same) {
       const found = normalizeInvoiceNumber(same[1], 'NFS-e')
       if (found) return found
     }
-    if (/numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n[ºo.]/i.test(n)) {
+    if (/numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n(?:o|ro)?\.?/i.test(n)) {
       const next = firstNumber(arr[i + 1] || '')
       if (next) return next
     }
@@ -1129,17 +1130,17 @@ function findDocNumber(text: string, tipo: string) {
   }
 
   if (tipo === 'NFS-e') {
-    const strongLabel = /numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nota\s*:\s*\d|nfs-?e\s*(?:n[ºo.]?\.?)?\s*\d|n(?:ro|o|º)?\.?\s*(?:da\s*nota)/i
+    const strongLabel = /numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nota\s*:\s*\d|nfs-?e\s*(?:n(?:o|ro)?\.?)?\s*\d|n(?:ro|o)?\.?\s*(?:da\s*nota)/i
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       const n = stripAccents(line).toLowerCase()
       if (!strongLabel.test(n)) continue
-      const same = line.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nfs-?e)?|nota\s*:|nfs-?e\s*(?:n[ºo.]?\.?)?|n(?:ro|o|º)?\.?\s*(?:da\s*nota)?)\s*[:#-]?\s*([0-9][0-9.\-\/ ]{0,24})/i)
+      const same = line.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nfs-?e)?|nota\s*:|nfs-?e\s*(?:n(?:o|ro)?\.?)?|n(?:ro|o)?\.?\s*(?:da\s*nota)?)\s*[:#-]?\s*([0-9][0-9.\-\/ ]{0,24})/i)
       if (same) {
         const nDoc = normalizeInvoiceNumber(same[1], tipo)
         if (nDoc) return nDoc
       }
-      if (/numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nfs-?e\s*n[ºo.]|n(?:ro|o|º)?\.?\s*(?:da\s*nota)/i.test(n)) {
+      if (/numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nfs-?e\s*n(?:o|ro)?\.?|n(?:ro|o)?\.?\s*(?:da\s*nota)/i.test(n)) {
         const next = firstTokenNumber(lines[i + 1] || '')
         if (next) return next
       }
@@ -1149,14 +1150,14 @@ function findDocNumber(text: string, tipo: string) {
 
   const skip = /codigo|verifica|autentic|rps|serie|cnpj|cpf|inscri|competencia|data|valor|aliquota|protocolo|chave/i
   const explicitNota = /nota\s*fiscal|nf-?e|nfc-?e|ct-?e|numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nota\s*fiscal)/i
-  const label = /(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nf-?e|nfc-?e|ct-?e|documento)|nf-?e|nfc-?e|ct-?e|nota\s*fiscal|n(?:ro|o|º)?\.?\s*(?:da\s*nota)?)/i
+  const label = /(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nf-?e|nfc-?e|ct-?e|documento)|nf-?e|nfc-?e|ct-?e|nota\s*fiscal|n(?:ro|o)?\.?\s*(?:da\s*nota)?)/i
 
   for (let i = 0; i < lines.length; i++) {
     const line = stripAccents(lines[i])
     if (skip.test(line) && !explicitNota.test(line)) continue
     if (!label.test(line)) continue
 
-    const same = line.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfc-?e|ct-?e)?|nf-?e|nfc-?e|ct-?e|n(?:ro|o|º)?\.?\s*(?:da\s*nota)?)\s*(?:n(?:o|º)?\.?)?\s*[:#-]?\s*([0-9][0-9.\-\/ ]{0,24})/i)
+    const same = line.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfc-?e|ct-?e)?|nf-?e|nfc-?e|ct-?e|n(?:ro|o)?\.?\s*(?:da\s*nota)?)\s*(?:n(?:o|ro)?\.?)?\s*[:#-]?\s*([0-9][0-9.\-\/ ]{0,24})/i)
     if (same) {
       const n = normalizeInvoiceNumber(same[1], tipo)
       if (n) return n
@@ -1726,8 +1727,10 @@ function normalizeInvoiceNumber(raw: unknown, tipo: string, chave?: unknown, dat
 function decodeNfseNumberFromKey(raw: unknown, dataEmissao?: string) {
   const text = String(raw || '')
   const compact = onlyDigits(text)
-  const candidates = (text.match(/\d{30,60}/g) || [])
-    .concat(compact ? [compact] : [])
+  const candidates = [
+    ...(text.match(/\d{30,60}/g) || []),
+    ...(compact ? [compact] : []),
+  ]
     .filter((v, i, arr) => v.length >= 30 && arr.indexOf(v) === i)
 
   for (const c of candidates) {
