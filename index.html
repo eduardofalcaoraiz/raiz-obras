@@ -13830,15 +13830,42 @@ async function fetchCNPJData(cnpj){
 
   if(raw.length!==14)return null;
 
-  try{
+  const fetchJson=async(url,timeoutMs)=>{
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>ctrl.abort(),timeoutMs||10000);
+    try{
+      const res=await fetch(url,{signal:ctrl.signal,headers:{accept:'application/json'}});
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      return await res.json();
+    }finally{
+      clearTimeout(timer);
+    }
+  };
 
-    const res=await fetch(`https://brasilapi.com.br/api/cnpj/v1/${raw}`,{signal:AbortSignal.timeout(10000)});
-
-    if(!res.ok)return null;
-
-    return await res.json();
-
-  }catch(e){return null;}
+  const providers=[
+    {name:'Raiz CNPJ',url:`/api/cnpj?cnpj=${raw}`},
+    {name:'BrasilAPI',url:`https://brasilapi.com.br/api/cnpj/v1/${raw}`},
+    {name:'Open CNPJA',url:`https://open.cnpja.com/office/${raw}`},
+    {name:'CNPJ.ws',url:`https://publica.cnpj.ws/cnpj/${raw}`},
+  ];
+  const errors=[];
+  for(const p of providers){
+    try{
+      const data=await fetchJson(p.url,10000);
+      if(data&&data.ok&&data.data){
+        data.data._cnpjSource=data.source||data.data._cnpjSource||p.name;
+        return data.data;
+      }
+      if(data&&typeof data==='object'){
+        data._cnpjSource=p.name;
+        return data;
+      }
+    }catch(e){
+      errors.push(p.name+': '+(e?.message||e));
+    }
+  }
+  console.warn('[CNPJ Receita] fontes indisponiveis:',errors.join(' | '));
+  return null;
 
 }
 
@@ -13850,31 +13877,47 @@ function parseCNPJData(j){
 
   if(!j)return null;
 
-  const partes=[j.logradouro,j.numero,j.complemento,j.bairro].filter(Boolean).join(', ');
+  const est=j.estabelecimento||{};
+  const empresa=j.empresa||{};
+  const company=j.company||{};
+  const address=j.address||{};
+  const mainActivity=j.atividade_principal||j.mainActivity||company.mainActivity||{};
+  const phoneObj=Array.isArray(j.phones)?j.phones[0]:null;
+  const emailObj=Array.isArray(j.emails)?j.emails[0]:null;
+  const cidade=est.cidade||j.cidade||{};
+  const estado=est.estado||j.estado||{};
+  const partes=[
+    j.logradouro||est.logradouro||address.street,
+    j.numero||est.numero||address.number,
+    j.complemento||est.complemento||address.details,
+    j.bairro||est.bairro||address.district
+  ].filter(Boolean).join(', ');
 
   return{
 
-    nome:j.razao_social||j.nome_fantasia||'',
+    nome:j.razao_social||empresa.razao_social||company.name||j.nome_fantasia||est.nome_fantasia||j.alias||'',
 
-    nomeFantasia:j.nome_fantasia||'',
+    nomeFantasia:j.nome_fantasia||est.nome_fantasia||j.alias||'',
 
-    email:(j.email||'').toLowerCase(),
+    email:(j.email||est.email||emailObj?.address||'').toLowerCase(),
 
-    telefone:j.telefone1||'',
+    telefone:j.telefone1||est.telefone1||(phoneObj?[(phoneObj.area||phoneObj.ddd),phoneObj.number].filter(Boolean).join(' '):''),
 
     endereco:partes,
 
-    municipio:j.municipio||'',
+    municipio:j.municipio||cidade.nome||address.city||'',
 
-    uf:j.uf||'',
+    uf:j.uf||estado.sigla||address.state||'',
 
-    atividade:j.cnae_fiscal_descricao||'',
+    atividade:j.cnae_fiscal_descricao||mainActivity.descricao||mainActivity.text||'',
 
-    porte:j.porte||'',
+    porte:j.porte?.descricao||j.porte||empresa.porte?.descricao||company.size?.text||'',
 
-    dataAbertura:j.data_abertura||'',
+    dataAbertura:j.data_abertura||est.data_inicio_atividade||j.founded||'',
 
-    situacao:j.descricao_situacao_cadastral||'',
+    situacao:j.descricao_situacao_cadastral||est.situacao_cadastral||j.status?.text||'',
+
+    fonte:j._cnpjSource||'',
 
     raw:j
 
@@ -13888,37 +13931,33 @@ async function lookupByCNPJ(silent){
 
   const raw=document.getElementById('imp-cnpj').value.replace(/\D/g,'');
 
-  if(raw.length===14){
-
-    const lookupBtn=document.getElementById('cnpj-lookup-btn');
-
-    if(lookupBtn){lookupBtn.textContent='Buscando...';lookupBtn.disabled=true;}
-
-    try{
-
-      await impPreferOfficialNameFromCNPJ(document.getElementById('imp-ben').value);
-
-      if(!silent&&document.getElementById('imp-ben').value)toast('Razao social atualizada pelo CNPJ.');
-
-    }finally{
-
-      if(lookupBtn){lookupBtn.textContent='Buscar ->';lookupBtn.disabled=false;}
-
-    }
-
-    return;
-
-  }
-
   if(raw.length!==14){if(!silent)toast('Digite um CNPJ válido (14 dígitos).');return;}
-
-  const known=Object.entries(CNPJS).find(([,v])=>v.replace(/\D/g,'')===raw);
-
-  if(known){document.getElementById('imp-ben').value=known[0];if(!silent)toast('Razão social encontrada (cadastro local).');return;}
 
   const btn=document.getElementById('cnpj-lookup-btn');
 
-  if(btn){btn.textContent='Buscando…';btn.disabled=true;}
+  if(btn){btn.textContent='Buscando...';btn.disabled=true;}
+
+  const known=Object.entries(CNPJS).find(([,v])=>v.replace(/\D/g,'')===raw);
+
+  if(known){
+    document.getElementById('imp-ben').value=known[0];
+    if(impReviewData)impReviewData.ben=known[0];
+    if(!silent)toast('Razão social encontrada no cadastro local.');
+    if(btn){btn.textContent='Buscar →';btn.disabled=false;}
+    return;
+  }
+
+  const cnpjFmt=raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
+
+  const cached=FORN_DATA[raw]||{};
+  if(cached.nome){
+    document.getElementById('imp-ben').value=cached.nome;
+    CNPJS[cached.nome]=cnpjFmt;
+    if(impReviewData)impReviewData.ben=cached.nome;
+    if(!silent)toast('Razão social encontrada no histórico local.');
+    if(btn){btn.textContent='Buscar →';btn.disabled=false;}
+    return;
+  }
 
   try{
 
@@ -13929,8 +13968,12 @@ async function lookupByCNPJ(silent){
     if(d&&d.nome){
 
       document.getElementById('imp-ben').value=d.nome;
+      CNPJS[d.nome]=cnpjFmt;
+      FORN_DATA[raw]=Object.assign({},FORN_DATA[raw]||{},d,{nome:d.nome});
+      if(impReviewData)impReviewData.ben=d.nome;
+      autoSaveFornecedor(d.nome,cnpjFmt);
 
-      if(!silent)toast(`✓ ${d.nome} — Receita Federal`);
+      if(!silent)toast(`✓ ${d.nome} — ${d.fonte||'Receita Federal'}`);
 
     }else if(!silent)toast('CNPJ não encontrado na Receita Federal.');
 
@@ -15448,10 +15491,6 @@ db.auth.onAuthStateChange(async(event,session)=>{
 </body>
 
 </html>
-
-
-
-
 
 
 
