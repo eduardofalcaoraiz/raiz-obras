@@ -1,4 +1,4 @@
-// Supabase Edge Function: read-invoice (v9)
+﻿// Supabase Edge Function: read-invoice (v9)
 // Brazilian fiscal/payment document extraction with Gemini + optional OCR fallbacks.
 
 const CORS = {
@@ -30,6 +30,8 @@ Critical rules:
 11. Never use valor liquido, valor liquido a pagar, valor liquido da NFS-e, valor a receber, or net amount after retencoes/deducoes as valores.valor_total. Those are auxiliary net-payment values only. If only a net/liquid value is visible and the gross invoice total is not visible, set valores.valor_total to 0 and explain in observacoes.
 12. Do not infer company names from arbitrary uppercase lines. For NFS-e, emitente must come from the PRESTADOR/provider block only.
 13. If the document has fatura/duplicatas/parcelamento, extract each visible installment with numero, valor and vencimento. Do not split the total unless the installment schedule is explicit.
+14. For municipal NFS-e layouts such as NFS-e Nacional/DANFSe, ABRASF, GestaoISS, GINFES, Betha, ISSNet, Nota Control, e-Nota, SimplISS, IPM or Nota Carioca, adapt to the local labels but keep the same evidence rule: numero_nf must come from Numero da NFS-e/Numero da Nota/Nota Fiscal de Servicos, provider from Prestador, and gross total from Valor dos Servicos/Valor Total dos Servicos/Valor da Nota/Valor Total da Nota.
+15. For Rio Bonito/RJ and other GestaoISS documents, do not confuse Codigo de Verificacao, RPS, competencia, city code or issue date with numero_nf. The invoice number is the explicit Numero da Nota/NFS-e value.
 
 Issuer/provider self-check:
 - NF-e/NFC-e/CT-e: emitente is the company in EMITENTE/REMETENTE, never DESTINATARIO.
@@ -97,7 +99,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (rawText.trim()) {
-      if (looksLikeOfficialNfeXml(rawText) || /xml/i.test(mediaType) || /\.xml$/i.test(fileName)) {
+      if (looksLikeOfficialFiscalXml(rawText) || /xml/i.test(mediaType) || /\.xml$/i.test(fileName)) {
         try {
           const normalized = parseOfficialNfeXml(rawText, 'xml-fiscal-oficial')
           if (consider('XML fiscal oficial', normalized)) return ok(merged || {}, attempts)
@@ -153,8 +155,11 @@ Deno.serve(async (req: Request) => {
       try {
         const raw = await callGeminiDocument(geminiKey, imageBase64, mediaType)
         const normalized = normalizeData(raw, 'gemini-direct')
-        if (consider('Gemini direto (ultimo recurso)', normalized) && normalized.tipo_documento !== 'NFS-e') return ok(merged || {}, attempts)
-        if (normalized.tipo_documento === 'NFS-e') attempts.push('Gemini direto NFS-e exige confirmacao por texto/OCR antes de encerrar')
+        if (normalized.tipo_documento === 'NFS-e') {
+          attempts.push('Gemini direto NFS-e ignorado como fonte final: exige texto/OCR com evidencia antes de preencher campos fiscais')
+        } else if (consider('Gemini direto (ultimo recurso)', normalized)) {
+          return ok(merged || {}, attempts)
+        }
       } catch (err) {
         attempts.push('Gemini direto: ' + errorMessage(err))
       }
@@ -249,7 +254,7 @@ function splitTextForGemini(text: string, targetSize = 60000, overlap = 2500) {
   return chunks
 }
 
-function mergeNormalizedData(primary: AnyRecord | null, secondary: AnyRecord | null) {
+function mergeNormalizedData(primary: AnyRecord | null, secondary: AnyRecord | null): AnyRecord {
   if (!secondary) return primary || {}
   if (!primary) return JSON.parse(JSON.stringify(secondary))
   const out: AnyRecord = JSON.parse(JSON.stringify(primary))
@@ -331,8 +336,8 @@ function validateDataAgainstText(data: AnyRecord, text: string) {
     const nfseKeyNumero = tipo === 'NFS-e'
       ? decodeNfseNumberFromKey(out.chave_acesso || out.codigo_verificacao || full, out.data_emissao || undefined)
       : ''
-    if (nfseKeyNumero) out.numero_nf = nfseKeyNumero
-    else if (localNumero) out.numero_nf = localNumero
+    if (localNumero) out.numero_nf = localNumero
+    else if (nfseKeyNumero) out.numero_nf = nfseKeyNumero
     else if (tipo === 'NFS-e' && onlyDigits(out.numero_nf || '').length < 2) out.numero_nf = null
   }
 
@@ -347,6 +352,11 @@ function validateDataAgainstText(data: AnyRecord, text: string) {
     if (localNfseValue) {
       out.valores.valor_total = localNfseValue
       if (!num(out.valores.subtotal) || out.valores.subtotal < localNfseValue) out.valores.subtotal = localNfseValue
+    } else if (num(out.valores.valor_total)) {
+      const rejected = out.valores.valor_total
+      out.valores.valor_total = 0
+      if (num(out.valores.subtotal) === rejected) out.valores.subtotal = 0
+      out.observacoes = appendObservation(out.observacoes, 'Valor total de NFS-e rejeitado: nao havia rotulo bruto confirmado; valor liquido/retencoes nao podem preencher o total.')
     }
   }
 
@@ -402,6 +412,11 @@ function containsLoose(normalizedHaystack: string, rawNeedle: unknown) {
   const tokens = needle.split(/\s+/).filter((t) => t.length > 2)
   if (tokens.length < 2) return false
   return tokens.filter((t) => hay.includes(t)).length >= Math.min(tokens.length, 3)
+}
+
+function appendObservation(current: unknown, msg: string) {
+  const base = cleanStr(current)
+  return base ? `${base} | ${msg}` : msg
 }
 
 function moneyAppears(text: string, value: number) {
@@ -616,7 +631,7 @@ async function callOcrSpace(key: string, imageBase64: string, mediaType: string)
   return text
 }
 
-function normalizeData(input: AnyRecord, source: string) {
+function normalizeData(input: AnyRecord, source: string): AnyRecord {
   const valores = input?.valores || {}
   const pagamento = input?.pagamento || {}
   const tipo = normalizeTipo(input?.tipo_documento || input?.tipo || input?.document_type)
@@ -663,16 +678,16 @@ function normalizeData(input: AnyRecord, source: string) {
   }
 }
 
-function normalizeItems(items: AnyRecord[], tipo: string, total: number) {
+function normalizeItems(items: AnyRecord[], tipo: string, total: number): AnyRecord[] {
   if (!Array.isArray(items)) return []
   const unitDefault = ['NFS-e', 'CT-e', 'Boleto', 'Fatura', 'Recibo', 'Guia'].includes(tipo) ? 'Srv' : 'UN'
-  return items.map((it) => {
+  return items.reduce((out: AnyRecord[], it) => {
     const desc = cleanStr(it?.descricao || it?.description || it?.nome || it?.servico)
-    if (!desc) return null
+    if (!desc) return out
     const qtd = num(it?.quantidade ?? it?.qtd) || 1
     const vt = num(it?.valor_total ?? it?.total ?? it?.valor) || total || 0
     const vu = num(it?.valor_unitario ?? it?.unitario) || (qtd ? vt / qtd : vt)
-    return {
+    out.push({
       codigo: cleanStr(it?.codigo || it?.cod || it?.cProd) || null,
       descricao: desc,
       quantidade: qtd,
@@ -680,8 +695,9 @@ function normalizeItems(items: AnyRecord[], tipo: string, total: number) {
       valor_unitario: round2(vu),
       valor_total: round2(vt),
       desconto: num(it?.desconto),
-    }
-  }).filter(Boolean)
+    })
+    return out
+  }, [])
 }
 
 function normalizeParcelas(items: AnyRecord[], total: number) {
@@ -837,7 +853,7 @@ function extractStrictText(rawText: string) {
   const nfseHeaderNumero = tipo === 'NFS-e' ? findNfseHeaderNumber(lines) : ''
   const nfseLooseNumero = tipo === 'NFS-e' ? findDocNumber(text, tipo) : ''
   const numero = tipo === 'NFS-e'
-    ? (decodeNfseNumberFromKey(chave || text, dataEmissao) || nfseHeaderNumero || nfseLooseNumero || '')
+    ? (nfseHeaderNumero || nfseLooseNumero || decodeNfseNumberFromKey(chave || text, dataEmissao) || '')
     : (['NF-e', 'NFC-e', 'CT-e'].includes(tipo) && decoded?.numero ? decoded.numero : (findDocNumber(text, tipo) || decoded?.numero || ''))
   const dataVenc = findDateNear(lines, [/venc/i, /pagar ate/i, /data limite/i])
   const cnpj = tipo === 'NFS-e' ? (firstCnpj(prestadorBlock) || '') : (decoded?.cnpj || firstCnpj(text) || '')
@@ -876,7 +892,7 @@ function extractStrictText(rawText: string) {
 }
 
 function isNfseLikeText(normText: string) {
-  return /danfse|documento auxiliar da nfs-?e|chave de acesso da nfs-?e|numero da nfs-?e|emitente da nfs-?e|prestador do servico|prestador de servicos|nota fiscal de servicos|nfs-?e/.test(normText)
+  return /danfse|documento auxiliar da nfs-?e|chave de acesso da nfs-?e|numero da nfs-?e|emitente da nfs-?e|prestador do servico|prestador de servicos|nota fiscal (?:eletronica )?de servicos|nfs-?e|gestaoiss|ginfes|betha|issnet|simpliss|nota control|nota carioca|prefeitura municipal.+servicos/.test(normText)
 }
 
 function findNfsePrestadorBlock(text: string, lines: string[]) {
@@ -892,7 +908,7 @@ function findNfsePrestadorBlock(text: string, lines: string[]) {
     /^\s*tomador\s*do\s*servi/i,
     /^\s*tomador\s*de\s*servi/i,
     /^\s*intermediario\b/i,
-    /^\s*servi[cç]o\s+prestado\b/i,
+    /^\s*servi[cÃ§]o\s+prestado\b/i,
     /^\s*discriminacao\b/i,
     /^\s*valores\b/i,
   ]
@@ -903,7 +919,7 @@ function findNfsePrestadorBlock(text: string, lines: string[]) {
   if (start < 0) return ''
   let end = all.length
   for (let i = start + 1; i < all.length; i++) {
-    if (/tomador|intermediario|servi[cç]o\s+prestado|discriminacao|valores/i.test(stripAccents(all[i]))) {
+    if (/tomador|intermediario|servi[cÃ§]o\s+prestado|discriminacao|valores/i.test(stripAccents(all[i]))) {
       end = i
       break
     }
@@ -933,10 +949,10 @@ function cleanNfseProviderName(raw: string) {
   s = s.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, ' ')
   s = s.replace(/^\d{1,3}(?:\.\d{3})*(?:\/\d{4}-\d{2})?\s+/, '')
   s = s.replace(/^(?:cnpj|cpf|nif|inscricao municipal|telefone|e-mail|email)\b.*$/i, '')
-  s = s.replace(/^(?:nome\s*\/?\s*raz[aÃ£]o\s*social|nome\s*\/?\s*nome empresarial|razao social|raz[aÃ£]o social|nome empresarial)\s*:?\s*/i, '')
+  s = s.replace(/^(?:nome\s*\/?\s*raz[aÃƒÂ£]o\s*social|nome\s*\/?\s*nome empresarial|razao social|raz[aÃƒÂ£]o social|nome empresarial)\s*:?\s*/i, '')
   s = cleanCompanyName(s)
   const n = stripAccents(s).toLowerCase()
-  if (s.length < 5 || !/[A-Za-zÀ-ÿ]/.test(s)) return ''
+  if (s.length < 5 || !/[A-Za-z]/.test(stripAccents(s))) return ''
   if (/prestador|tomador|servico|endereco|municipio|cep|telefone|email|inscricao|simples nacional|regime/.test(n)) return ''
   return s
 }
@@ -947,7 +963,7 @@ function findNfseDescription(lines: string[]) {
   for (let i = 0; i < lines.length; i++) {
     const n = stripAccents(lines[i]).toLowerCase()
     if (!/descricao\s+do\s+servico|discriminacao\s+do\s+servico/.test(n)) continue
-    const same = cleanStr(lines[i].replace(/^(descri[cç][aã]o|discrimina[cç][aã]o)(?:\s+do\s+servi[cç]o)?\s*:?\s*/i, ''))
+    const same = cleanStr(lines[i].replace(/^(descri[cÃ§][aÃ£]o|discrimina[cÃ§][aÃ£]o)(?:\s+do\s+servi[cÃ§]o)?\s*:?\s*/i, ''))
     if (same && !/^do\s+servi/i.test(same) && same.length > 6) return same
     const block: string[] = []
     for (let j = i + 1; j < Math.min(lines.length, i + 8); j++) {
@@ -997,24 +1013,19 @@ function findNfseHeaderNumber(lines: string[]) {
     const m = s.match(/^([0-9]{1,20})(?=\s|$)/)
     return m ? normalizeInvoiceNumber(m[1], 'NFS-e') : ''
   }
+  const strongLabel = /numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n(?:o|ro)?\.?|nota\s*:\s*\d|nfs-?e\s+\d/i
   for (let i = 0; i < arr.length; i++) {
-    const n = stripAccents(arr[i]).toLowerCase()
-    if (!/numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n[ºo.]|nota\s+fiscal\s+de\s+servicos/.test(n)) continue
-    const sameTail = arr[i].replace(/.*(?:numero\s+da\s+(?:nota|nfs-?e)|nfs-?e|nota\s+fiscal\s+de\s+servi[cç]os)\s*[:#-]?/i, '').trim()
-    const sameFirst = firstNumber(sameTail, arr[i + 1] || '')
-    if (sameFirst) return sameFirst
-    const same = arr[i].match(/(?:numero\s+da\s+(?:nota|nfs-?e)|nfs-?e|nota\s+fiscal\s+de\s+servi[cç]os)\s*[:#-]?\s*([0-9]{1,20})(?!\d)/i)
-    if (same) return normalizeInvoiceNumber(same[1], 'NFS-e')
-    const next = firstNumber(arr[i + 1] || '', arr[i + 2] || '')
-    if (next) return next
-    for (let j = i + 1; j <= Math.min(i + 8, arr.length - 1); j++) {
-      const candidate = arr[j]
-      const normalized = stripAccents(candidate).toLowerCase()
-      if (/data|hora|competencia|codigo|verificacao|vencimento/.test(normalized)) continue
-      if (/^\d{1,20}$/.test(onlyDigits(candidate)) && !/\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/.test(candidate)) {
-        const n2 = normalizeInvoiceNumber(candidate, 'NFS-e')
-        if (n2) return n2
-      }
+    const line = arr[i]
+    const n = stripAccents(line).toLowerCase()
+    if (!strongLabel.test(n)) continue
+    const same = line.match(/(?:numero\s+da\s+(?:nota|nfs-?e)|nota\s*:|nfs-?e\s*n(?:o|ro)?\.?)\s*[:#-]?\s*([0-9][0-9.\-\/ ]{0,24})/i)
+    if (same) {
+      const found = normalizeInvoiceNumber(same[1], 'NFS-e')
+      if (found) return found
+    }
+    if (/numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n(?:o|ro)?\.?/i.test(n)) {
+      const next = firstNumber(arr[i + 1] || '')
+      if (next) return next
     }
   }
   return ''
@@ -1024,9 +1035,10 @@ function findNfseTotalValue(text: string, lines: string[]) {
   const arr = (lines?.length ? lines : String(text || '').split('\n')).map((l) => cleanStr(l)).filter(Boolean)
   const pickLastPositive = (vals: number[]) => vals.filter((v) => v > 0).pop() || 0
   const pickFirstPositive = (vals: number[]) => vals.find((v) => v > 0) || 0
+  const grossLabel = /valor\s+(?:total\s+)?d[oo]s?\s+servic|valor\s+servic|total\s+d[oo]s?\s+servic|valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal|nfse)|total\s+da\s+(?:nota|nfs-?e|nfse)|valor\s+bruto|valor\s+total\s+do\s+documento/
   const isNetOrRetentionLine = (raw: string) => {
     const n = stripAccents(raw || '').toLowerCase()
-    return /valor\s+liquido|liquido\s+a\s+pagar|valor\s+a\s+receber|retencao|retencoes|deducao|deducoes|cofins|csll|inss|irpj|pis|outras\s+retencoes|valor\s+do\s+iss|issqn/.test(n)
+    return /valor\s+liquido|liquido\s+a\s+pagar|valor\s+a\s+receber|retencao|retencoes|deducao|deducoes|cofins|csll|inss|irpj|irrf|pis|outras\s+retencoes|valor\s+do\s+iss|issqn/.test(n) && !grossLabel.test(n)
   }
   const valueFromWindow = (start: number, labelRe: RegExp | null, mode: 'first' | 'last') => {
     for (let j = start; j <= Math.min(start + 4, arr.length - 1); j++) {
@@ -1046,14 +1058,14 @@ function findNfseTotalValue(text: string, lines: string[]) {
 
   for (let i = 0; i < arr.length; i++) {
     const n = stripAccents(arr[i]).toLowerCase()
-    if (/valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e)|valor\s+da\s+nota/.test(n)) {
-      const v = valueFromWindow(i, /valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e)|valor\s+da\s+nota/, 'last')
+    if (/valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nfse|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e|nfse)|valor\s+da\s+nota|valor\s+total\s+do\s+documento|valor\s+bruto/.test(n)) {
+      const v = valueFromWindow(i, /valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nfse|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e|nfse)|valor\s+da\s+nota|valor\s+total\s+do\s+documento|valor\s+bruto/, 'first')
       if (v) return v
     }
   }
   for (let i = 0; i < arr.length; i++) {
     const n = stripAccents(arr[i]).toLowerCase()
-    if (/valor\s+(?:total\s+)?da\s+nota|total\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e/.test(n)) {
+    if (/valor\s+(?:total\s+)?da\s+nota|total\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e|valor\s+total\s+da\s+nfse|total\s+da\s+nfse/.test(n)) {
       for (let j = i + 1; j <= Math.min(i + 5, arr.length - 1); j++) {
         const nj = stripAccents(arr[j]).toLowerCase()
         if (/valor\s+do\s+servico|valor\s+dos\s+servicos/.test(nj)) {
@@ -1065,8 +1077,8 @@ function findNfseTotalValue(text: string, lines: string[]) {
   }
   for (let i = 0; i < arr.length; i++) {
     const n = stripAccents(arr[i]).toLowerCase()
-    if (/valor\s+do\s+servico|valor\s+dos\s+servicos|valor\s+total\s+dos\s+servicos/.test(n)) {
-      const v = valueFromWindow(i, /valor\s+(?:do|dos|total\s+dos)\s+servic/, 'first')
+    if (/valor\s+do\s+servico|valor\s+dos\s+servicos|valor\s+total\s+dos\s+servicos|total\s+dos\s+servicos|valor\s+servico/.test(n)) {
+      const v = valueFromWindow(i, /valor\s+(?:do|dos|total\s+dos)?\s*servic|total\s+dos\s+servic/, 'first')
       if (v) return v
     }
   }
@@ -1084,8 +1096,8 @@ function findDocNumberLegacy(text: string, tipo: string) {
     const lines = String(text || '').split('\n').map((l) => l.trim()).filter(Boolean)
     for (let i = 0; i < lines.length; i++) {
       const line = stripAccents(lines[i])
-      if (!/(numero|n[roºo.]|nota fiscal|nfs)/i.test(line)) continue
-      const m = line.match(/(?:numero(?:\s+da\s+nota)?|n[roºo.]?\s*(?:da\s+nota)?|nota\s+fiscal(?:\s+de\s+servicos)?|nfs-?e)\s*:?\s*([0-9][0-9.\-/]{0,20})/i)
+      if (!/(numero|n[roÂºo.]|nota fiscal|nfs)/i.test(line)) continue
+      const m = line.match(/(?:numero(?:\s+da\s+nota)?|n[roÂºo.]?\s*(?:da\s+nota)?|nota\s+fiscal(?:\s+de\s+servicos)?|nfs-?e)\s*:?\s*([0-9][0-9.\-/]{0,20})/i)
       if (m) return cleanStr(m[1]).replace(/[^\d.\-/]/g, '')
       const next = lines[i + 1] || ''
       if (/^\d{1,20}$/.test(next.replace(/\D/g, ''))) return next.replace(/\D/g, '')
@@ -1109,25 +1121,43 @@ function findDocNumber(text: string, tipo: string) {
   }
 
   const lines = String(text || '').split('\n').map((l) => l.trim()).filter(Boolean)
-  const skip = /codigo|verifica|autentic|rps|serie|cnpj|cpf|inscri|competencia|data|valor|aliquota|protocolo|chave/i
-  const explicitNota = /nota\s*fiscal|nfs-?e|nf-?e|nfc-?e|ct-?e|numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nota\s*fiscal)/i
   const firstTokenNumber = (raw: string) => {
     const s = String(raw || '').trim()
     const pair = s.match(/^([0-9][0-9.]*)\s*\/\s*\d{1,3}\b/)
     if (pair) return normalizeInvoiceNumber(pair[1], tipo)
-    const m = s.match(/^([0-9]{1,13})(?=\s|$)/)
+    const m = s.match(/^([0-9]{1,20})(?=\s|$)/)
     return m ? normalizeInvoiceNumber(m[1], tipo) : ''
   }
-  const label = tipo === 'NFS-e'
-    ? /(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nota\s*fiscal\s*(?:de\s*servicos?)?|nfs-?e|n(?:ro|o|º)?\.?\s*(?:da\s*nota)?)/i
-    : /(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nf-?e|nfc-?e|ct-?e|documento)|nf-?e|nfc-?e|ct-?e|nota\s*fiscal|n(?:ro|o|º)?\.?\s*(?:da\s*nota)?)/i
+
+  if (tipo === 'NFS-e') {
+    const strongLabel = /numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nota\s*:\s*\d|nfs-?e\s*(?:n(?:o|ro)?\.?)?\s*\d|n(?:ro|o)?\.?\s*(?:da\s*nota)/i
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      const n = stripAccents(line).toLowerCase()
+      if (!strongLabel.test(n)) continue
+      const same = line.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nfs-?e)?|nota\s*:|nfs-?e\s*(?:n(?:o|ro)?\.?)?|n(?:ro|o)?\.?\s*(?:da\s*nota)?)\s*[:#-]?\s*([0-9][0-9.\-\/ ]{0,24})/i)
+      if (same) {
+        const nDoc = normalizeInvoiceNumber(same[1], tipo)
+        if (nDoc) return nDoc
+      }
+      if (/numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nfs-?e\s*n(?:o|ro)?\.?|n(?:ro|o)?\.?\s*(?:da\s*nota)/i.test(n)) {
+        const next = firstTokenNumber(lines[i + 1] || '')
+        if (next) return next
+      }
+    }
+    return ''
+  }
+
+  const skip = /codigo|verifica|autentic|rps|serie|cnpj|cpf|inscri|competencia|data|valor|aliquota|protocolo|chave/i
+  const explicitNota = /nota\s*fiscal|nf-?e|nfc-?e|ct-?e|numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nota\s*fiscal)/i
+  const label = /(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nf-?e|nfc-?e|ct-?e|documento)|nf-?e|nfc-?e|ct-?e|nota\s*fiscal|n(?:ro|o)?\.?\s*(?:da\s*nota)?)/i
 
   for (let i = 0; i < lines.length; i++) {
     const line = stripAccents(lines[i])
     if (skip.test(line) && !explicitNota.test(line)) continue
     if (!label.test(line)) continue
 
-    const same = line.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfs-?e|nfc-?e|ct-?e)?|nota\s*fiscal(?:\s*de\s*servicos?)?|nfs-?e|nf-?e|nfc-?e|ct-?e|n(?:ro|o|º)?\.?\s*(?:da\s*nota)?)\s*(?:n(?:o|º)?\.?)?\s*[:#-]?\s*([0-9][0-9.\-/ ]{0,24})/i)
+    const same = line.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfc-?e|ct-?e)?|nf-?e|nfc-?e|ct-?e|n(?:ro|o)?\.?\s*(?:da\s*nota)?)\s*(?:n(?:o|ro)?\.?)?\s*[:#-]?\s*([0-9][0-9.\-\/ ]{0,24})/i)
     if (same) {
       const n = normalizeInvoiceNumber(same[1], tipo)
       if (n) return n
@@ -1136,7 +1166,7 @@ function findDocNumber(text: string, tipo: string) {
     const next = lines[i + 1] || ''
     const first = firstTokenNumber(next)
     if (first) return first
-    if (/^[0-9][0-9.\-/ ]{0,24}$/.test(next)) {
+    if (/^[0-9][0-9.\-\/ ]{0,24}$/.test(next)) {
       const n = normalizeInvoiceNumber(next, tipo)
       if (n) return n
     }
@@ -1262,7 +1292,7 @@ function parseDanfeItemsFromText(text: string) {
   const items: AnyRecord[] = []
   const seen = new Set<string>()
   const rowRe = /^(\d{1,20})\s+(.+?)\s+(\d{8})\s+[0-9A-Z]{1,4}(?:\/[0-9A-Z]{1,3})?\s+\d{4}\s+([A-Z]{1,6})\s+(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})(?:\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2}))?/i
-  const isHeader = (line: string) => /^(DADOS|C[ÓO]DIGO|INFORMA[ÇC][ÕO]ES|RESERVADO|C[ÁA]LCULO|TRANSPORTADOR|BASE|VALOR|NOME|ENDERE[ÇC]O|MUNIC[ÍI]PIO|QUANTIDADE|Inf\.|Impresso)/i.test(line)
+  const isHeader = (line: string) => /^(DADOS|C[Ã“O]DIGO|INFORMA[Ã‡C][Ã•O]ES|RESERVADO|C[ÃA]LCULO|TRANSPORTADOR|BASE|VALOR|NOME|ENDERE[Ã‡C]O|MUNIC[ÃI]PIO|QUANTIDADE|Inf\.|Impresso)/i.test(line)
   let last: AnyRecord | null = null
   for (const line of lines) {
     const m = line.match(rowRe)
@@ -1301,7 +1331,7 @@ function parseDanfeItemsFromText(text: string) {
 function findDanfeIssuerName(text: string, lines: string[]) {
   const receb = String(text || '').match(/recebemos\s+de\s+(.+?)\s+os\s+produtos/i)
   if (receb?.[1]) return cleanCompanyName(receb[1])
-  const start = lines.findIndex((l) => /identifica[cç][aã]o\s+do\s+emitente/i.test(stripAccents(l)))
+  const start = lines.findIndex((l) => /identifica[cÃ§][aÃ£]o\s+do\s+emitente/i.test(stripAccents(l)))
   if (start < 0) return ''
   const keep: string[] = []
   for (let i = start + 1; i < Math.min(lines.length, start + 9); i++) {
@@ -1441,13 +1471,28 @@ function enrichDataForReturn(data: AnyRecord | null, attempts: string[]) {
   return out
 }
 
+function looksLikeOfficialFiscalXml(text: string) {
+  return looksLikeOfficialNfeXml(text) || looksLikeOfficialNfseXml(text)
+}
+
 function looksLikeOfficialNfeXml(text: string) {
   const s = String(text || '')
   return s.includes('<nfeProc') || s.includes('<NFe') || s.includes('<infNFe') || s.includes('<chNFe') || s.includes('Id="NFe')
 }
 
+function looksLikeOfficialNfseXml(text: string) {
+  const s = String(text || '')
+  return /<(?:[\w.-]+:)?(?:CompNfse|InfNfse|Nfse|NFSe|ListaNfse|GerarNfse|ConsultarNfse|DeclaracaoPrestacaoServico|DPS|infDPS|NFSeSucesso)\b/i.test(s)
+    || /<(?:[\w.-]+:)?PrestadorServico\b/i.test(s)
+    || /<(?:[\w.-]+:)?ValorLiquidoNfse\b/i.test(s)
+    || /xmlns[^=]*=["'][^"']*(?:nfse|abrasf|sped-nfse)/i.test(s)
+}
+
 function parseOfficialNfeXml(xml: string, source: string) {
   const text = String(xml || '')
+  if (looksLikeOfficialNfseXml(text) && !looksLikeOfficialNfeXml(text)) {
+    return parseOfficialNfseXml(text, source)
+  }
   const ide = xmlFirstBlock(text, 'ide')
   const emit = xmlFirstBlock(text, 'emit')
   const total = xmlFirstBlock(text, 'ICMSTot')
@@ -1502,8 +1547,75 @@ function parseOfficialNfeXml(xml: string, source: string) {
   }
 }
 
+function parseOfficialNfseXml(xml: string, source: string) {
+  const text = String(xml || '')
+  const inf = xmlFirstBlock(text, 'InfNfse') || xmlFirstBlock(text, 'infNFSe') || xmlFirstBlock(text, 'Nfse') || text
+  const servico = xmlFirstBlock(text, 'Servico') || xmlFirstBlock(text, 'serv') || text
+  const valores = xmlFirstBlock(servico, 'Valores') || xmlFirstBlock(text, 'Valores') || xmlFirstBlock(text, 'valores') || text
+  const prestador = xmlFirstBlock(text, 'PrestadorServico') || xmlFirstBlock(text, 'Prestador') || xmlFirstBlock(text, 'prest') || xmlFirstBlock(text, 'emit') || ''
+  const tomador = xmlFirstBlock(text, 'TomadorServico') || xmlFirstBlock(text, 'Tomador') || xmlFirstBlock(text, 'toma') || ''
+  const identPrest = xmlFirstBlock(prestador, 'IdentificacaoPrestador') || prestador
+  const cpfCnpjPrest = xmlFirstBlock(identPrest, 'CpfCnpj') || identPrest
+  const valorServicos = firstXmlNumber(valores, ['ValorServicos', 'ValorServico', 'ValorTotalServicos', 'ValorTotalServico', 'vServ', 'vTotServ'])
+  const valorTotal = valorServicos || firstXmlNumber(valores, ['ValorTotal', 'valorTotal', 'vTotal', 'vTPrest'])
+  const valorLiquido = firstXmlNumber(valores, ['ValorLiquidoNfse', 'ValorLiquido', 'vLiq'])
+  const desconto = firstXmlNumber(valores, ['DescontoIncondicionado', 'DescontoCondicionado', 'ValorDesconto', 'vDesc'])
+  const numero = xmlTag(inf, 'Numero')
+    || xmlTag(xmlFirstBlock(text, 'IdentificacaoNfse'), 'Numero')
+    || xmlTag(text, 'NumeroNfse')
+    || xmlTag(text, 'nNFSe')
+  const dataEmissao = xmlTag(inf, 'DataEmissao') || xmlTag(text, 'DataEmissaoNfse') || xmlTag(text, 'dhEmi') || xmlTag(text, 'Competencia')
+  const codigoVerificacao = xmlTag(inf, 'CodigoVerificacao') || xmlTag(text, 'CodigoVerificacao') || xmlTag(text, 'cVerif') || ''
+  const discriminacao = cleanStr(xmlTag(servico, 'Discriminacao') || xmlTag(text, 'Discriminacao') || xmlTag(text, 'DescricaoServico') || xmlTag(text, 'xServ') || xmlTag(text, 'descServ'))
+  const razao = xmlTag(prestador, 'RazaoSocial') || xmlTag(prestador, 'NomeFantasia') || xmlTag(prestador, 'xNome') || xmlTag(prestador, 'Nome')
+  const cnpj = xmlTag(cpfCnpjPrest, 'Cnpj') || xmlTag(cpfCnpjPrest, 'CNPJ') || xmlTag(prestador, 'CNPJ') || xmlTag(prestador, 'CPF')
+  const tomadorCnpj = xmlTag(xmlFirstBlock(tomador, 'CpfCnpj') || tomador, 'Cnpj') || xmlTag(xmlFirstBlock(tomador, 'CpfCnpj') || tomador, 'CNPJ') || xmlTag(tomador, 'CPF')
+  const tomadorNome = xmlTag(tomador, 'RazaoSocial') || xmlTag(tomador, 'xNome') || xmlTag(tomador, 'Nome')
+
+  if (!razao && !cnpj && !valorTotal && !numero) throw new Error('XML nao reconhecido como NFS-e oficial.')
+
+  const itemBlocks = xmlBlocks(text, 'ItemServico').concat(xmlBlocks(text, 'Item'))
+  const itens = itemBlocks.map((block) => {
+    const desc = cleanStr(xmlTag(block, 'Discriminacao') || xmlTag(block, 'Descricao') || xmlTag(block, 'DescricaoServico') || xmlTag(block, 'xServ'))
+    if (!desc || desc === discriminacao) return null
+    const quantidade = firstXmlNumber(block, ['Quantidade', 'qServ']) || 1
+    const totalItem = firstXmlNumber(block, ['ValorTotal', 'ValorServicos', 'ValorServico', 'vServ', 'vItem'])
+    const unit = firstXmlNumber(block, ['ValorUnitario', 'vUnit']) || (quantidade ? totalItem / quantidade : totalItem)
+    return { descricao: desc, quantidade, unidade: 'Srv', valor_unitario: round2(unit || totalItem || 0), valor_total: round2(totalItem || valorTotal || 0) }
+  }).filter(Boolean)
+  if (!itens.length && discriminacao) itens.push({ descricao: discriminacao, quantidade: 1, unidade: 'Srv', valor_unitario: valorTotal, valor_total: valorTotal })
+
+  return {
+    tipo_documento: 'NFS-e',
+    numero_nf: normalizeInvoiceNumber(numero, 'NFS-e') || null,
+    serie: null,
+    data_emissao: dataEmissao ? String(dataEmissao).slice(0, 10) : null,
+    data_vencimento: null,
+    chave_acesso: null,
+    codigo_verificacao: codigoVerificacao || null,
+    emitente: { razao_social: cleanCompanyName(razao) || null, cnpj: formatCnpj(cnpj || '') || null },
+    tomador: { razao_social: cleanCompanyName(tomadorNome) || null, cnpj: formatCnpj(tomadorCnpj || '') || null },
+    itens,
+    discriminacao: discriminacao || null,
+    valores: { subtotal: valorServicos || valorTotal, desconto, frete: 0, valor_total: valorTotal || 0 },
+    pagamento: { forma: 'A_VISTA', num_parcelas: 1, parcelas: [] },
+    observacoes: valorLiquido && valorTotal && Math.abs(valorLiquido - valorTotal) > 0.009
+      ? `Valor liquido da NFS-e lido (${round2(valorLiquido)}), mas nao usado como valor total.`
+      : null,
+    _meta: { source, xmlTipo: 'NFS-e' },
+  }
+}
+
+function firstXmlNumber(xml: string, tags: string[]) {
+  for (const tag of tags) {
+    const v = num(xmlTag(xml, tag))
+    if (v) return v
+  }
+  return 0
+}
+
 function xmlBlocks(xml: string, tag: string) {
-  return [...String(xml || '').matchAll(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, 'gi'))].map((m) => m[0])
+  return [...String(xml || '').matchAll(new RegExp(`<(?:[\\w.-]+:)?${tag}\\b[^>]*>[\\s\\S]*?<\\/(?:[\\w.-]+:)?${tag}>`, 'gi'))].map((m) => m[0])
 }
 
 function xmlFirstBlock(xml: string, tag: string) {
@@ -1511,7 +1623,7 @@ function xmlFirstBlock(xml: string, tag: string) {
 }
 
 function xmlTag(xml: string, tag: string) {
-  const m = String(xml || '').match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'))
+  const m = String(xml || '').match(new RegExp(`<(?:[\\w.-]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w.-]+:)?${tag}>`, 'i'))
   return m ? decodeXml(m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')).trim() : ''
 }
 
@@ -1579,11 +1691,6 @@ function normalizeForma(raw: unknown) {
 }
 
 function normalizeInvoiceNumber(raw: unknown, tipo: string, chave?: unknown, dataEmissao?: string) {
-  if (tipo === 'NFS-e') {
-    const nfseFromKey = decodeNfseNumberFromKey(chave || raw, dataEmissao)
-    if (nfseFromKey) return nfseFromKey
-  }
-
   const key = onlyDigits(chave || '')
   if (['NF-e', 'NFC-e', 'CT-e'].includes(tipo) && key.length === 44) {
     const decoded = decodeAccessKey(key)
@@ -1601,15 +1708,18 @@ function normalizeInvoiceNumber(raw: unknown, tipo: string, chave?: unknown, dat
   }
 
   const noAccent = stripAccents(s)
-  const m = noAccent.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfs-?e|nfc-?e|ct-?e)?|nota\s*fiscal(?:\s*de\s*servicos)?|nfs-?e|nf-?e|nfc-?e|ct-?e|n(?:ro|o|º)?\.?)\s*(?:n(?:o|º)?\.?)?\s*[:#-]?\s*([0-9][0-9.\-/ ]{0,24})/i)
+  const m = noAccent.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfs-?e|nfc-?e|ct-?e)?|nota\s*fiscal(?:\s*de\s*servicos)?|nfs-?e|nf-?e|nfc-?e|ct-?e|n(?:ro|o|Âº)?\.?)\s*(?:n(?:o|Âº)?\.?)?\s*[:#-]?\s*([0-9][0-9.\-/ ]{0,24})/i)
   let candidate = m ? m[1] : s
   const seriePair = String(candidate).match(/^\s*([0-9][0-9.]*)\s*\/\s*\d{1,3}\s*$/)
   if (seriePair) candidate = seriePair[1]
   const beforeNoise = String(candidate).split(/\b(?:serie|codigo|verificacao|rps|cnpj|cpf|inscricao|competencia|data|valor|protocolo|chave)\b/i)[0]
   const digits = onlyDigits(beforeNoise)
   if (tipo === 'NFS-e') {
+    if (digits && digits.length <= 13) return digits.replace(/^0+(?=\d)/, '')
     const municipal = digits.match(/^20\d{2}0{4,}([1-9]\d{0,8})$/)
     if (municipal) return municipal[1]
+    const nfseFromKey = decodeNfseNumberFromKey(chave || s, dataEmissao)
+    if (nfseFromKey) return nfseFromKey
   }
   return digits ? digits.replace(/^0+(?=\d)/, '') : ''
 }
@@ -1617,8 +1727,10 @@ function normalizeInvoiceNumber(raw: unknown, tipo: string, chave?: unknown, dat
 function decodeNfseNumberFromKey(raw: unknown, dataEmissao?: string) {
   const text = String(raw || '')
   const compact = onlyDigits(text)
-  const candidates = (text.match(/\d{30,60}/g) || [])
-    .concat(compact ? [compact] : [])
+  const candidates = [
+    ...(text.match(/\d{30,60}/g) || []),
+    ...(compact ? [compact] : []),
+  ]
     .filter((v, i, arr) => v.length >= 30 && arr.indexOf(v) === i)
 
   for (const c of candidates) {
@@ -1711,3 +1823,4 @@ function formatCnpj(raw: unknown) {
 function stripAccents(raw: string) {
   return String(raw || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
+
