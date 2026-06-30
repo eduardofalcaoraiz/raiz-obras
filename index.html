@@ -10437,12 +10437,17 @@ function closePagModal(){document.getElementById("pag-overlay").classList.remove
 
 function pmNfChange(){
   const t=document.getElementById('pm-nf')?.value||'';
+  const hasFiscalDoc=t&&t!=='Sem nota'&&t!=='Adiantamento';
   const r=document.getElementById('pm-nfnum-row');
-  if(r)r.style.display=(t&&t!=='Sem nota'&&t!=='Adiantamento')?'':'none';
+  if(r)r.style.display=hasFiscalDoc?'':'none';
   const er=document.getElementById('pm-emissao-row');
-  if(er)er.style.display=(t&&t!=='Sem nota')?'':'none';
+  if(er)er.style.display=hasFiscalDoc?'':'none';
+  if(!hasFiscalDoc){
+    const emissao=document.getElementById('pm-emissao');
+    if(emissao)emissao.value='';
+  }
   const btn=document.getElementById('pm-ler-nf-btn');
-  if(btn)btn.style.display=(t&&t!=='Sem nota'&&t!=='Adiantamento')?'inline':'none';
+  if(btn)btn.style.display=hasFiscalDoc?'inline':'none';
   // Mostra botão "Ler nota automaticamente" para documentos que podem ser anexados/lidos
 
 }
@@ -11956,7 +11961,7 @@ function showAdiantamento(){
 
     tipo:'Adiantamento',st:'PENDENTE',
 
-    date:new Date().toISOString().slice(0,10),
+    date:'',
 
     ben:'',cnpj:'',val:0,doc:'',chave:'',
 
@@ -14245,7 +14250,7 @@ function showImportReview(data){
 
   document.getElementById("imp-doc").value=cleanImpDocNumber(data.doc||data.nfNum||'',nfTipo);
 
-  document.getElementById("imp-date").value=data.date||new Date().toISOString().slice(0,10);
+  document.getElementById("imp-date").value=nfTipo==='Adiantamento'?'':(data.date||new Date().toISOString().slice(0,10));
 
   if(document.getElementById("imp-venc"))document.getElementById("imp-venc").value=data.venc||firstParcelaVenc||'';
 
@@ -14355,6 +14360,13 @@ function impNfTipoChanged(tipo){
   const docRow=document.getElementById("imp-doc")?.closest('.frow');
 
   if(docRow)docRow.style.display=isNFDoc?'':'none';
+
+  const dateRow=document.getElementById("imp-date")?.closest('.frow');
+  if(dateRow)dateRow.style.display=tipo==='Adiantamento'?'none':'';
+  if(tipo==='Adiantamento'){
+    const dateEl=document.getElementById("imp-date");
+    if(dateEl)dateEl.value='';
+  }
 
   // Rótulo da seção de itens
 
@@ -14616,7 +14628,7 @@ async function confirmImport(){
 
   const val=parseCurrency(document.getElementById("imp-val-input").value);
 
-  const date=document.getElementById("imp-date").value;
+  const date=nfTipo==='Adiantamento'?'':document.getElementById("imp-date").value;
 
   const chave=document.getElementById("imp-chave").value.trim();
 
@@ -15491,11 +15503,6 @@ db.auth.onAuthStateChange(async(event,session)=>{
 </body>
 
 </html>
-
-
-
-
-
 
 
 
