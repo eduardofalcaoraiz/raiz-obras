@@ -10450,11 +10450,12 @@ function askPastDuePaidDate(p,label){
     if(!ov){ov=document.createElement('div');ov.id='past-pay-overlay';ov.className='overlay';document.body.appendChild(ov);}
     const today=localTodayISO();
     const venc=normalizeDateISO((p&&p.venc)||'');
+    const suggestedPaidDate=venc||today;
     const title=label||(p&&p.ref)||(p&&p.ben)||'pagamento';
     ov.innerHTML='<div class="modal" style="max-width:500px"><div class="mhead"><h2>Previsão vencida</h2><button class="x" id="past-pay-cancel">×</button></div><div class="mbody">'
       +'<div class="alert alert-warn" style="margin-bottom:14px"><span class="ic">!</span><div>Este lançamento tem previsão de pagamento em <b>'+fmtD(venc)+'</b>, antes de hoje (<b>'+fmtD(today)+'</b>). Ele já foi pago?</div></div>'
       +'<div style="font-size:13px;color:var(--muted);margin-bottom:12px">'+escHtml(title)+'</div>'
-      +'<div class="frow"><label class="fl">Data efetiva do pagamento</label><input class="fi" id="past-pay-date" type="date" value="'+today+'" max="'+today+'"></div>'
+      +'<div class="frow"><label class="fl">Data efetiva do pagamento</label><input class="fi" id="past-pay-date" type="date" value="'+suggestedPaidDate+'" max="'+today+'"></div>'
       +'<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;flex-wrap:wrap"><button class="btn btn-ghost" id="past-pay-pending">Ainda pendente</button><button class="btn btn-primary" id="past-pay-paid">Já foi pago</button></div>'
       +'</div></div>';
     const close=ans=>{ov.classList.remove('show');resolve(ans);};
