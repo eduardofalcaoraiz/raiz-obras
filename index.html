@@ -12770,17 +12770,17 @@ function findImpDocNumberFromText(text,tipo,decoded){
     return m?cleanImpNfNumber(m[1],tipo):'';
   };
   if(tipo==='NFS-e'){
-    const strongLabel=/numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nota\s*:\s*\d|nfs-?e\s*(?:n[ºo.]?\.?)?\s*\d|n(?:ro|o|º)?\.?\s*(?:da\s*nota)/i;
+    const strongLabel=/numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nota\s*:\s*\d|nfs-?e\s*(?:n(?:o|ro)?\.?)?\s*\d|n(?:ro|o)?\.?\s*(?:da\s*nota)/i;
     for(let i=0;i<lines.length;i++){
       const line=lines[i];
       const n=_norm(line);
       if(!strongLabel.test(n))continue;
-      const same=line.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nfs-?e)?|nota\s*:|nfs-?e\s*(?:n[ºo.]?\.?)?|n(?:ro|o|º)?\.?\s*(?:da\s*nota)?)\s*[:#\-]?\s*([0-9][0-9.\-\/ ]{0,24})/i);
+      const same=line.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nfs-?e)?|nota\s*:|nfs-?e\s*(?:n(?:o|ro)?\.?)?|n(?:ro|o)?\.?\s*(?:da\s*nota)?)\s*[:#\-]?\s*([0-9][0-9.\-\/ ]{0,24})/i);
       if(same){
         const nDoc=cleanImpNfNumber(same[1],tipo);
         if(nDoc)return nDoc;
       }
-      if(/numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nfs-?e\s*n[ºo.]|n(?:ro|o|º)?\.?\s*(?:da\s*nota)/i.test(n)){
+      if(/numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota|nfs-?e|nota\s*fiscal)|nfs-?e\s*n(?:o|ro)?\.?|n(?:ro|o)?\.?\s*(?:da\s*nota)/i.test(n)){
         const next=firstTokenNumber(lines[i+1]||'');
         if(next)return next;
       }
@@ -12789,12 +12789,12 @@ function findImpDocNumberFromText(text,tipo,decoded){
   }
   const skip=/c[oó]digo|codigo|verifica|autentic|rps|s[eé]rie|serie|cnpj|cpf|inscri|compet[eê]ncia|data|valor|al[ií]quota|protocolo|chave/i;
   const explicitNota=/nota\s*fiscal|nf-?e|nfc-?e|ct-?e|n[uú]mero\s*\/\s*s[eé]rie|n[uú]mero\s*(?:da\s*)?(?:nota|nota\s*fiscal)/i;
-  const label=/(?:n[uú]mero\s*\/\s*s[eé]rie|n[uú]mero\s*(?:da\s*)?(?:nota|nf-?e|nfc-?e|ct-?e|documento)|nf-?e|nfc-?e|ct-?e|nota\s*fiscal|n[ºo.]?\s*(?:da\s*nota)?)/i;
+  const label=/(?:n[uú]mero\s*\/\s*s[eé]rie|n[uú]mero\s*(?:da\s*)?(?:nota|nf-?e|nfc-?e|ct-?e|documento)|nf-?e|nfc-?e|ct-?e|nota\s*fiscal|n(?:o|ro)?\.?\s*(?:da\s*nota)?)/i;
   for(let i=0;i<lines.length;i++){
     const line=lines[i];
     if(skip.test(line)&&!explicitNota.test(line))continue;
     if(!label.test(line))continue;
-    const same=line.match(/(?:n[uú]mero\s*\/\s*s[eé]rie|n[uú]mero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfc-?e|ct-?e)?|nf-?e|nfc-?e|ct-?e|n[ºo.]?\s*(?:da\s*nota)?)\s*(?:n[ºo.]*)?\s*[:#\-]?\s*([0-9][0-9.\-\/ ]{0,24})/i);
+    const same=line.match(/(?:n[uú]mero\s*\/\s*s[eé]rie|n[uú]mero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfc-?e|ct-?e)?|nf-?e|nfc-?e|ct-?e|n(?:o|ro)?\.?\s*(?:da\s*nota)?)\s*(?:n(?:o|ro)?\.?)?\s*[:#\-]?\s*([0-9][0-9.\-\/ ]{0,24})/i);
     if(same){
       const nDoc=cleanImpNfNumber(same[1],tipo);
       if(nDoc)return nDoc;
@@ -13404,17 +13404,17 @@ function impFindNfseHeaderNumber(lines){
     const m=s.match(/^([0-9]{1,20})(?=\s|$)/);
     return m?cleanImpNfNumber(m[1],'NFS-e'):'';
   };
-  const strongLabel=/numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n[ºo.]|nota\s*:\s*\d|nfs-?e\s+\d/i;
+  const strongLabel=/numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n(?:o|ro)?\.?|nota\s*:\s*\d|nfs-?e\s+\d/i;
   for(let i=0;i<arr.length;i++){
     const line=arr[i];
     const n=_norm(line);
     if(!strongLabel.test(n))continue;
-    const same=line.match(/(?:numero\s+da\s+(?:nota|nfs-?e)|nota\s*:|nfs-?e\s*n?[ºo.]?)\s*[:#-]?\s*([0-9][0-9.\-\/ ]{0,24})/i);
+    const same=line.match(/(?:numero\s+da\s+(?:nota|nfs-?e)|nota\s*:|nfs-?e\s*n(?:o|ro)?\.?)\s*[:#-]?\s*([0-9][0-9.\-\/ ]{0,24})/i);
     if(same){
       const found=cleanImpNfNumber(same[1],'NFS-e');
       if(found)return found;
     }
-    if(/numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n[ºo.]/i.test(n)){
+    if(/numero\s+da\s+(?:nota|nfs-?e)|nfs-?e\s+n(?:o|ro)?\.?/i.test(n)){
       const next=firstNumber(arr[i+1]||'');
       if(next)return next;
     }
