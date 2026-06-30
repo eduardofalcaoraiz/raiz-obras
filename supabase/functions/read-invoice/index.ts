@@ -30,6 +30,8 @@ Critical rules:
 11. Never use valor liquido, valor liquido a pagar, valor liquido da NFS-e, valor a receber, or net amount after retencoes/deducoes as valores.valor_total. Those are auxiliary net-payment values only. If only a net/liquid value is visible and the gross invoice total is not visible, set valores.valor_total to 0 and explain in observacoes.
 12. Do not infer company names from arbitrary uppercase lines. For NFS-e, emitente must come from the PRESTADOR/provider block only.
 13. If the document has fatura/duplicatas/parcelamento, extract each visible installment with numero, valor and vencimento. Do not split the total unless the installment schedule is explicit.
+14. For municipal NFS-e layouts such as NFS-e Nacional/DANFSe, ABRASF, GestaoISS, GINFES, Betha, ISSNet, Nota Control, e-Nota, SimplISS, IPM or Nota Carioca, adapt to the local labels but keep the same evidence rule: numero_nf must come from Numero da NFS-e/Numero da Nota/Nota Fiscal de Servicos, provider from Prestador, and gross total from Valor dos Servicos/Valor Total dos Servicos/Valor da Nota/Valor Total da Nota.
+15. For Rio Bonito/RJ and other GestaoISS documents, do not confuse Codigo de Verificacao, RPS, competencia, city code or issue date with numero_nf. The invoice number is the explicit Numero da Nota/NFS-e value.
 
 Issuer/provider self-check:
 - NF-e/NFC-e/CT-e: emitente is the company in EMITENTE/REMETENTE, never DESTINATARIO.
@@ -97,7 +99,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (rawText.trim()) {
-      if (looksLikeOfficialNfeXml(rawText) || /xml/i.test(mediaType) || /\.xml$/i.test(fileName)) {
+      if (looksLikeOfficialFiscalXml(rawText) || /xml/i.test(mediaType) || /\.xml$/i.test(fileName)) {
         try {
           const normalized = parseOfficialNfeXml(rawText, 'xml-fiscal-oficial')
           if (consider('XML fiscal oficial', normalized)) return ok(merged || {}, attempts)
@@ -153,8 +155,11 @@ Deno.serve(async (req: Request) => {
       try {
         const raw = await callGeminiDocument(geminiKey, imageBase64, mediaType)
         const normalized = normalizeData(raw, 'gemini-direct')
-        if (consider('Gemini direto (ultimo recurso)', normalized) && normalized.tipo_documento !== 'NFS-e') return ok(merged || {}, attempts)
-        if (normalized.tipo_documento === 'NFS-e') attempts.push('Gemini direto NFS-e exige confirmacao por texto/OCR antes de encerrar')
+        if (normalized.tipo_documento === 'NFS-e') {
+          attempts.push('Gemini direto NFS-e ignorado como fonte final: exige texto/OCR com evidencia antes de preencher campos fiscais')
+        } else if (consider('Gemini direto (ultimo recurso)', normalized)) {
+          return ok(merged || {}, attempts)
+        }
       } catch (err) {
         attempts.push('Gemini direto: ' + errorMessage(err))
       }
@@ -331,8 +336,8 @@ function validateDataAgainstText(data: AnyRecord, text: string) {
     const nfseKeyNumero = tipo === 'NFS-e'
       ? decodeNfseNumberFromKey(out.chave_acesso || out.codigo_verificacao || full, out.data_emissao || undefined)
       : ''
-    if (nfseKeyNumero) out.numero_nf = nfseKeyNumero
-    else if (localNumero) out.numero_nf = localNumero
+    if (localNumero) out.numero_nf = localNumero
+    else if (nfseKeyNumero) out.numero_nf = nfseKeyNumero
     else if (tipo === 'NFS-e' && onlyDigits(out.numero_nf || '').length < 2) out.numero_nf = null
   }
 
@@ -347,6 +352,11 @@ function validateDataAgainstText(data: AnyRecord, text: string) {
     if (localNfseValue) {
       out.valores.valor_total = localNfseValue
       if (!num(out.valores.subtotal) || out.valores.subtotal < localNfseValue) out.valores.subtotal = localNfseValue
+    } else if (num(out.valores.valor_total)) {
+      const rejected = out.valores.valor_total
+      out.valores.valor_total = 0
+      if (num(out.valores.subtotal) === rejected) out.valores.subtotal = 0
+      out.observacoes = appendObservation(out.observacoes, 'Valor total de NFS-e rejeitado: nao havia rotulo bruto confirmado; valor liquido/retencoes nao podem preencher o total.')
     }
   }
 
@@ -402,6 +412,11 @@ function containsLoose(normalizedHaystack: string, rawNeedle: unknown) {
   const tokens = needle.split(/\s+/).filter((t) => t.length > 2)
   if (tokens.length < 2) return false
   return tokens.filter((t) => hay.includes(t)).length >= Math.min(tokens.length, 3)
+}
+
+function appendObservation(current: unknown, msg: string) {
+  const base = cleanStr(current)
+  return base ? `${base} | ${msg}` : msg
 }
 
 function moneyAppears(text: string, value: number) {
@@ -837,7 +852,7 @@ function extractStrictText(rawText: string) {
   const nfseHeaderNumero = tipo === 'NFS-e' ? findNfseHeaderNumber(lines) : ''
   const nfseLooseNumero = tipo === 'NFS-e' ? findDocNumber(text, tipo) : ''
   const numero = tipo === 'NFS-e'
-    ? (decodeNfseNumberFromKey(chave || text, dataEmissao) || nfseHeaderNumero || nfseLooseNumero || '')
+    ? (nfseHeaderNumero || nfseLooseNumero || decodeNfseNumberFromKey(chave || text, dataEmissao) || '')
     : (['NF-e', 'NFC-e', 'CT-e'].includes(tipo) && decoded?.numero ? decoded.numero : (findDocNumber(text, tipo) || decoded?.numero || ''))
   const dataVenc = findDateNear(lines, [/venc/i, /pagar ate/i, /data limite/i])
   const cnpj = tipo === 'NFS-e' ? (firstCnpj(prestadorBlock) || '') : (decoded?.cnpj || firstCnpj(text) || '')
@@ -876,7 +891,7 @@ function extractStrictText(rawText: string) {
 }
 
 function isNfseLikeText(normText: string) {
-  return /danfse|documento auxiliar da nfs-?e|chave de acesso da nfs-?e|numero da nfs-?e|emitente da nfs-?e|prestador do servico|prestador de servicos|nota fiscal de servicos|nfs-?e/.test(normText)
+  return /danfse|documento auxiliar da nfs-?e|chave de acesso da nfs-?e|numero da nfs-?e|emitente da nfs-?e|prestador do servico|prestador de servicos|nota fiscal (?:eletronica )?de servicos|nfs-?e|gestaoiss|ginfes|betha|issnet|simpliss|nota control|nota carioca|prefeitura municipal.+servicos/.test(normText)
 }
 
 function findNfsePrestadorBlock(text: string, lines: string[]) {
@@ -1024,9 +1039,10 @@ function findNfseTotalValue(text: string, lines: string[]) {
   const arr = (lines?.length ? lines : String(text || '').split('\n')).map((l) => cleanStr(l)).filter(Boolean)
   const pickLastPositive = (vals: number[]) => vals.filter((v) => v > 0).pop() || 0
   const pickFirstPositive = (vals: number[]) => vals.find((v) => v > 0) || 0
+  const grossLabel = /valor\s+(?:total\s+)?d[oo]s?\s+servic|valor\s+servic|total\s+d[oo]s?\s+servic|valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal|nfse)|total\s+da\s+(?:nota|nfs-?e|nfse)|valor\s+bruto|valor\s+total\s+do\s+documento/
   const isNetOrRetentionLine = (raw: string) => {
     const n = stripAccents(raw || '').toLowerCase()
-    return /valor\s+liquido|liquido\s+a\s+pagar|valor\s+a\s+receber|retencao|retencoes|deducao|deducoes|cofins|csll|inss|irpj|pis|outras\s+retencoes|valor\s+do\s+iss|issqn/.test(n)
+    return /valor\s+liquido|liquido\s+a\s+pagar|valor\s+a\s+receber|retencao|retencoes|deducao|deducoes|cofins|csll|inss|irpj|irrf|pis|outras\s+retencoes|valor\s+do\s+iss|issqn/.test(n) && !grossLabel.test(n)
   }
   const valueFromWindow = (start: number, labelRe: RegExp | null, mode: 'first' | 'last') => {
     for (let j = start; j <= Math.min(start + 4, arr.length - 1); j++) {
@@ -1046,14 +1062,14 @@ function findNfseTotalValue(text: string, lines: string[]) {
 
   for (let i = 0; i < arr.length; i++) {
     const n = stripAccents(arr[i]).toLowerCase()
-    if (/valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e)|valor\s+da\s+nota/.test(n)) {
-      const v = valueFromWindow(i, /valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e)|valor\s+da\s+nota/, 'last')
+    if (/valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nfse|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e|nfse)|valor\s+da\s+nota|valor\s+total\s+do\s+documento|valor\s+bruto/.test(n)) {
+      const v = valueFromWindow(i, /valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nfse|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e|nfse)|valor\s+da\s+nota|valor\s+total\s+do\s+documento|valor\s+bruto/, 'first')
       if (v) return v
     }
   }
   for (let i = 0; i < arr.length; i++) {
     const n = stripAccents(arr[i]).toLowerCase()
-    if (/valor\s+(?:total\s+)?da\s+nota|total\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e/.test(n)) {
+    if (/valor\s+(?:total\s+)?da\s+nota|total\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e|valor\s+total\s+da\s+nfse|total\s+da\s+nfse/.test(n)) {
       for (let j = i + 1; j <= Math.min(i + 5, arr.length - 1); j++) {
         const nj = stripAccents(arr[j]).toLowerCase()
         if (/valor\s+do\s+servico|valor\s+dos\s+servicos/.test(nj)) {
@@ -1065,8 +1081,8 @@ function findNfseTotalValue(text: string, lines: string[]) {
   }
   for (let i = 0; i < arr.length; i++) {
     const n = stripAccents(arr[i]).toLowerCase()
-    if (/valor\s+do\s+servico|valor\s+dos\s+servicos|valor\s+total\s+dos\s+servicos/.test(n)) {
-      const v = valueFromWindow(i, /valor\s+(?:do|dos|total\s+dos)\s+servic/, 'first')
+    if (/valor\s+do\s+servico|valor\s+dos\s+servicos|valor\s+total\s+dos\s+servicos|total\s+dos\s+servicos|valor\s+servico/.test(n)) {
+      const v = valueFromWindow(i, /valor\s+(?:do|dos|total\s+dos)?\s*servic|total\s+dos\s+servic/, 'first')
       if (v) return v
     }
   }
@@ -1441,13 +1457,28 @@ function enrichDataForReturn(data: AnyRecord | null, attempts: string[]) {
   return out
 }
 
+function looksLikeOfficialFiscalXml(text: string) {
+  return looksLikeOfficialNfeXml(text) || looksLikeOfficialNfseXml(text)
+}
+
 function looksLikeOfficialNfeXml(text: string) {
   const s = String(text || '')
   return s.includes('<nfeProc') || s.includes('<NFe') || s.includes('<infNFe') || s.includes('<chNFe') || s.includes('Id="NFe')
 }
 
+function looksLikeOfficialNfseXml(text: string) {
+  const s = String(text || '')
+  return /<(?:[\w.-]+:)?(?:CompNfse|InfNfse|Nfse|NFSe|ListaNfse|GerarNfse|ConsultarNfse|DeclaracaoPrestacaoServico|DPS|infDPS|NFSeSucesso)\b/i.test(s)
+    || /<(?:[\w.-]+:)?PrestadorServico\b/i.test(s)
+    || /<(?:[\w.-]+:)?ValorLiquidoNfse\b/i.test(s)
+    || /xmlns[^=]*=["'][^"']*(?:nfse|abrasf|sped-nfse)/i.test(s)
+}
+
 function parseOfficialNfeXml(xml: string, source: string) {
   const text = String(xml || '')
+  if (looksLikeOfficialNfseXml(text) && !looksLikeOfficialNfeXml(text)) {
+    return parseOfficialNfseXml(text, source)
+  }
   const ide = xmlFirstBlock(text, 'ide')
   const emit = xmlFirstBlock(text, 'emit')
   const total = xmlFirstBlock(text, 'ICMSTot')
@@ -1502,8 +1533,75 @@ function parseOfficialNfeXml(xml: string, source: string) {
   }
 }
 
+function parseOfficialNfseXml(xml: string, source: string) {
+  const text = String(xml || '')
+  const inf = xmlFirstBlock(text, 'InfNfse') || xmlFirstBlock(text, 'infNFSe') || xmlFirstBlock(text, 'Nfse') || text
+  const servico = xmlFirstBlock(text, 'Servico') || xmlFirstBlock(text, 'serv') || text
+  const valores = xmlFirstBlock(servico, 'Valores') || xmlFirstBlock(text, 'Valores') || xmlFirstBlock(text, 'valores') || text
+  const prestador = xmlFirstBlock(text, 'PrestadorServico') || xmlFirstBlock(text, 'Prestador') || xmlFirstBlock(text, 'prest') || xmlFirstBlock(text, 'emit') || ''
+  const tomador = xmlFirstBlock(text, 'TomadorServico') || xmlFirstBlock(text, 'Tomador') || xmlFirstBlock(text, 'toma') || ''
+  const identPrest = xmlFirstBlock(prestador, 'IdentificacaoPrestador') || prestador
+  const cpfCnpjPrest = xmlFirstBlock(identPrest, 'CpfCnpj') || identPrest
+  const valorServicos = firstXmlNumber(valores, ['ValorServicos', 'ValorServico', 'ValorTotalServicos', 'ValorTotalServico', 'vServ', 'vTotServ'])
+  const valorTotal = valorServicos || firstXmlNumber(valores, ['ValorTotal', 'valorTotal', 'vTotal', 'vTPrest'])
+  const valorLiquido = firstXmlNumber(valores, ['ValorLiquidoNfse', 'ValorLiquido', 'vLiq'])
+  const desconto = firstXmlNumber(valores, ['DescontoIncondicionado', 'DescontoCondicionado', 'ValorDesconto', 'vDesc'])
+  const numero = xmlTag(inf, 'Numero')
+    || xmlTag(xmlFirstBlock(text, 'IdentificacaoNfse'), 'Numero')
+    || xmlTag(text, 'NumeroNfse')
+    || xmlTag(text, 'nNFSe')
+  const dataEmissao = xmlTag(inf, 'DataEmissao') || xmlTag(text, 'DataEmissaoNfse') || xmlTag(text, 'dhEmi') || xmlTag(text, 'Competencia')
+  const codigoVerificacao = xmlTag(inf, 'CodigoVerificacao') || xmlTag(text, 'CodigoVerificacao') || xmlTag(text, 'cVerif') || ''
+  const discriminacao = cleanStr(xmlTag(servico, 'Discriminacao') || xmlTag(text, 'Discriminacao') || xmlTag(text, 'DescricaoServico') || xmlTag(text, 'xServ') || xmlTag(text, 'descServ'))
+  const razao = xmlTag(prestador, 'RazaoSocial') || xmlTag(prestador, 'NomeFantasia') || xmlTag(prestador, 'xNome') || xmlTag(prestador, 'Nome')
+  const cnpj = xmlTag(cpfCnpjPrest, 'Cnpj') || xmlTag(cpfCnpjPrest, 'CNPJ') || xmlTag(prestador, 'CNPJ') || xmlTag(prestador, 'CPF')
+  const tomadorCnpj = xmlTag(xmlFirstBlock(tomador, 'CpfCnpj') || tomador, 'Cnpj') || xmlTag(xmlFirstBlock(tomador, 'CpfCnpj') || tomador, 'CNPJ') || xmlTag(tomador, 'CPF')
+  const tomadorNome = xmlTag(tomador, 'RazaoSocial') || xmlTag(tomador, 'xNome') || xmlTag(tomador, 'Nome')
+
+  if (!razao && !cnpj && !valorTotal && !numero) throw new Error('XML nao reconhecido como NFS-e oficial.')
+
+  const itemBlocks = xmlBlocks(text, 'ItemServico').concat(xmlBlocks(text, 'Item'))
+  const itens = itemBlocks.map((block) => {
+    const desc = cleanStr(xmlTag(block, 'Discriminacao') || xmlTag(block, 'Descricao') || xmlTag(block, 'DescricaoServico') || xmlTag(block, 'xServ'))
+    if (!desc || desc === discriminacao) return null
+    const quantidade = firstXmlNumber(block, ['Quantidade', 'qServ']) || 1
+    const totalItem = firstXmlNumber(block, ['ValorTotal', 'ValorServicos', 'ValorServico', 'vServ', 'vItem'])
+    const unit = firstXmlNumber(block, ['ValorUnitario', 'vUnit']) || (quantidade ? totalItem / quantidade : totalItem)
+    return { descricao: desc, quantidade, unidade: 'Srv', valor_unitario: round2(unit || totalItem || 0), valor_total: round2(totalItem || valorTotal || 0) }
+  }).filter(Boolean)
+  if (!itens.length && discriminacao) itens.push({ descricao: discriminacao, quantidade: 1, unidade: 'Srv', valor_unitario: valorTotal, valor_total: valorTotal })
+
+  return {
+    tipo_documento: 'NFS-e',
+    numero_nf: normalizeInvoiceNumber(numero, 'NFS-e') || null,
+    serie: null,
+    data_emissao: dataEmissao ? String(dataEmissao).slice(0, 10) : null,
+    data_vencimento: null,
+    chave_acesso: null,
+    codigo_verificacao: codigoVerificacao || null,
+    emitente: { razao_social: cleanCompanyName(razao) || null, cnpj: formatCnpj(cnpj || '') || null },
+    tomador: { razao_social: cleanCompanyName(tomadorNome) || null, cnpj: formatCnpj(tomadorCnpj || '') || null },
+    itens,
+    discriminacao: discriminacao || null,
+    valores: { subtotal: valorServicos || valorTotal, desconto, frete: 0, valor_total: valorTotal || 0 },
+    pagamento: { forma: 'A_VISTA', num_parcelas: 1, parcelas: [] },
+    observacoes: valorLiquido && valorTotal && Math.abs(valorLiquido - valorTotal) > 0.009
+      ? `Valor liquido da NFS-e lido (${round2(valorLiquido)}), mas nao usado como valor total.`
+      : null,
+    _meta: { source, xmlTipo: 'NFS-e' },
+  }
+}
+
+function firstXmlNumber(xml: string, tags: string[]) {
+  for (const tag of tags) {
+    const v = num(xmlTag(xml, tag))
+    if (v) return v
+  }
+  return 0
+}
+
 function xmlBlocks(xml: string, tag: string) {
-  return [...String(xml || '').matchAll(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, 'gi'))].map((m) => m[0])
+  return [...String(xml || '').matchAll(new RegExp(`<(?:[\\w.-]+:)?${tag}\\b[^>]*>[\\s\\S]*?<\\/(?:[\\w.-]+:)?${tag}>`, 'gi'))].map((m) => m[0])
 }
 
 function xmlFirstBlock(xml: string, tag: string) {
@@ -1511,7 +1609,7 @@ function xmlFirstBlock(xml: string, tag: string) {
 }
 
 function xmlTag(xml: string, tag: string) {
-  const m = String(xml || '').match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'))
+  const m = String(xml || '').match(new RegExp(`<(?:[\\w.-]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w.-]+:)?${tag}>`, 'i'))
   return m ? decodeXml(m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')).trim() : ''
 }
 
@@ -1579,11 +1677,6 @@ function normalizeForma(raw: unknown) {
 }
 
 function normalizeInvoiceNumber(raw: unknown, tipo: string, chave?: unknown, dataEmissao?: string) {
-  if (tipo === 'NFS-e') {
-    const nfseFromKey = decodeNfseNumberFromKey(chave || raw, dataEmissao)
-    if (nfseFromKey) return nfseFromKey
-  }
-
   const key = onlyDigits(chave || '')
   if (['NF-e', 'NFC-e', 'CT-e'].includes(tipo) && key.length === 44) {
     const decoded = decodeAccessKey(key)
@@ -1608,8 +1701,11 @@ function normalizeInvoiceNumber(raw: unknown, tipo: string, chave?: unknown, dat
   const beforeNoise = String(candidate).split(/\b(?:serie|codigo|verificacao|rps|cnpj|cpf|inscricao|competencia|data|valor|protocolo|chave)\b/i)[0]
   const digits = onlyDigits(beforeNoise)
   if (tipo === 'NFS-e') {
+    if (digits && digits.length <= 13) return digits.replace(/^0+(?=\d)/, '')
     const municipal = digits.match(/^20\d{2}0{4,}([1-9]\d{0,8})$/)
     if (municipal) return municipal[1]
+    const nfseFromKey = decodeNfseNumberFromKey(chave || s, dataEmissao)
+    if (nfseFromKey) return nfseFromKey
   }
   return digits ? digits.replace(/^0+(?=\d)/, '') : ''
 }
