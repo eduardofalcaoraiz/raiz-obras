@@ -1,5 +1,8 @@
 {
   "functions": {
+    "api/cnpj.py": {
+      "maxDuration": 20
+    },
     "api/advanced_ocr.py": {
       "maxDuration": 60
     }
