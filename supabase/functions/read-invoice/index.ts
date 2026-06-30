@@ -1,4 +1,4 @@
-﻿// Supabase Edge Function: read-invoice (v9)
+// Supabase Edge Function: read-invoice (v9)
 // Brazilian fiscal/payment document extraction with Gemini + optional OCR fallbacks.
 
 const CORS = {
@@ -908,7 +908,7 @@ function findNfsePrestadorBlock(text: string, lines: string[]) {
     /^\s*tomador\s*do\s*servi/i,
     /^\s*tomador\s*de\s*servi/i,
     /^\s*intermediario\b/i,
-    /^\s*servi[cÃ§]o\s+prestado\b/i,
+    /^\s*servi[cç]o\s+prestado\b/i,
     /^\s*discriminacao\b/i,
     /^\s*valores\b/i,
   ]
@@ -919,7 +919,7 @@ function findNfsePrestadorBlock(text: string, lines: string[]) {
   if (start < 0) return ''
   let end = all.length
   for (let i = start + 1; i < all.length; i++) {
-    if (/tomador|intermediario|servi[cÃ§]o\s+prestado|discriminacao|valores/i.test(stripAccents(all[i]))) {
+    if (/tomador|intermediario|servi[cç]o\s+prestado|discriminacao|valores/i.test(stripAccents(all[i]))) {
       end = i
       break
     }
@@ -949,7 +949,7 @@ function cleanNfseProviderName(raw: string) {
   s = s.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, ' ')
   s = s.replace(/^\d{1,3}(?:\.\d{3})*(?:\/\d{4}-\d{2})?\s+/, '')
   s = s.replace(/^(?:cnpj|cpf|nif|inscricao municipal|telefone|e-mail|email)\b.*$/i, '')
-  s = s.replace(/^(?:nome\s*\/?\s*raz[aÃƒÂ£]o\s*social|nome\s*\/?\s*nome empresarial|razao social|raz[aÃƒÂ£]o social|nome empresarial)\s*:?\s*/i, '')
+  s = s.replace(/^(?:nome\s*\/?\s*raz[aã]o\s*social|nome\s*\/?\s*nome empresarial|razao social|raz[aã]o social|nome empresarial)\s*:?\s*/i, '')
   s = cleanCompanyName(s)
   const n = stripAccents(s).toLowerCase()
   if (s.length < 5 || !/[A-Za-z]/.test(stripAccents(s))) return ''
@@ -963,7 +963,7 @@ function findNfseDescription(lines: string[]) {
   for (let i = 0; i < lines.length; i++) {
     const n = stripAccents(lines[i]).toLowerCase()
     if (!/descricao\s+do\s+servico|discriminacao\s+do\s+servico/.test(n)) continue
-    const same = cleanStr(lines[i].replace(/^(descri[cÃ§][aÃ£]o|discrimina[cÃ§][aÃ£]o)(?:\s+do\s+servi[cÃ§]o)?\s*:?\s*/i, ''))
+    const same = cleanStr(lines[i].replace(/^(descri[cç][aã]o|discrimina[cç][aã]o)(?:\s+do\s+servi[cç]o)?\s*:?\s*/i, ''))
     if (same && !/^do\s+servi/i.test(same) && same.length > 6) return same
     const block: string[] = []
     for (let j = i + 1; j < Math.min(lines.length, i + 8); j++) {
@@ -1096,8 +1096,8 @@ function findDocNumberLegacy(text: string, tipo: string) {
     const lines = String(text || '').split('\n').map((l) => l.trim()).filter(Boolean)
     for (let i = 0; i < lines.length; i++) {
       const line = stripAccents(lines[i])
-      if (!/(numero|n[roÂºo.]|nota fiscal|nfs)/i.test(line)) continue
-      const m = line.match(/(?:numero(?:\s+da\s+nota)?|n[roÂºo.]?\s*(?:da\s+nota)?|nota\s+fiscal(?:\s+de\s+servicos)?|nfs-?e)\s*:?\s*([0-9][0-9.\-/]{0,20})/i)
+      if (!/(numero|n[roºo.]|nota fiscal|nfs)/i.test(line)) continue
+      const m = line.match(/(?:numero(?:\s+da\s+nota)?|n[roºo.]?\s*(?:da\s+nota)?|nota\s+fiscal(?:\s+de\s+servicos)?|nfs-?e)\s*:?\s*([0-9][0-9.\-/]{0,20})/i)
       if (m) return cleanStr(m[1]).replace(/[^\d.\-/]/g, '')
       const next = lines[i + 1] || ''
       if (/^\d{1,20}$/.test(next.replace(/\D/g, ''))) return next.replace(/\D/g, '')
@@ -1292,7 +1292,7 @@ function parseDanfeItemsFromText(text: string) {
   const items: AnyRecord[] = []
   const seen = new Set<string>()
   const rowRe = /^(\d{1,20})\s+(.+?)\s+(\d{8})\s+[0-9A-Z]{1,4}(?:\/[0-9A-Z]{1,3})?\s+\d{4}\s+([A-Z]{1,6})\s+(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:[.,]\d+)?)\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})(?:\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2}))?/i
-  const isHeader = (line: string) => /^(DADOS|C[Ã“O]DIGO|INFORMA[Ã‡C][Ã•O]ES|RESERVADO|C[ÃA]LCULO|TRANSPORTADOR|BASE|VALOR|NOME|ENDERE[Ã‡C]O|MUNIC[ÃI]PIO|QUANTIDADE|Inf\.|Impresso)/i.test(line)
+  const isHeader = (line: string) => /^(DADOS|C[ÓO]DIGO|INFORMA[ÇC][ÕO]ES|RESERVADO|C[ÁA]LCULO|TRANSPORTADOR|BASE|VALOR|NOME|ENDERE[ÇC]O|MUNIC[ÍI]PIO|QUANTIDADE|Inf\.|Impresso)/i.test(line)
   let last: AnyRecord | null = null
   for (const line of lines) {
     const m = line.match(rowRe)
@@ -1331,7 +1331,7 @@ function parseDanfeItemsFromText(text: string) {
 function findDanfeIssuerName(text: string, lines: string[]) {
   const receb = String(text || '').match(/recebemos\s+de\s+(.+?)\s+os\s+produtos/i)
   if (receb?.[1]) return cleanCompanyName(receb[1])
-  const start = lines.findIndex((l) => /identifica[cÃ§][aÃ£]o\s+do\s+emitente/i.test(stripAccents(l)))
+  const start = lines.findIndex((l) => /identifica[cç][aã]o\s+do\s+emitente/i.test(stripAccents(l)))
   if (start < 0) return ''
   const keep: string[] = []
   for (let i = start + 1; i < Math.min(lines.length, start + 9); i++) {
@@ -1708,7 +1708,7 @@ function normalizeInvoiceNumber(raw: unknown, tipo: string, chave?: unknown, dat
   }
 
   const noAccent = stripAccents(s)
-  const m = noAccent.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfs-?e|nfc-?e|ct-?e)?|nota\s*fiscal(?:\s*de\s*servicos)?|nfs-?e|nf-?e|nfc-?e|ct-?e|n(?:ro|o|Âº)?\.?)\s*(?:n(?:o|Âº)?\.?)?\s*[:#-]?\s*([0-9][0-9.\-/ ]{0,24})/i)
+  const m = noAccent.match(/(?:numero\s*\/\s*serie|numero\s*(?:da\s*)?(?:nota\s*fiscal|nota|nf-?e|nfs-?e|nfc-?e|ct-?e)?|nota\s*fiscal(?:\s*de\s*servicos)?|nfs-?e|nf-?e|nfc-?e|ct-?e|n(?:ro|o|º)?\.?)\s*(?:n(?:o|º)?\.?)?\s*[:#-]?\s*([0-9][0-9.\-/ ]{0,24})/i)
   let candidate = m ? m[1] : s
   const seriePair = String(candidate).match(/^\s*([0-9][0-9.]*)\s*\/\s*\d{1,3}\s*$/)
   if (seriePair) candidate = seriePair[1]
