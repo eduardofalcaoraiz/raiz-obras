@@ -12729,10 +12729,6 @@ function decodeNfseKeyNumber(raw,dateIso){
 function cleanImpNfNumber(raw,tipo,dateIso){
   const s=String(raw||'').trim();
   if(!s)return'';
-  if(tipo==='NFS-e'){
-    const nfse=decodeNfseKeyNumber(s,dateIso);
-    if(nfse)return nfse;
-  }
   const key=['NF-e','NFC-e','CT-e'].includes(tipo)?(s.replace(/\D/g,'').match(/\d{44}/)||[])[0]:'';
   if(key){
     const d=decodeChave(key);
@@ -12746,8 +12742,11 @@ function cleanImpNfNumber(raw,tipo,dateIso){
   const beforeSerie=String(candidate).split(/\b(?:s[eé]rie|serie|c[oó]digo|codigo|verifica[çc][aã]o|rps|cnpj|cpf)\b/i)[0];
   const digits=beforeSerie.replace(/\D/g,'');
   if(tipo==='NFS-e'){
+    if(digits&&digits.length<=13)return digits.replace(/^0+(?=\d)/,'');
     const municipal=digits.match(/^20\d{2}0{4,}([1-9]\d{0,8})$/);
     if(municipal)return municipal[1];
+    const nfse=decodeNfseKeyNumber(s,dateIso);
+    if(nfse)return nfse;
   }
   return digits?digits.replace(/^0+(?=\d)/,''):'';
 }
@@ -13014,11 +13013,11 @@ function parseNFeXML(xmlText){
     if(!cnpjRaw)cnpjRaw=getTag(xmlText,'Cnpj')||getTag(xmlText,'CNPJ');
     const ben=getTag(prestBlock,'RazaoSocial')||getTag(xmlText,'RazaoSocial')||getTag(prestBlock,'NomeFantasia');
     const valoresBlock=getBlock(xmlText,'Valores')||xmlText;
-    const valLiq=money(getTag(valoresBlock,'ValorLiquidoNfse'));
-    const valServ=money(getTag(valoresBlock,'ValorServicos'));
-    const valTot=money(getTag(valoresBlock,'ValorTotal'));
+    const valLiq=money(getTag(valoresBlock,'ValorLiquidoNfse')||getTag(valoresBlock,'ValorLiquido')||getTag(valoresBlock,'vLiq'));
+    const valServ=money(getTag(valoresBlock,'ValorServicos')||getTag(valoresBlock,'ValorServico')||getTag(valoresBlock,'ValorTotalServicos')||getTag(valoresBlock,'ValorTotalServico')||getTag(valoresBlock,'vServ')||getTag(valoresBlock,'vTotServ'));
+    const valTot=money(getTag(valoresBlock,'ValorTotal')||getTag(valoresBlock,'valorTotal')||getTag(valoresBlock,'vTotal')||getTag(valoresBlock,'vTPrest'));
     const desconto=money(getTag(valoresBlock,'DescontoIncondicionado')||getTag(valoresBlock,'DescontoCondicionado'));
-    const val=valLiq||valServ||valTot;
+    const val=valServ||valTot;
     const infBlock=getBlock(xmlText,'InfNfse')||xmlText;
     const nNF=getTag(infBlock,'Numero')||getTag(xmlText,'NumeroNfse')||getTag(xmlText,'NumeroRps');
     const dEmiRaw=getTag(infBlock,'DataEmissao')||getTag(xmlText,'DataEmissaoNfse')||getTag(xmlText,'Competencia');
@@ -13040,7 +13039,7 @@ function parseNFeXML(xmlText){
     }
     if(itensNFSe.length===0&&discriminacao)itensNFSe.push({descricao:discriminacao,quantidade:1,unidade:'Srv',valor_unitario:val,valor_total:val});
 
-    return{ben,cnpj:fmtCnpj(cnpjRaw),doc:cleanImpDocNumber(nNF,'NFS-e'),val,subtotal:valServ||val,desconto,frete:0,date:dEmiRaw.slice(0,10),chave:codVerif,discriminacao,desc:discriminacao,itens:itensNFSe,pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:'',tipo:'NFS-e'};
+    return{ben,cnpj:fmtCnpj(cnpjRaw),doc:cleanImpDocNumber(nNF,'NFS-e'),val,subtotal:valServ||val,desconto,frete:0,date:dEmiRaw.slice(0,10),chave:codVerif,discriminacao,desc:discriminacao,itens:itensNFSe,pagForma:'A_VISTA',numParcelas:1,parcelas:[],obs:(valLiq&&val&&Math.abs(valLiq-val)>0.009)?'Valor liquido lido, mas nao usado como valor total.':'',tipo:'NFS-e'};
   }
 
   const emitBlock=getBlock(xmlText,'emit');
@@ -13308,7 +13307,7 @@ function impFindDanfeTotals(text,itens){
 }
 
 function impIsNfseLikeText(normText){
-  return /danfse|documento auxiliar da nfs-?e|chave de acesso da nfs-?e|numero da nfs-?e|emitente da nfs-?e|prestador do servico|prestador de servicos|nota fiscal de servicos|nfs-?e/.test(normText);
+  return /danfse|documento auxiliar da nfs-?e|chave de acesso da nfs-?e|numero da nfs-?e|emitente da nfs-?e|prestador do servico|prestador de servicos|nota fiscal (?:eletronica )?de servicos|nfs-?e|gestaoiss|ginfes|betha|issnet|simpliss|nota control|nota carioca|prefeitura municipal.+servicos/.test(normText);
 }
 
 function impFindNfsePrestadorBlock(text,lines){
@@ -13404,9 +13403,10 @@ function impFindNfseTotalValue(text,lines){
   const arr=(lines&&lines.length?lines:String(text||'').split('\n')).map(l=>String(l||'').trim()).filter(Boolean);
   const pickLastPositive=(vals)=>vals.filter(v=>v>0).pop()||0;
   const pickFirstPositive=(vals)=>vals.find(v=>v>0)||0;
+  const grossLabel=/valor\s+(?:total\s+)?d[oo]s?\s+servic|valor\s+servic|total\s+d[oo]s?\s+servic|valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal|nfse)|total\s+da\s+(?:nota|nfs-?e|nfse)|valor\s+bruto|valor\s+total\s+do\s+documento/;
   const isNetOrRetentionLine=(raw)=>{
     const n=_norm(raw||'');
-    return /valor\s+liquido|liquido\s+a\s+pagar|valor\s+a\s+receber|retencao|retencoes|deducao|deducoes|cofins|csll|inss|irpj|pis|outras\s+retencoes|valor\s+do\s+iss|issqn/.test(n);
+    return /valor\s+liquido|liquido\s+a\s+pagar|valor\s+a\s+receber|retencao|retencoes|deducao|deducoes|cofins|csll|inss|irpj|irrf|pis|outras\s+retencoes|valor\s+do\s+iss|issqn/.test(n)&&!grossLabel.test(n);
   };
   const valueFromWindow=(start,labelRe,mode)=>{
     for(let j=start;j<=Math.min(start+4,arr.length-1);j++){
@@ -13426,14 +13426,14 @@ function impFindNfseTotalValue(text,lines){
 
   for(let i=0;i<arr.length;i++){
     const n=_norm(arr[i]);
-    if(/valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e)|valor\s+da\s+nota/.test(n)){
-      const v=valueFromWindow(i,/valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e)|valor\s+da\s+nota/, 'last');
+    if(/valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nfse|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e|nfse)|valor\s+da\s+nota|valor\s+total\s+do\s+documento|valor\s+bruto/.test(n)){
+      const v=valueFromWindow(i,/valor\s+(?:total\s+)?da\s+(?:nota|nfs-?e|nfse|nota\s+fiscal)|total\s+da\s+(?:nota|nfs-?e|nfse)|valor\s+da\s+nota|valor\s+total\s+do\s+documento|valor\s+bruto/, 'first');
       if(v)return v;
     }
   }
   for(let i=0;i<arr.length;i++){
     const n=_norm(arr[i]);
-    if(/valor\s+(?:total\s+)?da\s+nota|total\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e/.test(n)){
+    if(/valor\s+(?:total\s+)?da\s+nota|total\s+da\s+nota|valor\s+total\s+da\s+nfs-?e|total\s+da\s+nfs-?e|valor\s+total\s+da\s+nfse|total\s+da\s+nfse/.test(n)){
       for(let j=i+1;j<=Math.min(i+5,arr.length-1);j++){
         const nj=_norm(arr[j]);
         if(/valor\s+do\s+servico|valor\s+dos\s+servicos/.test(nj)){
@@ -13445,8 +13445,8 @@ function impFindNfseTotalValue(text,lines){
   }
   for(let i=0;i<arr.length;i++){
     const n=_norm(arr[i]);
-    if(/valor\s+do\s+servico|valor\s+dos\s+servicos|valor\s+total\s+dos\s+servicos/.test(n)){
-      const v=valueFromWindow(i,/valor\s+(?:do|dos|total\s+dos)\s+servic/, 'first');
+    if(/valor\s+do\s+servico|valor\s+dos\s+servicos|valor\s+total\s+dos\s+servicos|total\s+dos\s+servicos|valor\s+servico/.test(n)){
+      const v=valueFromWindow(i,/valor\s+(?:do|dos|total\s+dos)?\s*servic|total\s+dos\s+servic/, 'first');
       if(v)return v;
     }
   }
@@ -13589,7 +13589,7 @@ function parseNFFromText(text, digits){
   const prestadorBlock=tipo==='NFS-e'?impFindNfsePrestadorBlock(text,lines):'';
 
   const nfNum=tipo==='NFS-e'
-    ? (decodeNfseKeyNumber(text,'')||impFindNfseHeaderNumber(lines)||findImpDocNumberFromText(text,tipo,decoded))
+    ? (impFindNfseHeaderNumber(lines)||findImpDocNumberFromText(text,tipo,decoded)||decodeNfseKeyNumber(text,''))
     : findImpDocNumberFromText(text,tipo,decoded);
 
   let linhaDigitavel='';
