@@ -16,22 +16,61 @@ FLOW_IDS = [int(x) for x in os.environ.get("ZEEV_FLOW_IDS", "299,275,102,300").s
 FINANCE_FLOW_IDS = {299, 275}
 
 DEFAULT_CAPEX_FIELDS = {
-    299: ["investimentoCAPEX"],
-    275: ["investimentoCAPEX"],
-    102: ["cAPEX"],
-    300: ["cAPEX"],
+    299: ["investimentoCAPEX", "É um investimento (CAPEX)?", "E um investimento (CAPEX)?", "CAPEX"],
+    275: ["investimentoCAPEX", "É um investimento (CAPEX)?", "E um investimento (CAPEX)?", "CAPEX"],
+    102: ["cAPEX", "CAPEX", "Investimento CAPEX"],
+    300: ["cAPEX", "CAPEX", "Investimento CAPEX"],
 }
+
+VALUE_TOTAL_FIELDS = [
+    "valorTotalDoPagamento", "valor total do pagamento", "Valor total do pagamento",
+    "valorTotalPagamento", "valor total pagamento",
+    "valorFinal", "valor final", "valor final da compra", "valor final do pedido",
+    "valorTotal", "valor total", "valor total da compra", "valor total do pedido",
+    "valor total da solicitacao", "valor total da solicitação", "valorDaCompra",
+    "valor da compra", "valorCompra", "valor compra", "valorPedido", "valor do pedido",
+    "valorAprovado", "valor aprovado", "valorSolicitado", "valor solicitado",
+    "valorOrcado", "valor orcado", "valor orçado", "valorEstimado", "valor estimado",
+    "orcamento", "orçamento", "precoFinal", "preço final", "preco final",
+    "precoTotal", "preço total", "preco total", "total", "valor",
+    "valorPagamento", "valor do pagamento", "valor pagamento", "valorAPagar",
+    "valor a pagar", "valorNotaFiscal", "valor da nota fiscal", "valor da nota",
+    "valor do documento", "valor do capex", "valor capex", "preco negociado",
+    "preço negociado", "valor negociado", "valor contratado", "valor da proposta",
+]
+
+ITEM_TOTAL_FIELDS = [
+    "valorTotalItem", "valor total item", "valor total do item", "valor total",
+    "precoTotal", "preço total", "preco total", "total item", "total do item",
+    "valorProduto", "valor do produto", "valorServico", "valor do servico",
+    "valor do serviço",
+]
+
+ITEM_UNIT_FIELDS = [
+    "precoUnitario", "preço unitário", "preco unitario", "valorUnitario",
+    "valor unitário", "valor unitario", "valor unit", "valor un",
+]
+
+ITEM_DESC_FIELDS = [
+    "item", "itens", "produto", "produtos", "material", "materiais", "servico",
+    "serviços", "servico", "servicos", "descricaoProduto", "descricao do produto",
+    "descricaoServico", "descrição do serviço", "descricao do servico",
+    "descricaoItem", "descricao do item", "descrição", "descricao", "detalhamento",
+]
+
+ITEM_QTY_FIELDS = ["quantidade", "quantidade solicitada", "quantidadeSolicitada", "qtd", "qtde"]
+ITEM_UNIT_MEASURE_FIELDS = ["unidadeMedida", "unidade medida", "unidade", "un"]
 
 PURCHASE_FIELDS = [
     "cAPEX", "centroDeCusto", "centroCusto", "item", "itens", "produto", "produtos",
     "material", "materiais", "servico", "servicos", "descricao", "descricaoSolicitacao",
     "descricaoCompra", "descricaoProduto", "descricaoServico", "detalhamento", "justificativa",
     "observacao", "observacoes", "quantidade", "quantidadeSolicitada", "qtd", "unidadeMedida",
-    "valor", "valorTotal", "valorFinal", "valorCompra", "valorDaCompra", "valorSolicitado",
+    "valorTotalDoPagamento", "valorTotalPagamento", "valor", "valorTotal", "valorFinal", "valorCompra", "valorDaCompra", "valorSolicitado",
     "valorPedido", "valorAprovado", "valorOrcado", "valorEstimado", "orcamento", "preco",
     "precoUnitario", "precoTotal", "precoFinal", "valorUnitario", "valorTotalItem",
     "fornecedor", "nomeFornecedor", "razaoSocial", "cnpjFornecedor", "fornecedorEscolhido",
-    "condicaoPagamento", "formaPagamento", "dataPagamento", "previsaoPagamento",
+    "condicaoPagamento", "formaPagamento", "formaDePagamento", "dataPagamento", "previsaoPagamento",
     "dataEntrega", "prazoEntrega", "unidade", "unidadeEscolar", "escola", "filial", "marca",
     "localEntrega", "solicitante", "setor", "departamento", "categoria", "categoriaCompra",
     "tipoCompra", "numeroTR", "ticket", "tr", "notaFiscal", "numeroNF", "numeroNotaFiscal",
@@ -39,9 +78,9 @@ PURCHASE_FIELDS = [
 ]
 
 FINANCE_FIELDS = [
-    "investimentoCAPEX", "valor", "valorTotal", "valorSolicitado", "valorPagamento",
-    "valorAPagar", "valorAprovado", "dataPagamento", "previsaoPagamento", "dataVencimento",
-    "formaPagamento", "condicaoPagamento", "favorecido", "beneficiario", "fornecedor",
+    "investimentoCAPEX", "valorTotalDoPagamento", "valorTotalPagamento", "valor", "valorTotal", "valorSolicitado", "valorPagamento",
+    "valorAPagar", "valorAprovado", "precoUnitario", "dataPagamento", "previsaoPagamento", "dataVencimento", "dataDeVencimento",
+    "formaPagamento", "formaDePagamento", "condicaoPagamento", "favorecido", "beneficiario", "fornecedor",
     "nomeFornecedor", "razaoSocial", "cnpj", "cnpjFornecedor", "centroDeCusto", "centroCusto",
     "unidade", "unidadeEscolar", "escola", "filial", "marca", "descricao",
     "descricaoSolicitacao", "solicitacao", "pedido", "objeto", "resumo", "justificativa",
@@ -56,6 +95,44 @@ def norm(value):
     text = unicodedata.normalize("NFD", str(value or ""))
     text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
     return "".join(ch.lower() if ch.isalnum() else " " for ch in text).strip()
+
+
+def norm_key(value):
+    return "".join(ch for ch in norm(value) if ch.isalnum())
+
+
+def field_name_candidates(field):
+    for key in ("name", "label", "title", "caption"):
+        value = field.get(key)
+        if value:
+            yield str(value)
+
+
+def field_display_name(field):
+    return next(field_name_candidates(field), "")
+
+
+def field_matches(field, names):
+    wanted_norm = {norm(n) for n in names}
+    wanted_key = {norm_key(n) for n in names}
+    for candidate in field_name_candidates(field):
+        n = norm(candidate)
+        k = norm_key(candidate)
+        if n in wanted_norm or k in wanted_key:
+            return True
+    return False
+
+
+def unique_fields(*groups):
+    out = []
+    seen = set()
+    for group in groups:
+        for name in group or []:
+            key = norm_key(name)
+            if key and key not in seen:
+                seen.add(key)
+                out.append(name)
+    return out
 
 
 def parse_money(value):
@@ -109,17 +186,54 @@ def is_yes(value):
 
 
 def field_value(fields, names):
-    wanted = {norm(n) for n in names}
     for field in fields or []:
-        if norm(field.get("name")) in wanted and str(field.get("value") or "").strip():
+        if field_matches(field, names) and str(field.get("value") or "").strip():
             return str(field.get("value")).strip()
     return ""
 
 
-def has_capex(fields, flow_id):
-    wanted = {norm(n) for n in capex_fields(flow_id)}
+def field_value_by_priority(fields, names):
+    for name in names:
+        for field in fields or []:
+            if field_matches(field, [name]) and str(field.get("value") or "").strip():
+                return str(field.get("value")).strip()
+    return ""
+
+
+def field_money_values(fields, names):
+    values = []
     for field in fields or []:
-        if norm(field.get("name")) in wanted and is_yes(field.get("value")):
+        value = str(field.get("value") or "").strip()
+        if not value or not field_matches(field, names):
+            continue
+        amount = parse_money(value)
+        if amount:
+            values.append({
+                "amount": amount,
+                "row": int(field.get("row") or 1),
+                "name": next(field_name_candidates(field), ""),
+            })
+    return values
+
+
+def best_money_from_fields(fields, names):
+    values = field_money_values(fields, names)
+    if not values:
+        return 0.0
+    return max(v["amount"] for v in values)
+
+
+def money_by_priority(fields, names):
+    for name in names:
+        values = field_money_values(fields, [name])
+        if values:
+            return max(v["amount"] for v in values)
+    return 0.0
+
+
+def has_capex(fields, flow_id):
+    for field in fields or []:
+        if (field_matches(field, capex_fields(flow_id)) or any("capex" in norm_key(c) for c in field_name_candidates(field))) and is_yes(field.get("value")):
             return field
     return None
 
@@ -147,11 +261,9 @@ def report_page(flow_id, page, start, end, page_size=30):
 
 
 def instance_fields(instance_id, fields):
-    if not fields:
-        return {}, []
     params = [("showPendingInstanceTasks", "true"), ("showFinishedInstanceTasks", "true"),
               ("showPendingAssignees", "true"), ("useCache", "false")]
-    for field in fields:
+    for field in fields or []:
         params.append(("formFieldNames", field))
     url = f"{ZEEV_BASE_URL}/api/2/instances/{instance_id}?" + urllib.parse.urlencode(params)
     data = request_json("GET", url, headers={"Authorization": f"Bearer {ZEEV_TOKEN}"}, timeout=90)
@@ -160,19 +272,39 @@ def instance_fields(instance_id, fields):
 
 def enrich_instance(row):
     flow_id = int((row.get("flow") or {}).get("id") or row.get("flowId") or 0)
-    fields = FINANCE_FIELDS if flow_id in FINANCE_FLOW_IDS else PURCHASE_FIELDS
+    fields = unique_fields(
+        FINANCE_FIELDS if flow_id in FINANCE_FLOW_IDS else PURCHASE_FIELDS,
+        VALUE_TOTAL_FIELDS,
+        ITEM_DESC_FIELDS,
+        ITEM_QTY_FIELDS,
+        ITEM_UNIT_MEASURE_FIELDS,
+        ITEM_UNIT_FIELDS,
+        ITEM_TOTAL_FIELDS,
+    )
     all_fields = {}
     errors = []
     latest = row
+    try:
+        detail, found = instance_fields(row["id"], [])
+        latest = detail or latest
+        for field in found:
+            display = field_display_name(field)
+            if not display:
+                continue
+            key = f"{display}|{field.get('row') or 1}"
+            all_fields[key] = field
+    except Exception as exc:
+        errors.append({"field": "__all__", "error": str(exc)[:300]})
     for i in range(0, len(fields), 8):
         chunk = fields[i:i + 8]
         try:
             detail, found = instance_fields(row["id"], chunk)
             latest = detail or latest
             for field in found:
-                if not field.get("name"):
+                display = field_display_name(field)
+                if not display:
                     continue
-                key = f"{field.get('name')}|{field.get('row') or 1}"
+                key = f"{display}|{field.get('row') or 1}"
                 all_fields[key] = field
         except Exception as exc:
             if len(chunk) == 1:
@@ -183,13 +315,19 @@ def enrich_instance(row):
                     detail, found = instance_fields(row["id"], [field_name])
                     latest = detail or latest
                     for field in found:
-                        key = f"{field.get('name')}|{field.get('row') or 1}"
+                        display = field_display_name(field)
+                        if not display:
+                            continue
+                        key = f"{display}|{field.get('row') or 1}"
                         all_fields[key] = field
                 except Exception as single_exc:
                     errors.append({"field": field_name, "error": str(single_exc)[:300]})
     base = row.get("formFields") or []
     for field in base:
-        key = f"{field.get('name')}|{field.get('row') or 1}"
+        display = field_display_name(field)
+        if not display:
+            continue
+        key = f"{display}|{field.get('row') or 1}"
         all_fields[key] = field
     latest["formFields"] = list(all_fields.values())
     latest["__enrichmentErrors"] = errors
@@ -219,25 +357,53 @@ def delivery_ready(row):
 
 def extract_items(fields):
     rows = {}
-    desc_names = {norm(x) for x in ["item", "itens", "produto", "produtos", "material", "materiais", "servico", "servicos", "descricaoProduto", "descricaoServico"]}
     for field in fields or []:
-        name = norm(field.get("name"))
         value = str(field.get("value") or "").strip()
         if not value:
             continue
         row = int(field.get("row") or 1)
         item = rows.setdefault(row, {"row": row})
-        if name in desc_names:
+        if field_matches(field, ITEM_DESC_FIELDS):
             item["descricao"] = value
-        elif name in {"quantidade", "quantidadesolicitada", "qtd"}:
+        elif field_matches(field, ITEM_QTY_FIELDS):
             item["quantidade"] = parse_money(value)
-        elif name == "unidademedida":
+        elif field_matches(field, ITEM_UNIT_MEASURE_FIELDS):
             item["unidade"] = value
-        elif name in {"precounitario", "valorunitario"}:
+        elif field_matches(field, ITEM_UNIT_FIELDS):
             item["valor_unitario"] = parse_money(value)
-        elif name in {"precototal", "valortotalitem"}:
+        elif field_matches(field, ITEM_TOTAL_FIELDS):
             item["valor_total"] = parse_money(value)
-    return [x for x in rows.values() if any(k in x for k in ("descricao", "quantidade", "valor_total", "valor_unitario"))]
+    out = []
+    for item in rows.values():
+        if item.get("valor_unitario") and item.get("quantidade") and not item.get("valor_total"):
+            item["valor_total"] = round(float(item["valor_unitario"]) * float(item["quantidade"]), 2)
+        if any(k in item for k in ("descricao", "quantidade", "valor_total", "valor_unitario")):
+            out.append(item)
+    return out
+
+
+def item_total_sum(items):
+    total = 0.0
+    for item in items or []:
+        if item.get("valor_total"):
+            total += float(item.get("valor_total") or 0)
+        elif item.get("valor_unitario") and item.get("quantidade"):
+            total += float(item.get("valor_unitario") or 0) * float(item.get("quantidade") or 0)
+    return round(total, 2) if total else 0.0
+
+
+def pick_ticket_value(fields, items, financeiro=False):
+    explicit = money_by_priority(fields, VALUE_TOTAL_FIELDS)
+    if explicit:
+        return explicit
+    if financeiro:
+        finance_fallback = money_by_priority(fields, ["precoUnitario", "preço unitário", "preco unitario", "valorUnitario", "valor unitario"])
+        if finance_fallback:
+            return finance_fallback
+    items_total = item_total_sum(items)
+    if items_total:
+        return items_total
+    return best_money_from_fields(fields, VALUE_TOTAL_FIELDS + ITEM_TOTAL_FIELDS)
 
 
 def fields_object(fields):
@@ -272,10 +438,11 @@ def build_ticket(row):
     ready = delivery_ready(row)
     compra = flow_id in (102, 300) or "compra" in norm(flow.get("name") or row.get("requestName"))
     financeiro = flow_id in FINANCE_FLOW_IDS or "financeir" in norm(flow.get("name") or row.get("requestName"))
-    valor = parse_money(field_value(fields, ["valorFinal", "valorTotal", "valorDaCompra", "valorCompra", "valorPedido", "valorAprovado", "valorSolicitado", "valorOrcado", "valorEstimado", "orcamento", "precoFinal", "precoTotal", "total", "valor"]))
+    itens = extract_items(fields)
+    valor = pick_ticket_value(fields, itens, financeiro=financeiro)
     valor_final = valor if valor and (ready or financeiro) else None
     unidade = field_value(fields, ["unidadeEscolar", "unidade", "escola", "filial", "localEntrega"]) or clean_unit(field_value(fields, ["centroDeCusto", "centroCusto"]))
-    pedido = field_value(fields, ["descricaoSolicitacao", "descricao", "pedido", "solicitacao", "objeto", "resumo", "justificativa", "item"]) or row.get("requestName")
+    pedido = field_value_by_priority(fields, ["descricaoSolicitacao", "descricao", "pedido", "solicitacao", "objeto", "resumo", "justificativa", "descricaoServico", "descricaoProduto", "item"]) or row.get("requestName")
     atual = current_task(tasks)
     return {
         "zeev_instance_id": int(row["id"]),
@@ -314,14 +481,15 @@ def build_ticket(row):
         "raw_fields": fields,
         "raw_instance": row,
         "raw_tasks": tasks,
-        "itens_json": extract_items(fields),
+        "itens_json": itens,
         "pagamento_json": {
-            "forma": field_value(fields, ["formaPagamento", "condicaoPagamento"]) or None,
+            "forma": field_value_by_priority(fields, ["formaDePagamento", "formaPagamento", "condicaoPagamento"]) or None,
             "data_pagamento": field_value(fields, ["dataPagamento"]) or None,
-            "previsao_pagamento": field_value(fields, ["previsaoPagamento", "dataVencimento"]) or None,
+            "previsao_pagamento": field_value_by_priority(fields, ["previsaoPagamento", "dataDeVencimento", "dataVencimento"]) or None,
             "data_entrega": field_value(fields, ["dataEntrega", "prazoEntrega"]) or None,
             "nota_fiscal": field_value(fields, ["notaFiscal", "numeroNF", "numeroNotaFiscal"]) or None,
             "chave_acesso": field_value(fields, ["chaveAcesso"]) or None,
+            "valor_total": valor or None,
         },
         "campos_extraidos": fields_object(fields),
         "enrichment_errors": row.get("__enrichmentErrors") or [],
