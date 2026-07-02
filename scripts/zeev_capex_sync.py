@@ -37,6 +37,11 @@ VALUE_TOTAL_FIELDS = [
     "valor a pagar", "valorNotaFiscal", "valor da nota fiscal", "valor da nota",
     "valor do documento", "valor do capex", "valor capex", "preco negociado",
     "preço negociado", "valor negociado", "valor contratado", "valor da proposta",
+    "valorTitulo", "valor do titulo", "valor do título", "valorDocumento",
+    "valor do documento", "valorLancamento", "valor lancamento", "valor do lançamento",
+    "valorBruto", "valor bruto", "valorLiquido", "valor liquido",
+    "totalPagamento", "total do pagamento", "totalAPagar", "total a pagar",
+    "valorParcela", "valor da parcela",
 ]
 
 ITEM_TOTAL_FIELDS = [
