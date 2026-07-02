@@ -6,7 +6,8 @@ const CORS = {
 
 type AnyRecord = Record<string, any>
 
-const DEFAULT_FLOW_IDS = [299, 102, 300]
+const DEFAULT_FLOW_IDS = [299, 275, 102, 300]
+const FINANCE_FLOW_IDS = new Set([299, 275])
 const CAPEX_FIELDS = ['investimentoCAPEX', 'cAPEX', 'CAPEX', 'capex']
 const EXTRA_FIELDS = [
   'valor',
@@ -325,13 +326,13 @@ function flowVersion(row: AnyRecord) {
 }
 
 function capexFieldsForFlow(flow: number) {
-  if (flow === 299) return ['investimentoCAPEX']
+  if (FINANCE_FLOW_IDS.has(flow)) return ['investimentoCAPEX']
   if (flow === 102 || flow === 300) return ['cAPEX']
   return CAPEX_FIELDS
 }
 
 function enrichFieldsForFlow(flow: number) {
-  const base = flow === 299 ? FINANCE_ENRICH_FIELDS : PURCHASE_ENRICH_FIELDS
+  const base = FINANCE_FLOW_IDS.has(flow) ? FINANCE_ENRICH_FIELDS : PURCHASE_ENRICH_FIELDS
   return [...new Set([...capexFieldsForFlow(flow), ...base])]
 }
 
