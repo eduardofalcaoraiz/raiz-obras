@@ -455,7 +455,7 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-search-row input{height:36px;width:100%;border:1px solid var(--line-2);border-radius:9px;background:rgba(255,255,255,.86);color:var(--ink);padding:7px 10px;font:800 13.5px "Space Grotesk",system-ui,sans-serif;outline:none}
 .capex-zeev-search-row input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
 .capex-zeev-list{display:grid;grid-template-columns:1fr;gap:7px;max-height:calc(100vh - 352px);overflow:auto;padding:1px}
-.capex-zeev-card{border:1px solid var(--line);background:rgba(255,255,255,.88);border-radius:12px;padding:9px 10px;display:grid;grid-template-columns:minmax(102px,.13fr) minmax(220px,.7fr) minmax(360px,1.05fr) minmax(178px,.42fr) minmax(205px,auto);gap:10px;align-items:center;min-height:78px;box-shadow:0 10px 24px -31px rgba(23,60,52,.55)}
+.capex-zeev-card{border:1px solid var(--line);background:rgba(255,255,255,.88);border-radius:12px;padding:9px 10px;display:grid;grid-template-columns:minmax(96px,.12fr) minmax(260px,1fr) minmax(150px,.32fr) minmax(205px,auto);gap:10px;align-items:center;min-height:74px;box-shadow:0 10px 24px -31px rgba(23,60,52,.55)}
 .capex-zeev-card.ready{border-color:color-mix(in srgb,var(--ok) 36%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.88),color-mix(in srgb,var(--ok) 9%,var(--surface)))}
 .capex-zeev-top{display:grid;gap:6px;align-content:center;min-width:0}
 .capex-zeev-code{font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:900;color:var(--accent-text);background:var(--raiz-soft);border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line));border-radius:999px;padding:3px 8px;width:max-content}
@@ -463,15 +463,13 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-main{min-width:0}
 .capex-zeev-name{font-size:13.5px;font-weight:800;color:var(--ink);line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-zeev-meta{font-size:11.7px;color:var(--muted);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
-.capex-zeev-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;min-width:0}
-.capex-zeev-fact{min-width:0;border:1px solid rgba(23,60,52,.08);background:rgba(255,255,255,.6);border-radius:9px;padding:5px 7px;line-height:1.18}
-.capex-zeev-fact b{display:block;font-size:9.6px;color:var(--muted);font-weight:850;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.capex-zeev-fact span{display:block;font-size:11.2px;color:var(--ink);font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-zeev-line{font-size:11.5px;color:var(--muted);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.capex-zeev-line b{color:var(--ink);font-weight:850}
 .capex-zeev-stage{font-size:12px;color:var(--ink);display:grid;gap:2px;min-width:0}
 .capex-zeev-stage span{font-size:9.6px;color:var(--muted);font-weight:850;text-transform:uppercase;letter-spacing:.04em}
 .capex-zeev-stage b,.capex-zeev-stage em,.capex-zeev-stage strong{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-zeev-stage em{font-size:11px;color:var(--soft);font-weight:650}
-.capex-zeev-money{margin-top:4px;border:1px solid color-mix(in srgb,var(--accent) 18%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.78),color-mix(in srgb,var(--accent) 7%,var(--surface)));border-radius:10px;padding:6px 8px;display:grid;gap:1px;min-width:0}
+.capex-zeev-money{border:1px solid color-mix(in srgb,var(--accent) 18%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.78),color-mix(in srgb,var(--accent) 7%,var(--surface)));border-radius:10px;padding:6px 8px;display:grid;gap:1px;min-width:0}
 .capex-zeev-money-label{font-size:9.4px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-zeev-money-value{font-family:"Space Grotesk",sans-serif;font-size:15px;font-weight:950;color:var(--accent-text);line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-zeev-money.final{border-color:color-mix(in srgb,var(--ok) 32%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.82),color-mix(in srgb,var(--ok) 11%,var(--surface)))}
@@ -493,8 +491,9 @@ button{font-family:inherit;cursor:pointer}
 .obra-nf-search{background:var(--surface);box-shadow:0 8px 22px -26px rgba(0,0,0,.38)}
 .obra-nf-result .capex-tr-code{background:var(--surface-2);border-color:rgba(23,60,52,.16);color:var(--ink)}
 .obra-nf-result.exact{background:#FFFBF4;border-color:rgba(248,136,8,.32)}
-@media(max-width:1280px){.capex-zeev-card{grid-template-columns:minmax(102px,.16fr) minmax(0,.7fr) minmax(310px,1fr) minmax(170px,.44fr);align-items:start}.capex-zeev-actions{grid-column:3 / -1;grid-template-columns:auto auto auto;justify-content:start;min-width:0}.capex-zeev-actions .btn-primary{grid-column:auto}}
-@media(max-width:940px){.capex-zeev-tools{grid-template-columns:1fr}.capex-zeev-card{grid-template-columns:1fr;align-items:start}.capex-zeev-actions{grid-column:auto;grid-template-columns:1fr 1fr}.capex-zeev-actions .btn-primary{grid-column:1 / -1}.capex-zeev-facts{grid-template-columns:1fr}.capex-zeev-list{max-height:none}.capex-zeev-name,.capex-zeev-meta,.capex-zeev-stage span,.capex-zeev-stage b,.capex-zeev-stage em,.capex-zeev-stage strong,.capex-zeev-fact span{white-space:normal}}
+.capex-zeev-stage .capex-zeev-flow{display:block;font-size:10.5px;color:var(--soft);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:1280px){.capex-zeev-card{grid-template-columns:minmax(96px,.16fr) minmax(0,1fr) minmax(150px,.38fr);align-items:start}.capex-zeev-actions{grid-column:2 / -1;grid-template-columns:auto auto auto;justify-content:start;min-width:0}.capex-zeev-actions .btn-primary{grid-column:auto}}
+@media(max-width:940px){.capex-zeev-tools{grid-template-columns:1fr}.capex-zeev-card{grid-template-columns:1fr;align-items:start}.capex-zeev-actions{grid-column:auto;grid-template-columns:1fr 1fr}.capex-zeev-actions .btn-primary{grid-column:1 / -1}.capex-zeev-list{max-height:none}.capex-zeev-name,.capex-zeev-meta,.capex-zeev-line,.capex-zeev-stage span,.capex-zeev-stage b,.capex-zeev-stage em,.capex-zeev-stage strong{white-space:normal}}
 @media(max-width:760px){.capex-tr-search{grid-template-columns:1fr}.capex-tr-result{grid-template-columns:1fr}.capex-tr-code,.capex-tr-status{width:max-content}.capex-zeev-card{min-height:0}.capex-zeev-search-row{grid-template-columns:1fr}.capex-zeev-actions{grid-template-columns:1fr}}
 .global-dashboard{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin-bottom:16px;align-items:start}
 .gd-span-12{grid-column:span 12}.gd-span-8{grid-column:span 8}.gd-span-6{grid-column:span 6}.gd-span-4{grid-column:span 4}
@@ -5602,7 +5601,7 @@ function capexZeevValueLabel(z){
 function capexZeevValueInfo(z){
   const val=+z.valor_final||+z.valor||0;
   const status=capexZeevTicketStatus(z).toLowerCase();
-  if(!val)return{label:'Valor a revisar',value:'Sem valor capturado',cls:'review'};
+  if(!val)return{label:'Aguardando valor',value:'No Zeev',cls:'review'};
   if(status.includes('cancel'))return{label:'Ticket cancelado',value:fmt(val),cls:'blocked'};
   if(status.includes('rejeit')||status.includes('reprov'))return{label:'Ticket rejeitado',value:fmt(val),cls:'blocked'};
   if(z.valor_status==='final')return{label:'Valor final',value:fmt(val),cls:'final'};
@@ -5696,6 +5695,18 @@ function capexZeevFactsHtmlClean(z){
   return facts.map(f=>`<div class="capex-zeev-fact" title="${escHtml(f.value)}"><b>${escHtml(f.label)}</b><span>${escHtml(capexZeevShort(f.value,78))}</span></div>`).join('');
 }
 
+function capexZeevCompactLine(z){
+  const fornecedor=capexZeevField(z,['fornecedor','nomeFornecedor','razaoSocial','fornecedorEscolhido','favorecido','beneficiario']);
+  const item=capexZeevFirstItem(z);
+  const pagamento=capexZeevPaymentSummaryClean(z);
+  const parts=[
+    fornecedor?`<b>Fornecedor</b> ${escHtml(capexZeevShort(fornecedor,46))}`:'',
+    item?`<b>Item</b> ${escHtml(capexZeevShort(item,58))}`:'',
+    pagamento&&pagamento!=='Sem dados de pagamento'?`<b>Pag.</b> ${escHtml(capexZeevShort(pagamento,42))}`:''
+  ].filter(Boolean);
+  return parts.length?parts.join(' &nbsp;|&nbsp; '):'<b>Dados</b> Aguardando mais informacoes do Zeev';
+}
+
 function renderCapexZeevCards(pend){
   return pend.map(z=>{
     const id=+z.id;
@@ -5708,7 +5719,7 @@ function renderCapexZeevCards(pend){
     const valueInfo=capexZeevValueInfo(z);
     const value=`<div class="capex-zeev-money ${escHtml(valueInfo.cls)}" title="${escHtml(capexZeevValueLabel(z))}"><span class="capex-zeev-money-label">${escHtml(valueInfo.label)}</span><strong class="capex-zeev-money-value">${escHtml(valueInfo.value)}</strong></div>`;
     const flow=escHtml(capexZeevFlowLabel(z));
-    const facts=capexZeevFactsHtmlClean(z);
+    const compact=capexZeevCompactLine(z);
     const link=z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Abrir Ticket</a>`:'';
     return`<div class="capex-zeev-card ${z.pronto_valor_final?'ready':''}">
       <div class="capex-zeev-top">
@@ -5718,9 +5729,10 @@ function renderCapexZeevCards(pend){
       <div class="capex-zeev-main">
         <div class="capex-zeev-name" title="${title}">${title}</div>
         <div class="capex-zeev-meta">${meta||'Dados principais importados do Zeev'}</div>
+        <div class="capex-zeev-line">${compact}</div>
       </div>
-      <div class="capex-zeev-facts">${facts}</div>
-      <div class="capex-zeev-stage"><span>Etapa</span><b>${stage}</b><em>${flow}</em>${value}</div>
+      <div class="capex-zeev-stage"><span>Etapa</span><b>${stage}</b><em class="capex-zeev-flow">${flow}</em></div>
+      ${value}
       <div class="capex-zeev-actions">
         <button class="btn btn-primary btn-sm" onclick="openCapexZeevApproval(${id})">Aprovar e registrar</button>
         ${link}
