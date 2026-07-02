@@ -454,7 +454,7 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-card.ready{border-color:color-mix(in srgb,var(--ok) 36%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.88),color-mix(in srgb,var(--ok) 9%,var(--surface)))}
 .capex-zeev-top{display:grid;gap:6px;align-content:center;min-width:0}
 .capex-zeev-code{font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:900;color:var(--accent-text);background:var(--raiz-soft);border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line));border-radius:999px;padding:3px 8px;width:max-content}
-.capex-zeev-status{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.capex-zeev-status{font-size:10.5px;text-transform:none;letter-spacing:0;white-space:nowrap;max-width:132px;overflow:hidden;text-overflow:ellipsis}
 .capex-zeev-main{min-width:0}
 .capex-zeev-name{font-size:13.5px;font-weight:800;color:var(--ink);line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-zeev-meta{font-size:11.7px;color:var(--muted);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
@@ -5522,6 +5522,21 @@ function capexZeevStageLabel(z){
   return etapa;
 }
 
+function capexZeevTicketStatus(z){
+  const result=String(z.flow_result||'').trim();
+  const etapa=String(z.etapa_atual||'').trim();
+  if(z.active===false&&result)return result;
+  if(result&&/cancel|reprov|conclu/i.test(result))return result;
+  return etapa||result||'Status nao informado';
+}
+
+function capexZeevTicketStatusClass(z){
+  const s=capexZeevTicketStatus(z).toLowerCase();
+  if(s.includes('conclu')||s.includes('aprov'))return'b-ok';
+  if(s.includes('cancel')||s.includes('reprov'))return'b-danger';
+  return'b-info';
+}
+
 function capexZeevValueLabel(z){
   const val=+z.valor_final||+z.valor||0;
   if(!val)return'Valor a revisar';
@@ -5602,6 +5617,8 @@ function renderCapexZeevQueue(){
     const title=escHtml(z.pedido||z.request_name||z.flow_name||'Ticket Raiz CAPEX');
     const meta=[capexZeevKind(z),z.requester_name,z.requester_team,capexZeevDate(z.start_date_time)].filter(Boolean).map(escHtml).join(' &middot; ');
     const stage=escHtml(capexZeevStageLabel(z));
+    const ticketStatus=escHtml(capexZeevTicketStatus(z));
+    const ticketStatusClass=capexZeevTicketStatusClass(z);
     const value=escHtml(capexZeevValueLabel(z));
     const flow=escHtml(capexZeevFlowLabel(z));
     const facts=capexZeevFactsHtml(z);
@@ -5609,7 +5626,7 @@ function renderCapexZeevQueue(){
     return`<div class="capex-zeev-card ${z.pronto_valor_final?'ready':''}">
       <div class="capex-zeev-top">
         <div class="capex-zeev-code">TR ${code}</div>
-        <span class="badge capex-zeev-status ${z.pronto_valor_final?'b-ok':'b-info'}">${z.pronto_valor_final?'pronto':'em fluxo'}</span>
+        <span class="badge capex-zeev-status ${ticketStatusClass}" title="${ticketStatus}">${ticketStatus}</span>
       </div>
       <div class="capex-zeev-main">
         <div class="capex-zeev-name" title="${title}">${title}</div>
