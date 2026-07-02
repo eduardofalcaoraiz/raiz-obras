@@ -5559,6 +5559,10 @@ function capexZeevStageLabel(z){
   return etapa;
 }
 
+function capexZeevIsCompra(z){
+  return [102,300].includes(+z.flow_id)||String(z.flow_name||z.request_name||'').toLowerCase().includes('compra');
+}
+
 function capexZeevTicketStatus(z){
   const result=String(z.flow_result||'').trim();
   const etapa=String(z.etapa_atual||'').trim();
@@ -5577,7 +5581,9 @@ function capexZeevTicketStatusClass(z){
 function capexZeevValueLabel(z){
   const val=+z.valor_final||+z.valor||0;
   if(!val)return'Valor a revisar';
-  return(z.valor_status==='final'?'Final: ':'Estimado: ')+fmt(val);
+  if(z.valor_status==='final')return'Final: '+fmt(val);
+  if(z.valor_status==='em_aprovacao'||capexZeevIsCompra(z))return'Em aprovação: '+fmt(val);
+  return'Estimado: '+fmt(val);
 }
 
 function capexZeevNormField(v){
