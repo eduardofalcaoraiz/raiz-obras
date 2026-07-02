@@ -345,14 +345,35 @@ def task_label(task):
     return str(((task.get("task") or {}).get("name")) or task.get("alias") or task.get("result") or "").strip()
 
 
+def ticket_result_kind(row):
+    result = norm(row.get("flowResult") or "")
+    if any(term in result for term in ["cancelado", "cancelada"]):
+        return "cancelado"
+    if any(term in result for term in ["rejeitado", "rejeitada", "reprovado", "reprovada"]):
+        return "rejeitado"
+    if any(term in result for term in ["concluido", "concluida", "concluido", "aprovado", "aprovada", "finalizado", "finalizada"]):
+        return "concluido"
+    return ""
+
+
 def delivery_ready(row):
+    result_kind = ticket_result_kind(row)
+    if result_kind in ("cancelado", "rejeitado"):
+        return False
     if row.get("active") is False or row.get("endDateTime"):
         return True
-    for task in row.get("instanceTasks") or []:
-        hay = norm(" ".join(str(x or "") for x in [((task.get("task") or {}).get("name")), task.get("alias"), task.get("result")]))
-        if any(term in hay for term in ["conferir entrega", "comunicar entrega", "receber entrega", "conferencia de entrega"]):
-            return True
-    return False
+    task = current_task(row.get("instanceTasks") or [])
+    hay = norm(" ".join(str(x or "") for x in [((task.get("task") or {}).get("name")), task.get("alias"), task.get("result")]))
+    return any(term in hay for term in ["conferir entrega", "comunicar entrega", "receber entrega", "conferencia de entrega"])
+
+
+def suggested_capex_status(row, ready):
+    result_kind = ticket_result_kind(row)
+    if result_kind in ("cancelado", "rejeitado"):
+        return "Cancelado", False
+    if ready:
+        return "Resolvido", True
+    return "Em Andamento", False
 
 
 def extract_items(fields):
@@ -460,11 +481,13 @@ def build_ticket(row):
     financeiro = flow_id in FINANCE_FLOW_IDS or "financeir" in norm(flow.get("name") or row.get("requestName"))
     itens = extract_items(fields)
     valor = pick_ticket_value(fields, itens, financeiro=financeiro)
-    valor_final = valor if valor and (ready or financeiro) else None
+    result_kind = ticket_result_kind(row)
+    valor_final = valor if valor and result_kind not in ("cancelado", "rejeitado") and (ready or financeiro) else None
     valor_status = "final" if valor_final else ("em_aprovacao" if compra and valor else ("estimado" if valor else "nao_encontrado"))
     unidade = field_value(fields, ["unidadeEscolar", "unidade", "escola", "filial", "localEntrega"]) or clean_unit(field_value(fields, ["centroDeCusto", "centroCusto"]))
     pedido = field_value_by_priority(fields, ["descricaoSolicitacao", "descricao", "pedido", "solicitacao", "objeto", "resumo", "justificativa", "descricaoServico", "descricaoProduto", "item"]) or row.get("requestName")
     atual = current_task(tasks)
+    situacao, realizado = suggested_capex_status(row, ready)
     return {
         "zeev_instance_id": int(row["id"]),
         "zeev_uid": row.get("uid"),
@@ -497,8 +520,8 @@ def build_ticket(row):
         "categoria_capex": field_value(fields, ["categoriaCompra", "categoria", "tipoCompra"]) or None,
         "fonte": "UNIDADE",
         "setor": "FINANCEIRO" if financeiro else "COMPRAS",
-        "situacao_sugerida": "Resolvido" if ready else "Em Andamento",
-        "realizado_sugerido": bool(ready),
+        "situacao_sugerida": situacao,
+        "realizado_sugerido": realizado,
         "raw_fields": fields,
         "raw_instance": row,
         "raw_tasks": tasks,
