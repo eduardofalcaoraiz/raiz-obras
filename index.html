@@ -449,15 +449,19 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-sub{font-size:12px;color:var(--muted);margin-top:3px}
 .capex-zeev-kpis{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
 .capex-zeev-pill{border:1px solid var(--line);background:rgba(255,255,255,.72);border-radius:999px;padding:5px 9px;font-size:11.5px;font-weight:800;color:var(--ink)}
-.capex-zeev-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(295px,1fr));gap:10px;max-height:560px;overflow:auto;padding:1px}
-.capex-zeev-card{border:1px solid var(--line);background:rgba(255,255,255,.82);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:178px}
+.capex-zeev-list{display:grid;grid-template-columns:1fr;gap:8px;max-height:calc(100vh - 330px);overflow:auto;padding:1px}
+.capex-zeev-card{border:1px solid var(--line);background:rgba(255,255,255,.82);border-radius:12px;padding:10px 12px;display:grid;grid-template-columns:minmax(105px,.16fr) minmax(0,1.25fr) minmax(190px,.42fr) minmax(125px,.28fr) auto;gap:12px;align-items:center;min-height:74px}
 .capex-zeev-card.ready{border-color:color-mix(in srgb,var(--ok) 36%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.88),color-mix(in srgb,var(--ok) 9%,var(--surface)))}
-.capex-zeev-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.capex-zeev-top{display:flex;align-items:center;gap:8px;min-width:0}
 .capex-zeev-code{font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:900;color:var(--accent-text);background:var(--raiz-soft);border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line));border-radius:999px;padding:3px 8px;width:max-content}
-.capex-zeev-name{font-size:13.5px;font-weight:800;color:var(--ink);line-height:1.25;margin-top:8px}
-.capex-zeev-meta{font-size:11.7px;color:var(--muted);line-height:1.4}
-.capex-zeev-stage{border-top:1px solid var(--line);padding-top:8px;font-size:12px;color:var(--ink);display:flex;justify-content:space-between;gap:8px;align-items:center}
-.capex-zeev-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto}
+.capex-zeev-status{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.capex-zeev-main{min-width:0}
+.capex-zeev-name{font-size:13.5px;font-weight:800;color:var(--ink);line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-zeev-meta{font-size:11.7px;color:var(--muted);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.capex-zeev-stage{font-size:12px;color:var(--ink);display:grid;gap:2px;min-width:0}
+.capex-zeev-stage span,.capex-zeev-stage b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-zeev-value{font-family:"Space Grotesk",sans-serif;font-size:12.5px;font-weight:850;color:var(--accent-text);text-align:right;white-space:nowrap}
+.capex-zeev-actions{display:flex;gap:7px;flex-wrap:nowrap;justify-content:flex-end;align-items:center}
 .capex-zeev-empty{font-size:12.5px;color:var(--muted);border:1px dashed var(--line-2);background:rgba(255,255,255,.55);border-radius:10px;padding:12px}
 .capex-context.zeev{display:block}
 .capex-context-ticket{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
@@ -466,7 +470,8 @@ button{font-family:inherit;cursor:pointer}
 .obra-nf-search{background:var(--surface);box-shadow:0 8px 22px -26px rgba(0,0,0,.38)}
 .obra-nf-result .capex-tr-code{background:var(--surface-2);border-color:rgba(23,60,52,.16);color:var(--ink)}
 .obra-nf-result.exact{background:#FFFBF4;border-color:rgba(248,136,8,.32)}
-@media(max-width:760px){.capex-tr-search{grid-template-columns:1fr}.capex-tr-result{grid-template-columns:1fr}.capex-tr-code,.capex-tr-status{width:max-content}.capex-zeev-list{grid-template-columns:1fr;max-height:none}.capex-zeev-card{min-height:0}}
+@media(max-width:980px){.capex-zeev-card{grid-template-columns:1fr;align-items:start}.capex-zeev-actions{justify-content:flex-start;flex-wrap:wrap}.capex-zeev-value{text-align:left}.capex-zeev-list{max-height:none}.capex-zeev-name,.capex-zeev-meta,.capex-zeev-stage span,.capex-zeev-stage b{white-space:normal}}
+@media(max-width:760px){.capex-tr-search{grid-template-columns:1fr}.capex-tr-result{grid-template-columns:1fr}.capex-tr-code,.capex-tr-status{width:max-content}.capex-zeev-card{min-height:0}}
 .global-dashboard{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin-bottom:16px;align-items:start}
 .gd-span-12{grid-column:span 12}.gd-span-8{grid-column:span 8}.gd-span-6{grid-column:span 6}.gd-span-4{grid-column:span 4}
 .gd-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
@@ -5532,14 +5537,15 @@ function renderCapexZeevQueue(){
     const link=z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Abrir Ticket</a>`:'';
     return`<div class="capex-zeev-card ${z.pronto_valor_final?'ready':''}">
       <div class="capex-zeev-top">
-        <div style="min-width:0">
-          <div class="capex-zeev-code">TR ${code}</div>
-          <div class="capex-zeev-name" title="${title}">${title}</div>
-        </div>
-        <span class="badge ${z.pronto_valor_final?'b-ok':'b-info'}" style="font-size:10.5px">${z.pronto_valor_final?'pronto':'em fluxo'}</span>
+        <div class="capex-zeev-code">TR ${code}</div>
+        <span class="badge capex-zeev-status ${z.pronto_valor_final?'b-ok':'b-info'}">${z.pronto_valor_final?'pronto':'em fluxo'}</span>
       </div>
-      <div class="capex-zeev-meta">${meta||'Dados principais importados do Zeev'}</div>
-      <div class="capex-zeev-stage"><span>${stage}</span><b>${value}</b></div>
+      <div class="capex-zeev-main">
+        <div class="capex-zeev-name" title="${title}">${title}</div>
+        <div class="capex-zeev-meta">${meta||'Dados principais importados do Zeev'}</div>
+      </div>
+      <div class="capex-zeev-stage"><span>Etapa atual</span><b>${stage}</b></div>
+      <div class="capex-zeev-value">${value}</div>
       <div class="capex-zeev-actions">
         ${link}
         <button class="btn btn-primary btn-sm" onclick="openCapexZeevApproval(${id})">Aprovar e registrar</button>
@@ -6021,26 +6027,38 @@ function renderCapexTabs(){
     capexTab='pedidos';
     return`<div class="tabs capex-tabs"><button class="tabbtn active" data-capex-tab="pedidos" onclick="showCapexTab('pedidos')">${labels.pedidos}</button></div>`;
   }
+  const pendingTab=!capexDrillYear?`<button class="tabbtn ${capexTab==='tickets'?'active':''}" data-capex-tab="tickets" onclick="showCapexTab('tickets')">${labels.tickets}</button>`:'';
   return`<div class="tabs capex-tabs">
     <button class="tabbtn ${capexTab==='dashboard'?'active':''}" data-capex-tab="dashboard" onclick="showCapexTab('dashboard')">${labels.dashboard}</button>
     <button class="tabbtn ${capexTab==='pedidos'?'active':''}" data-capex-tab="pedidos" onclick="showCapexTab('pedidos')">${labels.pedidos}</button>
+    ${pendingTab}
   </div>`;
 }
 
 function capexTabLabels(){
-  if(!capexDrillYear)return{dashboard:'Dashboard geral',pedidos:'Anos do CAPEX'};
+  if(!capexDrillYear)return{dashboard:'Dashboard geral',pedidos:'Anos do CAPEX',tickets:'Registros pendentes'};
   if(!capexDrillMarca)return{dashboard:`Dashboard ${capexDrillYear}`,pedidos:'Marcas e unidades'};
   if(!capexDrillUnidade)return{dashboard:'',pedidos:'Unidades da marca'};
   return{dashboard:'Resumo da unidade',pedidos:'Pedidos da unidade'};
 }
 
 function showCapexTab(tab){
-  capexTab=tab==='pedidos'?'pedidos':'dashboard';
+  if(tab==='tickets'){
+    capexDrillYear=null;capexDrillMarca=null;capexDrillUnidade=null;
+    capexListStatus='Todos';capexDashControls={focusDim:'',focusValue:''};
+    capexTab='tickets';
+  }else capexTab=tab==='pedidos'?'pedidos':'dashboard';
   renderCapexView();
 }
 
 function renderCapexView(){
   if(capexDrillMarca&&!capexDrillUnidade&&capexTab==='dashboard')capexTab='pedidos';
+  if(capexTab==='tickets'){
+    capexDrillYear=null;capexDrillMarca=null;capexDrillUnidade=null;
+    renderCapexZeevPage();
+    scheduleActivePageArt();
+    return;
+  }
   if(capexTab==='dashboard'){
     if(!capexDrillYear)renderCapexOverview();
     else renderCapexScopedDashboard();
@@ -6422,6 +6440,14 @@ function renderCapexOverview(){
     hidePriority:true,
     hideSummary:true
   });
+  document.getElementById('esf-capex-drill').innerHTML=html;
+}
+
+function renderCapexZeevPage(){
+  document.getElementById('esf-crumb').style.display='none';
+  clearCapexLooseKpis();
+  let html=renderCapexTabs();
+  html+=renderCapexZeevQueue();
   document.getElementById('esf-capex-drill').innerHTML=html;
 }
 
@@ -6998,8 +7024,6 @@ function renderCapexYears(){
   let html=renderCapexTabs();
 
   html+=renderCapexTrSearch();
-
-  html+=renderCapexZeevQueue();
 
   html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">Pedidos de CAPEX por ano</h2><span style="font-size:12px;color:var(--muted)">Abra um ano para ver marcas, unidades e pedidos.</span></div><div class="cyear-grid">';
 
