@@ -119,7 +119,14 @@ class handler(BaseHTTPRequestHandler):
                 start, end = mod.default_window()
             flows = [int(x) for x in flow_ids.split(",") if x.strip()]
             ids = mod.parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS", ""))
-            tickets = mod.sync_ids(ids) if ids else mod.sync(start, end, flows, max_pages=int(max_pages), page_size=int(page_size))
+            extra_ids = mod.parse_ticket_ids(payload.get("extraTicketIds") or payload.get("extra_ticket_ids") or "")
+            if ids:
+                tickets = mod.sync_ids(ids)
+            else:
+                merged = {t["zeev_instance_id"]: t for t in mod.sync(start, end, flows, max_pages=int(max_pages), page_size=int(page_size))}
+                for ticket in mod.sync_ids(extra_ids):
+                    merged[ticket["zeev_instance_id"]] = ticket
+                tickets = sorted(merged.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
             ingest = mod.ingest(tickets, notify=_as_bool(os.environ.get("ZEEV_NOTIFY")))
             _json(
                 self,
