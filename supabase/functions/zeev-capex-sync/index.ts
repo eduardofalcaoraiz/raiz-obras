@@ -876,6 +876,60 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
   }
 }
 
+async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
+  const token = env('ZEEV_TOKEN')
+  const secret = env('ZEEV_SYNC_SECRET')
+  if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
+  if (!secret) throw new Error('ZEEV_SYNC_SECRET ausente nos secrets da Supabase.')
+  const url = env('ZEEV_BRIDGE_URL', 'https://raiz-obras.vercel.app/api/zeev_capex_sync')
+  const syncMode = String(input.workflowMode || input.syncMode || input.mode || 'incremental')
+  const body = {
+    mode: syncMode === 'retro' ? 'retro' : 'incremental',
+    start: input.start || '',
+    end: input.end || '',
+    flowIds: input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','),
+    maxPages: input.maxPages || input.max_pages || (syncMode === 'retro' ? '999' : '2'),
+    recordsPerPage: input.recordsPerPage || input.records_per_page || env('ZEEV_RECORDS_PER_PAGE', '30'),
+    notify: input.notify !== false,
+  }
+  await saveState('zeev-capex', {
+    running: true,
+    last_error: null,
+    last_start_date: body.start || null,
+    last_end_date: body.end || null,
+  })
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${secret}`,
+      'x-cron-secret': secret,
+      'x-zeev-token': token,
+      'Content-Type': 'application/json',
+      'User-Agent': 'RaizObraViva-SupabaseDispatcher',
+    },
+    body: JSON.stringify(body),
+  })
+  const text = await res.text()
+  let payload: AnyRecord = {}
+  try {
+    payload = text ? JSON.parse(text) : {}
+  } catch (_) {
+    payload = { raw: text }
+  }
+  if (!res.ok || payload.ok === false) {
+    const msg = payload?.error || text || `HTTP ${res.status}`
+    await saveState('zeev-capex', { running: false, last_error: String(msg).slice(0, 1500) })
+    throw new Error(`Vercel Zeev bridge ${res.status}: ${String(msg).slice(0, 1500)}`)
+  }
+  return {
+    ok: true,
+    mode: 'dispatch',
+    target: 'vercel',
+    requestedBy: actor?.profile?.email || actor?.user?.email || '',
+    ...payload,
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ ok: false, error: 'Use POST.' }, 405)
@@ -890,7 +944,7 @@ Deno.serve(async (req) => {
     }
     if (input?.mode === 'dispatch') {
       const actor = secretAuthorized(req) ? null : await requireAppUser(req)
-      const out = await dispatchGithubWorkflow(input || {}, actor)
+      const out = input?.target === 'github' ? await dispatchGithubWorkflow(input || {}, actor) : await dispatchVercelBridge(input || {}, actor)
       return json(out)
     }
     if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
