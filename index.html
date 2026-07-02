@@ -3491,19 +3491,34 @@ function nfSearchText(v){
 
 function paymentNfNumber(p){
   const tipo=p?.nfTipo||'NF-e';
-  const candidates=[p?.nfNum,p?.nota,p?.nfDoc?.name].filter(Boolean);
+  const candidates=[p?.nfNum,p?.nota].filter(Boolean);
   for(const c of candidates){
     const clean=cleanImpDocNumber(c,tipo);
     if(clean)return clean;
     const digits=nfSearchKey(c);
     if(digits)return digits;
   }
+  const fromFile=paymentNfFileNumber(p);
+  if(fromFile)return fromFile;
   return'';
 }
 
-function paymentNfNumberKeys(p){
-  const raw=[paymentNfNumber(p),p?.nfNum,p?.nota,p?.nfDoc?.name].filter(Boolean).join(' ');
+function paymentNfFileNumber(p){
+  const tipo=p?.nfTipo||'NF-e';
+  const name=String(p?.nfDoc?.name||p?.nfDoc?.storagePath||'');
+  const key=(name.match(/\d{44}/)||[])[0];
+  return key?cleanImpDocNumber(key,tipo):'';
+}
+
+function paymentNfNumberKeys(p,opts){
+  const includeFileName=opts&&opts.includeFileName===true;
+  const raw=[paymentNfNumber(p),p?.nfNum,p?.nota,includeFileName?paymentNfFileNumber(p):''].filter(Boolean).join(' ');
   return impUnique((String(raw).match(/\d+/g)||[]).map(nfSearchKey).filter(Boolean));
+}
+
+function paymentNfNumberLabel(p){
+  const nums=paymentNfNumberKeys(p);
+  return nums.length?'NF '+nums.join(', '):'';
 }
 
 function esferaNfSearchResults(query){
@@ -3517,7 +3532,7 @@ function esferaNfSearchResults(query){
       const nf=paymentNfNumber(p);
       const raw=[p.nfNum,p.nota,p.nfDoc?.name,p.nfTipo].filter(Boolean).join(' ');
       const nd=nfSearchKey(nf||raw),nt=nfSearchText(nf||raw);
-      const nKeys=paymentNfNumberKeys(p);
+      const nKeys=paymentNfNumberKeys(p,{includeFileName:true});
       let score=0;
       if(qDigits&&(nd||nKeys.length)){
         if(nKeys.includes(qDigits)||nd===qDigits)score=130;
@@ -8908,8 +8923,7 @@ function renderPag(){const o=cur;
       ?('<span style="font-size:11px;font-weight:600;color:var(--ok);background:var(--ok)12;padding:2px 8px;border-radius:8px">&#10003; '+fmtD(p.pagaEm)+'</span>')
       :(p.venc?('<span style="font-size:11px;color:'+(atr?'var(--danger)':'var(--muted)')+'">vcto '+fmtD(p.venc)+'</span>'):'');
     // Número limpo da NF (só dígitos, sem "NF-e nº", sem "série X")
-    var _nfList=paymentNfNumberKeys(p);
-    var _nfClean=_nfList.length>1?(_nfList.length+' NFs'):(_nfList[0]||'');
+    var _nfLabel=paymentNfNumberLabel(p);
     // Cor da marca (muda por escola)
     var _nfMarca=(o.marca||'—').split(' + ')[0];
     var _bcNF=brandColor(_nfMarca);var _blNF=brandLight(_nfMarca);
@@ -8917,10 +8931,9 @@ function renderPag(){const o=cur;
     var _nfInteg='';
     if(p.nfDoc){
       // Arquivo anexado — sempre mostra botão de visualizar (com ou sem número)
-      var _nfLabel=_nfList.length>1?_nfClean:(_nfClean?('NF '+_nfClean):(p.nfNum||'NF'));
-      _nfInteg='<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].nfDoc)" style="'+_nfPill+'">&#128196; '+_nfLabel+'</button>';
-    }else if(_nfClean){
-      _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_nfPill+'">&#128462; '+(_nfList.length>1?_nfClean:('NF '+_nfClean))+'</button>';
+      _nfInteg='<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].nfDoc)" style="'+_nfPill+'">&#128196; '+(_nfLabel||p.nfNum||'NF')+'</button>';
+    }else if(_nfLabel){
+      _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_nfPill+'">&#128462; '+_nfLabel+'</button>';
     }else if(p.nfTipo&&p.nfTipo!=='Sem nota'){
       _nfInteg='<button onclick="event.stopPropagation();anexarNF('+o.id+','+i+')" style="'+_nfPill+'">&#128462; Anexar NF</button>';
     }else{
@@ -15687,8 +15700,6 @@ db.auth.onAuthStateChange(async(event,session)=>{
 </body>
 
 </html>
-
-
 
 
 
