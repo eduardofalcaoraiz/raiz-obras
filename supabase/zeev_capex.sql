@@ -47,7 +47,7 @@ create table if not exists public.capex_zeev_solicitacoes (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint capex_zeev_status_check check (status in ('pendente','aprovado','ignorado','erro')),
-  constraint capex_zeev_valor_status_check check (valor_status in ('estimado','final','nao_encontrado'))
+  constraint capex_zeev_valor_status_check check (valor_status in ('estimado','em_aprovacao','final','nao_encontrado'))
 );
 
 alter table public.capex_zeev_solicitacoes
@@ -57,6 +57,13 @@ alter table public.capex_zeev_solicitacoes
   add column if not exists pagamento_json jsonb not null default '{}'::jsonb,
   add column if not exists campos_extraidos jsonb not null default '{}'::jsonb,
   add column if not exists enrichment_errors jsonb not null default '[]'::jsonb;
+
+alter table public.capex_zeev_solicitacoes
+  drop constraint if exists capex_zeev_valor_status_check;
+
+alter table public.capex_zeev_solicitacoes
+  add constraint capex_zeev_valor_status_check
+  check (valor_status in ('estimado','em_aprovacao','final','nao_encontrado'));
 
 create index if not exists capex_zeev_solicitacoes_status_idx
   on public.capex_zeev_solicitacoes(status, start_date_time desc);
