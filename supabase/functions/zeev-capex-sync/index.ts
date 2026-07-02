@@ -675,7 +675,6 @@ async function enrichRow(row: AnyRecord) {
 async function sendEmail(ticket: AnyRecord) {
   const to = env('ZEEV_NOTIFY_EMAIL', 'eduardo.falcao@raizeducacao.com.br')
   const resend = env('RESEND_API_KEY')
-  if (!resend) return { sent: false, reason: 'RESEND_API_KEY ausente' }
   const from = env('ZEEV_EMAIL_FROM', 'Raiz ObraViva <onboarding@resend.dev>')
   const subject = `Novo Ticket Raiz CAPEX #${ticket.zeev_instance_id}`
   const link = ticket.ticket_link || ''
@@ -689,16 +688,43 @@ async function sendEmail(ticket: AnyRecord) {
       ${link ? `<p><a href="${link}">Abrir Ticket Raiz</a></p>` : ''}
       <p>O ticket ja esta aguardando analise na fila de CAPEX da Raiz ObraViva.</p>
     </div>`
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resend}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ from, to, subject, html }),
-  })
-  if (!res.ok) return { sent: false, reason: await res.text() }
-  return { sent: true }
+  if (resend) {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resend}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from, to, subject, html }),
+    })
+    if (!res.ok) return { sent: false, reason: `Resend: ${await res.text()}` }
+    return { sent: true, provider: 'resend' }
+  }
+
+  const brevo = env('BREVO_API_KEY')
+  if (brevo) {
+    const senderEmail = env('BREVO_SENDER_EMAIL') || env('ZEEV_EMAIL_FROM_ADDRESS')
+    const senderName = env('BREVO_SENDER_NAME', 'Raiz ObraViva')
+    if (!senderEmail) return { sent: false, reason: 'BREVO_SENDER_EMAIL ausente' }
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': brevo,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: senderName, email: senderEmail },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
+    })
+    if (!res.ok) return { sent: false, reason: `Brevo: ${await res.text()}` }
+    return { sent: true, provider: 'brevo' }
+  }
+
+  return { sent: false, reason: 'RESEND_API_KEY ou BREVO_API_KEY ausente' }
 }
 
 async function notifyNewTickets(tickets: AnyRecord[], existing: Map<number, AnyRecord>) {
