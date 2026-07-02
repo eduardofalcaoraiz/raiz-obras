@@ -79,7 +79,7 @@ class handler(BaseHTTPRequestHandler):
 
         payload = {**_query(self), **_read_json(self)}
         mode = str(payload.get("mode") or payload.get("workflowMode") or payload.get("syncMode") or "incremental")
-        flow_ids = str(payload.get("flowIds") or payload.get("flow_ids") or "299,102,300")
+        flow_ids = str(payload.get("flowIds") or payload.get("flow_ids") or "299,275,102,300")
         max_pages = str(payload.get("maxPages") or payload.get("max_pages") or ("999" if mode == "retro" else "2"))
         page_size = str(payload.get("recordsPerPage") or payload.get("records_per_page") or "30")
 
