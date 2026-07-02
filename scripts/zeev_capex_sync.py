@@ -461,6 +461,7 @@ def build_ticket(row):
     itens = extract_items(fields)
     valor = pick_ticket_value(fields, itens, financeiro=financeiro)
     valor_final = valor if valor and (ready or financeiro) else None
+    valor_status = "final" if valor_final else ("em_aprovacao" if compra and valor else ("estimado" if valor else "nao_encontrado"))
     unidade = field_value(fields, ["unidadeEscolar", "unidade", "escola", "filial", "localEntrega"]) or clean_unit(field_value(fields, ["centroDeCusto", "centroCusto"]))
     pedido = field_value_by_priority(fields, ["descricaoSolicitacao", "descricao", "pedido", "solicitacao", "objeto", "resumo", "justificativa", "descricaoServico", "descricaoProduto", "item"]) or row.get("requestName")
     atual = current_task(tasks)
@@ -489,7 +490,7 @@ def build_ticket(row):
         "pronto_valor_final": bool(compra and ready),
         "valor": valor or None,
         "valor_final": valor_final,
-        "valor_status": "final" if valor_final else ("estimado" if valor else "nao_encontrado"),
+        "valor_status": valor_status,
         "unidade": unidade or None,
         "marca": field_value(fields, ["marca"]) or None,
         "pedido": pedido or None,
