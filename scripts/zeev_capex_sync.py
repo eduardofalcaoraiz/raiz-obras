@@ -406,6 +406,26 @@ def pick_ticket_value(fields, items, financeiro=False):
     return best_money_from_fields(fields, VALUE_TOTAL_FIELDS + ITEM_TOTAL_FIELDS)
 
 
+def parse_ticket_ids(value):
+    if value in (None, ""):
+        return []
+    if isinstance(value, (list, tuple, set)):
+        raw = value
+    else:
+        raw = str(value).replace(";", ",").split(",")
+    out = []
+    seen = set()
+    for item in raw:
+        try:
+            n = int(str(item).strip())
+        except (TypeError, ValueError):
+            continue
+        if n and n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
+
+
 def fields_object(fields):
     out = {}
     for field in fields or []:
@@ -513,6 +533,22 @@ def sync(start, end, flows, max_pages, page_size):
     return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
 
 
+def sync_ids(instance_ids):
+    tickets = {}
+    for instance_id in parse_ticket_ids(instance_ids):
+        try:
+            base, _ = instance_fields(instance_id, [])
+            row = base if isinstance(base, dict) and base else {"id": instance_id}
+            row.setdefault("id", instance_id)
+            enriched = enrich_instance(row)
+            ticket = build_ticket(enriched)
+            if ticket:
+                tickets[ticket["zeev_instance_id"]] = ticket
+        except Exception as exc:
+            print(json.dumps({"ticketId": instance_id, "error": str(exc)[:500]}, ensure_ascii=False), file=sys.stderr)
+    return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
+
+
 def ingest(tickets, notify=False):
     if not tickets:
         return {"ok": True, "found": 0}
@@ -544,9 +580,10 @@ def main():
     max_pages = int(os.environ.get("ZEEV_MAX_PAGES", "2" if mode != "retro" else "999"))
     page_size = int(os.environ.get("ZEEV_RECORDS_PER_PAGE", "30"))
     notify = os.environ.get("ZEEV_NOTIFY", "false").lower() == "true"
-    tickets = sync(start, end, FLOW_IDS, max_pages=max_pages, page_size=page_size)
+    ticket_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS", ""))
+    tickets = sync_ids(ticket_ids) if ticket_ids else sync(start, end, FLOW_IDS, max_pages=max_pages, page_size=page_size)
     result = ingest(tickets, notify=notify)
-    print(json.dumps({"mode": mode, "start": start, "end": end, "tickets": len(tickets), "ingest": result}, ensure_ascii=False))
+    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "ingest": result}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
