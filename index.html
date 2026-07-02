@@ -471,7 +471,17 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-stage span{font-size:9.6px;color:var(--muted);font-weight:850;text-transform:uppercase;letter-spacing:.04em}
 .capex-zeev-stage b,.capex-zeev-stage em,.capex-zeev-stage strong{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-zeev-stage em{font-size:11px;color:var(--soft);font-weight:650}
-.capex-zeev-value{font-family:"Space Grotesk",sans-serif;font-size:12.2px;font-weight:900;color:var(--accent-text);white-space:nowrap}
+.capex-zeev-money{margin-top:4px;border:1px solid color-mix(in srgb,var(--accent) 18%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.78),color-mix(in srgb,var(--accent) 7%,var(--surface)));border-radius:10px;padding:6px 8px;display:grid;gap:1px;min-width:0}
+.capex-zeev-money-label{font-size:9.4px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-zeev-money-value{font-family:"Space Grotesk",sans-serif;font-size:15px;font-weight:950;color:var(--accent-text);line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-zeev-money.final{border-color:color-mix(in srgb,var(--ok) 32%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.82),color-mix(in srgb,var(--ok) 11%,var(--surface)))}
+.capex-zeev-money.final .capex-zeev-money-value{color:var(--ok)}
+.capex-zeev-money.approval{border-color:rgba(176,93,0,.24);background:linear-gradient(135deg,rgba(255,255,255,.82),rgba(255,151,23,.12))}
+.capex-zeev-money.approval .capex-zeev-money-value{color:#B05D00}
+.capex-zeev-money.blocked{border-color:color-mix(in srgb,var(--danger) 34%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.82),color-mix(in srgb,var(--danger) 9%,var(--surface)))}
+.capex-zeev-money.blocked .capex-zeev-money-value{color:var(--danger)}
+.capex-zeev-money.review{border-color:rgba(23,60,52,.12);background:rgba(255,255,255,.62)}
+.capex-zeev-money.review .capex-zeev-money-value{color:var(--muted);font-size:12.5px}
 .capex-zeev-actions{display:grid;grid-template-columns:1fr 1fr;gap:5px;align-items:center;min-width:205px}
 .capex-zeev-actions .btn{min-height:29px;padding:6px 8px;justify-content:center}
 .capex-zeev-actions .btn-primary{grid-column:1 / -1}
@@ -5589,6 +5599,17 @@ function capexZeevValueLabel(z){
   return'Estimado: '+fmt(val);
 }
 
+function capexZeevValueInfo(z){
+  const val=+z.valor_final||+z.valor||0;
+  const status=capexZeevTicketStatus(z).toLowerCase();
+  if(!val)return{label:'Valor a revisar',value:'Sem valor capturado',cls:'review'};
+  if(status.includes('cancel'))return{label:'Ticket cancelado',value:fmt(val),cls:'blocked'};
+  if(status.includes('rejeit')||status.includes('reprov'))return{label:'Ticket rejeitado',value:fmt(val),cls:'blocked'};
+  if(z.valor_status==='final')return{label:'Valor final',value:fmt(val),cls:'final'};
+  if(z.valor_status==='em_aprovacao'||capexZeevIsCompra(z))return{label:'Em aprovacao',value:fmt(val),cls:'approval'};
+  return{label:'Valor estimado',value:fmt(val),cls:'estimated'};
+}
+
 function capexZeevNormField(v){
   return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'').trim();
 }
@@ -5684,7 +5705,8 @@ function renderCapexZeevCards(pend){
     const stage=escHtml(capexZeevStageLabel(z));
     const ticketStatus=escHtml(capexZeevTicketStatus(z));
     const ticketStatusClass=capexZeevTicketStatusClass(z);
-    const value=escHtml(capexZeevValueLabel(z));
+    const valueInfo=capexZeevValueInfo(z);
+    const value=`<div class="capex-zeev-money ${escHtml(valueInfo.cls)}" title="${escHtml(capexZeevValueLabel(z))}"><span class="capex-zeev-money-label">${escHtml(valueInfo.label)}</span><strong class="capex-zeev-money-value">${escHtml(valueInfo.value)}</strong></div>`;
     const flow=escHtml(capexZeevFlowLabel(z));
     const facts=capexZeevFactsHtmlClean(z);
     const link=z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Abrir Ticket</a>`:'';
@@ -5698,7 +5720,7 @@ function renderCapexZeevCards(pend){
         <div class="capex-zeev-meta">${meta||'Dados principais importados do Zeev'}</div>
       </div>
       <div class="capex-zeev-facts">${facts}</div>
-      <div class="capex-zeev-stage"><span>Etapa</span><b>${stage}</b><em>${flow}</em><strong class="capex-zeev-value">${value}</strong></div>
+      <div class="capex-zeev-stage"><span>Etapa</span><b>${stage}</b><em>${flow}</em>${value}</div>
       <div class="capex-zeev-actions">
         <button class="btn btn-primary btn-sm" onclick="openCapexZeevApproval(${id})">Aprovar e registrar</button>
         ${link}
