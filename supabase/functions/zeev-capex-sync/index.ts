@@ -553,7 +553,7 @@ function buildTicket(row: AnyRecord) {
   const itens = extractItems(fields)
   const valor = pickTicketValue(fmap, itens, financeiro)
   const valorFinal = valor && (!compra || conferir || financeiro) ? valor : null
-  const valorStatus = valorFinal ? 'final' : valor ? 'estimado' : 'nao_encontrado'
+  const valorStatus = valorFinal ? 'final' : compra && valor ? 'em_aprovacao' : valor ? 'estimado' : 'nao_encontrado'
   const desc = firstField(fmap, [
     'descricaoSolicitacao',
     'descricao',
