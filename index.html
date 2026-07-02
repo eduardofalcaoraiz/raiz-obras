@@ -123,6 +123,14 @@ button{font-family:inherit;cursor:pointer}
 
 .view{display:none;animation:fade .4s ease both}.view.active{display:block}
 
+.page-jump{display:flex;justify-content:center;position:relative;z-index:3}
+.page-jump-top{padding-top:14px;margin-bottom:4px}
+.page-jump-bottom{margin:26px 0 0;padding-bottom:2px}
+.page-jump-btn{height:34px;border-radius:999px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line));background:rgba(255,252,246,.82);color:var(--accent-text);box-shadow:0 8px 22px -20px rgba(15,42,36,.55);display:inline-flex;align-items:center;gap:7px;padding:0 13px;font-family:inherit;font-size:12px;font-weight:850;cursor:pointer;transition:transform .12s,background .15s,border-color .15s,box-shadow .15s}
+.page-jump-btn:hover{background:var(--raiz-panel-gradient);border-color:color-mix(in srgb,var(--accent) 48%,var(--line));box-shadow:0 10px 24px -18px rgba(15,42,36,.58)}
+.page-jump-btn:active{transform:scale(.975)}
+.page-jump-btn .ic{width:20px;height:20px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--accent) 13%,transparent);color:var(--accent-text);font-size:15px;line-height:1}
+
 @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
@@ -1304,6 +1312,11 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
   #login-screen .lcard{padding:22px 18px;border-radius:14px;margin:18px auto}
   #login-screen .lbrand{margin:0 0 20px;border-radius:12px;padding:14px}
 }
+@media(max-width:760px){
+  .page-jump-top{padding-top:10px;margin-bottom:0}
+  .page-jump-bottom{margin-top:20px}
+  .page-jump-btn{height:32px;font-size:11.5px;padding:0 11px}
+}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1438,6 +1451,10 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 
   <main class="main"><div class="wrap">
+
+    <div class="page-jump page-jump-top">
+      <button type="button" class="page-jump-btn" onclick="pageJump('bottom')" title="Ir direto para o fim da página"><span class="ic">↓</span> Ir ao fim</button>
+    </div>
 
 
 
@@ -1693,6 +1710,10 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 
     <p class="demo-note" id="global-note" style="display:none"></p>
+
+    <div class="page-jump page-jump-bottom">
+      <button type="button" class="page-jump-btn" onclick="pageJump('top')" title="Voltar direto para o topo da página"><span class="ic">↑</span> Voltar ao topo</button>
+    </div>
 
   </div></main>
 
@@ -4829,6 +4850,22 @@ function toggleSideCollapse(){
 function toggleSidebar(){document.querySelector('.side').classList.toggle('mobile-open');document.getElementById('side-backdrop').classList.toggle('show');}
 
 function closeSidebar(){document.querySelector('.side').classList.remove('mobile-open');document.getElementById('side-backdrop').classList.remove('show');}
+
+
+
+function pageScrollElement(){
+  const main=document.querySelector('.main');
+  if(main&&main.scrollHeight>main.clientHeight+6)return main;
+  return document.scrollingElement||document.documentElement;
+}
+
+function pageJump(pos){
+  const el=pageScrollElement();
+  const top=pos==='bottom'?Math.max(el.scrollHeight,document.body?.scrollHeight||0):0;
+  try{el.scrollTo({top,behavior:'smooth'});}
+  catch(e){el.scrollTop=top;}
+  if(pos==='top')window.scrollTo({top:0,behavior:'smooth'});
+}
 
 
 
@@ -15700,6 +15737,3 @@ db.auth.onAuthStateChange(async(event,session)=>{
 </body>
 
 </html>
-
-
-
