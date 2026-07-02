@@ -5577,12 +5577,12 @@ function capexZeevPaymentSummary(z){
 }
 
 function capexZeevFactsHtml(z){
-  const centro=capexZeevField(z,['centroDeCusto','centroCusto','localEntrega']);
   const fornecedor=capexZeevField(z,['fornecedor','nomeFornecedor','razaoSocial','fornecedorEscolhido','favorecido','beneficiario']);
   const item=capexZeevFirstItem(z);
   const pagamento=capexZeevPaymentSummary(z);
+  const solicitante=[z.requester_name,z.requester_team].filter(Boolean).join(' · ');
   const facts=[
-    {label:'Centro de custo informado',value:centro||'Nao informado'},
+    {label:'Solicitante',value:solicitante||'Nao informado'},
     {label:'Fornecedor / favorecido',value:fornecedor||'Nao informado'},
     {label:'Item / servico pedido',value:item||'Nao informado'},
     {label:'Pagamento / anexos',value:pagamento||'Nao informado'}
@@ -5712,11 +5712,11 @@ function capexZeevContextHtml(){
   const link=z.ticket_link?`<a href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:800;text-decoration:none">Abrir Ticket Raiz</a>`:'Sem link informado';
   const detail=[capexZeevKind(z),z.requester_name,capexZeevDate(z.start_date_time),capexZeevStageLabel(z)].filter(Boolean).map(escHtml).join(' &middot; ');
   const fields=z.campos_extraidos||{};
-  const centro=capexZeevField(z,['centroDeCusto','centroCusto','localEntrega']);
-  const fieldRows=Object.entries(fields).filter(([k,v])=>!['cAPEX','investimentoCAPEX'].includes(k)&&String(v||'').trim()).slice(0,8).map(([k,v])=>`<div style="font-size:11.7px;color:var(--muted);line-height:1.35"><b style="color:var(--ink)">${escHtml(k)}:</b> ${escHtml(Array.isArray(v)?v.join(' | '):v)}</div>`).join('');
+  const hiddenContextFields=new Set(['capex','investimentocapex','centrodecusto','centrocusto','localentrega']);
+  const fieldRows=Object.entries(fields).filter(([k,v])=>!hiddenContextFields.has(capexZeevNormField(k))&&String(v||'').trim()).slice(0,8).map(([k,v])=>`<div style="font-size:11.7px;color:var(--muted);line-height:1.35"><b style="color:var(--ink)">${escHtml(k)}:</b> ${escHtml(Array.isArray(v)?v.join(' | '):v)}</div>`).join('');
   const itens=Array.isArray(z.itens_json)?z.itens_json:[];
   const itemRows=itens.slice(0,5).map(it=>`<div style="font-size:11.7px;color:var(--muted);line-height:1.35"><b style="color:var(--ink)">Item:</b> ${escHtml(it.descricao||'')} ${it.quantidade?`&middot; qtd ${escHtml(it.quantidade)}`:''} ${it.valor_total?`&middot; ${fmt(it.valor_total)}`:''}</div>`).join('');
-  const manualUnit=`<div style="font-size:11.7px;color:var(--muted);line-height:1.35"><b style="color:var(--ink)">Unidade:</b> escolha manualmente no formulario${centro?` &middot; centro Zeev: ${escHtml(centro)}`:''}</div>`;
+  const manualUnit=`<div style="font-size:11.7px;color:var(--muted);line-height:1.35"><b style="color:var(--ink)">Unidade:</b> escolha manualmente no formulario</div>`;
   const extra=`<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--line);display:grid;gap:3px">${manualUnit}${itemRows}${fieldRows}</div>`;
   return`<div class="capex-context-ticket"><div class="mark">TR</div><div style="min-width:0"><div class="capex-context-title">Ticket Raiz #${escHtml(z.zeev_instance_id||z.id)}</div><div class="capex-context-sub">${detail}</div><div class="capex-context-sub">${link}</div>${extra}</div></div>`;
 }
