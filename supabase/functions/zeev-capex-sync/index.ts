@@ -409,11 +409,34 @@ function taskName(task: AnyRecord | null) {
   return String(task?.task?.name || task?.alias || task?.result || '').trim()
 }
 
+function ticketResultKind(row: AnyRecord) {
+  const result = norm(row?.flowResult || '')
+  if (result.includes('cancelado') || result.includes('cancelada')) return 'cancelado'
+  if (result.includes('rejeitado') || result.includes('rejeitada') || result.includes('reprovado') || result.includes('reprovada')) return 'rejeitado'
+  if (result.includes('concluido') || result.includes('concluida') || result.includes('aprovado') || result.includes('aprovada') || result.includes('finalizado') || result.includes('finalizada')) return 'concluido'
+  return ''
+}
+
 function hasConferirEntrega(tasks: AnyRecord[]) {
-  return (tasks || []).some((t) => {
-    const hay = norm([t?.task?.name, t?.alias, t?.result].filter(Boolean).join(' '))
-    return hay.includes('conferir entrega') || hay.includes('comunicar entrega') || hay.includes('receber entrega') || hay.includes('conferencia de entrega')
-  })
+  const t = currentTask(tasks)
+  const hay = norm([t?.task?.name, t?.alias, t?.result].filter(Boolean).join(' '))
+  return hay.includes('conferir entrega') || hay.includes('comunicar entrega') || hay.includes('receber entrega') || hay.includes('conferencia de entrega')
+}
+
+function valueIsFinalForPurchase(row: AnyRecord, tasks: AnyRecord[]) {
+  const resultKind = ticketResultKind(row)
+  if (resultKind === 'cancelado' || resultKind === 'rejeitado') return false
+  if (row?.active === false || Boolean(row?.endDateTime)) {
+    return true
+  }
+  return hasConferirEntrega(tasks)
+}
+
+function suggestedCapexStatus(row: AnyRecord, ready: boolean) {
+  const resultKind = ticketResultKind(row)
+  if (resultKind === 'cancelado' || resultKind === 'rejeitado') return { situacao: 'Cancelado', realizado: false }
+  if (ready) return { situacao: 'Resolvido', realizado: true }
+  return { situacao: 'Em Andamento', realizado: false }
 }
 
 function isCompra(row: AnyRecord) {
@@ -549,10 +572,11 @@ function buildTicket(row: AnyRecord) {
   const financeiro = isFinanceiro(row)
   const atual = currentTask(tasks)
   const etapa = taskName(atual)
-  const conferir = hasConferirEntrega(tasks) || row.active === false || Boolean(row.endDateTime)
+  const conferir = valueIsFinalForPurchase(row, tasks)
   const itens = extractItems(fields)
   const valor = pickTicketValue(fmap, itens, financeiro)
-  const valorFinal = valor && (!compra || conferir || financeiro) ? valor : null
+  const resultKind = ticketResultKind(row)
+  const valorFinal = valor && resultKind !== 'cancelado' && resultKind !== 'rejeitado' && (!compra || conferir || financeiro) ? valor : null
   const valorStatus = valorFinal ? 'final' : compra && valor ? 'em_aprovacao' : valor ? 'estimado' : 'nao_encontrado'
   const desc = firstField(fmap, [
     'descricaoSolicitacao',
@@ -569,7 +593,7 @@ function buildTicket(row: AnyRecord) {
   const pagamento = extractPagamento(fmap)
   const campos = fieldsObject(fields)
   const setor = financeiro ? 'FINANCEIRO' : 'COMPRAS'
-  const situacao = compra && conferir ? 'Resolvido' : 'Em Andamento'
+  const { situacao, realizado } = suggestedCapexStatus(row, conferir)
 
   return {
     zeev_instance_id: Number(row.id),
@@ -604,7 +628,7 @@ function buildTicket(row: AnyRecord) {
     fonte: 'UNIDADE',
     setor,
     situacao_sugerida: situacao,
-    realizado_sugerido: situacao === 'Resolvido',
+    realizado_sugerido: realizado,
     raw_fields: fields,
     raw_instance: row,
     raw_tasks: tasks,
