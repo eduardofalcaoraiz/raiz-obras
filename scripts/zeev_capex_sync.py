@@ -12,10 +12,12 @@ ZEEV_BASE_URL = os.environ.get("ZEEV_BASE_URL", "https://raizeducacao.zeev.it").
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://hjccxfznojjosvanwztv.supabase.co").rstrip("/")
 ZEEV_TOKEN = os.environ.get("ZEEV_TOKEN", "")
 ZEEV_SYNC_SECRET = os.environ.get("ZEEV_SYNC_SECRET", "")
-FLOW_IDS = [int(x) for x in os.environ.get("ZEEV_FLOW_IDS", "299,102,300").split(",") if x.strip()]
+FLOW_IDS = [int(x) for x in os.environ.get("ZEEV_FLOW_IDS", "299,275,102,300").split(",") if x.strip()]
+FINANCE_FLOW_IDS = {299, 275}
 
 DEFAULT_CAPEX_FIELDS = {
     299: ["investimentoCAPEX"],
+    275: ["investimentoCAPEX"],
     102: ["cAPEX"],
     300: ["cAPEX"],
 }
@@ -158,7 +160,7 @@ def instance_fields(instance_id, fields):
 
 def enrich_instance(row):
     flow_id = int((row.get("flow") or {}).get("id") or row.get("flowId") or 0)
-    fields = FINANCE_FIELDS if flow_id == 299 else PURCHASE_FIELDS
+    fields = FINANCE_FIELDS if flow_id in FINANCE_FLOW_IDS else PURCHASE_FIELDS
     all_fields = {}
     errors = []
     latest = row
@@ -269,7 +271,7 @@ def build_ticket(row):
     tasks = row.get("instanceTasks") or []
     ready = delivery_ready(row)
     compra = flow_id in (102, 300) or "compra" in norm(flow.get("name") or row.get("requestName"))
-    financeiro = flow_id == 299 or "financeir" in norm(flow.get("name") or row.get("requestName"))
+    financeiro = flow_id in FINANCE_FLOW_IDS or "financeir" in norm(flow.get("name") or row.get("requestName"))
     valor = parse_money(field_value(fields, ["valorFinal", "valorTotal", "valorDaCompra", "valorCompra", "valorPedido", "valorAprovado", "valorSolicitado", "valorOrcado", "valorEstimado", "orcamento", "precoFinal", "precoTotal", "total", "valor"]))
     valor_final = valor if valor and (ready or financeiro) else None
     unidade = field_value(fields, ["unidadeEscolar", "unidade", "escola", "filial", "localEntrega"]) or clean_unit(field_value(fields, ["centroDeCusto", "centroCusto"]))
