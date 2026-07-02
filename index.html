@@ -123,9 +123,9 @@ button{font-family:inherit;cursor:pointer}
 
 .view{display:none;animation:fade .4s ease both}.view.active{display:block}
 
-.page-jump{position:absolute;left:24px;right:24px;z-index:4;display:flex;justify-content:center;margin:0;padding:0;height:0;pointer-events:none}
+.page-jump{position:absolute;left:24px;right:24px;z-index:4;display:flex;justify-content:center;margin:0;padding:0;height:0;pointer-events:auto}
 .page-jump-top{top:10px}
-.page-jump-bottom{bottom:26px}
+.page-jump-bottom{bottom:78px}
 .page-jump-btn{height:32px;border-radius:999px;border:1px solid color-mix(in srgb,var(--jump-color,var(--accent)) 46%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--jump-soft,var(--surface)) 82%,#fff),rgba(255,252,246,.88));color:var(--jump-text,var(--accent-text));box-shadow:0 8px 22px -20px rgba(15,42,36,.55);display:inline-flex;align-items:center;gap:7px;padding:0 13px;font-family:inherit;font-size:12px;font-weight:850;cursor:pointer;transition:transform .12s,background .15s,border-color .15s,box-shadow .15s}
 .page-jump-btn{pointer-events:auto}
 .page-jump-btn:hover{background:linear-gradient(135deg,color-mix(in srgb,var(--jump-color,var(--accent)) 16%,#fff),color-mix(in srgb,var(--jump-soft,var(--surface)) 86%,#fff));border-color:color-mix(in srgb,var(--jump-color,var(--accent)) 64%,var(--line));box-shadow:0 10px 24px -18px rgba(15,42,36,.58)}
@@ -1316,7 +1316,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 @media(max-width:760px){
   .page-jump{left:12px;right:12px}
   .page-jump-top{top:8px}
-  .page-jump-bottom{bottom:22px}
+  .page-jump-bottom{bottom:88px}
   .page-jump-btn{height:30px;font-size:11.5px;padding:0 11px}
 }
 </style>
@@ -4881,18 +4881,23 @@ function closeSidebar(){document.querySelector('.side').classList.remove('mobile
 
 
 
-function pageScrollElement(){
-  const main=document.querySelector('.main');
-  if(main&&main.scrollHeight>main.clientHeight+6)return main;
-  return document.scrollingElement||document.documentElement;
-}
-
 function pageJump(pos){
-  const el=pageScrollElement();
-  const top=pos==='bottom'?Math.max(el.scrollHeight,document.body?.scrollHeight||0):0;
-  try{el.scrollTo({top,behavior:'smooth'});}
-  catch(e){el.scrollTop=top;}
-  if(pos==='top')window.scrollTo({top:0,behavior:'smooth'});
+  const main=document.querySelector('.main');
+  const doc=document.scrollingElement||document.documentElement;
+  const targets=[main,doc].filter(Boolean);
+  const mainMax=main?Math.max(0,main.scrollHeight-main.clientHeight):0;
+  const docMax=doc?Math.max(0,doc.scrollHeight-doc.clientHeight,document.body?document.body.scrollHeight-window.innerHeight:0):0;
+  const targetTop=pos==='bottom'?Math.max(mainMax,docMax):0;
+  targets.forEach(function(el){
+    try{el.scrollTo({top:targetTop,behavior:'smooth'});}
+    catch(e){el.scrollTop=targetTop;}
+  });
+  try{window.scrollTo({top:targetTop,behavior:'smooth'});}
+  catch(e){window.scrollTo(0,targetTop);}
+  setTimeout(function(){
+    targets.forEach(function(el){el.scrollTop=targetTop;});
+    if(pos==='top')window.scrollTo(0,0);
+  },360);
 }
 
 
