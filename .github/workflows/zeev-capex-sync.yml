@@ -25,6 +25,9 @@ on:
         description: "Enviar email quando encontrar novos tickets"
         required: false
         default: "true"
+      ticket_ids:
+        description: "IDs especificos do Ticket Raiz separados por virgula"
+        required: false
 
 jobs:
   sync:
@@ -50,4 +53,5 @@ jobs:
           ZEEV_MAX_PAGES: ${{ github.event_name == 'workflow_dispatch' && inputs.max_pages || '2' }}
           ZEEV_RECORDS_PER_PAGE: "30"
           ZEEV_NOTIFY: ${{ github.event_name == 'workflow_dispatch' && inputs.notify || 'true' }}
+          ZEEV_TICKET_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.ticket_ids || '' }}
         run: python scripts/zeev_capex_sync.py
