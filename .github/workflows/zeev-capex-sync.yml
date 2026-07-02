@@ -1,0 +1,55 @@
+name: Zeev CAPEX Sync
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "incremental ou retro"
+        required: true
+        default: "incremental"
+      start:
+        description: "Inicio ISO para retro"
+        required: false
+      end:
+        description: "Fim ISO para retro"
+        required: false
+      flow_ids:
+        description: "Fluxos Zeev separados por virgula"
+        required: false
+        default: "299,275,102,300"
+      max_pages:
+        description: "Paginas por fluxo"
+        required: false
+        default: "2"
+      notify:
+        description: "Enviar email quando encontrar novos tickets"
+        required: false
+        default: "true"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sync Zeev CAPEX
+        env:
+          ZEEV_TOKEN: ${{ secrets.ZEEV_TOKEN }}
+          ZEEV_SYNC_SECRET: ${{ secrets.ZEEV_SYNC_SECRET }}
+          ZEEV_BASE_URL: https://raizeducacao.zeev.it
+          SUPABASE_URL: https://hjccxfznojjosvanwztv.supabase.co
+          ZEEV_FLOW_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.flow_ids || '299,275,102,300' }}
+          ZEEV_SYNC_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
+          ZEEV_SYNC_START: ${{ github.event_name == 'workflow_dispatch' && inputs.start || '' }}
+          ZEEV_SYNC_END: ${{ github.event_name == 'workflow_dispatch' && inputs.end || '' }}
+          ZEEV_MAX_PAGES: ${{ github.event_name == 'workflow_dispatch' && inputs.max_pages || '2' }}
+          ZEEV_RECORDS_PER_PAGE: "30"
+          ZEEV_NOTIFY: ${{ github.event_name == 'workflow_dispatch' && inputs.notify || 'true' }}
+        run: python scripts/zeev_capex_sync.py
