@@ -100,6 +100,13 @@ class handler(BaseHTTPRequestHandler):
             os.environ["ZEEV_SYNC_END"] = str(payload["end"])
         else:
             os.environ.pop("ZEEV_SYNC_END", None)
+        ticket_ids = payload.get("ticketIds") or payload.get("ticket_ids") or payload.get("instanceIds") or payload.get("instance_ids") or ""
+        if isinstance(ticket_ids, (list, tuple)):
+            os.environ["ZEEV_TICKET_IDS"] = ",".join(str(x) for x in ticket_ids)
+        elif ticket_ids:
+            os.environ["ZEEV_TICKET_IDS"] = str(ticket_ids)
+        else:
+            os.environ.pop("ZEEV_TICKET_IDS", None)
 
         try:
             sys.path.insert(0, os.getcwd())
@@ -111,14 +118,15 @@ class handler(BaseHTTPRequestHandler):
             else:
                 start, end = mod.default_window()
             flows = [int(x) for x in flow_ids.split(",") if x.strip()]
-            tickets = mod.sync(start, end, flows, max_pages=int(max_pages), page_size=int(page_size))
+            ids = mod.parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS", ""))
+            tickets = mod.sync_ids(ids) if ids else mod.sync(start, end, flows, max_pages=int(max_pages), page_size=int(page_size))
             ingest = mod.ingest(tickets, notify=_as_bool(os.environ.get("ZEEV_NOTIFY")))
             _json(
                 self,
                 200,
                 {
                     "ok": True,
-                    "mode": mode,
+                    "mode": "ticketIds" if ids else mode,
                     "start": start,
                     "end": end,
                     "tickets": len(tickets),
