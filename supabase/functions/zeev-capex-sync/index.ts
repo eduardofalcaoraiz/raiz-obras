@@ -709,7 +709,12 @@ async function zeevReport(flow: number, page: number, start: string, end: string
   if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
   const flowCapexFields = capexFieldsForFlow(flow)
-  const cleanDate = (value: string) => String(value || '').replace(/(?:Z|[+-]\d\d:\d\d)$/i, '')
+  const cleanDate = (value: string) => String(value || '').replace(/\.\d{1,6}/, '').replace(/(?:Z|[+-]\d\d:\d\d)$/i, '')
+  const normalizedDate = (value: string) => {
+    const d = new Date(value)
+    if (Number.isNaN(d.getTime())) return cleanDate(value)
+    return d.toISOString().replace(/\.\d{3}Z$/, '')
+  }
   const makeBody = (formFieldNames: string[], pageSize: number, begin: string, finish: string) => ({
     flowId: flow,
     startDateIntervalBegin: begin,
@@ -735,8 +740,9 @@ async function zeevReport(flow: number, page: number, start: string, end: string
     })
   }
   const attempts = [
-    { begin: start, finish: end },
+    { begin: normalizedDate(start), finish: normalizedDate(end) },
     { begin: cleanDate(start), finish: cleanDate(end) },
+    { begin: start, finish: end },
   ]
   const pageSizes = [Number(env('ZEEV_RECORDS_PER_PAGE', '30')) || 30, 10]
   const errors: string[] = []
@@ -931,7 +937,14 @@ async function runSync(input: AnyRecord) {
   try {
     for (const flow of flows) {
       for (let page = 1; page <= maxPages; page++) {
-        const report = await zeevReport(flow, page, start, end)
+        let report: { rows: AnyRecord[]; pageSize: number }
+        try {
+          report = await zeevReport(flow, page, start, end)
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error)
+          errors.push(String(msg).slice(0, 900))
+          break
+        }
         const rows = report.rows
         for (const row of rows) {
           if (!capexField(Array.isArray(row?.formFields) ? row.formFields : [])) continue
@@ -954,7 +967,7 @@ async function runSync(input: AnyRecord) {
     await saveState(stateId, {
       running: false,
       last_success_at: now.toISOString(),
-      last_error: null,
+      last_error: errors.length ? errors.join(' | ').slice(0, 1500) : null,
       last_run_found: tickets.length,
       last_run_new: newCount,
       last_run_updated: Math.max(0, saved.length - newCount),
@@ -971,6 +984,7 @@ async function runSync(input: AnyRecord) {
       updated: Math.max(0, saved.length - newCount),
       notified: email.notified.length,
       emailFailures: email.failed,
+      warnings: errors,
       ticketIds: input.verbose ? tickets.map((t) => t.zeev_instance_id) : undefined,
     }
   } catch (error) {
