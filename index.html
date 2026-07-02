@@ -118,19 +118,19 @@ button{font-family:inherit;cursor:pointer}
 /* Firefox */
 .main{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.22) transparent}
 
-.wrap{width:100%;max-width:none;min-height:100%;margin:0;padding:0 24px 80px}
+.wrap{width:100%;max-width:none;min-height:100%;margin:0;padding:0 24px 80px;position:relative}
 #view-obra #o-kpis,#view-obra .bar{display:none!important}
 
 .view{display:none;animation:fade .4s ease both}.view.active{display:block}
 
-.page-jump{position:fixed;right:18px;z-index:45;display:flex;justify-content:flex-end;margin:0;padding:0;height:auto;pointer-events:none}
-.page-jump-top{top:14px}
-.page-jump-bottom{bottom:16px}
-.page-jump-btn{height:34px;border-radius:999px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line));background:rgba(255,252,246,.82);color:var(--accent-text);box-shadow:0 8px 22px -20px rgba(15,42,36,.55);display:inline-flex;align-items:center;gap:7px;padding:0 13px;font-family:inherit;font-size:12px;font-weight:850;cursor:pointer;transition:transform .12s,background .15s,border-color .15s,box-shadow .15s}
+.page-jump{position:absolute;left:24px;right:24px;z-index:4;display:flex;justify-content:center;margin:0;padding:0;height:0;pointer-events:none}
+.page-jump-top{top:10px}
+.page-jump-bottom{bottom:26px}
+.page-jump-btn{height:32px;border-radius:999px;border:1px solid color-mix(in srgb,var(--jump-color,var(--accent)) 46%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--jump-soft,var(--surface)) 82%,#fff),rgba(255,252,246,.88));color:var(--jump-text,var(--accent-text));box-shadow:0 8px 22px -20px rgba(15,42,36,.55);display:inline-flex;align-items:center;gap:7px;padding:0 13px;font-family:inherit;font-size:12px;font-weight:850;cursor:pointer;transition:transform .12s,background .15s,border-color .15s,box-shadow .15s}
 .page-jump-btn{pointer-events:auto}
-.page-jump-btn:hover{background:var(--raiz-panel-gradient);border-color:color-mix(in srgb,var(--accent) 48%,var(--line));box-shadow:0 10px 24px -18px rgba(15,42,36,.58)}
+.page-jump-btn:hover{background:linear-gradient(135deg,color-mix(in srgb,var(--jump-color,var(--accent)) 16%,#fff),color-mix(in srgb,var(--jump-soft,var(--surface)) 86%,#fff));border-color:color-mix(in srgb,var(--jump-color,var(--accent)) 64%,var(--line));box-shadow:0 10px 24px -18px rgba(15,42,36,.58)}
 .page-jump-btn:active{transform:scale(.975)}
-.page-jump-btn .ic{width:20px;height:20px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--accent) 13%,transparent);color:var(--accent-text);font-size:15px;line-height:1}
+.page-jump-btn .ic{width:20px;height:20px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:var(--jump-color,var(--accent));color:var(--jump-readable,var(--accent-readable));font-size:15px;line-height:1}
 
 @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
@@ -1314,10 +1314,10 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
   #login-screen .lbrand{margin:0 0 20px;border-radius:12px;padding:14px}
 }
 @media(max-width:760px){
-  .page-jump{right:10px}
-  .page-jump-top{top:58px}
-  .page-jump-bottom{bottom:12px}
-  .page-jump-btn{height:32px;font-size:11.5px;padding:0 11px}
+  .page-jump{left:12px;right:12px}
+  .page-jump-top{top:8px}
+  .page-jump-bottom{bottom:22px}
+  .page-jump-btn{height:30px;font-size:11.5px;padding:0 11px}
 }
 </style>
 
@@ -4675,6 +4675,31 @@ function updateSideArt(marcas){
   side.style.borderRight='none';
 }
 
+function pageJumpMarcasForActiveView(marcas){
+  if(marcas&&marcas.length)return _normalizePageArtMarcas(marcas);
+  var view=document.querySelector('.view.active');
+  var id=view?.id||'';
+  if(id==='view-obra'&&cur&&cur.marca)return _normalizePageArtMarcas(cur.marca);
+  if(id==='view-uni'&&curUni&&curUni.marca)return _normalizePageArtMarcas(curUni.marca);
+  if(id==='view-esfera'&&curEsfera==='capex'&&capexDrillMarca)return _normalizePageArtMarcas(capexDrillMarca);
+  return ['RAIZ'];
+}
+
+function updatePageJumpColors(marcas){
+  var wrap=document.querySelector('.wrap');
+  if(!wrap)return;
+  marcas=pageJumpMarcasForActiveView(marcas);
+  var marca=marcas[0]||'RAIZ';
+  var color=brandColor(marca);
+  if(!color||String(color).startsWith('var('))color=brandColor('RAIZ')||'#F88808';
+  var soft=brandLight(marca);
+  if(!soft||String(soft).startsWith('var('))soft=brandLight('RAIZ')||'#FDE9D2';
+  wrap.style.setProperty('--jump-color',color);
+  wrap.style.setProperty('--jump-soft',soft);
+  wrap.style.setProperty('--jump-text',brandTextOnLight(marca)||color);
+  wrap.style.setProperty('--jump-readable',readableTextOnColor(color));
+}
+
 function updatePageArtLegacy(elId,marcas){
 
   const el=document.getElementById(elId);
@@ -4758,6 +4783,7 @@ function updateActivePageArt(marcas){
   var ms=marcas||_pageArtMarcasForActiveView();
   updatePageArt(id,ms);
   updateSideArt(ms);
+  updatePageJumpColors(marcas);
 }
 
 function scheduleActivePageArt(marcas){
