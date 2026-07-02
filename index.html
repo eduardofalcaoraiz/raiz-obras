@@ -5580,7 +5580,10 @@ function capexZeevTicketStatusClass(z){
 
 function capexZeevValueLabel(z){
   const val=+z.valor_final||+z.valor||0;
+  const status=capexZeevTicketStatus(z).toLowerCase();
   if(!val)return'Valor a revisar';
+  if(status.includes('cancel'))return'Cancelado: '+fmt(val);
+  if(status.includes('rejeit')||status.includes('reprov'))return'Rejeitado: '+fmt(val);
   if(z.valor_status==='final')return'Final: '+fmt(val);
   if(z.valor_status==='em_aprovacao'||capexZeevIsCompra(z))return'Em aprovação: '+fmt(val);
   return'Estimado: '+fmt(val);
