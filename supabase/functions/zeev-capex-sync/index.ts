@@ -10,6 +10,8 @@ const DEFAULT_FLOW_IDS = [299, 275, 102, 300]
 const FINANCE_FLOW_IDS = new Set([299, 275])
 const CAPEX_FIELDS = ['investimentoCAPEX', 'cAPEX', 'CAPEX', 'capex']
 const EXTRA_FIELDS = [
+  'valorTotalDoPagamento',
+  'valorTotalPagamento',
   'valor',
   'valorTotal',
   'valorFinal',
@@ -18,6 +20,7 @@ const EXTRA_FIELDS = [
   'valorSolicitado',
   'valorPedido',
   'valorAprovado',
+  'precoUnitario',
   'valorOrcado',
   'valorEstimado',
   'orcamento',
@@ -53,6 +56,79 @@ const EXTRA_FIELDS = [
   'tr',
 ]
 
+const VALUE_TOTAL_FIELDS = [
+  'valorTotalDoPagamento',
+  'Valor total do pagamento',
+  'valorTotalPagamento',
+  'valor total pagamento',
+  'valorFinal',
+  'valor final',
+  'valorFinalDaCompra',
+  'valor final da compra',
+  'valorTotal',
+  'valor total',
+  'valorTotalDaCompra',
+  'valor total da compra',
+  'valorDaCompra',
+  'valor da compra',
+  'valorCompra',
+  'valorPedido',
+  'valor do pedido',
+  'valorAprovado',
+  'valor aprovado',
+  'valorSolicitado',
+  'valor solicitado',
+  'valorOrcado',
+  'valor orcado',
+  'valorEstimado',
+  'valor estimado',
+  'orcamento',
+  'orçamento',
+  'precoFinal',
+  'preço final',
+  'precoTotal',
+  'preço total',
+  'total',
+  'valor',
+  'valorPagamento',
+  'valor do pagamento',
+  'valorAPagar',
+  'valor a pagar',
+  'valorNotaFiscal',
+  'valor da nota fiscal',
+  'valor da nota',
+  'valorOC',
+  'valor da OC',
+  'valorDaProposta',
+  'valor da proposta',
+  'valorNegociado',
+  'valor negociado',
+]
+
+const ITEM_DESC_FIELDS = [
+  'item',
+  'itens',
+  'produto',
+  'produtos',
+  'material',
+  'materiais',
+  'servico',
+  'servicos',
+  'serviços',
+  'descricaoProduto',
+  'descrição do produto',
+  'descricaoServico',
+  'descrição do serviço',
+  'descricaoItem',
+  'descricao',
+  'descrição',
+  'detalhamento',
+]
+const ITEM_QTY_FIELDS = ['quantidade', 'quantidadeSolicitada', 'quantidade solicitada', 'qtd', 'qtde']
+const ITEM_UNIT_MEASURE_FIELDS = ['unidadeMedida', 'unidade medida', 'unidade', 'un']
+const ITEM_UNIT_FIELDS = ['precoUnitario', 'preço unitário', 'preco unitario', 'valorUnitario', 'valor unitario', 'valor un']
+const ITEM_TOTAL_FIELDS = ['valorTotalItem', 'valor total item', 'valor total do item', 'precoTotal', 'preço total', 'valorProduto', 'valor do produto', 'valorServico', 'valor do serviço']
+
 const PURCHASE_ENRICH_FIELDS = [
   'cAPEX',
   'centroDeCusto',
@@ -78,6 +154,8 @@ const PURCHASE_ENRICH_FIELDS = [
   'quantidadeSolicitada',
   'qtd',
   'unidadeMedida',
+  'valorTotalDoPagamento',
+  'valorTotalPagamento',
   'valor',
   'valorTotal',
   'valorFinal',
@@ -102,6 +180,7 @@ const PURCHASE_ENRICH_FIELDS = [
   'fornecedorEscolhido',
   'condicaoPagamento',
   'formaPagamento',
+  'formaDePagamento',
   'dataPagamento',
   'previsaoPagamento',
   'dataEntrega',
@@ -136,16 +215,21 @@ const PURCHASE_ENRICH_FIELDS = [
 
 const FINANCE_ENRICH_FIELDS = [
   'investimentoCAPEX',
+  'valorTotalDoPagamento',
+  'valorTotalPagamento',
   'valor',
   'valorTotal',
   'valorSolicitado',
   'valorPagamento',
   'valorAPagar',
   'valorAprovado',
+  'precoUnitario',
   'dataPagamento',
   'previsaoPagamento',
   'dataVencimento',
+  'dataDeVencimento',
   'formaPagamento',
+  'formaDePagamento',
   'condicaoPagamento',
   'favorecido',
   'beneficiario',
@@ -240,6 +324,20 @@ function norm(value: unknown) {
     .trim()
 }
 
+function normKey(value: unknown) {
+  return norm(value).replace(/[^a-z0-9]+/g, '')
+}
+
+function fieldNames(field: AnyRecord) {
+  return [field?.name, field?.label, field?.title, field?.caption].filter((x) => String(x || '').trim()).map((x) => String(x))
+}
+
+function fieldMatches(field: AnyRecord, names: string[]) {
+  const wanted = new Set(names.map((x) => norm(x)))
+  const wantedKey = new Set(names.map((x) => normKey(x)))
+  return fieldNames(field).some((name) => wanted.has(norm(name)) || wantedKey.has(normKey(name)))
+}
+
 function isYes(value: unknown) {
   const n = norm(value)
   return ['sim', 's', 'yes', 'true', '1'].includes(n)
@@ -260,27 +358,42 @@ function parseMoney(value: unknown) {
 function fieldMap(fields: AnyRecord[]) {
   const map = new Map<string, AnyRecord[]>()
   for (const f of fields || []) {
-    const key = norm(f?.name)
-    if (!key) continue
-    const arr = map.get(key) || []
-    arr.push(f)
-    map.set(key, arr)
+    const keys = new Set<string>()
+    for (const name of fieldNames(f)) {
+      keys.add(norm(name))
+      keys.add(normKey(name))
+    }
+    for (const key of keys) {
+      if (!key) continue
+      const arr = map.get(key) || []
+      if (!arr.includes(f)) arr.push(f)
+      map.set(key, arr)
+    }
   }
   return map
 }
 
 function firstField(fields: Map<string, AnyRecord[]>, names: string[]) {
   for (const name of names) {
-    const arr = fields.get(norm(name))
+    const arr = fields.get(norm(name)) || fields.get(normKey(name))
     const found = arr?.find((f) => String(f?.value || '').trim())
     if (found) return String(found.value).trim()
   }
   return ''
 }
 
+function moneyByPriority(fields: Map<string, AnyRecord[]>, names: string[]) {
+  for (const name of names) {
+    const arr = fields.get(norm(name)) || fields.get(normKey(name))
+    const values = (arr || []).map((f) => parseMoney(f?.value)).filter((v) => v > 0)
+    if (values.length) return Math.max(...values)
+  }
+  return 0
+}
+
 function capexField(fields: AnyRecord[]) {
   for (const f of fields || []) {
-    if (CAPEX_FIELDS.some((name) => norm(name) === norm(f?.name)) && isYes(f?.value)) {
+    if ((CAPEX_FIELDS.some((name) => fieldMatches(f, [name])) || fieldNames(f).some((name) => normKey(name).includes('capex'))) && isYes(f?.value)) {
       return { name: f.name || '', value: f.value || '' }
     }
   }
@@ -326,8 +439,8 @@ function flowVersion(row: AnyRecord) {
 }
 
 function capexFieldsForFlow(flow: number) {
-  if (FINANCE_FLOW_IDS.has(flow)) return ['investimentoCAPEX']
-  if (flow === 102 || flow === 300) return ['cAPEX']
+  if (FINANCE_FLOW_IDS.has(flow)) return ['investimentoCAPEX', 'É um investimento (CAPEX)?', 'E um investimento (CAPEX)?', 'CAPEX']
+  if (flow === 102 || flow === 300) return ['cAPEX', 'CAPEX', 'Investimento CAPEX']
   return CAPEX_FIELDS
 }
 
@@ -346,8 +459,9 @@ function iso(value: unknown) {
 function mergeFields(base: AnyRecord[], extra: AnyRecord[]) {
   const map = new Map<string, AnyRecord>()
   for (const f of [...(base || []), ...(extra || [])]) {
-    if (!f?.name) continue
-    const key = `${norm(f.name)}|${f.row || 1}`
+    const display = fieldNames(f)[0]
+    if (!display) continue
+    const key = `${normKey(display)}|${f.row || 1}`
     map.set(key, f)
   }
   return [...map.values()]
@@ -356,8 +470,9 @@ function mergeFields(base: AnyRecord[], extra: AnyRecord[]) {
 function fieldsObject(fields: AnyRecord[]) {
   const out: AnyRecord = {}
   for (const f of fields || []) {
-    if (!f?.name) continue
-    const key = String(f.name)
+    const display = fieldNames(f)[0]
+    if (!display) continue
+    const key = String(display)
     const val = f.value ?? ''
     if (!String(val).trim()) continue
     if (out[key] === undefined) out[key] = val
@@ -369,29 +484,50 @@ function fieldsObject(fields: AnyRecord[]) {
 
 function extractItems(fields: AnyRecord[]) {
   const rows = new Map<number, AnyRecord>()
-  const descNames = new Set(['item', 'itens', 'produto', 'produtos', 'material', 'materiais', 'servico', 'servicos', 'descricaoProduto', 'descricaoServico'])
   for (const f of fields || []) {
-    const name = String(f?.name || '')
     const value = String(f?.value || '').trim()
     if (!value) continue
     const row = Number(f?.row || 1) || 1
     const bucket = rows.get(row) || { row }
-    const n = norm(name)
-    if ([...descNames].some((x) => norm(x) === n)) bucket.descricao = value
-    else if (['quantidade', 'quantidadesolicitada', 'qtd'].includes(n)) bucket.quantidade = parseMoney(value)
-    else if (['unidademedida'].includes(n)) bucket.unidade = value
-    else if (['precounitario', 'valorunitario'].includes(n)) bucket.valor_unitario = parseMoney(value)
-    else if (['precototal', 'valortotalitem'].includes(n)) bucket.valor_total = parseMoney(value)
+    if (fieldMatches(f, ITEM_DESC_FIELDS)) bucket.descricao = value
+    else if (fieldMatches(f, ITEM_QTY_FIELDS)) bucket.quantidade = parseMoney(value)
+    else if (fieldMatches(f, ITEM_UNIT_MEASURE_FIELDS)) bucket.unidade = value
+    else if (fieldMatches(f, ITEM_UNIT_FIELDS)) bucket.valor_unitario = parseMoney(value)
+    else if (fieldMatches(f, ITEM_TOTAL_FIELDS)) bucket.valor_total = parseMoney(value)
+    if (bucket.valor_unitario && bucket.quantidade && !bucket.valor_total) {
+      bucket.valor_total = Number((Number(bucket.valor_unitario) * Number(bucket.quantidade)).toFixed(2))
+    }
     rows.set(row, bucket)
   }
   return [...rows.values()].filter((r) => r.descricao || r.quantidade || r.valor_total || r.valor_unitario)
 }
 
+function itemsTotal(items: AnyRecord[]) {
+  const total = (items || []).reduce((sum, item) => {
+    if (Number(item?.valor_total)) return sum + Number(item.valor_total)
+    if (Number(item?.valor_unitario) && Number(item?.quantidade)) return sum + Number(item.valor_unitario) * Number(item.quantidade)
+    return sum
+  }, 0)
+  return total ? Number(total.toFixed(2)) : 0
+}
+
+function pickTicketValue(fmap: Map<string, AnyRecord[]>, items: AnyRecord[], financeiro: boolean) {
+  const explicit = moneyByPriority(fmap, VALUE_TOTAL_FIELDS)
+  if (explicit) return explicit
+  if (financeiro) {
+    const financeFallback = moneyByPriority(fmap, ['precoUnitario', 'preço unitário', 'preco unitario', 'valorUnitario', 'valor unitario'])
+    if (financeFallback) return financeFallback
+  }
+  const totalItems = itemsTotal(items)
+  if (totalItems) return totalItems
+  return moneyByPriority(fmap, [...VALUE_TOTAL_FIELDS, ...ITEM_TOTAL_FIELDS])
+}
+
 function extractPagamento(fmap: Map<string, AnyRecord[]>) {
   return {
-    forma: firstField(fmap, ['formaPagamento', 'condicaoPagamento']) || null,
+    forma: firstField(fmap, ['formaDePagamento', 'formaPagamento', 'condicaoPagamento']) || null,
     data_pagamento: firstField(fmap, ['dataPagamento']) || null,
-    previsao_pagamento: firstField(fmap, ['previsaoPagamento', 'dataVencimento']) || null,
+    previsao_pagamento: firstField(fmap, ['previsaoPagamento', 'dataDeVencimento', 'dataVencimento']) || null,
     data_entrega: firstField(fmap, ['dataEntrega', 'prazoEntrega']) || null,
     nota_fiscal: firstField(fmap, ['notaFiscal', 'numeroNF', 'numeroNotaFiscal']) || null,
     chave_acesso: firstField(fmap, ['chaveAcesso']) || null,
@@ -414,23 +550,8 @@ function buildTicket(row: AnyRecord) {
   const atual = currentTask(tasks)
   const etapa = taskName(atual)
   const conferir = hasConferirEntrega(tasks) || row.active === false || Boolean(row.endDateTime)
-  const rawValor = firstField(fmap, [
-    'valorFinal',
-    'valorTotal',
-    'valorDaCompra',
-    'valorCompra',
-    'valorPedido',
-    'valorAprovado',
-    'valorSolicitado',
-    'valorOrcado',
-    'valorEstimado',
-    'orcamento',
-    'precoFinal',
-    'precoTotal',
-    'total',
-    'valor',
-  ])
-  const valor = parseMoney(rawValor)
+  const itens = extractItems(fields)
+  const valor = pickTicketValue(fmap, itens, financeiro)
   const valorFinal = valor && (!compra || conferir || financeiro) ? valor : null
   const valorStatus = valorFinal ? 'final' : valor ? 'estimado' : 'nao_encontrado'
   const desc = firstField(fmap, [
@@ -445,7 +566,6 @@ function buildTicket(row: AnyRecord) {
   const unidade = firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto']))
   const marca = firstField(fmap, ['marca'])
   const categoria = firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra'])
-  const itens = extractItems(fields)
   const pagamento = extractPagamento(fmap)
   const campos = fieldsObject(fields)
   const setor = financeiro ? 'FINANCEIRO' : 'COMPRAS'
@@ -489,7 +609,7 @@ function buildTicket(row: AnyRecord) {
     raw_instance: row,
     raw_tasks: tasks,
     itens_json: itens,
-    pagamento_json: pagamento,
+    pagamento_json: { ...pagamento, valor_total: valor || null },
     campos_extraidos: campos,
     enrichment_errors: Array.isArray(row.__enrichmentErrors) ? row.__enrichmentErrors : [],
     last_seen_at: new Date().toISOString(),
