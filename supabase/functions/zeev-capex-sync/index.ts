@@ -673,6 +673,13 @@ async function saveState(id: string, patch: AnyRecord) {
   })
 }
 
+async function pendingValueBackfillIds(limit: number) {
+  const n = Math.max(0, Math.min(Number(limit) || 0, 25))
+  if (!n) return []
+  const rows = await rest(`/capex_zeev_solicitacoes?status=eq.pendente&valor=is.null&select=zeev_instance_id,start_date_time&order=start_date_time.desc&limit=${n}`)
+  return (rows || []).map((row: AnyRecord) => Number(row.zeev_instance_id)).filter(Boolean)
+}
+
 async function zeevReport(flow: number, page: number, start: string, end: string) {
   const token = env('ZEEV_TOKEN')
   if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
@@ -1038,7 +1045,11 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
     maxPages: input.maxPages || input.max_pages || (syncMode === 'retro' ? '999' : '2'),
     recordsPerPage: input.recordsPerPage || input.records_per_page || env('ZEEV_RECORDS_PER_PAGE', '30'),
     ticketIds: input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '',
+    extraTicketIds: input.extraTicketIds || input.extra_ticket_ids || '',
     notify: input.notify !== false,
+  }
+  if (!body.ticketIds && !body.extraTicketIds && input.backfillMissingValues !== false && syncMode !== 'retro') {
+    body.extraTicketIds = await pendingValueBackfillIds(input.backfillLimit || env('ZEEV_BACKFILL_LIMIT', '8'))
   }
   await saveState('zeev-capex', {
     running: true,
