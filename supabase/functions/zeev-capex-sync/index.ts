@@ -1037,6 +1037,7 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
     flowIds: input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','),
     maxPages: input.maxPages || input.max_pages || (syncMode === 'retro' ? '999' : '2'),
     recordsPerPage: input.recordsPerPage || input.records_per_page || env('ZEEV_RECORDS_PER_PAGE', '30'),
+    ticketIds: input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '',
     notify: input.notify !== false,
   }
   await saveState('zeev-capex', {
