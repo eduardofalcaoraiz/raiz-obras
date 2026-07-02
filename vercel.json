@@ -5,6 +5,9 @@
     },
     "api/advanced_ocr.py": {
       "maxDuration": 60
+    },
+    "api/zeev_capex_sync.py": {
+      "maxDuration": 60
     }
   }
 }
