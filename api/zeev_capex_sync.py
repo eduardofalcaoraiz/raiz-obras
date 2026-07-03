@@ -91,6 +91,7 @@ class handler(BaseHTTPRequestHandler):
         os.environ["ZEEV_SYNC_MODE"] = mode
         os.environ["ZEEV_MAX_PAGES"] = max_pages
         os.environ["ZEEV_RECORDS_PER_PAGE"] = page_size
+        os.environ["ZEEV_BUSINESS_TIMEZONE"] = str(payload.get("businessTimezone") or payload.get("business_timezone") or "America/Sao_Paulo")
         os.environ["ZEEV_NOTIFY"] = "true" if _as_bool(payload.get("notify"), mode != "retro") else "false"
         if payload.get("start"):
             os.environ["ZEEV_SYNC_START"] = str(payload["start"])
@@ -113,8 +114,8 @@ class handler(BaseHTTPRequestHandler):
             mod = importlib.import_module("scripts.zeev_capex_sync")
             mod = importlib.reload(mod)
             if mode == "retro":
-                start = os.environ.get("ZEEV_SYNC_START", "2026-04-01T00:00:00")
-                end = os.environ.get("ZEEV_SYNC_END", "2026-07-01T23:59:59")
+                start = os.environ.get("ZEEV_SYNC_START", "2026-04-01T00:00:00-03:00")
+                end = os.environ.get("ZEEV_SYNC_END", "2026-07-01T23:59:59-03:00")
             else:
                 start, end = mod.default_window()
             flows = [int(x) for x in flow_ids.split(",") if x.strip()]
