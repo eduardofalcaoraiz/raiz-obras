@@ -708,7 +708,14 @@ def main():
     page_size = int(os.environ.get("ZEEV_RECORDS_PER_PAGE", "30"))
     notify = os.environ.get("ZEEV_NOTIFY", "false").lower() == "true"
     ticket_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS", ""))
-    tickets = sync_ids(ticket_ids) if ticket_ids else sync(start, end, FLOW_IDS, max_pages=max_pages, page_size=page_size)
+    extra_ticket_ids = parse_ticket_ids(os.environ.get("ZEEV_EXTRA_TICKET_IDS", ""))
+    if ticket_ids:
+        tickets = sync_ids(ticket_ids)
+    else:
+        merged = {t["zeev_instance_id"]: t for t in sync(start, end, FLOW_IDS, max_pages=max_pages, page_size=page_size)}
+        for ticket in sync_ids(extra_ticket_ids):
+            merged[ticket["zeev_instance_id"]] = ticket
+        tickets = sorted(merged.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
     result = ingest(tickets, notify=notify)
     print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "ingest": result}, ensure_ascii=False))
 
