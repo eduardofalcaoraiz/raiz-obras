@@ -46,6 +46,8 @@ select cron.schedule(
         'flowIds', '299',
         'maxPages', 6,
         'recordsPerPage', 30,
+        'refreshKnownTickets', true,
+        'refreshLimit', 8,
         'notify', true,
         'source', 'supabase-pg-cron'
       ),
@@ -73,6 +75,8 @@ select cron.schedule(
         'flowIds', '275',
         'maxPages', 6,
         'recordsPerPage', 30,
+        'refreshKnownTickets', true,
+        'refreshLimit', 8,
         'notify', true,
         'source', 'supabase-pg-cron'
       ),
@@ -100,6 +104,8 @@ select cron.schedule(
         'flowIds', '102',
         'maxPages', 6,
         'recordsPerPage', 30,
+        'refreshKnownTickets', true,
+        'refreshLimit', 8,
         'notify', true,
         'source', 'supabase-pg-cron'
       ),
@@ -127,6 +133,8 @@ select cron.schedule(
         'flowIds', '300',
         'maxPages', 6,
         'recordsPerPage', 30,
+        'refreshKnownTickets', true,
+        'refreshLimit', 8,
         'notify', true,
         'source', 'supabase-pg-cron'
       ),
@@ -152,6 +160,8 @@ select cron.schedule(
         'workflowMode', 'incremental',
         'flowIds', '299,275,102,300',
         'maxPages', 12,
+        'refreshKnownTickets', true,
+        'refreshLimit', 60,
         'notify', true,
         'source', 'supabase-pg-cron-catchup'
       ),
