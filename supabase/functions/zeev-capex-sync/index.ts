@@ -1132,7 +1132,17 @@ async function runSync(input: AnyRecord) {
 
 async function runIngest(input: AnyRecord) {
   const tickets = Array.isArray(input.tickets) ? input.tickets : []
-  if (!tickets.length) return { ok: true, mode: 'ingest', found: 0, new: 0, updated: 0, notified: 0 }
+  if (!tickets.length) {
+    await saveState('zeev-capex', {
+      running: false,
+      last_success_at: new Date().toISOString(),
+      last_error: null,
+      last_run_found: 0,
+      last_run_new: 0,
+      last_run_updated: 0,
+    })
+    return { ok: true, mode: 'ingest', found: 0, new: 0, updated: 0, notified: 0 }
+  }
   const normalized = tickets
     .filter((t: AnyRecord) => Number(t?.zeev_instance_id))
     .map((t: AnyRecord) => ({ ...t, last_seen_at: new Date().toISOString() }))
@@ -1157,6 +1167,15 @@ async function runIngest(input: AnyRecord) {
     notified: email.notified.length,
     emailFailures: email.failed,
   }
+}
+
+async function runSyncError(input: AnyRecord) {
+  const msg = String(input.error || input.message || 'Falha desconhecida na sincronizacao Zeev.').slice(0, 1500)
+  await saveState('zeev-capex', {
+    running: false,
+    last_error: msg,
+  })
+  return { ok: true, mode: 'sync-error', error: msg }
 }
 
 async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null) {
@@ -1279,6 +1298,11 @@ Deno.serve(async (req) => {
       if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
       if (!env('ZEEV_SYNC_SECRET')) return json({ ok: false, error: 'ZEEV_SYNC_SECRET nao configurado.' }, 500)
       const out = await runIngest(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'sync-error') {
+      if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
+      const out = await runSyncError(input || {})
       return json(out)
     }
     if (input?.mode === 'dispatch') {
