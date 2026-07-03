@@ -50,6 +50,20 @@ PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
     "descricaoServicoCompra",
 ]
 
+PURCHASE_JUSTIFICATION_FIELDS = [
+    "justificativaDoPedido",
+    "justificativa do pedido",
+    "justificativaPedido",
+    "justificativa pedido",
+    "justificativaDaCompra",
+    "justificativa da compra",
+    "justificativaDaSolicitacao",
+    "justificativa da solicitacao",
+    "justificativaSolicitacao",
+    "motivoDoPedido",
+    "motivo do pedido",
+]
+
 PURCHASE_ITEM_DESCRIPTION_FIELDS = [
     "item",
     "itens",
@@ -125,6 +139,7 @@ PURCHASE_FIELDS = [
     "cAPEX", "centroDeCusto", "centroCusto", "item", "itens", "produto", "produtos",
     "material", "materiais", "servico", "servicos", "descricao", "descricaoSolicitacao",
     "descricaoCompra", "descricaoProduto", "descricaoServico", "detalhamento", "justificativa",
+    *PURCHASE_JUSTIFICATION_FIELDS,
     "observacao", "observacoes", "quantidade", "quantidadeSolicitada", "qtd", "unidadeMedida",
     "valorTotalDoPagamento", "valorTotalPagamento", "valor", "valorTotal", "valorFinal", "valorCompra", "valorDaCompra", "valorSolicitado",
     "valorPedido", "valorAprovado", "valorOrcado", "valorEstimado", "orcamento", "preco",
@@ -564,10 +579,14 @@ def ticket_description(fields, items, financeiro=False, compra=False):
     if financeiro:
         return field_value_by_priority(fields, FINANCE_DESCRIPTION_FIELDS)
     if compra:
+        justification = field_value_by_priority(fields, PURCHASE_JUSTIFICATION_FIELDS)
         service_desc = field_value_by_priority(fields, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
+        items_text = item_summary(items)
+        if justification and not items_text:
+            return justification
         if service_desc:
             return service_desc
-        return item_summary(items)
+        return items_text or justification
     return ""
 
 
