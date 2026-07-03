@@ -488,6 +488,11 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-search-row{display:grid;grid-template-columns:1fr auto;gap:7px}
 .capex-zeev-search-row input{height:36px;width:100%;border:1px solid var(--line-2);border-radius:9px;background:rgba(255,255,255,.86);color:var(--ink);padding:7px 10px;font:800 13.5px "Space Grotesk",system-ui,sans-serif;outline:none}
 .capex-zeev-search-row input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
+.capex-zeev-type-filter{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.capex-zeev-type-filter button{height:36px;border:1px solid var(--line);background:rgba(255,255,255,.66);color:var(--muted);border-radius:999px;padding:0 11px;display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:850;transition:background .15s,border-color .15s,color .15s,transform .12s}
+.capex-zeev-type-filter button:hover{border-color:color-mix(in srgb,var(--accent) 28%,var(--line));background:rgba(255,255,255,.86);color:var(--ink);transform:translateY(-1px)}
+.capex-zeev-type-filter button.active{border-color:color-mix(in srgb,var(--accent) 48%,var(--line));background:color-mix(in srgb,var(--accent) 12%,#fff);color:var(--accent-text)}
+.capex-zeev-type-filter span{min-width:20px;height:20px;border-radius:999px;background:rgba(255,255,255,.72);border:1px solid color-mix(in srgb,currentColor 18%,transparent);display:inline-flex;align-items:center;justify-content:center;font-family:"Space Grotesk",system-ui,sans-serif;font-size:11px;font-weight:900;padding:0 6px}
 .capex-zeev-list{display:grid;grid-template-columns:1fr;gap:9px;max-height:calc(100vh - 352px);overflow:auto;padding:1px}
 .capex-zeev-card{--card-accent:var(--accent);--card-soft:var(--raiz-soft)}
 .capex-zeev-card.ready{--card-accent:var(--ok);--card-soft:var(--ok-bg)}
@@ -516,7 +521,7 @@ button{font-family:inherit;cursor:pointer}
 .obra-nf-result .capex-tr-code{background:var(--surface-2);border-color:rgba(23,60,52,.16);color:var(--ink)}
 .obra-nf-result.exact{background:#FFFBF4;border-color:rgba(248,136,8,.32)}
 @media(max-width:1280px){.capex-detail-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:940px){.capex-zeev-tools{grid-template-columns:1fr}.capex-zeev-list{max-height:none}.capex-expander-detail{overflow-x:auto}.capex-detail-grid,.capex-detail-actions{min-width:760px}.capex-detail-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:940px){.capex-zeev-tools{grid-template-columns:1fr}.capex-zeev-type-filter{justify-content:flex-start}.capex-zeev-list{max-height:none}.capex-expander-detail{overflow-x:auto}.capex-detail-grid,.capex-detail-actions{min-width:760px}.capex-detail-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:760px){.capex-tr-search{grid-template-columns:1fr}.capex-tr-result{grid-template-columns:1fr}.capex-tr-code,.capex-tr-status{width:max-content}.capex-zeev-search-row{grid-template-columns:1fr}.capex-expander-summary{min-width:900px}.capex-item-card .capex-expander-summary{min-width:860px}.capex-zeev-card .capex-expander-summary{min-width:960px}.capex-detail-edit{min-width:620px}}
 .global-dashboard{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin-bottom:16px;align-items:start}
 .gd-span-12{grid-column:span 12}.gd-span-8{grid-column:span 8}.gd-span-6{grid-column:span 6}.gd-span-4{grid-column:span 4}
@@ -5263,6 +5268,7 @@ let capexDashControls={focusDim:'',focusValue:''};
 let capexListStatus='Todos';
 let capexTrSearchQuery='';
 let capexZeevSearchQuery='';
+let capexZeevTypeFilter='todos';
 let capexAutoFinalizeSyncing={};
 
 const CAPEX_UNIT_EXCEPTIONS=[
@@ -5545,15 +5551,39 @@ function capexZeevSearchDigits(v){
   return String(v||'').replace(/\D+/g,'');
 }
 
+function capexZeevType(z){
+  if(capexZeevIsCompra(z))return'compras';
+  const txt=String(z.flow_name||z.request_name||'').toLowerCase();
+  if(txt.includes('financeir'))return'financeiras';
+  return'outros';
+}
+
+function capexZeevTypeLabel(type){
+  return type==='compras'?'Compras':type==='financeiras'?'Financeiras':type==='outros'?'Outros':'Todos';
+}
+
+function capexZeevTypeCounts(list){
+  const rows=list||capexZeevPendingList();
+  return rows.reduce((acc,z)=>{
+    acc.todos++;
+    const type=capexZeevType(z);
+    acc[type]=(acc[type]||0)+1;
+    return acc;
+  },{todos:0,compras:0,financeiras:0,outros:0});
+}
+
 function capexZeevFilteredPendingList(list){
-  const pend=list||capexZeevPendingList();
+  let pend=list||capexZeevPendingList();
+  if(capexZeevTypeFilter&&capexZeevTypeFilter!=='todos'){
+    pend=pend.filter(z=>capexZeevType(z)===capexZeevTypeFilter);
+  }
   const q=capexZeevSearchDigits(capexZeevSearchQuery);
   if(!q)return pend;
   return pend.filter(z=>capexZeevSearchDigits(z.zeev_instance_id||z.id).includes(q));
 }
 
 function capexZeevCountText(visible,total){
-  if(capexZeevSearchDigits(capexZeevSearchQuery))return `${visible} de ${total} pendente${total!==1?'s':''}`;
+  if(capexZeevSearchDigits(capexZeevSearchQuery)||capexZeevTypeFilter!=='todos')return `${visible} de ${total} pendente${total!==1?'s':''}`;
   return `${total} pendente${total!==1?'s':''}`;
 }
 
@@ -5562,6 +5592,18 @@ function setCapexZeevSearch(v){
   const input=document.getElementById('capex-zeev-ticket-search');
   if(input&&input.value!==capexZeevSearchQuery)input.value=capexZeevSearchQuery;
   renderCapexZeevResults();
+}
+
+function setCapexZeevTypeFilter(type){
+  capexZeevTypeFilter=['todos','compras','financeiras'].includes(type)?type:'todos';
+  renderCapexZeevResults();
+}
+
+function renderCapexZeevTypeFilters(allPend){
+  const counts=capexZeevTypeCounts(allPend);
+  return`<div class="capex-zeev-type-filter" role="group" aria-label="Filtrar registros pendentes por tipo">
+    ${['todos','compras','financeiras'].map(type=>`<button type="button" data-zeev-type-filter="${type}" class="${capexZeevTypeFilter===type?'active':''}" onclick="setCapexZeevTypeFilter('${type}')" title="Mostrar ${escHtml(capexZeevTypeLabel(type).toLowerCase())}">${escHtml(capexZeevTypeLabel(type))}<span>${counts[type]||0}</span></button>`).join('')}
+  </div>`;
 }
 
 function capexZeevSearchKey(ev){
@@ -5578,9 +5620,9 @@ function capexZeevDate(v){
 }
 
 function capexZeevKind(z){
-  const txt=String(z.flow_name||z.request_name||'').toLowerCase();
-  if(txt.includes('financeir'))return'Solicitacao financeira';
-  if(txt.includes('compra'))return'Solicitacao de compras';
+  const type=capexZeevType(z);
+  if(type==='financeiras')return'Solicitação financeira';
+  if(type==='compras')return'Solicitação de compras';
   return'Ticket Raiz';
 }
 
@@ -5794,7 +5836,10 @@ function renderCapexZeevCards(pend){
 function capexZeevResultsHtml(pend,total){
   const cards=renderCapexZeevCards(pend);
   if(pend.length)return`<div class="capex-zeev-list">${cards}</div>`;
-  if(capexZeevSearchDigits(capexZeevSearchQuery))return`<div class="capex-zeev-empty">Nenhum Ticket Raiz pendente encontrado para o numero informado. Existem ${total} pendente${total!==1?'s':''} na fila.</div>`;
+  if(capexZeevSearchDigits(capexZeevSearchQuery)||capexZeevTypeFilter!=='todos'){
+    const tipo=capexZeevTypeFilter!=='todos'?` em ${capexZeevTypeLabel(capexZeevTypeFilter).toLowerCase()}`:'';
+    return`<div class="capex-zeev-empty">Nenhum Ticket Raiz pendente encontrado${tipo} para os filtros atuais. Existem ${total} pendente${total!==1?'s':''} na fila.</div>`;
+  }
   return`<div class="capex-zeev-empty">Nenhum Ticket Raiz pendente de aprovacao neste momento. Use Atualizar Zeev para buscar novos registros agora.</div>`;
 }
 
@@ -5807,6 +5852,9 @@ function renderCapexZeevResults(){
   if(count)count.textContent=capexZeevCountText(pend.length,allPend.length);
   const clear=document.getElementById('capex-zeev-clear');
   if(clear)clear.style.display=capexZeevSearchDigits(capexZeevSearchQuery)?'':'none';
+  document.querySelectorAll('[data-zeev-type-filter]').forEach(btn=>{
+    btn.classList.toggle('active',btn.getAttribute('data-zeev-type-filter')===capexZeevTypeFilter);
+  });
 }
 
 function renderCapexZeevQueue(){
@@ -5835,6 +5883,7 @@ function renderCapexZeevQueue(){
           <button class="btn btn-ghost btn-sm" id="capex-zeev-clear" style="${capexZeevSearchDigits(capexZeevSearchQuery)?'':'display:none'}" onclick="setCapexZeevSearch('')">Limpar</button>
         </div>
       </div>
+      ${renderCapexZeevTypeFilters(allPend)}
     </div>
     <div id="capex-zeev-results">${capexZeevResultsHtml(pend,allPend.length)}</div>
   </section>`;
