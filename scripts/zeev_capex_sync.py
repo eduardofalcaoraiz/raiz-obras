@@ -7,6 +7,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 
 ZEEV_BASE_URL = os.environ.get("ZEEV_BASE_URL", "https://raizeducacao.zeev.it").rstrip("/")
@@ -15,6 +16,16 @@ ZEEV_TOKEN = os.environ.get("ZEEV_TOKEN", "")
 ZEEV_SYNC_SECRET = os.environ.get("ZEEV_SYNC_SECRET", "")
 FLOW_IDS = [int(x) for x in os.environ.get("ZEEV_FLOW_IDS", "299,275,102,300").split(",") if x.strip()]
 FINANCE_FLOW_IDS = {299, 275}
+BUSINESS_TIMEZONE = os.environ.get("ZEEV_BUSINESS_TIMEZONE", "America/Sao_Paulo")
+
+
+def business_tz():
+    try:
+        return ZoneInfo(BUSINESS_TIMEZONE)
+    except Exception:
+        if BUSINESS_TIMEZONE == "America/Sao_Paulo":
+            return timezone(timedelta(hours=-3), BUSINESS_TIMEZONE)
+        return timezone.utc
 
 FINANCE_DESCRIPTION_FIELDS = [
     "informacoesReferentesASolicitacao",
@@ -679,9 +690,9 @@ def ingest(tickets, notify=False):
 
 
 def default_window():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(business_tz())
     start = now - timedelta(hours=float(os.environ.get("ZEEV_SYNC_OVERLAP_HOURS", "12")))
-    return start.isoformat(), (now + timedelta(minutes=5)).isoformat()
+    return start.isoformat(timespec="seconds"), (now + timedelta(minutes=5)).isoformat(timespec="seconds")
 
 
 def main():
@@ -689,8 +700,8 @@ def main():
         raise SystemExit("ZEEV_TOKEN e ZEEV_SYNC_SECRET sao obrigatorios.")
     mode = os.environ.get("ZEEV_SYNC_MODE", "incremental")
     if mode == "retro":
-        start = os.environ.get("ZEEV_SYNC_START", "2026-04-01T00:00:00")
-        end = os.environ.get("ZEEV_SYNC_END", "2026-07-01T23:59:59")
+        start = os.environ.get("ZEEV_SYNC_START", "2026-04-01T00:00:00-03:00")
+        end = os.environ.get("ZEEV_SYNC_END", "2026-07-01T23:59:59-03:00")
     else:
         start, end = default_window()
     max_pages = int(os.environ.get("ZEEV_MAX_PAGES", "2" if mode != "retro" else "999"))
