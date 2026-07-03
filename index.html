@@ -5711,7 +5711,7 @@ function renderCapexZeevCards(pend){
   return pend.map(z=>{
     const id=+z.id;
     const code=escHtml(z.zeev_instance_id||id);
-    const title=escHtml(z.pedido||z.request_name||z.flow_name||'Ticket Raiz CAPEX');
+    const title=escHtml(z.pedido||'Descricao pendente no Zeev');
     const meta=[capexZeevKind(z),z.requester_name,z.requester_team,capexZeevDate(z.start_date_time)].filter(Boolean).map(escHtml).join(' &middot; ');
     const stage=escHtml(capexZeevStageLabel(z));
     const ticketStatus=escHtml(capexZeevTicketStatus(z));
@@ -5831,7 +5831,7 @@ function openCapexZeevApproval(id){
   populateCapexCategorySelect(z.categoria_capex||'capex_outros');
   document.getElementById('ci-m-fonte').value='UNIDADE';
   document.getElementById('ci-m-unidade').value='';
-  document.getElementById('ci-m-pedido').value=z.pedido||z.request_name||z.flow_name||('Ticket Raiz #'+(z.zeev_instance_id||id));
+  document.getElementById('ci-m-pedido').value=z.pedido||'';
   document.getElementById('ci-m-ref').value=String(z.zeev_instance_id||'');
   updateCapexTrDuplicateHint(String(z.zeev_instance_id||''));
   populateCapexSetorSelect(z.setor||'COMPRAS');
