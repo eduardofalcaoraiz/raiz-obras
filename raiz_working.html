@@ -515,6 +515,13 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-fact b{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
 .capex-zeev-fact span{display:block;font-size:12.3px;line-height:1.4;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-zeev-empty{font-size:12.5px;color:var(--muted);border:1px dashed var(--line-2);background:rgba(255,255,255,.55);border-radius:10px;padding:12px}
+.capex-zeev-secondary{margin-top:14px;padding-top:14px;border-top:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 14%,var(--line))}
+.capex-zeev-secondary-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.capex-zeev-secondary-title{font-size:13.5px;font-weight:900;color:var(--ink);line-height:1.2}
+.capex-zeev-secondary-sub{font-size:11.8px;color:var(--muted);margin-top:2px;line-height:1.35}
+.capex-zeev-card.not-capex{--card-accent:var(--muted);--card-soft:var(--surface-2)}
+.capex-zeev-card.not-capex .capex-summary-code{color:var(--muted)}
+.capex-zeev-card.not-capex .capex-zeev-money-value{color:var(--muted)}
 .capex-context.zeev{display:block}
 .capex-context-ticket{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
 .capex-context-ticket:last-child{margin-bottom:0}
@@ -5617,6 +5624,10 @@ function capexZeevPendingList(){
   return(capexZeevSolicitacoes||[]).filter(z=>String(z.status||'pendente')==='pendente').sort((a,b)=>String(b.start_date_time||'').localeCompare(String(a.start_date_time||''))||(+b.zeev_instance_id||0)-(+a.zeev_instance_id||0));
 }
 
+function capexZeevNotCapexList(){
+  return(capexZeevSolicitacoes||[]).filter(z=>String(z.status||'')==='ignorado').sort((a,b)=>String(b.ignorado_em||b.updated_at||b.start_date_time||'').localeCompare(String(a.ignorado_em||a.updated_at||a.start_date_time||''))||(+b.zeev_instance_id||0)-(+a.zeev_instance_id||0));
+}
+
 function capexZeevSearchDigits(v){
   return String(v||'').replace(/\D+/g,'');
 }
@@ -5920,13 +5931,76 @@ function renderCapexZeevCards(pend){
           <span class="capex-detail-label">Aprovação manual antes de virar pedido CAPEX</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
             ${z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener">Abrir Ticket Raiz</a>`:''}
-            <button class="btn btn-ghost btn-sm" onclick="ignoreCapexZeev(${id})">Ignorar</button>
+            <button class="btn btn-ghost btn-sm" onclick="ignoreCapexZeev(${id})">NÃO É CAPEX</button>
             <button class="btn btn-primary btn-sm" onclick="openCapexZeevApproval(${id})">Aprovar e registrar</button>
           </div>
         </div>
       </div>
     </details>`;
   }).join('');
+}
+
+function renderCapexZeevNotCapexCards(rows){
+  return rows.map(z=>{
+    const id=+z.id;
+    const code=escHtml(z.zeev_instance_id||id);
+    const title=escHtml(z.pedido||'Descricao pendente no Zeev');
+    const meta=[capexZeevKind(z),z.requester_name,z.requester_team,capexZeevDate(z.start_date_time)].filter(Boolean).map(escHtml).join(' &middot; ');
+    const stage=escHtml(capexZeevStageLabel(z));
+    const flow=escHtml(capexZeevFlowLabel(z));
+    const valueInfo=capexZeevValueInfo(z);
+    const value=`<div class="capex-zeev-money review" title="${escHtml(capexZeevValueLabel(z))}"><span class="capex-zeev-money-label">${escHtml(valueInfo.label)}</span><strong class="capex-zeev-money-value">${escHtml(valueInfo.value)}</strong></div>`;
+    const compact=capexZeevCompactLine(z);
+    const marked=[z.ignorado_por,z.ignorado_em?capexZeevDate(z.ignorado_em):''].filter(Boolean).join(' &middot; ')||'Marcado na plataforma';
+    const link=z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')">Ticket</a>`:'';
+    return`<details class="capex-expander-card capex-zeev-card not-capex">
+      <summary>
+        <div class="capex-expander-summary">
+          <div class="capex-summary-id">
+            <div class="capex-summary-code">TR ${code}</div>
+            <span class="badge b-neutral capex-zeev-status" title="NÃO É CAPEX">NÃO É CAPEX</span>
+          </div>
+          <div class="capex-summary-main">
+            <div class="capex-summary-title" title="${title}">${title}</div>
+            <div class="capex-summary-meta">${meta||'Dados principais importados do Zeev'}</div>
+            <div class="capex-summary-line">${compact}</div>
+          </div>
+          <div class="capex-summary-stage"><span>Etapa</span><b>${stage}</b><em>${flow}</em></div>
+          ${value}
+          <div class="capex-summary-actions">
+            <button class="btn btn-primary btn-sm" onclick="event.preventDefault();event.stopPropagation();restoreCapexZeev(${id},true)">Registrar como CAPEX</button>
+            ${link}
+          </div>
+          <span class="capex-summary-toggle">›</span>
+        </div>
+      </summary>
+      <div class="capex-expander-detail">
+        <div class="capex-detail-grid">
+          ${capexZeevFactsHtmlClean(z)}
+          <div class="capex-detail-field"><b>Marcado como NÃO É CAPEX</b><span>${escHtml(marked)}</span></div>
+          <div class="capex-detail-field full"><b>Descricao importada</b><span>${title}</span></div>
+        </div>
+        <div class="capex-detail-actions">
+          <span class="capex-detail-label">Pode voltar para a fila e ser registrado como CAPEX se você mudar de ideia</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+            ${z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener">Abrir Ticket Raiz</a>`:''}
+            <button class="btn btn-primary btn-sm" onclick="restoreCapexZeev(${id},true)">Registrar como CAPEX</button>
+          </div>
+        </div>
+      </div>
+    </details>`;
+  }).join('');
+}
+
+function renderCapexZeevNotCapexSection(rows){
+  const count=rows.length;
+  return`<div class="capex-zeev-secondary">
+    <div class="capex-zeev-secondary-head">
+      <div><div class="capex-zeev-secondary-title">NÃO É CAPEX</div><div class="capex-zeev-secondary-sub">Tickets retirados da fila de aprovação. Se mudar de ideia, devolva o ticket para a fila e registre como CAPEX.</div></div>
+      <span class="capex-zeev-pill">${count} ticket${count!==1?'s':''}</span>
+    </div>
+    ${count?`<div class="capex-zeev-list">${renderCapexZeevNotCapexCards(rows)}</div>`:`<div class="capex-zeev-empty">Nenhum Ticket Raiz foi marcado como NÃO É CAPEX.</div>`}
+  </div>`;
 }
 
 function capexZeevResultsHtml(pend,total){
@@ -5956,10 +6030,11 @@ function renderCapexZeevResults(){
 function renderCapexZeevQueue(){
   const allPend=capexZeevPendingList();
   const pend=capexZeevFilteredPendingList(allPend);
+  const notCapex=capexZeevNotCapexList();
   const all=capexZeevSolicitacoes||[];
   const ready=allPend.filter(z=>z.pronto_valor_final||z.valor_status==='final').length;
   const approved=all.filter(z=>z.status==='aprovado').length;
-  const ignored=all.filter(z=>z.status==='ignorado').length;
+  const ignored=notCapex.length;
   return`<section class="capex-zeev-panel">
     <div class="capex-zeev-head">
       <div><div class="capex-zeev-title">Registros pendentes do Ticket Raiz</div><div class="capex-zeev-sub">Solicitacoes marcadas como CAPEX no Zeev. Revise os dados e escolha a unidade manualmente antes de registrar.</div></div>
@@ -5967,7 +6042,7 @@ function renderCapexZeevQueue(){
         <span class="capex-zeev-pill" id="capex-zeev-visible-count">${capexZeevCountText(pend.length,allPend.length)}</span>
         <span class="capex-zeev-pill">${ready} pronto${ready!==1?'s':''}</span>
         <span class="capex-zeev-pill">${approved} aprovado${approved!==1?'s':''}</span>
-        ${ignored?`<span class="capex-zeev-pill">${ignored} ignorado${ignored!==1?'s':''}</span>`:''}
+        ${ignored?`<span class="capex-zeev-pill">${ignored} NÃO É CAPEX</span>`:''}
         <button class="btn btn-ghost btn-sm" onclick="syncZeevCapexNow()">Atualizar Zeev</button>
       </div>
     </div>
@@ -5982,6 +6057,7 @@ function renderCapexZeevQueue(){
       ${renderCapexZeevTypeFilters(allPend)}
     </div>
     <div id="capex-zeev-results">${capexZeevResultsHtml(pend,allPend.length)}</div>
+    ${renderCapexZeevNotCapexSection(notCapex)}
   </section>`;
 }
 
@@ -6041,13 +6117,28 @@ async function ignoreCapexZeev(id){
   if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para esta operacao.');return;}
   const z=capexZeevSolicitacoes.find(x=>+x.id===+id);
   if(!z)return;
-  askConfirm('Ignorar o Ticket Raiz #'+(z.zeev_instance_id||id)+' na fila de CAPEX?',async()=>{
+  askConfirm('Marcar o Ticket Raiz #'+(z.zeev_instance_id||id)+' como NÃO É CAPEX?',async()=>{
     const payload={status:'ignorado',ignorado_por:currentUser?.email||'',ignorado_em:new Date().toISOString()};
     const{error}=await db.from('capex_zeev_solicitacoes').update(payload).eq('id',id).eq('status','pendente');
-    if(error){toast('Erro ao ignorar Ticket Raiz: '+error.message);return;}
+    if(error){toast('Erro ao marcar como NÃO É CAPEX: '+error.message);return;}
     Object.assign(z,payload);
     renderCapexView();
-    toast('Ticket Raiz ignorado.');
+    toast('Ticket Raiz marcado como NÃO É CAPEX.');
+  });
+}
+
+async function restoreCapexZeev(id,openAfter){
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para esta operacao.');return;}
+  const z=capexZeevSolicitacoes.find(x=>+x.id===+id);
+  if(!z)return;
+  askConfirm('Mover o Ticket Raiz #'+(z.zeev_instance_id||id)+' de volta para registrar como CAPEX?',async()=>{
+    const payload={status:'pendente',ignorado_por:null,ignorado_em:null};
+    const{error}=await db.from('capex_zeev_solicitacoes').update(payload).eq('id',id).eq('status','ignorado');
+    if(error){toast('Erro ao voltar Ticket Raiz para CAPEX: '+error.message);return;}
+    Object.assign(z,payload);
+    renderCapexView();
+    toast('Ticket Raiz voltou para a fila de CAPEX.');
+    if(openAfter)setTimeout(()=>openCapexZeevApproval(id),60);
   });
 }
 
