@@ -2,7 +2,7 @@ name: Zeev CAPEX Sync
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -29,6 +29,9 @@ on:
         default: "true"
       ticket_ids:
         description: "IDs especificos do Ticket Raiz separados por virgula"
+        required: false
+      extra_ticket_ids:
+        description: "IDs adicionais para atualizar junto com a janela incremental"
         required: false
 
 concurrency:
@@ -62,4 +65,5 @@ jobs:
           ZEEV_SYNC_OVERLAP_HOURS: "24"
           ZEEV_NOTIFY: ${{ github.event_name == 'workflow_dispatch' && inputs.notify || 'true' }}
           ZEEV_TICKET_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.ticket_ids || '' }}
+          ZEEV_EXTRA_TICKET_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.extra_ticket_ids || '' }}
         run: python scripts/zeev_capex_sync.py
