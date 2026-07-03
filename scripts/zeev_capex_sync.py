@@ -43,11 +43,11 @@ FINANCE_DESCRIPTION_FIELDS = [
 ]
 
 PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
-    "descricaoServico",
-    "descricao do servico",
-    "descricaoServicoSolicitado",
     "descricaoDoServico",
+    "descricaoServico",
+    "descricaoServicoSolicitado",
     "descricaoServicoCompra",
+    "descricao do servico",
 ]
 
 PURCHASE_JUSTIFICATION_FIELDS = [
@@ -596,6 +596,13 @@ def ticket_description(fields, items, financeiro=False, compra=False):
     return ""
 
 
+def looks_truncated_zeev_text(value):
+    text = str(value or "").strip()
+    if len(text) != 100:
+        return False
+    return not re.search(r"[.!?:;)\\]]$", text)
+
+
 def build_ticket(row):
     flow = row.get("flow") or {}
     flow_id = int(flow.get("id") or row.get("flowId") or 0)
@@ -614,8 +621,21 @@ def build_ticket(row):
     valor_status = "final" if valor_final else ("em_aprovacao" if compra and valor else ("estimado" if valor else "nao_encontrado"))
     unidade = field_value(fields, ["unidadeEscolar", "unidade", "escola", "filial", "localEntrega"]) or clean_unit(field_value(fields, ["centroDeCusto", "centroCusto"]))
     pedido = ticket_description(fields, itens, financeiro=financeiro, compra=compra)
+    service_desc = field_value_by_priority(fields, PURCHASE_SERVICE_DESCRIPTION_FIELDS) if compra else ""
+    descricao_truncada = bool(compra and service_desc and service_desc == pedido and looks_truncated_zeev_text(pedido))
     atual = current_task(tasks)
     situacao, realizado = suggested_capex_status(row, ready)
+    campos_extraidos = fields_object(fields)
+    if descricao_truncada:
+        campos_extraidos["_descricao_status"] = "parcial"
+        campos_extraidos["_descricao_origem"] = "descricaoDoServico"
+        campos_extraidos["_descricao_alerta"] = "O Zeev retornou a descricao do servico limitada a 100 caracteres. Abra o Ticket Raiz para conferir o texto integral."
+    enrichment_errors = list(row.get("__enrichmentErrors") or [])
+    if descricao_truncada:
+        enrichment_errors.append({
+            "field": "descricaoDoServico",
+            "warning": "Descricao do servico retornada pelo Zeev com 100 caracteres; texto provavelmente parcial.",
+        })
     return {
         "zeev_instance_id": int(row["id"]),
         "zeev_uid": row.get("uid"),
@@ -663,8 +683,8 @@ def build_ticket(row):
             "chave_acesso": field_value(fields, ["chaveAcesso"]) or None,
             "valor_total": valor or None,
         },
-        "campos_extraidos": fields_object(fields),
-        "enrichment_errors": row.get("__enrichmentErrors") or [],
+        "campos_extraidos": campos_extraidos,
+        "enrichment_errors": enrichment_errors,
     }
 
 
