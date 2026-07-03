@@ -24,11 +24,11 @@ const FINANCE_DESCRIPTION_FIELDS = [
   'Informacao referente a solicitacao',
 ]
 const PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
-  'descricaoServico',
-  'descricao do servico',
-  'descricaoServicoSolicitado',
   'descricaoDoServico',
+  'descricaoServico',
+  'descricaoServicoSolicitado',
   'descricaoServicoCompra',
+  'descricao do servico',
 ]
 const PURCHASE_JUSTIFICATION_FIELDS = [
   'JUSTIFICATIVA DO PEDIDO',
@@ -682,6 +682,12 @@ function ticketDescription(fmap: Map<string, AnyRecord[]>, items: AnyRecord[], f
   return ''
 }
 
+function looksTruncatedZeevText(value: unknown) {
+  const s = String(value || '').trim()
+  if (s.length !== 100) return false
+  return !/[.!?:;)\]]$/.test(s)
+}
+
 function buildTicket(row: AnyRecord) {
   const fields = Array.isArray(row?.formFields) ? row.formFields : []
   const tasks = Array.isArray(row?.instanceTasks) ? row.instanceTasks : []
@@ -700,13 +706,22 @@ function buildTicket(row: AnyRecord) {
   const valorFinal = valor && resultKind !== 'cancelado' && resultKind !== 'rejeitado' && (!compra || conferir || financeiro) ? valor : null
   const valorStatus = valorFinal ? 'final' : compra && valor ? 'em_aprovacao' : valor ? 'estimado' : 'nao_encontrado'
   const desc = ticketDescription(fmap, itens, financeiro, compra)
+  const serviceDesc = compra ? firstField(fmap, PURCHASE_SERVICE_DESCRIPTION_FIELDS) : ''
+  const descTruncada = Boolean(compra && serviceDesc && serviceDesc === desc && looksTruncatedZeevText(desc))
   const unidade = firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto']))
   const marca = firstField(fmap, ['marca'])
   const categoria = firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra'])
   const pagamento = extractPagamento(fmap)
   const campos = fieldsObject(fields)
+  if (descTruncada) {
+    campos._descricao_status = 'parcial'
+    campos._descricao_origem = 'descricaoDoServico'
+    campos._descricao_alerta = 'O Zeev retornou a descricao do servico limitada a 100 caracteres. Abra o Ticket Raiz para conferir o texto integral.'
+  }
   const setor = financeiro ? 'FINANCEIRO' : 'COMPRAS'
   const { situacao, realizado } = suggestedCapexStatus(row, conferir)
+  const enrichmentErrors = Array.isArray(row.__enrichmentErrors) ? [...row.__enrichmentErrors] : []
+  if (descTruncada) enrichmentErrors.push({ field: 'descricaoDoServico', warning: 'Descricao do servico retornada pelo Zeev com 100 caracteres; texto provavelmente parcial.' })
 
   return {
     zeev_instance_id: Number(row.id),
@@ -748,7 +763,7 @@ function buildTicket(row: AnyRecord) {
     itens_json: itens,
     pagamento_json: { ...pagamento, valor_total: valor || null },
     campos_extraidos: campos,
-    enrichment_errors: Array.isArray(row.__enrichmentErrors) ? row.__enrichmentErrors : [],
+    enrichment_errors: enrichmentErrors,
     last_seen_at: new Date().toISOString(),
   }
 }
