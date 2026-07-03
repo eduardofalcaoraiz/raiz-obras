@@ -5931,7 +5931,7 @@ const CAPEX_ZEEV_PURCHASE_JUSTIFICATION_FIELDS=[
   'justificativaDaCompra','justificativa da compra','justificativaDaSolicitacao','justificativa da solicitacao',
   'justificativaSolicitacao','motivoDoPedido','motivo do pedido','justificativa'
 ];
-const CAPEX_ZEEV_PURCHASE_SERVICE_FIELDS=['descricaoServico','descricao do servico','descricaoServicoSolicitado','descricaoDoServico','descricaoServicoCompra'];
+const CAPEX_ZEEV_PURCHASE_SERVICE_FIELDS=['descricaoDoServico','descricaoServico','descricaoServicoSolicitado','descricaoServicoCompra','descricao do servico'];
 const CAPEX_ZEEV_PURCHASE_ITEM_FIELDS=[
   'descricaoCompra','descricaoProduto','item','itens','servico','servicos','produto','produtos',
   'material','materiais','descricaoItem','descricao do item','listaParaCotacao','lista de itens para cotacao',
@@ -5962,6 +5962,7 @@ function capexZeevDescricaoLancamento(z){
   const itemField=capexZeevAnyField(z,CAPEX_ZEEV_PURCHASE_ITEM_FIELDS);
   if(capexZeevType(z)==='compras'){
     if(justification&&!itemText)return justification;
+    if(service)return service;
     return stored||service||itemText||itemField||justification||'';
   }
   return stored||capexZeevAnyField(z,[
@@ -5991,12 +5992,14 @@ function capexZeevFactsHtml(z){
   const item=capexZeevFirstItem(z);
   const pagamento=capexZeevPaymentSummary(z);
   const solicitante=[z.requester_name,z.requester_team].filter(Boolean).join(' · ');
+  const descAlert=z?.campos_extraidos?._descricao_alerta||'';
   const facts=[
     {label:'Solicitante',value:solicitante||'Nao informado'},
     {label:'Fornecedor / favorecido',value:fornecedor||'Nao informado'},
     {label:'Item / servico pedido',value:item||'Nao informado'},
-    {label:'Pagamento / anexos',value:pagamento||'Nao informado'}
-  ];
+    {label:'Pagamento / anexos',value:pagamento||'Nao informado'},
+    descAlert?{label:'Leitura Zeev',value:descAlert}:null
+  ].filter(Boolean);
   return facts.map(f=>`<div class="capex-zeev-fact" title="${escHtml(f.value)}"><b>${escHtml(f.label)}</b><span>${escHtml(f.value)}</span></div>`).join('');
 }
 
@@ -6016,11 +6019,13 @@ function capexZeevFactsHtmlClean(z){
   const fornecedor=capexZeevField(z,['fornecedor','nomeFornecedor','razaoSocial','fornecedorEscolhido','favorecido','beneficiario']);
   const item=capexZeevFirstItem(z);
   const pagamento=capexZeevPaymentSummaryClean(z);
+  const descAlert=z?.campos_extraidos?._descricao_alerta||'';
   const facts=[
     {label:'Fornecedor',value:fornecedor||'Nao informado'},
     {label:'Item / servico',value:item||'Nao informado'},
-    {label:'Pagamento',value:pagamento||'Nao informado'}
-  ];
+    {label:'Pagamento',value:pagamento||'Nao informado'},
+    descAlert?{label:'Leitura Zeev',value:descAlert}:null
+  ].filter(Boolean);
   return facts.map(f=>`<div class="capex-zeev-fact" title="${escHtml(f.value)}"><b>${escHtml(f.label)}</b><span>${escHtml(f.value)}</span></div>`).join('');
 }
 
