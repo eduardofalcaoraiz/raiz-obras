@@ -677,8 +677,6 @@ def sync_ids(instance_ids):
 
 
 def ingest(tickets, notify=False):
-    if not tickets:
-        return {"ok": True, "found": 0}
     payload = {"mode": "ingest", "tickets": tickets, "notify": notify}
     return request_json(
         "POST",
@@ -686,6 +684,19 @@ def ingest(tickets, notify=False):
         headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
         payload=payload,
         timeout=120,
+    )
+
+
+def report_sync_error(error):
+    if not ZEEV_SYNC_SECRET:
+        return None
+    payload = {"mode": "sync-error", "error": str(error)[:1500]}
+    return request_json(
+        "POST",
+        f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+        headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+        payload=payload,
+        timeout=60,
     )
 
 
@@ -721,4 +732,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        try:
+            report_sync_error(exc)
+        except Exception as report_exc:
+            print(json.dumps({"syncError": str(exc)[:500], "reportError": str(report_exc)[:500]}, ensure_ascii=False), file=sys.stderr)
+        raise
