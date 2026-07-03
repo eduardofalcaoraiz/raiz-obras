@@ -30,6 +30,19 @@ const PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
   'descricaoDoServico',
   'descricaoServicoCompra',
 ]
+const PURCHASE_JUSTIFICATION_FIELDS = [
+  'justificativaDoPedido',
+  'justificativa do pedido',
+  'justificativaPedido',
+  'justificativa pedido',
+  'justificativaDaCompra',
+  'justificativa da compra',
+  'justificativaDaSolicitacao',
+  'justificativa da solicitacao',
+  'justificativaSolicitacao',
+  'motivoDoPedido',
+  'motivo do pedido',
+]
 const PURCHASE_ITEM_DESCRIPTION_FIELDS = [
   'item',
   'itens',
@@ -82,6 +95,7 @@ const EXTRA_FIELDS = [
   'objeto',
   'resumo',
   'justificativa',
+  ...PURCHASE_JUSTIFICATION_FIELDS,
   'fornecedor',
   'nomeFornecedor',
   'razaoSocial',
@@ -206,6 +220,7 @@ const PURCHASE_ENRICH_FIELDS = [
   'descricaoServico',
   'detalhamento',
   'justificativa',
+  ...PURCHASE_JUSTIFICATION_FIELDS,
   'observacao',
   'observacoes',
   'quantidade',
@@ -651,9 +666,12 @@ function itemSummary(items: AnyRecord[]) {
 function ticketDescription(fmap: Map<string, AnyRecord[]>, items: AnyRecord[], financeiro: boolean, compra: boolean) {
   if (financeiro) return firstField(fmap, FINANCE_DESCRIPTION_FIELDS)
   if (compra) {
+    const justification = firstField(fmap, PURCHASE_JUSTIFICATION_FIELDS)
     const serviceDesc = firstField(fmap, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
+    const itemsText = itemSummary(items)
+    if (justification && !itemsText) return justification
     if (serviceDesc) return serviceDesc
-    return itemSummary(items)
+    return itemsText || justification
   }
   return ''
 }
@@ -904,6 +922,15 @@ async function zeevInstance(instanceId: number, flow: number, fields: string[]) 
 async function collectInstanceFields(instanceId: number, flow: number, fields: string[], chunkSize = 8) {
   const found: AnyRecord[] = []
   const errors: AnyRecord[] = []
+  let last: AnyRecord | null = null
+
+  try {
+    const data = await zeevInstance(instanceId, flow, [])
+    if (Array.isArray(data.formFields)) found.push(...data.formFields)
+    last = data
+  } catch (error) {
+    errors.push({ field: '__all__', error: error instanceof Error ? error.message : String(error) })
+  }
 
   const queryChunk = async (chunk: string[]) => {
     if (!chunk.length) return
@@ -923,7 +950,6 @@ async function collectInstanceFields(instanceId: number, flow: number, fields: s
     }
   }
 
-  let last: AnyRecord | null = null
   for (let i = 0; i < fields.length; i += chunkSize) {
     const data = await queryChunk(fields.slice(i, i + chunkSize))
     if (data) last = data
