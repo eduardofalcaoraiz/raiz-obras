@@ -5925,11 +5925,52 @@ function capexZeevFlowLabel(z){
   return `${name}${ver}`;
 }
 
+const CAPEX_ZEEV_PURCHASE_JUSTIFICATION_FIELDS=[
+  'justificativaDoPedido','justificativa do pedido','justificativaPedido','justificativa pedido',
+  'justificativaDaCompra','justificativa da compra','justificativaDaSolicitacao','justificativa da solicitacao',
+  'justificativaSolicitacao','motivoDoPedido','motivo do pedido','justificativa'
+];
+const CAPEX_ZEEV_PURCHASE_SERVICE_FIELDS=['descricaoServico','descricao do servico','descricaoServicoSolicitado','descricaoDoServico','descricaoServicoCompra'];
+const CAPEX_ZEEV_PURCHASE_ITEM_FIELDS=[
+  'descricaoCompra','descricaoProduto','item','itens','servico','servicos','produto','produtos',
+  'material','materiais','descricaoItem','descricao do item','listaParaCotacao','lista de itens para cotacao',
+  'lista para cotacao','descricao','detalhamento'
+];
+
+function capexZeevItemSummary(z){
+  const itens=Array.isArray(z?.itens_json)?z.itens_json:[];
+  const parts=[];
+  itens.forEach(it=>{
+    if(!it)return;
+    const desc=String(it.descricao||'').replace(/^\s*\d+(?:[.\-]\d+)*\s*-\s*/,'').replace(/\s+/g,' ').trim();
+    if(!desc)return;
+    const qty=Number(it.quantidade||0);
+    const qtyText=Number.isFinite(qty)&&qty?(Number.isInteger(qty)?String(qty):String(qty).replace('.',',')):'';
+    const unit=String(it.unidade||'').trim();
+    const prefix=[qtyText,unit].filter(Boolean).join(' ').trim();
+    parts.push(prefix?`${prefix} - ${desc}`:desc);
+  });
+  return parts.join('; ');
+}
+
+function capexZeevDescricaoLancamento(z){
+  const stored=String(z?.pedido||'').trim();
+  const itemText=capexZeevItemSummary(z);
+  const justification=capexZeevAnyField(z,CAPEX_ZEEV_PURCHASE_JUSTIFICATION_FIELDS);
+  const service=capexZeevAnyField(z,CAPEX_ZEEV_PURCHASE_SERVICE_FIELDS);
+  const itemField=capexZeevAnyField(z,CAPEX_ZEEV_PURCHASE_ITEM_FIELDS);
+  if(capexZeevType(z)==='compras'){
+    if(justification&&!itemText)return justification;
+    return stored||service||itemText||itemField||justification||'';
+  }
+  return stored||capexZeevAnyField(z,[
+    'informacoesReferentesASolicitacao','informacoes referentes a solicitacao','informacoesReferentesSolicitacao',
+    'informacoesDaSolicitacao','informacoesSolicitacao','descricaoSolicitacao','solicitacao','pedido','objeto','resumo','descricao'
+  ])||stored;
+}
+
 function capexZeevFirstItem(z){
-  const itens=Array.isArray(z.itens_json)?z.itens_json:[];
-  const first=itens.find(it=>it&&(it.descricao||it.valor_total||it.quantidade));
-  if(first?.descricao)return first.descricao;
-  return capexZeevField(z,['descricaoServico','descricaoSolicitacao','descricaoCompra','descricaoProduto','item','itens','servico','servicos','produto','produtos','material','materiais','descricao','justificativa']);
+  return capexZeevDescricaoLancamento(z)||capexZeevAnyField(z,['descricaoServico','descricaoSolicitacao','descricaoCompra','descricaoProduto','item','itens','servico','servicos','produto','produtos','material','materiais','descricao','justificativa']);
 }
 
 function capexZeevPaymentSummary(z){
@@ -5998,7 +6039,7 @@ function renderCapexZeevCards(pend){
   return pend.map(z=>{
     const id=+z.id;
     const code=escHtml(z.zeev_instance_id||id);
-    const title=escHtml(z.pedido||'Descricao pendente no Zeev');
+    const title=escHtml(capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev');
     const meta=[capexZeevKind(z),z.requester_name,z.requester_team,capexZeevDate(z.start_date_time)].filter(Boolean).map(escHtml).join(' &middot; ');
     const stage=escHtml(capexZeevStageLabel(z));
     const ticketStatus=escHtml(capexZeevTicketStatus(z));
@@ -6059,7 +6100,7 @@ function renderCapexZeevNotCapexCards(rows){
   return rows.map(z=>{
     const id=+z.id;
     const code=escHtml(z.zeev_instance_id||id);
-    const title=escHtml(z.pedido||'Descricao pendente no Zeev');
+    const title=escHtml(capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev');
     const meta=[capexZeevKind(z),z.requester_name,z.requester_team,capexZeevDate(z.start_date_time)].filter(Boolean).map(escHtml).join(' &middot; ');
     const stage=escHtml(capexZeevStageLabel(z));
     const flow=escHtml(capexZeevFlowLabel(z));
@@ -6222,7 +6263,7 @@ function openCapexZeevApproval(id){
   populateCapexCategorySelect(z.categoria_capex||'capex_outros');
   document.getElementById('ci-m-fonte').value='UNIDADE';
   document.getElementById('ci-m-unidade').value='';
-  document.getElementById('ci-m-pedido').value=z.pedido||'';
+  document.getElementById('ci-m-pedido').value=capexZeevDescricaoLancamento(z)||'';
   document.getElementById('ci-m-ref').value=String(z.zeev_instance_id||'');
   updateCapexTrDuplicateHint(String(z.zeev_instance_id||''));
   populateCapexSetorSelect(z.setor||'COMPRAS');
