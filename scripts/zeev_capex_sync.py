@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -14,6 +15,48 @@ ZEEV_TOKEN = os.environ.get("ZEEV_TOKEN", "")
 ZEEV_SYNC_SECRET = os.environ.get("ZEEV_SYNC_SECRET", "")
 FLOW_IDS = [int(x) for x in os.environ.get("ZEEV_FLOW_IDS", "299,275,102,300").split(",") if x.strip()]
 FINANCE_FLOW_IDS = {299, 275}
+
+FINANCE_DESCRIPTION_FIELDS = [
+    "informacoesReferentesASolicitacao",
+    "informacoesReferentesSolicitacao",
+    "informacoesReferenteASolicitacao",
+    "informacaoReferenteASolicitacao",
+    "informacaoReferenteSolicitacao",
+    "informacoesDaSolicitacao",
+    "informacoesSolicitacao",
+    "informacaoSolicitacao",
+    "informacoes",
+    "informacao",
+    "Informacoes referentes a solicitacao",
+    "Informacao referente a solicitacao",
+]
+
+PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
+    "descricaoServico",
+    "descricao do servico",
+    "descricaoServicoSolicitado",
+    "descricaoDoServico",
+    "descricaoServicoCompra",
+]
+
+PURCHASE_ITEM_DESCRIPTION_FIELDS = [
+    "item",
+    "itens",
+    "produto",
+    "produtos",
+    "material",
+    "materiais",
+    "nomeItem",
+    "nomeDoItem",
+    "nome do item",
+    "descricaoItem",
+    "descricao do item",
+    "itemCotacao",
+    "item para cotacao",
+    "listaParaCotacao",
+    "lista de itens para cotacao",
+    "lista para cotacao",
+]
 
 DEFAULT_CAPEX_FIELDS = {
     299: ["investimentoCAPEX", "É um investimento (CAPEX)?", "E um investimento (CAPEX)?", "CAPEX"],
@@ -61,6 +104,7 @@ ITEM_DESC_FIELDS = [
     "serviços", "servico", "servicos", "descricaoProduto", "descricao do produto",
     "descricaoServico", "descrição do serviço", "descricao do servico",
     "descricaoItem", "descricao do item", "descrição", "descricao", "detalhamento",
+    *PURCHASE_ITEM_DESCRIPTION_FIELDS,
 ]
 
 ITEM_QTY_FIELDS = ["quantidade", "quantidade solicitada", "quantidadeSolicitada", "qtd", "qtde"]
@@ -80,6 +124,7 @@ PURCHASE_FIELDS = [
     "localEntrega", "solicitante", "setor", "departamento", "categoria", "categoriaCompra",
     "tipoCompra", "numeroTR", "ticket", "tr", "notaFiscal", "numeroNF", "numeroNotaFiscal",
     "valorNotaFiscal", "chaveAcesso", "anexo", "arquivo", "arquivoNF", "comprovante", "boleto", "pix",
+    *PURCHASE_SERVICE_DESCRIPTION_FIELDS, *PURCHASE_ITEM_DESCRIPTION_FIELDS,
 ]
 
 FINANCE_FIELDS = [
@@ -91,6 +136,7 @@ FINANCE_FIELDS = [
     "descricaoSolicitacao", "solicitacao", "pedido", "objeto", "resumo", "justificativa",
     "observacao", "observacoes", "categoria", "categoriaFinanceira", "setor", "departamento",
     "numeroTR", "ticket", "tr",
+    *FINANCE_DESCRIPTION_FIELDS,
 ]
 
 
@@ -469,8 +515,49 @@ def fields_object(fields):
 
 
 def clean_unit(value):
-    import re
     return re.sub(r"^\s*\d+(?:[.\-]\d+)*\s*-\s*", "", str(value or "")).strip()
+
+
+def clean_item_description(value):
+    text = str(value or "").strip()
+    text = re.sub(r"^\s*\d+(?:[.\-]\d+)*\s*-\s*", "", text)
+    return re.sub(r"\s+", " ", text).strip(" -;")
+
+
+def format_qty(value):
+    try:
+        qty = float(value or 0)
+    except (TypeError, ValueError):
+        return ""
+    if not qty:
+        return ""
+    if qty.is_integer():
+        return str(int(qty))
+    return f"{qty:g}".replace(".", ",")
+
+
+def item_summary(items):
+    parts = []
+    for item in items or []:
+        desc = clean_item_description(item.get("descricao"))
+        if not desc:
+            continue
+        qty = format_qty(item.get("quantidade"))
+        unit = str(item.get("unidade") or "").strip()
+        prefix = " ".join(x for x in [qty, unit] if x).strip()
+        parts.append(f"{prefix} - {desc}" if prefix else desc)
+    return "; ".join(parts)
+
+
+def ticket_description(fields, items, financeiro=False, compra=False):
+    if financeiro:
+        return field_value_by_priority(fields, FINANCE_DESCRIPTION_FIELDS)
+    if compra:
+        service_desc = field_value_by_priority(fields, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
+        if service_desc:
+            return service_desc
+        return item_summary(items)
+    return ""
 
 
 def build_ticket(row):
@@ -490,7 +577,7 @@ def build_ticket(row):
     valor_final = valor if valor and result_kind not in ("cancelado", "rejeitado") and (ready or financeiro) else None
     valor_status = "final" if valor_final else ("em_aprovacao" if compra and valor else ("estimado" if valor else "nao_encontrado"))
     unidade = field_value(fields, ["unidadeEscolar", "unidade", "escola", "filial", "localEntrega"]) or clean_unit(field_value(fields, ["centroDeCusto", "centroCusto"]))
-    pedido = field_value_by_priority(fields, ["descricaoSolicitacao", "descricao", "pedido", "solicitacao", "objeto", "resumo", "justificativa", "descricaoServico", "descricaoProduto", "item"]) or row.get("requestName")
+    pedido = ticket_description(fields, itens, financeiro=financeiro, compra=compra)
     atual = current_task(tasks)
     situacao, realizado = suggested_capex_status(row, ready)
     return {
