@@ -9,6 +9,45 @@ type AnyRecord = Record<string, any>
 const DEFAULT_FLOW_IDS = [299, 275, 102, 300]
 const FINANCE_FLOW_IDS = new Set([299, 275])
 const CAPEX_FIELDS = ['investimentoCAPEX', 'cAPEX', 'CAPEX', 'capex']
+const FINANCE_DESCRIPTION_FIELDS = [
+  'informacoesReferentesASolicitacao',
+  'informacoesReferentesSolicitacao',
+  'informacoesReferenteASolicitacao',
+  'informacaoReferenteASolicitacao',
+  'informacaoReferenteSolicitacao',
+  'informacoesDaSolicitacao',
+  'informacoesSolicitacao',
+  'informacaoSolicitacao',
+  'informacoes',
+  'informacao',
+  'Informacoes referentes a solicitacao',
+  'Informacao referente a solicitacao',
+]
+const PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
+  'descricaoServico',
+  'descricao do servico',
+  'descricaoServicoSolicitado',
+  'descricaoDoServico',
+  'descricaoServicoCompra',
+]
+const PURCHASE_ITEM_DESCRIPTION_FIELDS = [
+  'item',
+  'itens',
+  'produto',
+  'produtos',
+  'material',
+  'materiais',
+  'nomeItem',
+  'nomeDoItem',
+  'nome do item',
+  'descricaoItem',
+  'descricao do item',
+  'itemCotacao',
+  'item para cotacao',
+  'listaParaCotacao',
+  'lista de itens para cotacao',
+  'lista para cotacao',
+]
 const EXTRA_FIELDS = [
   'valorTotalDoPagamento',
   'valorTotalPagamento',
@@ -141,6 +180,7 @@ const ITEM_DESC_FIELDS = [
   'descricao',
   'descrição',
   'detalhamento',
+  ...PURCHASE_ITEM_DESCRIPTION_FIELDS,
 ]
 const ITEM_QTY_FIELDS = ['quantidade', 'quantidadeSolicitada', 'quantidade solicitada', 'qtd', 'qtde']
 const ITEM_UNIT_MEASURE_FIELDS = ['unidadeMedida', 'unidade medida', 'unidade', 'un']
@@ -229,6 +269,8 @@ const PURCHASE_ENRICH_FIELDS = [
   'comprovante',
   'boleto',
   'pix',
+  ...PURCHASE_SERVICE_DESCRIPTION_FIELDS,
+  ...PURCHASE_ITEM_DESCRIPTION_FIELDS,
 ]
 
 const FINANCE_ENRICH_FIELDS = [
@@ -279,6 +321,7 @@ const FINANCE_ENRICH_FIELDS = [
   'numeroTR',
   'ticket',
   'tr',
+  ...FINANCE_DESCRIPTION_FIELDS,
 ]
 
 function json(body: unknown, status = 200) {
@@ -579,6 +622,42 @@ function cleanUnit(value: string) {
   return String(value || '').replace(/^\s*\d+(?:[.\-]\d+)*\s*-\s*/, '').trim()
 }
 
+function cleanItemDescription(value: unknown) {
+  return String(value || '')
+    .replace(/^\s*\d+(?:[.\-]\d+)*\s*-\s*/, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s;-]+|[\s;-]+$/g, '')
+}
+
+function formatQty(value: unknown) {
+  const qty = Number(value || 0)
+  if (!Number.isFinite(qty) || !qty) return ''
+  return Number.isInteger(qty) ? String(qty) : String(qty).replace('.', ',')
+}
+
+function itemSummary(items: AnyRecord[]) {
+  const parts: string[] = []
+  for (const item of items || []) {
+    const desc = cleanItemDescription(item?.descricao)
+    if (!desc) continue
+    const qty = formatQty(item?.quantidade)
+    const unit = String(item?.unidade || '').trim()
+    const prefix = [qty, unit].filter(Boolean).join(' ').trim()
+    parts.push(prefix ? `${prefix} - ${desc}` : desc)
+  }
+  return parts.join('; ')
+}
+
+function ticketDescription(fmap: Map<string, AnyRecord[]>, items: AnyRecord[], financeiro: boolean, compra: boolean) {
+  if (financeiro) return firstField(fmap, FINANCE_DESCRIPTION_FIELDS)
+  if (compra) {
+    const serviceDesc = firstField(fmap, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
+    if (serviceDesc) return serviceDesc
+    return itemSummary(items)
+  }
+  return ''
+}
+
 function buildTicket(row: AnyRecord) {
   const fields = Array.isArray(row?.formFields) ? row.formFields : []
   const tasks = Array.isArray(row?.instanceTasks) ? row.instanceTasks : []
@@ -596,15 +675,7 @@ function buildTicket(row: AnyRecord) {
   const resultKind = ticketResultKind(row)
   const valorFinal = valor && resultKind !== 'cancelado' && resultKind !== 'rejeitado' && (!compra || conferir || financeiro) ? valor : null
   const valorStatus = valorFinal ? 'final' : compra && valor ? 'em_aprovacao' : valor ? 'estimado' : 'nao_encontrado'
-  const desc = firstField(fmap, [
-    'descricaoSolicitacao',
-    'descricao',
-    'pedido',
-    'solicitacao',
-    'objeto',
-    'resumo',
-    'justificativa',
-  ])
+  const desc = ticketDescription(fmap, itens, financeiro, compra)
   const unidade = firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto']))
   const marca = firstField(fmap, ['marca'])
   const categoria = firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra'])
@@ -641,7 +712,7 @@ function buildTicket(row: AnyRecord) {
     valor_status: valorStatus,
     unidade: unidade || null,
     marca: marca || null,
-    pedido: desc || row.requestName || null,
+    pedido: desc || null,
     categoria_capex: categoria || null,
     fonte: 'UNIDADE',
     setor,
