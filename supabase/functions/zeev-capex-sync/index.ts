@@ -336,11 +336,11 @@ function env(name: string, fallback = '') {
 }
 
 function secretAuthorized(req: Request) {
-  const configuredSecret = env('ZEEV_SYNC_SECRET')
-  if (!configuredSecret) return false
+  const configuredSecrets = [env('ZEEV_SYNC_SECRET'), env('ZEEV_DB_CRON_SECRET')].filter(Boolean)
+  if (!configuredSecrets.length) return false
   const got = req.headers.get('x-cron-secret') || ''
   const auth = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
-  return got === configuredSecret || auth === configuredSecret
+  return configuredSecrets.includes(got) || configuredSecrets.includes(auth)
 }
 
 function bearerToken(req: Request) {
@@ -799,6 +799,11 @@ async function zeevReport(flow: number, page: number, start: string, end: string
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
   const flowCapexFields = capexFieldsForFlow(flow)
   const cleanDate = (value: string) => String(value || '').replace(/\.\d{1,6}/, '').replace(/(?:Z|[+-]\d\d:\d\d)$/i, '')
+  const offsetDate = (value: string) => {
+    const d = new Date(value)
+    if (Number.isNaN(d.getTime())) return cleanDate(value)
+    return d.toISOString().replace(/\.\d{3}Z$/, '+00:00')
+  }
   const normalizedDate = (value: string) => {
     const d = new Date(value)
     if (Number.isNaN(d.getTime())) return cleanDate(value)
@@ -829,9 +834,10 @@ async function zeevReport(flow: number, page: number, start: string, end: string
     })
   }
   const attempts = [
+    { begin: offsetDate(start), finish: offsetDate(end) },
+    { begin: start, finish: end },
     { begin: normalizedDate(start), finish: normalizedDate(end) },
     { begin: cleanDate(start), finish: cleanDate(end) },
-    { begin: start, finish: end },
   ]
   const pageSizes = [Number(env('ZEEV_RECORDS_PER_PAGE', '30')) || 30, 10]
   const errors: string[] = []
@@ -999,6 +1005,16 @@ async function runSync(input: AnyRecord) {
   const now = new Date()
   const mode = input.mode || 'incremental'
   const state = await getState(stateId)
+  const runningSince = state?.updated_at ? new Date(state.updated_at).getTime() : 0
+  if (state?.running && runningSince && now.getTime() - runningSince < 4 * 60 * 1000) {
+    return {
+      ok: true,
+      mode,
+      skipped: true,
+      reason: 'Sincronizacao Zeev ja esta em andamento.',
+      runningSince: state.updated_at,
+    }
+  }
   const overlapHours = Number(input.overlapHours || env('ZEEV_SYNC_OVERLAP_HOURS', '12')) || 12
   const start =
     input.start ||
@@ -1025,10 +1041,12 @@ async function runSync(input: AnyRecord) {
   const errors: string[] = []
   try {
     for (const flow of flows) {
+      let flowHadSuccessfulPage = false
       for (let page = 1; page <= maxPages; page++) {
         let report: { rows: AnyRecord[]; pageSize: number }
         try {
           report = await zeevReport(flow, page, start, end)
+          flowHadSuccessfulPage = true
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error)
           errors.push(String(msg).slice(0, 900))
@@ -1043,6 +1061,11 @@ async function runSync(input: AnyRecord) {
         }
         if (rows.length < report.pageSize) break
       }
+      if (!flowHadSuccessfulPage) errors.push(`Fluxo ${flow} nao retornou nenhuma pagina valida.`)
+    }
+
+    if (allTickets.length === 0 && errors.length >= flows.length) {
+      throw new Error(`Nenhum fluxo Zeev retornou pagina valida: ${errors.join(' | ').slice(0, 1500)}`)
     }
 
     const unique = new Map<number, AnyRecord>()
