@@ -51,10 +51,16 @@ PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
 ]
 
 PURCHASE_JUSTIFICATION_FIELDS = [
+    "JUSTIFICATIVA DO PEDIDO",
+    "Justificativa do Pedido",
     "justificativaDoPedido",
     "justificativa do pedido",
     "justificativaPedido",
     "justificativa pedido",
+    "justificativaPedidoCompra",
+    "justificativaPedidoCompras",
+    "justificativaDoPedidoCompra",
+    "justificativa do pedido de compra",
     "justificativaDaCompra",
     "justificativa da compra",
     "justificativaDaSolicitacao",
