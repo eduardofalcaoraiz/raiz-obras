@@ -260,9 +260,9 @@ button{font-family:inherit;cursor:pointer}
 
 .b-neutral{background:var(--surface-2);color:var(--muted);border:1px solid var(--line-2)}
 
-.badge-select{border:0;font-size:11.5px;font-weight:600;font-family:inherit;padding:3px 8px;border-radius:20px;cursor:pointer;outline:none}
+.badge-select{border:0;font-size:12.2px;font-weight:850;font-family:inherit;padding:5px 10px;border-radius:20px;cursor:pointer;outline:none}
 
-.badge-select.b-ok{background:var(--ok-bg);color:var(--ok)}.badge-select.b-warn{background:var(--warn-bg);color:var(--warn)}.badge-select.b-info{background:var(--info-bg);color:var(--info)}.badge-select.b-neutral{background:var(--surface-2);color:var(--muted)}
+.badge-select.b-ok{background:var(--ok-bg);color:var(--ok)}.badge-select.b-warn{background:var(--warn-bg);color:var(--warn)}.badge-select.b-info{background:var(--info-bg);color:var(--info)}.badge-select.b-danger{background:var(--danger-bg);color:var(--danger)}.badge-select.b-neutral{background:var(--surface-2);color:var(--muted)}
 
 .cyear-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:4px;align-items:stretch}
 
@@ -379,41 +379,55 @@ button{font-family:inherit;cursor:pointer}
 .capex-budget-progress{grid-column:1/-1;height:7px;background:var(--surface);border-radius:999px;overflow:hidden;border:1px solid var(--line)}
 .capex-budget-progress i{display:block;height:100%;border-radius:999px}
 .capex-budget-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;align-items:center}
-.capex-expander-card{--card-accent:var(--accent);--card-soft:var(--raiz-soft);position:relative;overflow:hidden;border:1px solid color-mix(in srgb,var(--card-accent) 18%,var(--line));border-radius:var(--r-lg);background:linear-gradient(135deg,var(--surface) 0%,color-mix(in srgb,var(--card-soft) 58%,var(--surface)) 100%);box-shadow:0 10px 26px -25px rgba(15,42,36,.58);margin-bottom:10px;transition:border-color .16s,box-shadow .16s,transform .12s}
-.capex-expander-card:hover{border-color:color-mix(in srgb,var(--card-accent) 38%,var(--line));box-shadow:0 14px 32px -25px rgba(15,42,36,.66);transform:translateY(-1px)}
-.capex-expander-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--card-accent),color-mix(in srgb,var(--card-accent) 42%,var(--surface)))}
+.capex-expander-card{--card-accent:var(--accent);--card-soft:var(--raiz-soft);position:relative;overflow:hidden;border:1px solid color-mix(in srgb,var(--card-accent) 16%,var(--line));border-radius:16px;background:linear-gradient(135deg,rgba(255,255,255,.94) 0%,color-mix(in srgb,var(--card-soft) 46%,#fff) 100%);box-shadow:0 16px 34px -30px rgba(15,42,36,.62);margin-bottom:10px;transition:border-color .16s,box-shadow .16s,transform .12s}
+.capex-expander-card:hover{border-color:color-mix(in srgb,var(--card-accent) 36%,var(--line));box-shadow:0 18px 38px -28px rgba(15,42,36,.72);transform:translateY(-1px)}
+.capex-expander-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(180deg,var(--card-accent),color-mix(in srgb,var(--card-accent) 30%,#fff))}
 .capex-expander-card summary{list-style:none;display:block;overflow-x:auto;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--card-accent) 25%,var(--line)) transparent}
 .capex-expander-card summary::-webkit-details-marker{display:none}
 .capex-expander-card summary::-webkit-scrollbar{height:4px}
 .capex-expander-card summary::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--card-accent) 25%,var(--line));border-radius:999px}
-.capex-expander-summary{display:grid;grid-template-columns:minmax(122px,.16fr) minmax(320px,1fr) minmax(150px,.32fr) minmax(138px,.28fr) minmax(170px,auto) 28px;gap:12px;align-items:center;min-width:930px;padding:12px 14px 12px 18px;cursor:pointer}
-.capex-summary-id{display:flex;flex-direction:column;gap:6px;min-width:0}
-.capex-summary-code{display:inline-flex;width:max-content;max-width:100%;align-items:center;border:1px solid color-mix(in srgb,var(--card-accent) 28%,var(--line));background:color-mix(in srgb,var(--card-soft) 58%,#fff);color:var(--brand-text,var(--accent-text));border-radius:999px;padding:4px 9px;font-family:"Space Grotesk",system-ui,sans-serif;font-size:11.5px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.capex-summary-main{min-width:0}
-.capex-summary-title{font-size:14.5px;font-weight:900;color:var(--ink);line-height:1.22;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.capex-summary-meta,.capex-summary-line{font-size:11.7px;color:var(--muted);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.capex-expander-summary{display:grid;grid-template-columns:minmax(132px,160px) minmax(0,1fr) minmax(162px,190px) minmax(130px,146px) 28px;grid-template-areas:"id main value actions toggle" "id data value actions toggle";gap:8px 12px;align-items:center;min-width:1040px;min-height:88px;padding:11px 13px 11px 20px;cursor:pointer}
+.capex-summary-id{grid-area:id;display:flex;flex-direction:column;justify-content:center;gap:8px;min-width:0;align-self:stretch;border:1px solid color-mix(in srgb,var(--card-accent) 12%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.62),color-mix(in srgb,var(--card-soft) 22%,#fff));border-radius:12px;padding:8px 10px}
+.capex-summary-code{display:inline-flex;width:max-content;max-width:100%;align-items:center;border:1px solid color-mix(in srgb,var(--card-accent) 30%,var(--line));background:color-mix(in srgb,var(--card-soft) 62%,#fff);color:var(--brand-text,var(--accent-text));border-radius:999px;padding:5px 10px;font-family:"Space Grotesk",system-ui,sans-serif;font-size:12.4px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-summary-main{grid-area:main;min-width:0;display:grid;gap:4px;align-self:end}
+.capex-summary-title{font-size:16.4px;font-weight:950;color:var(--ink);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-summary-meta,.capex-summary-line{font-size:12.4px;color:var(--muted);line-height:1.32;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .capex-summary-line b{color:var(--ink);font-weight:900}
+.capex-summary-data{grid-area:data;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;align-self:start;border:1px solid color-mix(in srgb,var(--card-accent) 10%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.58),color-mix(in srgb,var(--card-soft) 20%,#fff));border-radius:11px;padding:8px 10px}
+.capex-summary-fact{min-width:0;display:flex;flex-direction:column;justify-content:center;padding:0 10px 0 0}
+.capex-summary-fact+.capex-summary-fact{border-left:1px solid color-mix(in srgb,var(--card-accent) 14%,var(--line));padding-left:10px}
+.capex-summary-fact b{display:block;font-size:9.8px;color:var(--muted);font-weight:950;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.capex-summary-fact span{display:block;font-size:12.7px;font-weight:850;color:var(--ink);line-height:1.22;overflow-wrap:anywhere}
+.capex-expander-card .capex-summary-title,
+.capex-expander-card .capex-summary-meta,
+.capex-expander-card .capex-summary-fact span{
+  max-width:none!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+}
+.capex-expander-card .capex-zeev-money{grid-area:value;align-content:center;align-self:stretch;justify-content:center;min-height:62px}
 .capex-summary-stage{display:grid;gap:2px;min-width:0}
 .capex-summary-stage span,.capex-detail-label{font-size:9.8px;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.04em}
 .capex-summary-stage b,.capex-summary-stage em{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-summary-stage b{font-size:12.5px;color:var(--ink)}
 .capex-summary-stage em{font-size:11px;color:var(--soft)}
-.capex-summary-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0}
-.capex-summary-actions .btn{min-height:30px;padding:6px 10px;font-size:12px;white-space:nowrap}
-.capex-summary-toggle{width:28px;height:28px;border-radius:999px;border:1px solid color-mix(in srgb,var(--card-accent) 18%,var(--line));background:rgba(255,255,255,.72);color:var(--brand-text,var(--accent-text));display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;transition:transform .16s,background .16s}
+.capex-summary-actions{grid-area:actions;display:flex;align-items:stretch;justify-content:center;gap:6px;min-width:0;flex-direction:column}
+.capex-summary-actions .btn{min-height:32px;padding:7px 10px;font-size:12.4px;font-weight:850;white-space:nowrap;border-radius:9px;width:100%;justify-content:center}
+.capex-summary-toggle{grid-area:toggle;width:28px;height:28px;border-radius:999px;border:1px solid color-mix(in srgb,var(--card-accent) 18%,var(--line));background:rgba(255,255,255,.72);color:var(--brand-text,var(--accent-text));display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;transition:transform .16s,background .16s}
 .capex-expander-card[open] .capex-summary-toggle{transform:rotate(90deg);background:color-mix(in srgb,var(--card-soft) 62%,#fff)}
 .capex-expander-detail{border-top:1px solid color-mix(in srgb,var(--card-accent) 14%,var(--line));background:rgba(255,255,255,.48);padding:12px 14px 14px 18px}
 .capex-detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 14px;align-items:start}
 .capex-detail-field{min-width:0;border-left:2px solid color-mix(in srgb,var(--card-accent) 24%,var(--line));padding-left:9px}
-.capex-detail-field b{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
-.capex-detail-field span{display:block;font-size:12.3px;line-height:1.4;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+.capex-detail-field b{display:block;font-size:10.4px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:4px}
+.capex-detail-field span{display:block;font-size:13px;line-height:1.42;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
 .capex-detail-field.full{grid-column:1/-1}
 .capex-detail-field.full span{white-space:normal}
 .capex-detail-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
 .capex-detail-edit{display:grid;grid-template-columns:minmax(150px,190px) minmax(190px,1fr) auto;gap:10px;align-items:end;flex:1;min-width:440px}
 .capex-detail-edit .fi{height:34px;padding:6px 9px;font-size:13px}
 .capex-item-card{--card-accent:var(--brand-cur,var(--accent));--card-soft:var(--brand-cur-light,var(--raiz-soft))}
-.capex-item-card .capex-expander-summary{grid-template-columns:minmax(160px,.18fr) minmax(360px,1fr) minmax(148px,.28fr) minmax(136px,.24fr) minmax(124px,auto) 28px;min-width:930px}
+.capex-item-card .capex-expander-summary{min-width:1040px}
 .capex-item-head{display:contents}
 .capex-item-title{font-size:14.5px;line-height:1.25;color:var(--ink);font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-item-meta{display:flex;gap:6px;flex-wrap:nowrap;align-items:center;min-width:0;overflow:hidden}
@@ -496,11 +510,11 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-list{display:grid;grid-template-columns:1fr;gap:9px;max-height:calc(100vh - 352px);overflow:auto;padding:1px}
 .capex-zeev-card{--card-accent:var(--brand-cur,var(--accent));--card-soft:var(--brand-cur-light,var(--raiz-soft))}
 .capex-zeev-card.ready{--card-accent:var(--ok);--card-soft:var(--ok-bg)}
-.capex-zeev-card .capex-expander-summary{grid-template-columns:minmax(122px,.16fr) minmax(360px,1fr) minmax(158px,.32fr) minmax(142px,.26fr) minmax(190px,auto) 28px;min-width:1010px}
-.capex-zeev-status{font-size:10.5px;text-transform:none;letter-spacing:0;white-space:nowrap;max-width:132px;overflow:hidden;text-overflow:ellipsis}
-.capex-zeev-money{border:1px solid color-mix(in srgb,var(--card-accent,var(--brand-cur,var(--accent))) 18%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.78),color-mix(in srgb,var(--card-accent,var(--brand-cur,var(--accent))) 7%,var(--surface)));border-radius:10px;padding:6px 8px;display:grid;gap:1px;min-width:0}
-.capex-zeev-money-label{font-size:9.4px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.capex-zeev-money-value{font-family:"Space Grotesk",sans-serif;font-size:15px;font-weight:950;color:var(--brand-text,var(--accent-text));line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-zeev-card .capex-expander-summary{min-width:1040px}
+.capex-zeev-status{font-size:11.8px;text-transform:none;letter-spacing:0;white-space:normal;max-width:none;overflow:visible;text-overflow:clip;line-height:1.18;font-weight:850;padding:5px 9px}
+.capex-zeev-money{border:1px solid color-mix(in srgb,var(--card-accent,var(--brand-cur,var(--accent))) 18%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.82),color-mix(in srgb,var(--card-accent,var(--brand-cur,var(--accent))) 7%,var(--surface)));border-radius:11px;padding:8px 10px;display:grid;gap:3px;min-width:0;text-align:center}
+.capex-zeev-money-label{font-size:10.2px;font-weight:950;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:normal;overflow:visible;text-overflow:clip;line-height:1.18}
+.capex-zeev-money-value{font-family:"Space Grotesk",sans-serif;font-size:17.6px;font-weight:950;color:var(--brand-text,var(--accent-text));line-height:1.08;white-space:normal;overflow:visible;text-overflow:clip}
 .capex-zeev-money.final{border-color:color-mix(in srgb,var(--ok) 32%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.82),color-mix(in srgb,var(--ok) 11%,var(--surface)))}
 .capex-zeev-money.final .capex-zeev-money-value{color:var(--ok)}
 .capex-zeev-money.approval{border-color:rgba(176,93,0,.24);background:linear-gradient(135deg,rgba(255,255,255,.82),rgba(255,151,23,.12))}
@@ -510,7 +524,7 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-money.blocked{border-color:color-mix(in srgb,var(--danger) 34%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.82),color-mix(in srgb,var(--danger) 9%,var(--surface)))}
 .capex-zeev-money.blocked .capex-zeev-money-value{color:var(--danger)}
 .capex-zeev-money.review{border-color:rgba(23,60,52,.12);background:rgba(255,255,255,.62)}
-.capex-zeev-money.review .capex-zeev-money-value{color:var(--muted);font-size:12.5px}
+.capex-zeev-money.review .capex-zeev-money-value{color:var(--muted);font-size:13.8px}
 .capex-zeev-fact{min-width:0;border-left:2px solid color-mix(in srgb,var(--card-accent,var(--accent)) 24%,var(--line));padding-left:9px}
 .capex-zeev-fact b{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
 .capex-zeev-fact span{display:block;font-size:12.3px;line-height:1.4;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -520,6 +534,13 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-card.not-capex .capex-zeev-money-value{color:var(--muted)}
 .capex-notcapex-modal-list{display:grid;grid-template-columns:1fr;gap:9px;max-height:62vh;overflow:auto;padding:1px 2px 1px 1px}
 .capex-context.zeev{display:block}
+.capex-item-modal{max-width:1120px!important;width:min(1120px,calc(100vw - 28px))}
+.capex-item-modal .mbody{max-height:min(82vh,820px);overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+.capex-item-modal #ci-m-context.capex-context.zeev{margin-bottom:12px}
+.capex-item-modal #ci-m-context,.capex-item-modal .mbody>div:last-child{grid-column:1/-1}
+.capex-item-modal .capex-form-card{margin-bottom:0}
+.capex-item-modal .capex-form-card:nth-of-type(3){grid-column:1/-1}
+.capex-item-modal .capex-form-card:nth-of-type(3) textarea{min-height:128px}
 .capex-context-ticket{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
 .capex-context-ticket:last-child{margin-bottom:0}
 .capex-context-ticket .mark{width:40px;height:40px;border-radius:10px;background:var(--brand-cur-light,var(--raiz-soft));border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 28%,var(--line));display:flex;align-items:center;justify-content:center;font-family:"Space Grotesk",sans-serif;font-weight:900;color:var(--brand-text,var(--accent-text));flex:none}
@@ -535,6 +556,8 @@ button{font-family:inherit;cursor:pointer}
 .obra-card-value,
 .obra-card-builder,
 .obra-card-pill:first-child,
+.capex-summary-title,
+.capex-summary-meta,
 .capex-bar-row .name,
 .capex-status-brand b,
 .capex-status-brand span,
@@ -579,15 +602,15 @@ button{font-family:inherit;cursor:pointer}
   -webkit-line-clamp:unset!important;
   -webkit-box-orient:initial!important;
 }
-.capex-expander-summary{align-items:start}
-.capex-summary-main,.capex-summary-stage{align-self:start}
+.capex-expander-summary{align-items:center}
+.capex-summary-stage{align-self:center}
 .capex-zeev-status{max-width:none!important}
 .obra-nf-search{background:var(--surface);box-shadow:0 8px 22px -26px rgba(0,0,0,.38)}
 .obra-nf-result .capex-tr-code{background:var(--surface-2);border-color:rgba(23,60,52,.16);color:var(--ink)}
 .obra-nf-result.exact{background:color-mix(in srgb,var(--brand-cur-light,var(--raiz-soft)) 44%,#fff);border-color:color-mix(in srgb,var(--brand-cur,var(--accent)) 28%,var(--line))}
 @media(max-width:1280px){.capex-detail-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:940px){.capex-zeev-tools{grid-template-columns:1fr}.capex-zeev-type-filter{justify-content:flex-start}.capex-zeev-list{max-height:none}.capex-expander-detail{overflow-x:auto}.capex-detail-grid,.capex-detail-actions{min-width:760px}.capex-detail-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:760px){.capex-tr-search{grid-template-columns:1fr}.capex-tr-result{grid-template-columns:1fr}.capex-tr-code,.capex-tr-status{width:max-content}.capex-zeev-search-row{grid-template-columns:1fr}.capex-expander-summary{min-width:900px}.capex-item-card .capex-expander-summary{min-width:860px}.capex-zeev-card .capex-expander-summary{min-width:960px}.capex-detail-edit{min-width:620px}}
+@media(max-width:760px){.capex-tr-search{grid-template-columns:1fr}.capex-tr-result{grid-template-columns:1fr}.capex-tr-code,.capex-tr-status{width:max-content}.capex-zeev-search-row{grid-template-columns:1fr}.capex-expander-summary{min-width:1040px}.capex-item-card .capex-expander-summary{min-width:1040px}.capex-zeev-card .capex-expander-summary{min-width:1040px}.capex-detail-edit{min-width:620px}.capex-item-modal{width:calc(100vw - 18px)}.capex-item-modal .mbody{display:block}.capex-item-modal .capex-form-card{margin-bottom:12px}}
 .global-dashboard{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin-bottom:16px;align-items:start}
 .gd-span-12{grid-column:span 12}.gd-span-8{grid-column:span 8}.gd-span-6{grid-column:span 6}.gd-span-4{grid-column:span 4}
 .gd-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
@@ -3024,7 +3047,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 
 
-<div class="overlay" id="capex-item-overlay"><div class="modal" style="max-width:760px">
+<div class="overlay" id="capex-item-overlay"><div class="modal capex-item-modal">
 
   <div class="mhead"><h2 id="ci-modal-title">Novo item</h2><button class="x" onclick="closeCapexItemModal()">×</button></div>
 
@@ -5354,7 +5377,7 @@ function renderEsfera(){
 
 /* CAPEX — DRILL-DOWN HIERÁRQUICO */
 
-const _ciSitClass={'Resolvido':'b-ok','Em Andamento':'b-info','Cancelado':'b-neutral'};
+const _ciSitClass={'Resolvido':'b-ok','Em Andamento':'b-warn','Cancelado':'b-danger'};
 const CAPEX_BASE_YEARS=[2024,2025,2026];
 const CAPEX_AUTO_FINALIZED_YEAR=2024;
 
@@ -5746,8 +5769,9 @@ function capexZeevTicketStatus(z){
 
 function capexZeevTicketStatusClass(z){
   const s=capexZeevTicketStatus(z).toLowerCase();
-  if(s.includes('conclu')||s.includes('aprov'))return'b-ok';
+  if(s.includes('conclu')||s.includes('aprov')||s.includes('entreg'))return'b-ok';
   if(s.includes('cancel')||s.includes('reprov'))return'b-danger';
+  if(s.includes('pend')||s.includes('aguard')||s.includes('abert')||s.includes('andamento')||s.includes('analis')||s.includes('confer'))return'b-warn';
   return'b-info';
 }
 
@@ -5919,6 +5943,87 @@ function capexZeevShort(v,max){
   return s.length>n?s.slice(0,n-1).trim()+'...':s;
 }
 
+function capexCleanSummaryText(v){
+  return String(v||'')
+    .replace(/<\s*br\s*\/?\s*>/gi,'\n')
+    .replace(/<\/\s*(p|div|li|tr|h[1-6])\s*>/gi,'\n')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/\u00a0/g,' ')
+    .replace(/[ \t\r\f\v]+/g,' ')
+    .replace(/\n\s*\n+/g,'\n')
+    .trim();
+}
+
+function capexGenericPurchaseText(v){
+  const text=capexCleanSummaryText(v);
+  const n=capexZeevNormField(text);
+  if(!n)return false;
+  if(text.length<=95&&/(servico|servicos|material|materiais|produto|produtos|item|itens)/.test(n))return true;
+  return /^(servico|servicos|material|materiais|produto|produtos|item|itens)/.test(n);
+}
+
+function capexDescriptionScore(v){
+  const text=capexCleanSummaryText(v);
+  if(!text)return 0;
+  const words=text.split(/\s+/).filter(Boolean).length;
+  const punct=(text.match(/[.;:]/g)||[]).length;
+  return text.length+(words*3)+(punct*12)-(capexGenericPurchaseText(text)?90:0);
+}
+
+function capexBestDescription(candidates){
+  return (candidates||[])
+    .map(v=>capexCleanSummaryText(v))
+    .filter(Boolean)
+    .sort((a,b)=>capexDescriptionScore(b)-capexDescriptionScore(a))[0]||'';
+}
+
+function capexSplitSummaryParts(text){
+  const clean=capexCleanSummaryText(text);
+  if(!clean)return[];
+  return clean
+    .split(/\n|[•·]|(?:^|\s)\d+[.)]\s+|;\s+/g)
+    .map(x=>x.replace(/^\s*[-–—]\s*/,'').replace(/\s+/g,' ').trim())
+    .filter(x=>x&&x.length>2);
+}
+
+function capexTrimCardSummary(text,max){
+  const limit=max||280;
+  const clean=capexCleanSummaryText(text);
+  if(clean.length<=limit)return clean;
+  const cut=clean.slice(0,limit-1).replace(/\s+\S*$/,'').trim();
+  return (cut||clean.slice(0,limit-1).trim())+'...';
+}
+
+function capexSmartCardSummary(text,opts){
+  const clean=capexCleanSummaryText(text);
+  if(!clean)return'';
+  const parts=capexSplitSummaryParts(clean);
+  const itemParts=parts.filter(p=>!capexGenericPurchaseText(p));
+  const isLong=clean.length>300||parts.length>4||clean.split(/\s+/).length>42;
+  if(!isLong)return clean;
+  const kind=String(opts?.kind||opts?.tipo||'').toLowerCase();
+  if(itemParts.length>=3){
+    const shown=itemParts.slice(0,4).map(p=>capexTrimCardSummary(p,70));
+    const more=itemParts.length>4?` + ${itemParts.length-4} item${itemParts.length-4!==1?'s':''}`:'';
+    const prefix=kind.includes('compra')||kind.includes('material')?`${itemParts.length} itens de compra: `:`Resumo: `;
+    return capexTrimCardSummary(prefix+shown.join('; ')+more,300);
+  }
+  const sentences=clean
+    .split(/(?<=[.!?])\s+/)
+    .map(s=>s.trim())
+    .filter(Boolean);
+  const base=(sentences.length?sentences.slice(0,2).join(' '):clean);
+  return capexTrimCardSummary(base,300);
+}
+
+function capexZeevResumoCard(z){
+  const fields=z?.campos_extraidos||{};
+  const imported=capexCleanSummaryText(fields._resumo_card||fields.resumo_card||fields.resumoCard||z?.resumo_card||'');
+  const full=capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev';
+  if(imported&&capexDescriptionScore(imported)>40&&capexCleanSummaryText(full).length>240)return capexTrimCardSummary(imported,310);
+  return capexSmartCardSummary(full,{kind:capexZeevType(z)});
+}
+
 function capexZeevFlowLabel(z){
   const name=String(z.flow_name||z.request_name||'Ticket Raiz').replace(/\s+v\.\s*\d+\s*$/i,'').trim();
   const ver=z.flow_version?` v${z.flow_version}`:'';
@@ -5961,9 +6066,9 @@ function capexZeevDescricaoLancamento(z){
   const service=capexZeevAnyField(z,CAPEX_ZEEV_PURCHASE_SERVICE_FIELDS);
   const itemField=capexZeevAnyField(z,CAPEX_ZEEV_PURCHASE_ITEM_FIELDS);
   if(capexZeevType(z)==='compras'){
-    if(justification&&!itemText)return justification;
-    if(service)return service;
-    return stored||service||itemText||itemField||justification||'';
+    if(itemText&&(capexGenericPurchaseText(service)||capexDescriptionScore(itemText)>capexDescriptionScore(service)+40))return itemText;
+    if(justification&&(!itemText||capexDescriptionScore(justification)>capexDescriptionScore(service)+35))return justification;
+    return capexBestDescription([stored,service,itemText,itemField,justification]);
   }
   return stored||capexZeevAnyField(z,[
     'informacoesReferentesASolicitacao','informacoes referentes a solicitacao','informacoesReferentesSolicitacao',
@@ -6041,24 +6146,41 @@ function capexZeevCompactLine(z){
   return parts.length?parts.join(' &nbsp;|&nbsp; '):'<b>Dados</b> Aguardando mais informacoes do Zeev';
 }
 
+function capexSummaryFact(label,value){
+  const txt=String(value||'').trim()||'Nao informado';
+  return`<div class="capex-summary-fact" title="${escHtml(txt)}"><b>${escHtml(label)}</b><span>${escHtml(txt)}</span></div>`;
+}
+
+function capexSummaryFacts(items){
+  const html=(items||[]).filter(it=>String(it?.value||'').trim()).map(it=>capexSummaryFact(it.label,it.value)).join('');
+  return html?`<div class="capex-summary-data">${html}</div>`:'';
+}
+
+function capexStageForSummary(z){
+  const stage=String(capexZeevStageLabel(z)||'').trim();
+  const status=String(capexZeevTicketStatus(z)||'').trim();
+  if(!stage||stage==='Etapa nao informada')return'';
+  return capexZeevNormField(stage)===capexZeevNormField(status)?'':stage;
+}
+
 function renderCapexZeevCards(pend){
   return pend.map(z=>{
     const id=+z.id;
     const code=escHtml(z.zeev_instance_id||id);
-    const title=escHtml(capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev');
-    const meta=[capexZeevKind(z),z.requester_name,z.requester_team,capexZeevDate(z.start_date_time)].filter(Boolean).map(escHtml).join(' &middot; ');
-    const stage=escHtml(capexZeevStageLabel(z));
+    const titleFullRaw=capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev';
+    const title=escHtml(titleFullRaw);
+    const titleCard=escHtml(capexZeevResumoCard(z)||titleFullRaw);
+    const meta=[capexZeevKind(z),capexZeevDate(z.start_date_time)].filter(Boolean).map(escHtml).join(' &middot; ');
     const ticketStatus=escHtml(capexZeevTicketStatus(z));
     const ticketStatusClass=capexZeevTicketStatusClass(z);
     const valueInfo=capexZeevValueInfo(z);
     const value=`<div class="capex-zeev-money ${escHtml(valueInfo.cls)}" title="${escHtml(capexZeevValueLabel(z))}"><span class="capex-zeev-money-label">${escHtml(valueInfo.label)}</span><strong class="capex-zeev-money-value">${escHtml(valueInfo.value)}</strong></div>`;
-    const flow=escHtml(capexZeevFlowLabel(z));
-    const compact=capexZeevCompactLine(z);
+    const fornecedor=capexZeevField(z,['fornecedor','nomeFornecedor','razaoSocial','fornecedorEscolhido','favorecido','beneficiario']);
+    const stageSummary=capexStageForSummary(z);
     const link=z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')">Ticket</a>`:'';
     const requester=[z.requester_name,z.requester_team].filter(Boolean).join(' / ')||'Nao informado';
     const details=[
       {label:'Solicitante',value:requester},
-      {label:'Fluxo',value:capexZeevFlowLabel(z)},
       {label:'Etapa atual',value:capexZeevStageLabel(z)},
       {label:'Status no Zeev',value:capexZeevTicketStatus(z)}
     ].map(f=>`<div class="capex-detail-field"><b>${escHtml(f.label)}</b><span title="${escHtml(f.value)}">${escHtml(f.value)}</span></div>`).join('');
@@ -6070,11 +6192,14 @@ function renderCapexZeevCards(pend){
             <span class="badge capex-zeev-status ${ticketStatusClass}" title="${ticketStatus}">${ticketStatus}</span>
           </div>
           <div class="capex-summary-main">
-            <div class="capex-summary-title" title="${title}">${title}</div>
+            <div class="capex-summary-title" title="${title}">${titleCard}</div>
             <div class="capex-summary-meta">${meta||'Dados principais importados do Zeev'}</div>
-            <div class="capex-summary-line">${compact}</div>
           </div>
-          <div class="capex-summary-stage"><span>Etapa</span><b>${stage}</b><em>${flow}</em></div>
+          ${capexSummaryFacts([
+            {label:'Fornecedor',value:fornecedor},
+            {label:'Solicitante',value:requester},
+            {label:'Etapa',value:stageSummary}
+          ])}
           ${value}
           <div class="capex-summary-actions">
             <button class="btn btn-primary btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexZeevApproval(${id})">Registrar</button>
@@ -6106,13 +6231,15 @@ function renderCapexZeevNotCapexCards(rows){
   return rows.map(z=>{
     const id=+z.id;
     const code=escHtml(z.zeev_instance_id||id);
-    const title=escHtml(capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev');
-    const meta=[capexZeevKind(z),z.requester_name,z.requester_team,capexZeevDate(z.start_date_time)].filter(Boolean).map(escHtml).join(' &middot; ');
-    const stage=escHtml(capexZeevStageLabel(z));
-    const flow=escHtml(capexZeevFlowLabel(z));
+    const titleFullRaw=capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev';
+    const title=escHtml(titleFullRaw);
+    const titleCard=escHtml(capexZeevResumoCard(z)||titleFullRaw);
+    const meta=[capexZeevKind(z),capexZeevDate(z.start_date_time)].filter(Boolean).map(escHtml).join(' &middot; ');
     const valueInfo=capexZeevValueInfo(z);
     const value=`<div class="capex-zeev-money review" title="${escHtml(capexZeevValueLabel(z))}"><span class="capex-zeev-money-label">${escHtml(valueInfo.label)}</span><strong class="capex-zeev-money-value">${escHtml(valueInfo.value)}</strong></div>`;
-    const compact=capexZeevCompactLine(z);
+    const fornecedor=capexZeevField(z,['fornecedor','nomeFornecedor','razaoSocial','fornecedorEscolhido','favorecido','beneficiario']);
+    const requester=[z.requester_name,z.requester_team].filter(Boolean).join(' / ')||'Nao informado';
+    const stageSummary=capexStageForSummary(z);
     const marked=[z.ignorado_por,z.ignorado_em?capexZeevDate(z.ignorado_em):''].filter(Boolean).join(' &middot; ')||'Marcado na plataforma';
     const link=z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')">Ticket</a>`:'';
     return`<details class="capex-expander-card capex-zeev-card not-capex">
@@ -6123,11 +6250,14 @@ function renderCapexZeevNotCapexCards(rows){
             <span class="badge b-neutral capex-zeev-status" title="NÃO É CAPEX">NÃO É CAPEX</span>
           </div>
           <div class="capex-summary-main">
-            <div class="capex-summary-title" title="${title}">${title}</div>
+            <div class="capex-summary-title" title="${title}">${titleCard}</div>
             <div class="capex-summary-meta">${meta||'Dados principais importados do Zeev'}</div>
-            <div class="capex-summary-line">${compact}</div>
           </div>
-          <div class="capex-summary-stage"><span>Etapa</span><b>${stage}</b><em>${flow}</em></div>
+          ${capexSummaryFacts([
+            {label:'Fornecedor',value:fornecedor},
+            {label:'Solicitante',value:requester},
+            {label:'Etapa',value:stageSummary}
+          ])}
           ${value}
           <div class="capex-summary-actions">
             <button class="btn btn-primary btn-sm" onclick="event.preventDefault();event.stopPropagation();restoreCapexZeev(${id},true)">Registrar como CAPEX</button>
@@ -7999,6 +8129,7 @@ function renderCapexRegisteredCard(it){
   const accent=brandColor(marca);
   const soft=brandLight(marca);
   const pedidoRaw=String(it.pedido||'').trim();
+  const cardTitle=escHtml(capexSmartCardSummary(pedidoRaw||'Pedido sem descricao',{kind:'capex registrado'}));
   const title=escHtml(pedidoRaw||'Pedido sem descrição');
   const pedidoFull=escHtml(pedidoRaw||'Pedido sem descrição').replace(/\n/g,'<br>');
   const obsRaw=String(it.observacoes||'').trim();
@@ -8018,7 +8149,7 @@ function renderCapexRegisteredCard(it){
   const ticketLink=it.ticket_raiz_url?`<a href="${escHtml(it.ticket_raiz_url)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Abrir Ticket Raiz</a>`:'';
   const compraLink=capexCompraLinkFromItem(it);
   const compraTr=capexZeevSearchDigits(compraLink?.tr||compraLink?.zeev_id||'');
-  const compraResumo=compraTr?`<div class="capex-summary-line"><b>Compra vinculada</b> TR ${escHtml(compraTr)}${compraLink?.encontrado===false?' &middot; conferir manualmente':''}</div>`:'';
+  const respLabel=compraTr?`${fonteSetor} / Compra TR ${compraTr}${compraLink?.encontrado===false?' - conferir':''}`:fonteSetor;
   const details=[
     {label:'Unidade',value:unidade},
     {label:'Ano',value:String(it.ano||capexDrillYear||'')},
@@ -8040,12 +8171,13 @@ function renderCapexRegisteredCard(it){
           </select>
         </div>
         <div class="capex-summary-main">
-          <div class="capex-summary-title" title="${title}">${title}</div>
+          <div class="capex-summary-title" title="${title}">${cardTitle}</div>
           <div class="capex-summary-meta">${escHtml(unidade)} &middot; ${escHtml(marca)} &middot; ${escHtml(String(it.ano||capexDrillYear||''))}</div>
-          <div class="capex-summary-line"><b>Fonte</b> ${escHtml(fonteSetor)}</div>
-          ${compraResumo}
         </div>
-        <div class="capex-summary-stage"><span>Categoria</span><b title="${escHtml(catName)}">${escHtml(catName)}</b><em>${capexIsFinalizado(it)?'Finalizado':'Em acompanhamento'}</em></div>
+        ${capexSummaryFacts([
+          {label:'Categoria',value:catName},
+          {label:'Responsavel',value:respLabel}
+        ])}
         <div class="capex-zeev-money ${valorCls}" title="${escHtml(valor?fmt(valor):'Sem valor registrado')}"><span class="capex-zeev-money-label">${valorLabel}</span><strong class="capex-zeev-money-value">${valor?fmt(valor):'A revisar'}</strong></div>
         <div class="capex-summary-actions">
           <button class="btn btn-primary btn-sm" title="Editar pedido" onclick="event.preventDefault();event.stopPropagation();openCapexItemModal(${it.id})">Editar</button>
