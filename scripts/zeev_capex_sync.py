@@ -861,21 +861,26 @@ def summarize_with_huggingface(text):
     token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_API_KEY")
     if not token:
         return ""
-    model = os.environ.get("HF_SUMMARY_MODEL") or "csebuetnlp/mT5_multilingual_XLSum"
-    url = f"https://api-inference.huggingface.co/models/{urllib.parse.quote(model, safe='/')}"
+    model = os.environ.get("HF_SUMMARY_MODEL") or "meta-llama/Llama-3.1-8B-Instruct"
     source = clean_summary_text(text)[: int(os.environ.get("ZEEV_SUMMARY_MAX_INPUT_CHARS", "12000"))]
     payload = {
-        "inputs": source,
-        "parameters": {"max_length": 90, "min_length": 24, "do_sample": False},
-        "options": {"wait_for_model": True},
+        "model": model,
+        "temperature": 0,
+        "max_tokens": 120,
+        "messages": [
+            {"role": "system", "content": "Resuma tickets em portugues sem inventar nenhum dado."},
+            {"role": "user", "content": "Resuma em ate 2 frases curtas, preservando nomes e itens importantes:\n\n" + source},
+        ],
     }
-    data = request_json("POST", url, headers={"Authorization": f"Bearer {token}"}, payload=payload, timeout=35, retries=1)
-    if isinstance(data, list) and data:
-        summary = data[0].get("summary_text") or data[0].get("generated_text") or ""
-    elif isinstance(data, dict):
-        summary = data.get("summary_text") or data.get("generated_text") or ""
-    else:
-        summary = ""
+    data = request_json(
+        "POST",
+        "https://router.huggingface.co/v1/chat/completions",
+        headers={"Authorization": f"Bearer {token}"},
+        payload=payload,
+        timeout=35,
+        retries=1,
+    )
+    summary = clean_summary_text((((data.get("choices") or [{}])[0].get("message") or {}).get("content")) or "")
     summary = clean_summary_text(summary)
     return trim_card_summary(summary, 300) if summary else ""
 
