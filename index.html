@@ -5943,6 +5943,87 @@ function capexZeevShort(v,max){
   return s.length>n?s.slice(0,n-1).trim()+'...':s;
 }
 
+function capexCleanSummaryText(v){
+  return String(v||'')
+    .replace(/<\s*br\s*\/?\s*>/gi,'\n')
+    .replace(/<\/\s*(p|div|li|tr|h[1-6])\s*>/gi,'\n')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/\u00a0/g,' ')
+    .replace(/[ \t\r\f\v]+/g,' ')
+    .replace(/\n\s*\n+/g,'\n')
+    .trim();
+}
+
+function capexGenericPurchaseText(v){
+  const text=capexCleanSummaryText(v);
+  const n=capexZeevNormField(text);
+  if(!n)return false;
+  if(text.length<=95&&/(servico|servicos|material|materiais|produto|produtos|item|itens)/.test(n))return true;
+  return /^(servico|servicos|material|materiais|produto|produtos|item|itens)/.test(n);
+}
+
+function capexDescriptionScore(v){
+  const text=capexCleanSummaryText(v);
+  if(!text)return 0;
+  const words=text.split(/\s+/).filter(Boolean).length;
+  const punct=(text.match(/[.;:]/g)||[]).length;
+  return text.length+(words*3)+(punct*12)-(capexGenericPurchaseText(text)?90:0);
+}
+
+function capexBestDescription(candidates){
+  return (candidates||[])
+    .map(v=>capexCleanSummaryText(v))
+    .filter(Boolean)
+    .sort((a,b)=>capexDescriptionScore(b)-capexDescriptionScore(a))[0]||'';
+}
+
+function capexSplitSummaryParts(text){
+  const clean=capexCleanSummaryText(text);
+  if(!clean)return[];
+  return clean
+    .split(/\n|[•·]|(?:^|\s)\d+[.)]\s+|;\s+/g)
+    .map(x=>x.replace(/^\s*[-–—]\s*/,'').replace(/\s+/g,' ').trim())
+    .filter(x=>x&&x.length>2);
+}
+
+function capexTrimCardSummary(text,max){
+  const limit=max||280;
+  const clean=capexCleanSummaryText(text);
+  if(clean.length<=limit)return clean;
+  const cut=clean.slice(0,limit-1).replace(/\s+\S*$/,'').trim();
+  return (cut||clean.slice(0,limit-1).trim())+'...';
+}
+
+function capexSmartCardSummary(text,opts){
+  const clean=capexCleanSummaryText(text);
+  if(!clean)return'';
+  const parts=capexSplitSummaryParts(clean);
+  const itemParts=parts.filter(p=>!capexGenericPurchaseText(p));
+  const isLong=clean.length>300||parts.length>4||clean.split(/\s+/).length>42;
+  if(!isLong)return clean;
+  const kind=String(opts?.kind||opts?.tipo||'').toLowerCase();
+  if(itemParts.length>=3){
+    const shown=itemParts.slice(0,4).map(p=>capexTrimCardSummary(p,70));
+    const more=itemParts.length>4?` + ${itemParts.length-4} item${itemParts.length-4!==1?'s':''}`:'';
+    const prefix=kind.includes('compra')||kind.includes('material')?`${itemParts.length} itens de compra: `:`Resumo: `;
+    return capexTrimCardSummary(prefix+shown.join('; ')+more,300);
+  }
+  const sentences=clean
+    .split(/(?<=[.!?])\s+/)
+    .map(s=>s.trim())
+    .filter(Boolean);
+  const base=(sentences.length?sentences.slice(0,2).join(' '):clean);
+  return capexTrimCardSummary(base,300);
+}
+
+function capexZeevResumoCard(z){
+  const fields=z?.campos_extraidos||{};
+  const imported=capexCleanSummaryText(fields._resumo_card||fields.resumo_card||fields.resumoCard||z?.resumo_card||'');
+  const full=capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev';
+  if(imported&&capexDescriptionScore(imported)>40&&capexCleanSummaryText(full).length>240)return capexTrimCardSummary(imported,310);
+  return capexSmartCardSummary(full,{kind:capexZeevType(z)});
+}
+
 function capexZeevFlowLabel(z){
   const name=String(z.flow_name||z.request_name||'Ticket Raiz').replace(/\s+v\.\s*\d+\s*$/i,'').trim();
   const ver=z.flow_version?` v${z.flow_version}`:'';
@@ -5985,9 +6066,9 @@ function capexZeevDescricaoLancamento(z){
   const service=capexZeevAnyField(z,CAPEX_ZEEV_PURCHASE_SERVICE_FIELDS);
   const itemField=capexZeevAnyField(z,CAPEX_ZEEV_PURCHASE_ITEM_FIELDS);
   if(capexZeevType(z)==='compras'){
-    if(justification&&!itemText)return justification;
-    if(service)return service;
-    return stored||service||itemText||itemField||justification||'';
+    if(itemText&&(capexGenericPurchaseText(service)||capexDescriptionScore(itemText)>capexDescriptionScore(service)+40))return itemText;
+    if(justification&&(!itemText||capexDescriptionScore(justification)>capexDescriptionScore(service)+35))return justification;
+    return capexBestDescription([stored,service,itemText,itemField,justification]);
   }
   return stored||capexZeevAnyField(z,[
     'informacoesReferentesASolicitacao','informacoes referentes a solicitacao','informacoesReferentesSolicitacao',
@@ -6086,7 +6167,9 @@ function renderCapexZeevCards(pend){
   return pend.map(z=>{
     const id=+z.id;
     const code=escHtml(z.zeev_instance_id||id);
-    const title=escHtml(capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev');
+    const titleFullRaw=capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev';
+    const title=escHtml(titleFullRaw);
+    const titleCard=escHtml(capexZeevResumoCard(z)||titleFullRaw);
     const meta=[capexZeevKind(z),capexZeevDate(z.start_date_time)].filter(Boolean).map(escHtml).join(' &middot; ');
     const ticketStatus=escHtml(capexZeevTicketStatus(z));
     const ticketStatusClass=capexZeevTicketStatusClass(z);
@@ -6109,7 +6192,7 @@ function renderCapexZeevCards(pend){
             <span class="badge capex-zeev-status ${ticketStatusClass}" title="${ticketStatus}">${ticketStatus}</span>
           </div>
           <div class="capex-summary-main">
-            <div class="capex-summary-title" title="${title}">${title}</div>
+            <div class="capex-summary-title" title="${title}">${titleCard}</div>
             <div class="capex-summary-meta">${meta||'Dados principais importados do Zeev'}</div>
           </div>
           ${capexSummaryFacts([
@@ -6148,7 +6231,9 @@ function renderCapexZeevNotCapexCards(rows){
   return rows.map(z=>{
     const id=+z.id;
     const code=escHtml(z.zeev_instance_id||id);
-    const title=escHtml(capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev');
+    const titleFullRaw=capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev';
+    const title=escHtml(titleFullRaw);
+    const titleCard=escHtml(capexZeevResumoCard(z)||titleFullRaw);
     const meta=[capexZeevKind(z),capexZeevDate(z.start_date_time)].filter(Boolean).map(escHtml).join(' &middot; ');
     const valueInfo=capexZeevValueInfo(z);
     const value=`<div class="capex-zeev-money review" title="${escHtml(capexZeevValueLabel(z))}"><span class="capex-zeev-money-label">${escHtml(valueInfo.label)}</span><strong class="capex-zeev-money-value">${escHtml(valueInfo.value)}</strong></div>`;
@@ -6165,7 +6250,7 @@ function renderCapexZeevNotCapexCards(rows){
             <span class="badge b-neutral capex-zeev-status" title="NÃO É CAPEX">NÃO É CAPEX</span>
           </div>
           <div class="capex-summary-main">
-            <div class="capex-summary-title" title="${title}">${title}</div>
+            <div class="capex-summary-title" title="${title}">${titleCard}</div>
             <div class="capex-summary-meta">${meta||'Dados principais importados do Zeev'}</div>
           </div>
           ${capexSummaryFacts([
@@ -8044,6 +8129,7 @@ function renderCapexRegisteredCard(it){
   const accent=brandColor(marca);
   const soft=brandLight(marca);
   const pedidoRaw=String(it.pedido||'').trim();
+  const cardTitle=escHtml(capexSmartCardSummary(pedidoRaw||'Pedido sem descricao',{kind:'capex registrado'}));
   const title=escHtml(pedidoRaw||'Pedido sem descrição');
   const pedidoFull=escHtml(pedidoRaw||'Pedido sem descrição').replace(/\n/g,'<br>');
   const obsRaw=String(it.observacoes||'').trim();
@@ -8085,7 +8171,7 @@ function renderCapexRegisteredCard(it){
           </select>
         </div>
         <div class="capex-summary-main">
-          <div class="capex-summary-title" title="${title}">${title}</div>
+          <div class="capex-summary-title" title="${title}">${cardTitle}</div>
           <div class="capex-summary-meta">${escHtml(unidade)} &middot; ${escHtml(marca)} &middot; ${escHtml(String(it.ano||capexDrillYear||''))}</div>
         </div>
         ${capexSummaryFacts([
