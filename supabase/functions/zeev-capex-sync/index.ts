@@ -24,6 +24,7 @@ const FINANCE_DESCRIPTION_FIELDS = [
   'Informacao referente a solicitacao',
 ]
 const PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
+  'descricaoMensagemZeev',
   'descricaoDoServico',
   'descricaoServico',
   'descricaoServicoSolicitado',
@@ -650,6 +651,46 @@ function cleanItemDescription(value: unknown) {
     .replace(/^[\s;-]+|[\s;-]+$/g, '')
 }
 
+function decodeHtmlEntities(value: string) {
+  return String(value || '')
+    .replace(/&#(\d+);/g, (_, n) => {
+      const code = Number(n)
+      return Number.isFinite(code) ? String.fromCodePoint(code) : _
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => {
+      const code = Number.parseInt(n, 16)
+      return Number.isFinite(code) ? String.fromCodePoint(code) : _
+    })
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+}
+
+function cleanZeevMessageBody(value: unknown) {
+  let text = String(value || '')
+  if (!text.trim()) return ''
+  text = text
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/\s*(p|div|li|tr|h[1-6])\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+  text = decodeHtmlEntities(text).replace(/\u00a0/g, ' ')
+  return text
+    .replace(/[ \t\r\f\v]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\n\n')
+    .trim()
+}
+
+function genericPurchaseText(value: unknown) {
+  const text = cleanItemDescription(value)
+  const n = norm(text)
+  if (!n) return false
+  if (text.length <= 90 && /\bservico(s)?\b/.test(n)) return true
+  return /^(servico|servicos|material|materiais|produto|produtos|item|itens)( de| para|$)/.test(n)
+}
+
 function formatQty(value: unknown) {
   const qty = Number(value || 0)
   if (!Number.isFinite(qty) || !qty) return ''
@@ -686,6 +727,30 @@ function looksTruncatedZeevText(value: unknown) {
   const s = String(value || '').trim()
   if (s.length !== 100) return false
   return !/[.!?:;)\]]$/.test(s)
+}
+
+function bestMessageDescription(messages: AnyRecord[], serviceDesc = '', itemText = '') {
+  const bodies = (messages || [])
+    .map((msg) => cleanZeevMessageBody(msg?.body))
+    .filter((body) => {
+      if (body.length < 80) return false
+      const n = norm(body)
+      return !['cancelado', 'ajustado', 'ok', 'aprovado', 'reprovado'].some((prefix) => n.startsWith(prefix))
+    })
+  if (!bodies.length) return ''
+
+  const serviceNorm = norm(serviceDesc)
+  if (serviceNorm) {
+    const needle = serviceNorm.slice(0, Math.min(70, serviceNorm.length))
+    const matched = bodies.find((body) => needle && norm(body).includes(needle))
+    if (matched) return matched
+  }
+
+  const cues = ['solicita', 'necess', 'escopo', 'servico', 'servicos', 'instalacao', 'fornecimento', 'compra', 'adequacao']
+  const cued = bodies.filter((body) => cues.some((cue) => norm(body).includes(cue)))
+  if (cued.length) return cued.sort((a, b) => b.length - a.length)[0]
+  if (genericPurchaseText(itemText)) return bodies.sort((a, b) => b.length - a.length)[0]
+  return ''
 }
 
 function buildTicket(row: AnyRecord) {
@@ -940,6 +1005,25 @@ async function zeevInstance(instanceId: number, flow: number, fields: string[]) 
   return text ? JSON.parse(text) : {}
 }
 
+async function zeevMessages(instanceId: number) {
+  const token = env('ZEEV_TOKEN')
+  if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
+  const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+  const url = new URL(`${base}/api/2/messages/instance/${instanceId}`)
+  url.searchParams.set('useCache', 'false')
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+    },
+  })
+  const text = await res.text()
+  if (!res.ok) throw new Error(`Zeev messages ${res.status} id ${instanceId}: ${text}`)
+  const data = text ? JSON.parse(text) : []
+  return Array.isArray(data) ? data : []
+}
+
 async function collectInstanceFields(instanceId: number, flow: number, fields: string[], chunkSize = 8) {
   const found: AnyRecord[] = []
   const errors: AnyRecord[] = []
@@ -985,13 +1069,31 @@ async function enrichRow(row: AnyRecord) {
   const fields = enrichFieldsForFlow(flow)
   const enriched = await collectInstanceFields(id, flow, fields)
   const detail = enriched.last || row
-  const mergedFields = mergeFields(Array.isArray(row.formFields) ? row.formFields : [], enriched.fields)
+  let mergedFields = mergeFields(Array.isArray(row.formFields) ? row.formFields : [], enriched.fields)
+  const errors = [...enriched.errors]
+  if (!FINANCE_FLOW_IDS.has(flow)) {
+    const fmap = fieldMap(mergedFields)
+    const serviceDesc = firstField(fmap, PURCHASE_SERVICE_DESCRIPTION_FIELDS.filter((name) => name !== 'descricaoMensagemZeev'))
+    const itemText = firstField(fmap, ITEM_DESC_FIELDS)
+    if (looksTruncatedZeevText(serviceDesc) || genericPurchaseText(itemText)) {
+      try {
+        const messages = await zeevMessages(id)
+        const messageDesc = bestMessageDescription(messages, serviceDesc, itemText)
+        if (messageDesc) {
+          mergedFields = mergeFields(mergedFields, [{ name: 'descricaoMensagemZeev', value: messageDesc, row: 1, source: 'messages' }])
+        }
+        ;(detail as AnyRecord).__messages = messages
+      } catch (error) {
+        errors.push({ field: '__messages__', error: error instanceof Error ? error.message : String(error) })
+      }
+    }
+  }
   return {
     ...row,
     ...detail,
     formFields: mergedFields,
     instanceTasks: Array.isArray(detail.instanceTasks) ? detail.instanceTasks : row.instanceTasks,
-    __enrichmentErrors: enriched.errors,
+    __enrichmentErrors: errors,
   }
 }
 
