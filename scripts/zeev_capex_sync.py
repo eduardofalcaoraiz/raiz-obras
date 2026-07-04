@@ -1025,8 +1025,10 @@ def build_ticket(row):
 def sync(start, end, flows, max_pages, page_size):
     tickets = {}
     for flow_id in flows:
+        print(json.dumps({"progress": "flow-start", "flowId": flow_id, "start": start, "end": end, "maxPages": max_pages}, ensure_ascii=False), flush=True)
         for page in range(1, max_pages + 1):
             rows = report_page(flow_id, page, start, end, page_size=page_size)
+            print(json.dumps({"progress": "flow-page", "flowId": flow_id, "page": page, "rows": len(rows), "ticketsSoFar": len(tickets)}, ensure_ascii=False), flush=True)
             for row in rows:
                 if not has_capex(row.get("formFields") or [], flow_id):
                     continue
@@ -1036,6 +1038,7 @@ def sync(start, end, flows, max_pages, page_size):
                     tickets[ticket["zeev_instance_id"]] = ticket
             if len(rows) < page_size:
                 break
+        print(json.dumps({"progress": "flow-end", "flowId": flow_id, "ticketsSoFar": len(tickets)}, ensure_ascii=False), flush=True)
     return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
 
 
