@@ -497,6 +497,17 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-sub{font-size:12px;color:var(--muted);margin-top:3px}
 .capex-zeev-kpis{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
 .capex-zeev-pill{border:1px solid var(--line);background:rgba(255,255,255,.72);border-radius:999px;padding:5px 9px;font-size:11.5px;font-weight:800;color:var(--ink)}
+.capex-zeev-sync{display:grid;grid-template-columns:auto 1fr;gap:9px 12px;align-items:center;border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 16%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.72),color-mix(in srgb,var(--brand-cur-light,var(--raiz-soft)) 22%,#fff));border-radius:12px;padding:10px 12px;margin:0 0 12px}
+.capex-zeev-sync-dot{width:10px;height:10px;border-radius:999px;background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 13%,transparent)}
+.capex-zeev-sync.warn .capex-zeev-sync-dot{background:var(--warn);box-shadow:0 0 0 4px color-mix(in srgb,var(--warn) 14%,transparent)}
+.capex-zeev-sync.error .capex-zeev-sync-dot{background:var(--danger);box-shadow:0 0 0 4px color-mix(in srgb,var(--danger) 12%,transparent)}
+.capex-zeev-sync.running .capex-zeev-sync-dot{background:var(--info);box-shadow:0 0 0 4px color-mix(in srgb,var(--info) 13%,transparent)}
+.capex-zeev-sync-main{min-width:0;display:grid;gap:4px}
+.capex-zeev-sync-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.7px;font-weight:900;color:var(--ink)}
+.capex-zeev-sync-title span{border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 20%,var(--line));border-radius:999px;padding:3px 8px;background:rgba(255,255,255,.72);font-size:11px;color:var(--brand-text,var(--accent-text));font-weight:900}
+.capex-zeev-sync-sub{font-size:11.8px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere}
+.capex-zeev-sync.warn .capex-zeev-sync-sub{color:#8A4B00}
+.capex-zeev-sync.error .capex-zeev-sync-sub{color:var(--danger)}
 .capex-zeev-tools{display:grid;grid-template-columns:minmax(260px,420px) 1fr;gap:10px;align-items:end;margin:-2px 0 10px}
 .capex-zeev-search label{display:block;font-size:10.5px;font-weight:850;text-transform:uppercase;letter-spacing:.06em;color:var(--brand-text,var(--accent-text));margin-bottom:5px}
 .capex-zeev-search-row{display:grid;grid-template-columns:1fr auto;gap:7px}
@@ -3681,7 +3692,7 @@ const ESFERAS={capex:{label:'Capex de Melhorias',desc:'Obras de melhoria e retro
 
 let curEsfera='nova',esfBusca='',esfFiltroMarca='Todas',esfNfSearchQuery='';
 
-let capexItens=[],capexSaldos=[],capexZeevSolicitacoes=[],capexEditId=null,capexZeevApproveId=null;
+let capexItens=[],capexSaldos=[],capexZeevSolicitacoes=[],capexZeevSyncState=null,capexEditId=null,capexZeevApproveId=null;
 
 function setEsfBusca(v){esfBusca=v;renderEsfera();}
 
@@ -6290,6 +6301,49 @@ function capexZeevResultsHtml(pend,total){
   return`<div class="capex-zeev-empty">Nenhum Ticket Raiz pendente de aprovacao neste momento. Use Atualizar Zeev para buscar novos registros agora.</div>`;
 }
 
+function capexZeevSyncDate(v){
+  if(!v)return'';
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime()))return String(v);
+  return d.toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
+}
+
+function renderCapexZeevSyncStatus(){
+  const s=capexZeevSyncState||null;
+  if(!s){
+    return`<div class="capex-zeev-sync warn">
+      <span class="capex-zeev-sync-dot"></span>
+      <div class="capex-zeev-sync-main">
+        <div class="capex-zeev-sync-title">Automação Zeev <span>Status ainda não carregado</span></div>
+        <div class="capex-zeev-sync-sub">A plataforma ainda não recebeu o estado da última varredura. Use Atualizar Zeev se quiser disparar uma conferência agora.</div>
+      </div>
+    </div>`;
+  }
+  const running=!!s.running;
+  const rawError=String(s.last_error||'').trim();
+  const isEmailWarn=/^Aviso de e-mail:/i.test(rawError);
+  const cls=running?'running':(rawError?(isEmailWarn?'warn':'error'):'ok');
+  const tag=running?'Em leitura':(rawError?(isEmailWarn?'E-mail pendente':'Atenção'):'Online');
+  const last=capexZeevSyncDate(s.last_success_at||s.updated_at);
+  const found=+s.last_run_found||0;
+  const created=+s.last_run_new||0;
+  const updated=+s.last_run_updated||0;
+  const pieces=[];
+  if(last)pieces.push(`última leitura ${last}`);
+  pieces.push(`${found} encontrado${found!==1?'s':''}`);
+  pieces.push(`${created} novo${created!==1?'s':''}`);
+  pieces.push(`${updated} atualizado${updated!==1?'s':''}`);
+  const msg=rawError||pieces.join(' · ');
+  const sub=rawError?`${pieces.join(' · ')}. ${rawError}`:pieces.join(' · ');
+  return`<div class="capex-zeev-sync ${cls}" title="${escHtml(msg)}">
+    <span class="capex-zeev-sync-dot"></span>
+    <div class="capex-zeev-sync-main">
+      <div class="capex-zeev-sync-title">Automação Zeev <span>${escHtml(tag)}</span></div>
+      <div class="capex-zeev-sync-sub">${escHtml(sub)}</div>
+    </div>
+  </div>`;
+}
+
 function renderCapexZeevResults(){
   const allPend=capexZeevPendingList();
   const pend=capexZeevFilteredPendingList(allPend);
@@ -6323,6 +6377,7 @@ function renderCapexZeevQueue(){
         <button class="btn btn-ghost btn-sm" onclick="syncZeevCapexNow()">Atualizar Zeev</button>
       </div>
     </div>
+    ${renderCapexZeevSyncStatus()}
     <div class="capex-zeev-tools">
       <div class="capex-zeev-search">
         <label for="capex-zeev-ticket-search">Buscar pelo numero do ticket</label>
@@ -12937,6 +12992,10 @@ async function loadFromDB(){
     const{data:czR,error:czErr}=await selectAllRows('capex_zeev_solicitacoes',{order:'start_date_time',ascending:false});
 
     if(czErr){console.warn('loadFromDB capex_zeev_solicitacoes error:',czErr);capexZeevSolicitacoes=[];}else capexZeevSolicitacoes=czR||[];
+
+    const{data:zsR,error:zsErr}=await selectAllRows('zeev_sync_state',{order:'id'});
+
+    if(zsErr){console.warn('loadFromDB zeev_sync_state error:',zsErr);capexZeevSyncState=null;}else capexZeevSyncState=(zsR||[]).find(r=>r.id==='zeev-capex')||null;
 
   }catch(e){console.error('[loadFromDB] Erro:',e);throw e;}
 
