@@ -621,7 +621,34 @@ button{font-family:inherit;cursor:pointer}
 .obra-nf-result.exact{background:color-mix(in srgb,var(--brand-cur-light,var(--raiz-soft)) 44%,#fff);border-color:color-mix(in srgb,var(--brand-cur,var(--accent)) 28%,var(--line))}
 @media(max-width:1280px){.capex-detail-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:940px){.capex-zeev-tools{grid-template-columns:1fr}.capex-zeev-type-filter{justify-content:flex-start}.capex-zeev-list{max-height:none}.capex-expander-detail{overflow-x:auto}.capex-detail-grid,.capex-detail-actions{min-width:760px}.capex-detail-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:760px){.capex-tr-search{grid-template-columns:1fr}.capex-tr-result{grid-template-columns:1fr}.capex-tr-code,.capex-tr-status{width:max-content}.capex-zeev-search-row{grid-template-columns:1fr}.capex-expander-summary{min-width:1040px}.capex-item-card .capex-expander-summary{min-width:1040px}.capex-zeev-card .capex-expander-summary{min-width:1040px}.capex-detail-edit{min-width:620px}.capex-item-modal{width:calc(100vw - 18px)}.capex-item-modal .mbody{display:block}.capex-item-modal .capex-form-card{margin-bottom:12px}}
+@media(max-width:760px){
+  .capex-tr-search{grid-template-columns:1fr}
+  .capex-tr-result{grid-template-columns:1fr}
+  .capex-tr-code,.capex-tr-status{width:max-content}
+  .capex-zeev-search-row{grid-template-columns:1fr}
+  .capex-expander-card summary{overflow-x:visible}
+  .capex-expander-summary,
+  .capex-item-card .capex-expander-summary,
+  .capex-zeev-card .capex-expander-summary{
+    min-width:0;
+    grid-template-columns:1fr;
+    grid-template-areas:"id" "main" "data" "value" "actions";
+    gap:10px;
+    padding:12px 13px 13px 18px;
+  }
+  .capex-summary-id{align-self:auto;flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap}
+  .capex-summary-data{grid-template-columns:1fr;gap:8px}
+  .capex-summary-fact{padding:0}
+  .capex-summary-fact+.capex-summary-fact{border-left:0;border-top:1px solid color-mix(in srgb,var(--card-accent) 14%,var(--line));padding-left:0;padding-top:8px}
+  .capex-summary-actions{flex-direction:row;flex-wrap:wrap;justify-content:flex-start}
+  .capex-summary-actions .btn{width:auto;min-width:112px}
+  .capex-summary-toggle{display:none}
+  .capex-detail-edit{min-width:0;grid-template-columns:1fr}
+  .capex-detail-grid,.capex-detail-actions{min-width:0}
+  .capex-item-modal{width:calc(100vw - 18px)}
+  .capex-item-modal .mbody{display:block}
+  .capex-item-modal .capex-form-card{margin-bottom:12px}
+}
 .global-dashboard{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin-bottom:16px;align-items:start}
 .gd-span-12{grid-column:span 12}.gd-span-8{grid-column:span 8}.gd-span-6{grid-column:span 6}.gd-span-4{grid-column:span 4}
 .gd-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
