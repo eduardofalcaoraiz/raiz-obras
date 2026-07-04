@@ -886,19 +886,22 @@ async function summarizeWithHuggingFace(text: string) {
   if (env('ZEEV_AI_SUMMARY_ENABLED', '1') === '0') return ''
   const key = env('HF_TOKEN') || env('HUGGINGFACE_API_KEY')
   if (!key) return ''
-  const model = env('HF_SUMMARY_MODEL') || 'csebuetnlp/mT5_multilingual_XLSum'
+  const model = env('HF_SUMMARY_MODEL') || 'meta-llama/Llama-3.1-8B-Instruct'
   const source = cleanSummaryText(text).slice(0, Number(env('ZEEV_SUMMARY_MAX_INPUT_CHARS', '12000')) || 12000)
-  const data = await fetchJsonWithTimeout(`https://api-inference.huggingface.co/models/${model}`, {
+  const data = await fetchJsonWithTimeout('https://router.huggingface.co/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      inputs: source,
-      parameters: { max_length: 90, min_length: 24, do_sample: false },
-      options: { wait_for_model: true },
+      model,
+      temperature: 0,
+      max_tokens: 120,
+      messages: [
+        { role: 'system', content: 'Resuma tickets em portugues sem inventar nenhum dado.' },
+        { role: 'user', content: `Resuma em ate 2 frases curtas, preservando nomes e itens importantes:\n\n${source}` },
+      ],
     }),
   })
-  const row = Array.isArray(data) ? data[0] : data
-  const summary = cleanSummaryText(row?.summary_text || row?.generated_text || '')
+  const summary = cleanSummaryText(data?.choices?.[0]?.message?.content || '')
   return summary ? trimCardSummary(summary, 300) : ''
 }
 
