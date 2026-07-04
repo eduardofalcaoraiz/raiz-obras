@@ -393,10 +393,6 @@ button{font-family:inherit;cursor:pointer}
 .capex-summary-title{font-size:14.5px;font-weight:900;color:var(--ink);line-height:1.22;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-summary-meta,.capex-summary-line{font-size:11.7px;color:var(--muted);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
 .capex-summary-line b{color:var(--ink);font-weight:900}
-.capex-summary-brief{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
-.capex-summary-chip{display:inline-flex;align-items:center;gap:5px;max-width:260px;border:1px solid color-mix(in srgb,var(--card-accent) 14%,var(--line));background:rgba(255,255,255,.58);border-radius:999px;padding:4px 8px;font-size:11px;line-height:1.15;color:var(--muted);min-width:0}
-.capex-summary-chip b{color:var(--ink);font-weight:900;white-space:nowrap}
-.capex-summary-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .capex-summary-fact{min-width:0;align-self:stretch;display:flex;flex-direction:column;justify-content:center;border-left:1px solid color-mix(in srgb,var(--card-accent) 18%,var(--line));padding-left:10px}
 .capex-summary-fact b{display:block;font-size:9.8px;color:var(--muted);font-weight:950;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
 .capex-summary-fact span{display:block;font-size:12.2px;font-weight:850;color:var(--ink);line-height:1.24;overflow-wrap:anywhere}
@@ -408,7 +404,6 @@ button{font-family:inherit;cursor:pointer}
   overflow:visible!important;
   text-overflow:clip!important;
 }
-.capex-expander-card .capex-summary-chip{align-items:flex-start;border-radius:10px}
 .capex-expander-card .capex-zeev-money{align-content:start}
 .capex-summary-stage{display:grid;gap:2px;min-width:0}
 .capex-summary-stage span,.capex-detail-label{font-size:9.8px;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.04em}
@@ -6067,29 +6062,9 @@ function capexZeevCompactLine(z){
   return parts.length?parts.join(' &nbsp;|&nbsp; '):'<b>Dados</b> Aguardando mais informacoes do Zeev';
 }
 
-function capexSummaryChip(label,value){
-  const txt=String(value||'').trim();
-  if(!txt)return'';
-  return`<span class="capex-summary-chip" title="${escHtml(txt)}"><b>${escHtml(label)}</b><span>${escHtml(txt)}</span></span>`;
-}
-
-function capexSummaryBrief(items){
-  const html=(items||[]).map(it=>capexSummaryChip(it.label,it.value)).filter(Boolean).join('');
-  return html?`<div class="capex-summary-brief">${html}</div>`:'';
-}
-
 function capexSummaryFact(label,value){
   const txt=String(value||'').trim()||'Nao informado';
   return`<div class="capex-summary-fact" title="${escHtml(txt)}"><b>${escHtml(label)}</b><span>${escHtml(txt)}</span></div>`;
-}
-
-function capexZeevSummaryBrief(z){
-  const fornecedor=capexZeevField(z,['fornecedor','nomeFornecedor','razaoSocial','fornecedorEscolhido','favorecido','beneficiario']);
-  const solicitante=[z.requester_name,z.requester_team].filter(Boolean).join(' / ');
-  return capexSummaryBrief([
-    {label:'Fornecedor',value:fornecedor},
-    {label:'Solicitante',value:solicitante}
-  ]);
 }
 
 function renderCapexZeevCards(pend){
