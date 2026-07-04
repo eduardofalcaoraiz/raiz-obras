@@ -731,8 +731,14 @@ def deterministic_card_summary(text, items=None, compra=False):
     return trim_card_summary(" ".join(sentences[:2]) if sentences else clean, 300)
 
 
+def allow_core_summary_keys():
+    return os.environ.get("ZEEV_SUMMARY_ALLOW_GEMINI_GROQ", "0") == "1" or os.environ.get("ZEEV_SUMMARY_USE_CORE_KEYS", "0") == "1"
+
+
 def summarize_with_gemini(text):
     if os.environ.get("ZEEV_AI_SUMMARY_ENABLED", "1") == "0":
+        return ""
+    if not allow_core_summary_keys():
         return ""
     key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not key:
@@ -758,6 +764,8 @@ def summarize_with_gemini(text):
 def summarize_with_groq(text):
     if os.environ.get("ZEEV_AI_SUMMARY_ENABLED", "1") == "0":
         return ""
+    if not allow_core_summary_keys():
+        return ""
     key = os.environ.get("GROQ_API_KEY")
     if not key:
         return ""
@@ -775,6 +783,69 @@ def summarize_with_groq(text):
     data = request_json(
         "POST",
         "https://api.groq.com/openai/v1/chat/completions",
+        headers={"Authorization": f"Bearer {key}"},
+        payload=payload,
+        timeout=35,
+        retries=1,
+    )
+    summary = clean_summary_text((((data.get("choices") or [{}])[0].get("message") or {}).get("content")) or "")
+    return trim_card_summary(summary, 300) if summary else ""
+
+
+def summarize_with_cloudflare(text):
+    if os.environ.get("ZEEV_AI_SUMMARY_ENABLED", "1") == "0":
+        return ""
+    account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID")
+    token = os.environ.get("CLOUDFLARE_API_TOKEN") or os.environ.get("CF_API_TOKEN")
+    if not account_id or not token:
+        return ""
+    model = os.environ.get("CLOUDFLARE_SUMMARY_MODEL") or "@cf/meta/llama-3.1-8b-instruct-fast"
+    source = clean_summary_text(text)[: int(os.environ.get("ZEEV_SUMMARY_MAX_INPUT_CHARS", "12000"))]
+    payload = {
+        "messages": [
+            {"role": "system", "content": "Resuma tickets em portugues sem inventar nenhum dado."},
+            {"role": "user", "content": "Resuma em ate 2 frases curtas, preservando nomes e itens importantes:\n\n" + source},
+        ]
+    }
+    url = f"https://api.cloudflare.com/client/v4/accounts/{urllib.parse.quote(account_id, safe='')}/ai/run/{urllib.parse.quote(model, safe='@/')}"
+    data = request_json(
+        "POST",
+        url,
+        headers={"Authorization": f"Bearer {token}"},
+        payload=payload,
+        timeout=35,
+        retries=1,
+    )
+    result = data.get("result") if isinstance(data, dict) else {}
+    summary = ""
+    if isinstance(result, dict):
+        summary = result.get("response") or result.get("text") or result.get("generated_text") or ""
+    elif isinstance(result, str):
+        summary = result
+    summary = clean_summary_text(summary)
+    return trim_card_summary(summary, 300) if summary else ""
+
+
+def summarize_with_mistral(text):
+    if os.environ.get("ZEEV_AI_SUMMARY_ENABLED", "1") == "0":
+        return ""
+    key = os.environ.get("MISTRAL_API_KEY")
+    if not key:
+        return ""
+    model = os.environ.get("MISTRAL_SUMMARY_MODEL") or "mistral-small-latest"
+    source = clean_summary_text(text)[: int(os.environ.get("ZEEV_SUMMARY_MAX_INPUT_CHARS", "12000"))]
+    payload = {
+        "model": model,
+        "temperature": 0,
+        "max_tokens": 120,
+        "messages": [
+            {"role": "system", "content": "Resuma tickets em portugues sem inventar nenhum dado."},
+            {"role": "user", "content": "Resuma em ate 2 frases curtas, preservando nomes e itens importantes:\n\n" + source},
+        ],
+    }
+    data = request_json(
+        "POST",
+        "https://api.mistral.ai/v1/chat/completions",
         headers={"Authorization": f"Bearer {key}"},
         payload=payload,
         timeout=35,
@@ -816,7 +887,13 @@ def card_summary_cascade(text, items=None, compra=False):
     deterministic = deterministic_card_summary(clean, items=items, compra=compra)
     if deterministic == clean and len(clean) <= 300:
         return deterministic, "texto-completo"
-    for source, fn in (("gemini", summarize_with_gemini), ("groq", summarize_with_groq), ("huggingface", summarize_with_huggingface)):
+    for source, fn in (
+        ("cloudflare", summarize_with_cloudflare),
+        ("mistral", summarize_with_mistral),
+        ("huggingface", summarize_with_huggingface),
+        ("groq-reserva", summarize_with_groq),
+        ("gemini-reserva", summarize_with_gemini),
+    ):
         try:
             summary = fn(clean)
             if summary and description_score(summary) > 30 and len(summary) <= max(320, len(clean)):
