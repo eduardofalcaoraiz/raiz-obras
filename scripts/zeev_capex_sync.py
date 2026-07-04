@@ -703,32 +703,15 @@ def split_summary_parts(text):
     return out
 
 
-def trim_card_summary(text, limit=300):
-    clean = clean_summary_text(text)
-    if len(clean) <= limit:
-        return clean
-    cut = re.sub(r"\s+\S*$", "", clean[: max(1, limit - 1)]).strip()
-    return (cut or clean[: max(1, limit - 1)].strip()) + "..."
+def trim_card_summary(text, _limit=None):
+    return clean_summary_text(text)
 
 
 def deterministic_card_summary(text, items=None, compra=False):
     clean = clean_summary_text(text)
     if not clean:
         return ""
-    item_parts = [clean_item_description(x.get("descricao")) for x in (items or []) if clean_item_description(x.get("descricao"))]
-    if not item_parts:
-        item_parts = [p for p in split_summary_parts(clean) if not generic_purchase_text(p)]
-    is_long = len(clean) > 300 or len(item_parts) > 4 or len(clean.split()) > 42
-    if not is_long:
-        return clean
-    if len(item_parts) >= 3:
-        shown = [trim_card_summary(p, 70) for p in item_parts[:4]]
-        remaining = len(item_parts) - len(shown)
-        suffix = f" + {remaining} item{'s' if remaining != 1 else ''}" if remaining > 0 else ""
-        prefix = f"{len(item_parts)} itens de compra: " if compra else "Resumo: "
-        return trim_card_summary(prefix + "; ".join(shown) + suffix, 300)
-    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", clean) if s.strip()]
-    return trim_card_summary(" ".join(sentences[:2]) if sentences else clean, 300)
+    return clean
 
 
 def allow_core_summary_keys():
@@ -745,7 +728,7 @@ def summarize_with_gemini(text):
         return ""
     model = os.environ.get("GEMINI_SUMMARY_MODEL") or "gemini-2.5-flash-lite"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{urllib.parse.quote(model, safe='')}:generateContent"
-    source = clean_summary_text(text)[: int(os.environ.get("ZEEV_SUMMARY_MAX_INPUT_CHARS", "12000"))]
+    source = clean_summary_text(text)
     prompt = (
         "Resuma em portugues, em ate 2 frases curtas, apenas com dados existentes no texto. "
         "Nao invente fornecedor, valor, unidade, data ou item. Preserve nomes importantes.\n\n"
@@ -770,7 +753,7 @@ def summarize_with_groq(text):
     if not key:
         return ""
     model = os.environ.get("GROQ_SUMMARY_MODEL") or "llama-3.1-8b-instant"
-    source = clean_summary_text(text)[: int(os.environ.get("ZEEV_SUMMARY_MAX_INPUT_CHARS", "12000"))]
+    source = clean_summary_text(text)
     payload = {
         "model": model,
         "temperature": 0,
@@ -800,7 +783,7 @@ def summarize_with_cloudflare(text):
     if not account_id or not token:
         return ""
     model = os.environ.get("CLOUDFLARE_SUMMARY_MODEL") or "@cf/meta/llama-3.1-8b-instruct-fast"
-    source = clean_summary_text(text)[: int(os.environ.get("ZEEV_SUMMARY_MAX_INPUT_CHARS", "12000"))]
+    source = clean_summary_text(text)
     payload = {
         "messages": [
             {"role": "system", "content": "Resuma tickets em portugues sem inventar nenhum dado."},
@@ -833,7 +816,7 @@ def summarize_with_mistral(text):
     if not key:
         return ""
     model = os.environ.get("MISTRAL_SUMMARY_MODEL") or "mistral-small-latest"
-    source = clean_summary_text(text)[: int(os.environ.get("ZEEV_SUMMARY_MAX_INPUT_CHARS", "12000"))]
+    source = clean_summary_text(text)
     payload = {
         "model": model,
         "temperature": 0,
@@ -862,7 +845,7 @@ def summarize_with_huggingface(text):
     if not token:
         return ""
     model = os.environ.get("HF_SUMMARY_MODEL") or "meta-llama/Llama-3.1-8B-Instruct"
-    source = clean_summary_text(text)[: int(os.environ.get("ZEEV_SUMMARY_MAX_INPUT_CHARS", "12000"))]
+    source = clean_summary_text(text)
     payload = {
         "model": model,
         "temperature": 0,
@@ -890,7 +873,7 @@ def card_summary_cascade(text, items=None, compra=False):
     if not clean:
         return "", ""
     deterministic = deterministic_card_summary(clean, items=items, compra=compra)
-    if deterministic == clean and len(clean) <= 300:
+    if deterministic == clean:
         return deterministic, "texto-completo"
     for source, fn in (
         ("cloudflare", summarize_with_cloudflare),
