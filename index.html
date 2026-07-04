@@ -260,7 +260,7 @@ button{font-family:inherit;cursor:pointer}
 
 .b-neutral{background:var(--surface-2);color:var(--muted);border:1px solid var(--line-2)}
 
-.badge-select{border:0;font-size:11.5px;font-weight:600;font-family:inherit;padding:3px 8px;border-radius:20px;cursor:pointer;outline:none}
+.badge-select{border:0;font-size:12.2px;font-weight:850;font-family:inherit;padding:5px 10px;border-radius:20px;cursor:pointer;outline:none}
 
 .badge-select.b-ok{background:var(--ok-bg);color:var(--ok)}.badge-select.b-warn{background:var(--warn-bg);color:var(--warn)}.badge-select.b-info{background:var(--info-bg);color:var(--info)}.badge-select.b-danger{background:var(--danger-bg);color:var(--danger)}.badge-select.b-neutral{background:var(--surface-2);color:var(--muted)}
 
@@ -386,18 +386,18 @@ button{font-family:inherit;cursor:pointer}
 .capex-expander-card summary::-webkit-details-marker{display:none}
 .capex-expander-card summary::-webkit-scrollbar{height:4px}
 .capex-expander-card summary::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--card-accent) 25%,var(--line));border-radius:999px}
-.capex-expander-summary{display:grid;grid-template-columns:minmax(122px,154px) minmax(0,1fr) minmax(150px,178px) minmax(132px,150px) 28px;grid-template-areas:"id main value actions toggle" "id data value actions toggle";gap:8px 13px;align-items:center;min-width:1040px;min-height:96px;padding:13px 14px 13px 20px;cursor:pointer}
-.capex-summary-id{grid-area:id;display:flex;flex-direction:column;justify-content:center;gap:7px;min-width:0;align-self:stretch;border:1px solid color-mix(in srgb,var(--card-accent) 14%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.7),color-mix(in srgb,var(--card-soft) 30%,#fff));border-radius:12px;padding:9px 10px}
-.capex-summary-code{display:inline-flex;width:max-content;max-width:100%;align-items:center;border:1px solid color-mix(in srgb,var(--card-accent) 30%,var(--line));background:color-mix(in srgb,var(--card-soft) 62%,#fff);color:var(--brand-text,var(--accent-text));border-radius:999px;padding:4px 9px;font-family:"Space Grotesk",system-ui,sans-serif;font-size:11.5px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-expander-summary{display:grid;grid-template-columns:minmax(132px,160px) minmax(0,1fr) minmax(162px,190px) minmax(130px,146px) 28px;grid-template-areas:"id main value actions toggle" "id data value actions toggle";gap:8px 12px;align-items:center;min-width:1040px;min-height:88px;padding:11px 13px 11px 20px;cursor:pointer}
+.capex-summary-id{grid-area:id;display:flex;flex-direction:column;justify-content:center;gap:8px;min-width:0;align-self:stretch;border:1px solid color-mix(in srgb,var(--card-accent) 12%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.62),color-mix(in srgb,var(--card-soft) 22%,#fff));border-radius:12px;padding:8px 10px}
+.capex-summary-code{display:inline-flex;width:max-content;max-width:100%;align-items:center;border:1px solid color-mix(in srgb,var(--card-accent) 30%,var(--line));background:color-mix(in srgb,var(--card-soft) 62%,#fff);color:var(--brand-text,var(--accent-text));border-radius:999px;padding:5px 10px;font-family:"Space Grotesk",system-ui,sans-serif;font-size:12.4px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-summary-main{grid-area:main;min-width:0;display:grid;gap:4px;align-self:end}
-.capex-summary-title{font-size:15px;font-weight:950;color:var(--ink);line-height:1.22;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.capex-summary-meta,.capex-summary-line{font-size:11.7px;color:var(--muted);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.capex-summary-title{font-size:16.4px;font-weight:950;color:var(--ink);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-summary-meta,.capex-summary-line{font-size:12.4px;color:var(--muted);line-height:1.32;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .capex-summary-line b{color:var(--ink);font-weight:900}
-.capex-summary-data{grid-area:data;display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:0;align-self:start;border:1px solid color-mix(in srgb,var(--card-accent) 10%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.56),color-mix(in srgb,var(--card-soft) 22%,#fff));border-radius:11px;padding:7px 9px}
-.capex-summary-fact{min-width:0;display:flex;flex-direction:column;justify-content:center;padding:0 9px 0 0}
+.capex-summary-data{grid-area:data;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;align-self:start;border:1px solid color-mix(in srgb,var(--card-accent) 10%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.58),color-mix(in srgb,var(--card-soft) 20%,#fff));border-radius:11px;padding:8px 10px}
+.capex-summary-fact{min-width:0;display:flex;flex-direction:column;justify-content:center;padding:0 10px 0 0}
 .capex-summary-fact+.capex-summary-fact{border-left:1px solid color-mix(in srgb,var(--card-accent) 14%,var(--line));padding-left:10px}
-.capex-summary-fact b{display:block;font-size:9.2px;color:var(--muted);font-weight:950;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
-.capex-summary-fact span{display:block;font-size:11.7px;font-weight:850;color:var(--ink);line-height:1.2;overflow-wrap:anywhere}
+.capex-summary-fact b{display:block;font-size:9.8px;color:var(--muted);font-weight:950;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.capex-summary-fact span{display:block;font-size:12.7px;font-weight:850;color:var(--ink);line-height:1.22;overflow-wrap:anywhere}
 .capex-expander-card .capex-summary-title,
 .capex-expander-card .capex-summary-meta,
 .capex-expander-card .capex-summary-fact span{
@@ -406,21 +406,21 @@ button{font-family:inherit;cursor:pointer}
   overflow:visible!important;
   text-overflow:clip!important;
 }
-.capex-expander-card .capex-zeev-money{grid-area:value;align-content:center;align-self:stretch;justify-content:center;min-height:70px}
+.capex-expander-card .capex-zeev-money{grid-area:value;align-content:center;align-self:stretch;justify-content:center;min-height:62px}
 .capex-summary-stage{display:grid;gap:2px;min-width:0}
 .capex-summary-stage span,.capex-detail-label{font-size:9.8px;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.04em}
 .capex-summary-stage b,.capex-summary-stage em{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-summary-stage b{font-size:12.5px;color:var(--ink)}
 .capex-summary-stage em{font-size:11px;color:var(--soft)}
 .capex-summary-actions{grid-area:actions;display:flex;align-items:stretch;justify-content:center;gap:6px;min-width:0;flex-direction:column}
-.capex-summary-actions .btn{min-height:30px;padding:6px 10px;font-size:12px;white-space:nowrap;border-radius:9px;width:100%;justify-content:center}
+.capex-summary-actions .btn{min-height:32px;padding:7px 10px;font-size:12.4px;font-weight:850;white-space:nowrap;border-radius:9px;width:100%;justify-content:center}
 .capex-summary-toggle{grid-area:toggle;width:28px;height:28px;border-radius:999px;border:1px solid color-mix(in srgb,var(--card-accent) 18%,var(--line));background:rgba(255,255,255,.72);color:var(--brand-text,var(--accent-text));display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;transition:transform .16s,background .16s}
 .capex-expander-card[open] .capex-summary-toggle{transform:rotate(90deg);background:color-mix(in srgb,var(--card-soft) 62%,#fff)}
 .capex-expander-detail{border-top:1px solid color-mix(in srgb,var(--card-accent) 14%,var(--line));background:rgba(255,255,255,.48);padding:12px 14px 14px 18px}
 .capex-detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 14px;align-items:start}
 .capex-detail-field{min-width:0;border-left:2px solid color-mix(in srgb,var(--card-accent) 24%,var(--line));padding-left:9px}
-.capex-detail-field b{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
-.capex-detail-field span{display:block;font-size:12.3px;line-height:1.4;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+.capex-detail-field b{display:block;font-size:10.4px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:4px}
+.capex-detail-field span{display:block;font-size:13px;line-height:1.42;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
 .capex-detail-field.full{grid-column:1/-1}
 .capex-detail-field.full span{white-space:normal}
 .capex-detail-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
@@ -511,10 +511,10 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-card{--card-accent:var(--brand-cur,var(--accent));--card-soft:var(--brand-cur-light,var(--raiz-soft))}
 .capex-zeev-card.ready{--card-accent:var(--ok);--card-soft:var(--ok-bg)}
 .capex-zeev-card .capex-expander-summary{min-width:1040px}
-.capex-zeev-status{font-size:10.5px;text-transform:none;letter-spacing:0;white-space:nowrap;max-width:132px;overflow:hidden;text-overflow:ellipsis}
-.capex-zeev-money{border:1px solid color-mix(in srgb,var(--card-accent,var(--brand-cur,var(--accent))) 18%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.78),color-mix(in srgb,var(--card-accent,var(--brand-cur,var(--accent))) 7%,var(--surface)));border-radius:10px;padding:6px 8px;display:grid;gap:1px;min-width:0}
-.capex-zeev-money-label{font-size:9.4px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.capex-zeev-money-value{font-family:"Space Grotesk",sans-serif;font-size:15px;font-weight:950;color:var(--brand-text,var(--accent-text));line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capex-zeev-status{font-size:11.8px;text-transform:none;letter-spacing:0;white-space:normal;max-width:none;overflow:visible;text-overflow:clip;line-height:1.18;font-weight:850;padding:5px 9px}
+.capex-zeev-money{border:1px solid color-mix(in srgb,var(--card-accent,var(--brand-cur,var(--accent))) 18%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.82),color-mix(in srgb,var(--card-accent,var(--brand-cur,var(--accent))) 7%,var(--surface)));border-radius:11px;padding:8px 10px;display:grid;gap:3px;min-width:0;text-align:center}
+.capex-zeev-money-label{font-size:10.2px;font-weight:950;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:normal;overflow:visible;text-overflow:clip;line-height:1.18}
+.capex-zeev-money-value{font-family:"Space Grotesk",sans-serif;font-size:17.6px;font-weight:950;color:var(--brand-text,var(--accent-text));line-height:1.08;white-space:normal;overflow:visible;text-overflow:clip}
 .capex-zeev-money.final{border-color:color-mix(in srgb,var(--ok) 32%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.82),color-mix(in srgb,var(--ok) 11%,var(--surface)))}
 .capex-zeev-money.final .capex-zeev-money-value{color:var(--ok)}
 .capex-zeev-money.approval{border-color:rgba(176,93,0,.24);background:linear-gradient(135deg,rgba(255,255,255,.82),rgba(255,151,23,.12))}
@@ -524,7 +524,7 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-money.blocked{border-color:color-mix(in srgb,var(--danger) 34%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.82),color-mix(in srgb,var(--danger) 9%,var(--surface)))}
 .capex-zeev-money.blocked .capex-zeev-money-value{color:var(--danger)}
 .capex-zeev-money.review{border-color:rgba(23,60,52,.12);background:rgba(255,255,255,.62)}
-.capex-zeev-money.review .capex-zeev-money-value{color:var(--muted);font-size:12.5px}
+.capex-zeev-money.review .capex-zeev-money-value{color:var(--muted);font-size:13.8px}
 .capex-zeev-fact{min-width:0;border-left:2px solid color-mix(in srgb,var(--card-accent,var(--accent)) 24%,var(--line));padding-left:9px}
 .capex-zeev-fact b{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
 .capex-zeev-fact span{display:block;font-size:12.3px;line-height:1.4;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
