@@ -1,4 +1,5 @@
 import json
+import html as html_lib
 import os
 import re
 import sys
@@ -43,6 +44,7 @@ FINANCE_DESCRIPTION_FIELDS = [
 ]
 
 PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
+    "descricaoMensagemZeev",
     "descricaoDoServico",
     "descricaoServico",
     "descricaoServicoSolicitado",
@@ -353,6 +355,66 @@ def instance_fields(instance_id, fields):
     return data, data.get("formFields") or []
 
 
+def instance_messages(instance_id):
+    url = f"{ZEEV_BASE_URL}/api/2/messages/instance/{instance_id}?useCache=false"
+    data = request_json("GET", url, headers={"Authorization": f"Bearer {ZEEV_TOKEN}"}, timeout=90)
+    return data if isinstance(data, list) else []
+
+
+def clean_zeev_message_body(value):
+    text = str(value or "")
+    if not text.strip():
+        return ""
+    text = re.sub(r"(?i)<\s*br\s*/?\s*>", "\n", text)
+    text = re.sub(r"(?i)</\s*(p|div|li|tr|h[1-6])\s*>", "\n", text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html_lib.unescape(text)
+    text = text.replace("\xa0", " ")
+    text = re.sub(r"[ \t\r\f\v]+", " ", text)
+    text = re.sub(r"\n\s*\n+", "\n\n", text)
+    return text.strip()
+
+
+def generic_purchase_text(value):
+    text = clean_item_description(value)
+    n = norm(text)
+    if not n:
+        return False
+    if len(text) <= 90 and re.search(r"\bservico(s)?\b", n):
+        return True
+    return bool(re.match(r"^(servico|servicos|material|materiais|produto|produtos|item|itens)( de| para|$)", n))
+
+
+def best_message_description(messages, service_desc="", item_text=""):
+    bodies = []
+    for msg in messages or []:
+        body = clean_zeev_message_body((msg or {}).get("body"))
+        if len(body) < 80:
+            continue
+        n = norm(body)
+        if n.startswith(("cancelado", "ajustado", "ok", "aprovado", "reprovado")):
+            continue
+        bodies.append(body)
+    if not bodies:
+        return ""
+
+    service_norm = norm(service_desc)
+    if service_norm:
+        needle = service_norm[: min(70, len(service_norm))]
+        for body in bodies:
+            if needle and needle in norm(body):
+                return body
+
+    cues = ("solicita", "necess", "escopo", "servico", "servicos", "instalacao", "fornecimento", "compra", "adequacao")
+    cued = [body for body in bodies if any(cue in norm(body) for cue in cues)]
+    if cued:
+        return max(cued, key=len)
+
+    if generic_purchase_text(item_text):
+        return max(bodies, key=len)
+    return ""
+
+
 def enrich_instance(row):
     flow_id = int((row.get("flow") or {}).get("id") or row.get("flowId") or 0)
     fields = unique_fields(
@@ -412,6 +474,24 @@ def enrich_instance(row):
             continue
         key = f"{display}|{field.get('row') or 1}"
         all_fields[key] = field
+    if flow_id not in FINANCE_FLOW_IDS:
+        current_fields = list(all_fields.values())
+        service_desc = field_value_by_priority(current_fields, [x for x in PURCHASE_SERVICE_DESCRIPTION_FIELDS if x != "descricaoMensagemZeev"])
+        item_text = field_value_by_priority(current_fields, ITEM_DESC_FIELDS)
+        if looks_truncated_zeev_text(service_desc) or generic_purchase_text(item_text):
+            try:
+                messages = instance_messages(row["id"])
+                latest["__messages"] = messages
+                message_desc = best_message_description(messages, service_desc=service_desc, item_text=item_text)
+                if message_desc:
+                    all_fields["descricaoMensagemZeev|1"] = {
+                        "name": "descricaoMensagemZeev",
+                        "value": message_desc,
+                        "row": 1,
+                        "source": "messages",
+                    }
+            except Exception as exc:
+                errors.append({"field": "__messages__", "error": str(exc)[:300]})
     latest["formFields"] = list(all_fields.values())
     latest["__enrichmentErrors"] = errors
     return latest
