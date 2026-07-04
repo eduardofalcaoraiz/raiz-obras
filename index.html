@@ -397,6 +397,22 @@ button{font-family:inherit;cursor:pointer}
 .capex-summary-chip{display:inline-flex;align-items:center;gap:5px;max-width:260px;border:1px solid color-mix(in srgb,var(--card-accent) 14%,var(--line));background:rgba(255,255,255,.58);border-radius:999px;padding:4px 8px;font-size:11px;line-height:1.15;color:var(--muted);min-width:0}
 .capex-summary-chip b{color:var(--ink);font-weight:900;white-space:nowrap}
 .capex-summary-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.capex-expander-card .capex-summary-code,
+.capex-expander-card .capex-summary-chip,
+.capex-expander-card .capex-summary-chip span,
+.capex-expander-card .capex-zeev-money-label,
+.capex-expander-card .capex-zeev-money-value,
+.capex-expander-card .capex-summary-actions .btn,
+.capex-expander-card .badge,
+.capex-expander-card .badge-select{
+  max-width:none!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  line-height:1.22;
+}
+.capex-expander-card .capex-summary-chip{align-items:flex-start;border-radius:10px}
+.capex-expander-card .capex-zeev-money{align-content:start}
 .capex-summary-stage{display:grid;gap:2px;min-width:0}
 .capex-summary-stage span,.capex-detail-label{font-size:9.8px;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.04em}
 .capex-summary-stage b,.capex-summary-stage em{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -6069,8 +6085,6 @@ function capexZeevSummaryBrief(z){
   const fornecedor=capexZeevField(z,['fornecedor','nomeFornecedor','razaoSocial','fornecedorEscolhido','favorecido','beneficiario']);
   const solicitante=[z.requester_name,z.requester_team].filter(Boolean).join(' / ');
   return capexSummaryBrief([
-    {label:'Etapa',value:capexZeevStageLabel(z)},
-    {label:'Fluxo',value:capexZeevFlowLabel(z)},
     {label:'Fornecedor',value:fornecedor},
     {label:'Solicitante',value:solicitante}
   ]);
@@ -6091,7 +6105,6 @@ function renderCapexZeevCards(pend){
     const requester=[z.requester_name,z.requester_team].filter(Boolean).join(' / ')||'Nao informado';
     const details=[
       {label:'Solicitante',value:requester},
-      {label:'Fluxo',value:capexZeevFlowLabel(z)},
       {label:'Etapa atual',value:capexZeevStageLabel(z)},
       {label:'Status no Zeev',value:capexZeevTicketStatus(z)}
     ].map(f=>`<div class="capex-detail-field"><b>${escHtml(f.label)}</b><span title="${escHtml(f.value)}">${escHtml(f.value)}</span></div>`).join('');
