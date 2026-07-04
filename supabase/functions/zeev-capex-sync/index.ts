@@ -894,7 +894,6 @@ async function cardSummaryCascade(text: string, items: AnyRecord[], compra: bool
   const clean = cleanSummaryText(text)
   if (!clean) return { text: '', source: '' }
   const deterministic = deterministicCardSummary(clean, items, compra)
-  if (deterministic === clean) return { text: deterministic, source: 'texto-completo' }
   for (const [source, fn] of [
     ['cloudflare', summarizeWithCloudflare],
     ['mistral', summarizeWithMistral],
@@ -909,7 +908,7 @@ async function cardSummaryCascade(text: string, items: AnyRecord[], compra: bool
       console.warn('Zeev summary provider failed', source, error instanceof Error ? error.message : String(error))
     }
   }
-  return { text: deterministic, source: 'deterministico' }
+  return { text: deterministic, source: 'texto-completo' }
 }
 
 function ticketDescription(fmap: Map<string, AnyRecord[]>, items: AnyRecord[], financeiro: boolean, compra: boolean) {
@@ -1509,7 +1508,8 @@ async function runIngest(input: AnyRecord) {
       const items = Array.isArray(t.itens_json) ? t.itens_json : []
       const compra = String(t.setor || '').toUpperCase() === 'COMPRAS' || String(t.flow_name || t.request_name || '').toLowerCase().includes('compra')
       const existingSummary = cleanSummaryText(campos._resumo_card || '')
-      if (pedido && (!existingSummary || existingSummary === pedido || String(campos._resumo_card_source || '') === 'deterministico')) {
+      const existingSummarySource = String(campos._resumo_card_source || '')
+      if (pedido && (!existingSummary || existingSummary === pedido || ['deterministico', 'texto-completo'].includes(existingSummarySource))) {
         const resumo = await cardSummaryCascade(pedido, items, compra)
         if (resumo.text) {
           campos._resumo_card = resumo.text
