@@ -710,15 +710,174 @@ function itemSummary(items: AnyRecord[]) {
   return parts.join('; ')
 }
 
+function cleanSummaryText(value: unknown) {
+  return cleanZeevMessageBody(value)
+    .replace(/\s+\n/g, '\n')
+    .replace(/\n\s+/g, '\n')
+    .trim()
+}
+
+function descriptionScore(value: unknown) {
+  const text = cleanSummaryText(value)
+  if (!text) return 0
+  const words = text.split(/\s+/).filter(Boolean).length
+  const punct = (text.match(/[.;:]/g) || []).length
+  return text.length + words * 3 + punct * 12 - (genericPurchaseText(text) ? 90 : 0)
+}
+
+function bestDescription(values: unknown[]) {
+  return (values || [])
+    .map((v) => cleanSummaryText(v))
+    .filter(Boolean)
+    .sort((a, b) => descriptionScore(b) - descriptionScore(a))[0] || ''
+}
+
+function splitSummaryParts(text: string) {
+  return cleanSummaryText(text)
+    .split(/\n|[\u2022\u00b7]|(?:^|\s)\d+[.)]\s+|;\s+/g)
+    .map((part) => part.replace(/^\s*[-\u2013\u2014]\s*/, '').replace(/\s+/g, ' ').trim())
+    .filter((part) => part.length > 2)
+}
+
+function trimCardSummary(text: string, limit = 300) {
+  const clean = cleanSummaryText(text)
+  if (clean.length <= limit) return clean
+  const cut = clean.slice(0, Math.max(1, limit - 1)).replace(/\s+\S*$/, '').trim()
+  return `${cut || clean.slice(0, Math.max(1, limit - 1)).trim()}...`
+}
+
+function deterministicCardSummary(text: string, items: AnyRecord[], compra: boolean) {
+  const clean = cleanSummaryText(text)
+  if (!clean) return ''
+  let itemParts = (items || []).map((item) => cleanItemDescription(item?.descricao)).filter(Boolean)
+  if (!itemParts.length) itemParts = splitSummaryParts(clean).filter((part) => !genericPurchaseText(part))
+  const isLong = clean.length > 300 || itemParts.length > 4 || clean.split(/\s+/).length > 42
+  if (!isLong) return clean
+  if (itemParts.length >= 3) {
+    const shown = itemParts.slice(0, 4).map((part) => trimCardSummary(part, 70))
+    const remaining = itemParts.length - shown.length
+    const suffix = remaining > 0 ? ` + ${remaining} item${remaining !== 1 ? 's' : ''}` : ''
+    const prefix = compra ? `${itemParts.length} itens de compra: ` : 'Resumo: '
+    return trimCardSummary(`${prefix}${shown.join('; ')}${suffix}`, 300)
+  }
+  const sentences = clean.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean)
+  return trimCardSummary(sentences.length ? sentences.slice(0, 2).join(' ') : clean, 300)
+}
+
+async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs = 35000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal })
+    const text = await res.text()
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`)
+    return text ? JSON.parse(text) : {}
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function summarizeWithGemini(text: string) {
+  if (env('ZEEV_AI_SUMMARY_ENABLED', '1') === '0') return ''
+  const key = env('GEMINI_API_KEY') || env('GOOGLE_API_KEY')
+  if (!key) return ''
+  const model = env('GEMINI_SUMMARY_MODEL') || 'gemini-2.5-flash-lite'
+  const source = cleanSummaryText(text).slice(0, Number(env('ZEEV_SUMMARY_MAX_INPUT_CHARS', '12000')) || 12000)
+  const prompt = [
+    'Resuma em portugues, em ate 2 frases curtas, apenas com dados existentes no texto.',
+    'Nao invente fornecedor, valor, unidade, data ou item. Preserve nomes importantes.',
+    '',
+    `Texto do Ticket Raiz:\n${source}`,
+  ].join('\n')
+  const data = await fetchJsonWithTimeout(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 120 },
+      }),
+    },
+  )
+  const parts = data?.candidates?.[0]?.content?.parts || []
+  const summary = cleanSummaryText(parts.map((part: AnyRecord) => part?.text || '').join(' '))
+  return summary ? trimCardSummary(summary, 300) : ''
+}
+
+async function summarizeWithGroq(text: string) {
+  if (env('ZEEV_AI_SUMMARY_ENABLED', '1') === '0') return ''
+  const key = env('GROQ_API_KEY')
+  if (!key) return ''
+  const model = env('GROQ_SUMMARY_MODEL') || 'llama-3.1-8b-instant'
+  const source = cleanSummaryText(text).slice(0, Number(env('ZEEV_SUMMARY_MAX_INPUT_CHARS', '12000')) || 12000)
+  const data = await fetchJsonWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      temperature: 0,
+      max_tokens: 120,
+      messages: [
+        { role: 'system', content: 'Resuma tickets em portugues sem inventar nenhum dado.' },
+        { role: 'user', content: `Resuma em ate 2 frases curtas, preservando nomes e itens importantes:\n\n${source}` },
+      ],
+    }),
+  })
+  const summary = cleanSummaryText(data?.choices?.[0]?.message?.content || '')
+  return summary ? trimCardSummary(summary, 300) : ''
+}
+
+async function summarizeWithHuggingFace(text: string) {
+  if (env('ZEEV_AI_SUMMARY_ENABLED', '1') === '0') return ''
+  const key = env('HF_TOKEN') || env('HUGGINGFACE_API_KEY')
+  if (!key) return ''
+  const model = env('HF_SUMMARY_MODEL') || 'csebuetnlp/mT5_multilingual_XLSum'
+  const source = cleanSummaryText(text).slice(0, Number(env('ZEEV_SUMMARY_MAX_INPUT_CHARS', '12000')) || 12000)
+  const data = await fetchJsonWithTimeout(`https://api-inference.huggingface.co/models/${model}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      inputs: source,
+      parameters: { max_length: 90, min_length: 24, do_sample: false },
+      options: { wait_for_model: true },
+    }),
+  })
+  const row = Array.isArray(data) ? data[0] : data
+  const summary = cleanSummaryText(row?.summary_text || row?.generated_text || '')
+  return summary ? trimCardSummary(summary, 300) : ''
+}
+
+async function cardSummaryCascade(text: string, items: AnyRecord[], compra: boolean) {
+  const clean = cleanSummaryText(text)
+  if (!clean) return { text: '', source: '' }
+  const deterministic = deterministicCardSummary(clean, items, compra)
+  if (deterministic === clean && clean.length <= 300) return { text: deterministic, source: 'texto-completo' }
+  for (const [source, fn] of [
+    ['gemini', summarizeWithGemini],
+    ['groq', summarizeWithGroq],
+    ['huggingface', summarizeWithHuggingFace],
+  ] as const) {
+    try {
+      const summary = await fn(clean)
+      if (summary && descriptionScore(summary) > 30 && summary.length <= Math.max(320, clean.length)) return { text: summary, source }
+    } catch (error) {
+      console.warn('Zeev summary provider failed', source, error instanceof Error ? error.message : String(error))
+    }
+  }
+  return { text: deterministic, source: 'deterministico' }
+}
+
 function ticketDescription(fmap: Map<string, AnyRecord[]>, items: AnyRecord[], financeiro: boolean, compra: boolean) {
   if (financeiro) return firstField(fmap, FINANCE_DESCRIPTION_FIELDS)
   if (compra) {
     const justification = firstField(fmap, PURCHASE_JUSTIFICATION_FIELDS)
     const serviceDesc = firstField(fmap, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
     const itemsText = itemSummary(items)
-    if (justification && !itemsText) return justification
+    if (itemsText && (!serviceDesc || genericPurchaseText(serviceDesc) || descriptionScore(itemsText) > descriptionScore(serviceDesc) + 40)) return itemsText
+    if (justification && (!itemsText || descriptionScore(justification) > descriptionScore(serviceDesc) + 35)) return justification
     if (serviceDesc) return serviceDesc
-    return itemsText || justification
+    return bestDescription([itemsText, justification, serviceDesc])
   }
   return ''
 }
@@ -753,7 +912,7 @@ function bestMessageDescription(messages: AnyRecord[], serviceDesc = '', itemTex
   return ''
 }
 
-function buildTicket(row: AnyRecord) {
+async function buildTicket(row: AnyRecord) {
   const fields = Array.isArray(row?.formFields) ? row.formFields : []
   const tasks = Array.isArray(row?.instanceTasks) ? row.instanceTasks : []
   const capex = capexField(fields)
@@ -778,6 +937,12 @@ function buildTicket(row: AnyRecord) {
   const categoria = firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra'])
   const pagamento = extractPagamento(fmap)
   const campos = fieldsObject(fields)
+  const resumo = await cardSummaryCascade(desc || '', itens, compra)
+  if (resumo.text) {
+    campos._resumo_card = resumo.text
+    campos._resumo_card_source = resumo.source
+    campos._pedido_completo_chars = cleanSummaryText(desc || '').length
+  }
   if (descTruncada) {
     campos._descricao_status = 'parcial'
     campos._descricao_origem = 'descricaoDoServico'
@@ -1228,7 +1393,7 @@ async function runSync(input: AnyRecord) {
         for (const row of rows) {
           if (!capexField(Array.isArray(row?.formFields) ? row.formFields : [])) continue
           const enriched = await enrichRow(row)
-          const ticket = buildTicket(enriched)
+          const ticket = await buildTicket(enriched)
           if (ticket) allTickets.push(ticket)
         }
         if (rows.length < report.pageSize) break
@@ -1292,9 +1457,24 @@ async function runIngest(input: AnyRecord) {
     })
     return { ok: true, mode: 'ingest', found: 0, new: 0, updated: 0, notified: 0 }
   }
-  const normalized = tickets
+  const normalized = await Promise.all(tickets
     .filter((t: AnyRecord) => Number(t?.zeev_instance_id))
-    .map((t: AnyRecord) => ({ ...t, last_seen_at: new Date().toISOString() }))
+    .map(async (t: AnyRecord) => {
+      const campos = { ...(t.campos_extraidos || {}) }
+      const pedido = cleanSummaryText(t.pedido || '')
+      const items = Array.isArray(t.itens_json) ? t.itens_json : []
+      const compra = String(t.setor || '').toUpperCase() === 'COMPRAS' || String(t.flow_name || t.request_name || '').toLowerCase().includes('compra')
+      const existingSummary = cleanSummaryText(campos._resumo_card || '')
+      if (pedido && (!existingSummary || existingSummary === pedido || String(campos._resumo_card_source || '') === 'deterministico')) {
+        const resumo = await cardSummaryCascade(pedido, items, compra)
+        if (resumo.text) {
+          campos._resumo_card = resumo.text
+          campos._resumo_card_source = resumo.source
+          campos._pedido_completo_chars = pedido.length
+        }
+      }
+      return { ...t, campos_extraidos: campos, last_seen_at: new Date().toISOString() }
+    }))
   const existing = await getExisting(normalized.map((t: AnyRecord) => Number(t.zeev_instance_id)))
   const saved = await upsertTickets(normalized)
   const newCount = normalized.filter((t: AnyRecord) => !existing.has(Number(t.zeev_instance_id))).length
