@@ -5987,40 +5987,18 @@ function capexSplitSummaryParts(text){
 }
 
 function capexTrimCardSummary(text,max){
-  const limit=max||280;
   const clean=capexCleanSummaryText(text);
-  if(clean.length<=limit)return clean;
-  const cut=clean.slice(0,limit-1).replace(/\s+\S*$/,'').trim();
-  return (cut||clean.slice(0,limit-1).trim())+'...';
+  return clean;
 }
 
 function capexSmartCardSummary(text,opts){
   const clean=capexCleanSummaryText(text);
-  if(!clean)return'';
-  const parts=capexSplitSummaryParts(clean);
-  const itemParts=parts.filter(p=>!capexGenericPurchaseText(p));
-  const isLong=clean.length>300||parts.length>4||clean.split(/\s+/).length>42;
-  if(!isLong)return clean;
-  const kind=String(opts?.kind||opts?.tipo||'').toLowerCase();
-  if(itemParts.length>=3){
-    const shown=itemParts.slice(0,4).map(p=>capexTrimCardSummary(p,70));
-    const more=itemParts.length>4?` + ${itemParts.length-4} item${itemParts.length-4!==1?'s':''}`:'';
-    const prefix=kind.includes('compra')||kind.includes('material')?`${itemParts.length} itens de compra: `:`Resumo: `;
-    return capexTrimCardSummary(prefix+shown.join('; ')+more,300);
-  }
-  const sentences=clean
-    .split(/(?<=[.!?])\s+/)
-    .map(s=>s.trim())
-    .filter(Boolean);
-  const base=(sentences.length?sentences.slice(0,2).join(' '):clean);
-  return capexTrimCardSummary(base,300);
+  return clean;
 }
 
 function capexZeevResumoCard(z){
   const fields=z?.campos_extraidos||{};
-  const imported=capexCleanSummaryText(fields._resumo_card||fields.resumo_card||fields.resumoCard||z?.resumo_card||'');
   const full=capexZeevDescricaoLancamento(z)||'Descricao pendente no Zeev';
-  if(imported&&capexDescriptionScore(imported)>40&&capexCleanSummaryText(full).length>240)return capexTrimCardSummary(imported,310);
   return capexSmartCardSummary(full,{kind:capexZeevType(z)});
 }
 
