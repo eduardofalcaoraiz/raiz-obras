@@ -739,29 +739,14 @@ function splitSummaryParts(text: string) {
     .filter((part) => part.length > 2)
 }
 
-function trimCardSummary(text: string, limit = 300) {
-  const clean = cleanSummaryText(text)
-  if (clean.length <= limit) return clean
-  const cut = clean.slice(0, Math.max(1, limit - 1)).replace(/\s+\S*$/, '').trim()
-  return `${cut || clean.slice(0, Math.max(1, limit - 1)).trim()}...`
+function trimCardSummary(text: string, _limit?: number) {
+  return cleanSummaryText(text)
 }
 
 function deterministicCardSummary(text: string, items: AnyRecord[], compra: boolean) {
   const clean = cleanSummaryText(text)
   if (!clean) return ''
-  let itemParts = (items || []).map((item) => cleanItemDescription(item?.descricao)).filter(Boolean)
-  if (!itemParts.length) itemParts = splitSummaryParts(clean).filter((part) => !genericPurchaseText(part))
-  const isLong = clean.length > 300 || itemParts.length > 4 || clean.split(/\s+/).length > 42
-  if (!isLong) return clean
-  if (itemParts.length >= 3) {
-    const shown = itemParts.slice(0, 4).map((part) => trimCardSummary(part, 70))
-    const remaining = itemParts.length - shown.length
-    const suffix = remaining > 0 ? ` + ${remaining} item${remaining !== 1 ? 's' : ''}` : ''
-    const prefix = compra ? `${itemParts.length} itens de compra: ` : 'Resumo: '
-    return trimCardSummary(`${prefix}${shown.join('; ')}${suffix}`, 300)
-  }
-  const sentences = clean.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean)
-  return trimCardSummary(sentences.length ? sentences.slice(0, 2).join(' ') : clean, 300)
+  return clean
 }
 
 function allowCoreSummaryKeys() {
@@ -787,7 +772,7 @@ async function summarizeWithGemini(text: string) {
   const key = env('GEMINI_API_KEY') || env('GOOGLE_API_KEY')
   if (!key) return ''
   const model = env('GEMINI_SUMMARY_MODEL') || 'gemini-2.5-flash-lite'
-  const source = cleanSummaryText(text).slice(0, Number(env('ZEEV_SUMMARY_MAX_INPUT_CHARS', '12000')) || 12000)
+  const source = cleanSummaryText(text)
   const prompt = [
     'Resuma em portugues, em ate 2 frases curtas, apenas com dados existentes no texto.',
     'Nao invente fornecedor, valor, unidade, data ou item. Preserve nomes importantes.',
@@ -816,7 +801,7 @@ async function summarizeWithGroq(text: string) {
   const key = env('GROQ_API_KEY')
   if (!key) return ''
   const model = env('GROQ_SUMMARY_MODEL') || 'llama-3.1-8b-instant'
-  const source = cleanSummaryText(text).slice(0, Number(env('ZEEV_SUMMARY_MAX_INPUT_CHARS', '12000')) || 12000)
+  const source = cleanSummaryText(text)
   const data = await fetchJsonWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -840,7 +825,7 @@ async function summarizeWithCloudflare(text: string) {
   const key = env('CLOUDFLARE_API_TOKEN') || env('CF_API_TOKEN')
   if (!accountId || !key) return ''
   const model = env('CLOUDFLARE_SUMMARY_MODEL') || '@cf/meta/llama-3.1-8b-instruct-fast'
-  const source = cleanSummaryText(text).slice(0, Number(env('ZEEV_SUMMARY_MAX_INPUT_CHARS', '12000')) || 12000)
+  const source = cleanSummaryText(text)
   const data = await fetchJsonWithTimeout(
     `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${model.split('/').map((part) => encodeURIComponent(part)).join('/')}`,
     {
@@ -864,7 +849,7 @@ async function summarizeWithMistral(text: string) {
   const key = env('MISTRAL_API_KEY')
   if (!key) return ''
   const model = env('MISTRAL_SUMMARY_MODEL') || 'mistral-small-latest'
-  const source = cleanSummaryText(text).slice(0, Number(env('ZEEV_SUMMARY_MAX_INPUT_CHARS', '12000')) || 12000)
+  const source = cleanSummaryText(text)
   const data = await fetchJsonWithTimeout('https://api.mistral.ai/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -887,7 +872,7 @@ async function summarizeWithHuggingFace(text: string) {
   const key = env('HF_TOKEN') || env('HUGGINGFACE_API_KEY')
   if (!key) return ''
   const model = env('HF_SUMMARY_MODEL') || 'meta-llama/Llama-3.1-8B-Instruct'
-  const source = cleanSummaryText(text).slice(0, Number(env('ZEEV_SUMMARY_MAX_INPUT_CHARS', '12000')) || 12000)
+  const source = cleanSummaryText(text)
   const data = await fetchJsonWithTimeout('https://router.huggingface.co/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -909,7 +894,7 @@ async function cardSummaryCascade(text: string, items: AnyRecord[], compra: bool
   const clean = cleanSummaryText(text)
   if (!clean) return { text: '', source: '' }
   const deterministic = deterministicCardSummary(clean, items, compra)
-  if (deterministic === clean && clean.length <= 300) return { text: deterministic, source: 'texto-completo' }
+  if (deterministic === clean) return { text: deterministic, source: 'texto-completo' }
   for (const [source, fn] of [
     ['cloudflare', summarizeWithCloudflare],
     ['mistral', summarizeWithMistral],
