@@ -661,6 +661,171 @@ def item_summary(items):
     return "; ".join(parts)
 
 
+def clean_summary_text(value):
+    text = html_lib.unescape(str(value or ""))
+    text = re.sub(r"(?i)<\s*br\s*/?\s*>", "\n", text)
+    text = re.sub(r"(?i)</\s*(p|div|li|tr|h[1-6])\s*>", "\n", text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = text.replace("\xa0", " ")
+    text = re.sub(r"[ \t\r\f\v]+", " ", text)
+    text = re.sub(r"\n\s*\n+", "\n", text)
+    return text.strip()
+
+
+def description_score(value):
+    text = clean_summary_text(value)
+    if not text:
+        return 0
+    words = len([x for x in re.split(r"\s+", text) if x])
+    punct = len(re.findall(r"[.;:]", text))
+    penalty = 90 if generic_purchase_text(text) else 0
+    return len(text) + words * 3 + punct * 12 - penalty
+
+
+def best_description(*values):
+    options = [clean_summary_text(v) for v in values if clean_summary_text(v)]
+    if not options:
+        return ""
+    return sorted(options, key=description_score, reverse=True)[0]
+
+
+def split_summary_parts(text):
+    clean = clean_summary_text(text)
+    if not clean:
+        return []
+    parts = re.split(r"\n|[\u2022\u00b7]|(?:^|\s)\d+[.)]\s+|;\s+", clean)
+    out = []
+    for part in parts:
+        part = re.sub(r"^\s*[-\u2013\u2014]\s*", "", part)
+        part = re.sub(r"\s+", " ", part).strip()
+        if len(part) > 2:
+            out.append(part)
+    return out
+
+
+def trim_card_summary(text, limit=300):
+    clean = clean_summary_text(text)
+    if len(clean) <= limit:
+        return clean
+    cut = re.sub(r"\s+\S*$", "", clean[: max(1, limit - 1)]).strip()
+    return (cut or clean[: max(1, limit - 1)].strip()) + "..."
+
+
+def deterministic_card_summary(text, items=None, compra=False):
+    clean = clean_summary_text(text)
+    if not clean:
+        return ""
+    item_parts = [clean_item_description(x.get("descricao")) for x in (items or []) if clean_item_description(x.get("descricao"))]
+    if not item_parts:
+        item_parts = [p for p in split_summary_parts(clean) if not generic_purchase_text(p)]
+    is_long = len(clean) > 300 or len(item_parts) > 4 or len(clean.split()) > 42
+    if not is_long:
+        return clean
+    if len(item_parts) >= 3:
+        shown = [trim_card_summary(p, 70) for p in item_parts[:4]]
+        remaining = len(item_parts) - len(shown)
+        suffix = f" + {remaining} item{'s' if remaining != 1 else ''}" if remaining > 0 else ""
+        prefix = f"{len(item_parts)} itens de compra: " if compra else "Resumo: "
+        return trim_card_summary(prefix + "; ".join(shown) + suffix, 300)
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", clean) if s.strip()]
+    return trim_card_summary(" ".join(sentences[:2]) if sentences else clean, 300)
+
+
+def summarize_with_gemini(text):
+    if os.environ.get("ZEEV_AI_SUMMARY_ENABLED", "1") == "0":
+        return ""
+    key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if not key:
+        return ""
+    model = os.environ.get("GEMINI_SUMMARY_MODEL") or "gemini-2.5-flash-lite"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{urllib.parse.quote(model, safe='')}:generateContent"
+    source = clean_summary_text(text)[: int(os.environ.get("ZEEV_SUMMARY_MAX_INPUT_CHARS", "12000"))]
+    prompt = (
+        "Resuma em portugues, em ate 2 frases curtas, apenas com dados existentes no texto. "
+        "Nao invente fornecedor, valor, unidade, data ou item. Preserve nomes importantes.\n\n"
+        f"Texto do Ticket Raiz:\n{source}"
+    )
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0, "maxOutputTokens": 120},
+    }
+    data = request_json("POST", url, headers={"x-goog-api-key": key}, payload=payload, timeout=35, retries=1)
+    parts = (((data.get("candidates") or [{}])[0].get("content") or {}).get("parts") or [])
+    summary = clean_summary_text(" ".join(str(p.get("text") or "") for p in parts))
+    return trim_card_summary(summary, 300) if summary else ""
+
+
+def summarize_with_groq(text):
+    if os.environ.get("ZEEV_AI_SUMMARY_ENABLED", "1") == "0":
+        return ""
+    key = os.environ.get("GROQ_API_KEY")
+    if not key:
+        return ""
+    model = os.environ.get("GROQ_SUMMARY_MODEL") or "llama-3.1-8b-instant"
+    source = clean_summary_text(text)[: int(os.environ.get("ZEEV_SUMMARY_MAX_INPUT_CHARS", "12000"))]
+    payload = {
+        "model": model,
+        "temperature": 0,
+        "max_tokens": 120,
+        "messages": [
+            {"role": "system", "content": "Resuma tickets em portugues sem inventar nenhum dado."},
+            {"role": "user", "content": "Resuma em ate 2 frases curtas, preservando nomes e itens importantes:\n\n" + source},
+        ],
+    }
+    data = request_json(
+        "POST",
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers={"Authorization": f"Bearer {key}"},
+        payload=payload,
+        timeout=35,
+        retries=1,
+    )
+    summary = clean_summary_text((((data.get("choices") or [{}])[0].get("message") or {}).get("content")) or "")
+    return trim_card_summary(summary, 300) if summary else ""
+
+
+def summarize_with_huggingface(text):
+    if os.environ.get("ZEEV_AI_SUMMARY_ENABLED", "1") == "0":
+        return ""
+    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_API_KEY")
+    if not token:
+        return ""
+    model = os.environ.get("HF_SUMMARY_MODEL") or "csebuetnlp/mT5_multilingual_XLSum"
+    url = f"https://api-inference.huggingface.co/models/{urllib.parse.quote(model, safe='/')}"
+    source = clean_summary_text(text)[: int(os.environ.get("ZEEV_SUMMARY_MAX_INPUT_CHARS", "12000"))]
+    payload = {
+        "inputs": source,
+        "parameters": {"max_length": 90, "min_length": 24, "do_sample": False},
+        "options": {"wait_for_model": True},
+    }
+    data = request_json("POST", url, headers={"Authorization": f"Bearer {token}"}, payload=payload, timeout=35, retries=1)
+    if isinstance(data, list) and data:
+        summary = data[0].get("summary_text") or data[0].get("generated_text") or ""
+    elif isinstance(data, dict):
+        summary = data.get("summary_text") or data.get("generated_text") or ""
+    else:
+        summary = ""
+    summary = clean_summary_text(summary)
+    return trim_card_summary(summary, 300) if summary else ""
+
+
+def card_summary_cascade(text, items=None, compra=False):
+    clean = clean_summary_text(text)
+    if not clean:
+        return "", ""
+    deterministic = deterministic_card_summary(clean, items=items, compra=compra)
+    if deterministic == clean and len(clean) <= 300:
+        return deterministic, "texto-completo"
+    for source, fn in (("gemini", summarize_with_gemini), ("groq", summarize_with_groq), ("huggingface", summarize_with_huggingface)):
+        try:
+            summary = fn(clean)
+            if summary and description_score(summary) > 30 and len(summary) <= max(320, len(clean)):
+                return summary, source
+        except Exception as exc:
+            print(json.dumps({"summaryProvider": source, "error": str(exc)[:250]}, ensure_ascii=False), file=sys.stderr)
+    return deterministic, "deterministico"
+
+
 def ticket_description(fields, items, financeiro=False, compra=False):
     if financeiro:
         return field_value_by_priority(fields, FINANCE_DESCRIPTION_FIELDS)
@@ -668,11 +833,13 @@ def ticket_description(fields, items, financeiro=False, compra=False):
         justification = field_value_by_priority(fields, PURCHASE_JUSTIFICATION_FIELDS)
         service_desc = field_value_by_priority(fields, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
         items_text = item_summary(items)
-        if justification and not items_text:
+        if items_text and (not service_desc or generic_purchase_text(service_desc) or description_score(items_text) > description_score(service_desc) + 40):
+            return items_text
+        if justification and (not items_text or description_score(justification) > description_score(service_desc) + 35):
             return justification
         if service_desc:
             return service_desc
-        return items_text or justification
+        return best_description(items_text, justification, service_desc)
     return ""
 
 
@@ -706,6 +873,11 @@ def build_ticket(row):
     atual = current_task(tasks)
     situacao, realizado = suggested_capex_status(row, ready)
     campos_extraidos = fields_object(fields)
+    resumo_card, resumo_source = card_summary_cascade(pedido, items=itens, compra=compra)
+    if resumo_card:
+        campos_extraidos["_resumo_card"] = resumo_card
+        campos_extraidos["_resumo_card_source"] = resumo_source
+        campos_extraidos["_pedido_completo_chars"] = len(clean_summary_text(pedido))
     if descricao_truncada:
         campos_extraidos["_descricao_status"] = "parcial"
         campos_extraidos["_descricao_origem"] = "descricaoDoServico"
