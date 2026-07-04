@@ -873,8 +873,6 @@ def card_summary_cascade(text, items=None, compra=False):
     if not clean:
         return "", ""
     deterministic = deterministic_card_summary(clean, items=items, compra=compra)
-    if deterministic == clean:
-        return deterministic, "texto-completo"
     for source, fn in (
         ("cloudflare", summarize_with_cloudflare),
         ("mistral", summarize_with_mistral),
@@ -888,7 +886,7 @@ def card_summary_cascade(text, items=None, compra=False):
                 return summary, source
         except Exception as exc:
             print(json.dumps({"summaryProvider": source, "error": str(exc)[:250]}, ensure_ascii=False), file=sys.stderr)
-    return deterministic, "deterministico"
+    return deterministic, "texto-completo"
 
 
 def ticket_description(fields, items, financeiro=False, compra=False):
