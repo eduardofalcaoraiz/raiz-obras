@@ -764,6 +764,10 @@ function deterministicCardSummary(text: string, items: AnyRecord[], compra: bool
   return trimCardSummary(sentences.length ? sentences.slice(0, 2).join(' ') : clean, 300)
 }
 
+function allowCoreSummaryKeys() {
+  return env('ZEEV_SUMMARY_ALLOW_GEMINI_GROQ', '0') === '1' || env('ZEEV_SUMMARY_USE_CORE_KEYS', '0') === '1'
+}
+
 async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs = 35000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -779,6 +783,7 @@ async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs = 
 
 async function summarizeWithGemini(text: string) {
   if (env('ZEEV_AI_SUMMARY_ENABLED', '1') === '0') return ''
+  if (!allowCoreSummaryKeys()) return ''
   const key = env('GEMINI_API_KEY') || env('GOOGLE_API_KEY')
   if (!key) return ''
   const model = env('GEMINI_SUMMARY_MODEL') || 'gemini-2.5-flash-lite'
@@ -807,11 +812,60 @@ async function summarizeWithGemini(text: string) {
 
 async function summarizeWithGroq(text: string) {
   if (env('ZEEV_AI_SUMMARY_ENABLED', '1') === '0') return ''
+  if (!allowCoreSummaryKeys()) return ''
   const key = env('GROQ_API_KEY')
   if (!key) return ''
   const model = env('GROQ_SUMMARY_MODEL') || 'llama-3.1-8b-instant'
   const source = cleanSummaryText(text).slice(0, Number(env('ZEEV_SUMMARY_MAX_INPUT_CHARS', '12000')) || 12000)
   const data = await fetchJsonWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      temperature: 0,
+      max_tokens: 120,
+      messages: [
+        { role: 'system', content: 'Resuma tickets em portugues sem inventar nenhum dado.' },
+        { role: 'user', content: `Resuma em ate 2 frases curtas, preservando nomes e itens importantes:\n\n${source}` },
+      ],
+    }),
+  })
+  const summary = cleanSummaryText(data?.choices?.[0]?.message?.content || '')
+  return summary ? trimCardSummary(summary, 300) : ''
+}
+
+async function summarizeWithCloudflare(text: string) {
+  if (env('ZEEV_AI_SUMMARY_ENABLED', '1') === '0') return ''
+  const accountId = env('CLOUDFLARE_ACCOUNT_ID')
+  const key = env('CLOUDFLARE_API_TOKEN') || env('CF_API_TOKEN')
+  if (!accountId || !key) return ''
+  const model = env('CLOUDFLARE_SUMMARY_MODEL') || '@cf/meta/llama-3.1-8b-instruct-fast'
+  const source = cleanSummaryText(text).slice(0, Number(env('ZEEV_SUMMARY_MAX_INPUT_CHARS', '12000')) || 12000)
+  const data = await fetchJsonWithTimeout(
+    `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${model.split('/').map((part) => encodeURIComponent(part)).join('/')}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: 'Resuma tickets em portugues sem inventar nenhum dado.' },
+          { role: 'user', content: `Resuma em ate 2 frases curtas, preservando nomes e itens importantes:\n\n${source}` },
+        ],
+      }),
+    },
+  )
+  const result = data?.result
+  const summary = cleanSummaryText(typeof result === 'string' ? result : result?.response || result?.text || result?.generated_text || '')
+  return summary ? trimCardSummary(summary, 300) : ''
+}
+
+async function summarizeWithMistral(text: string) {
+  if (env('ZEEV_AI_SUMMARY_ENABLED', '1') === '0') return ''
+  const key = env('MISTRAL_API_KEY')
+  if (!key) return ''
+  const model = env('MISTRAL_SUMMARY_MODEL') || 'mistral-small-latest'
+  const source = cleanSummaryText(text).slice(0, Number(env('ZEEV_SUMMARY_MAX_INPUT_CHARS', '12000')) || 12000)
+  const data = await fetchJsonWithTimeout('https://api.mistral.ai/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -854,9 +908,11 @@ async function cardSummaryCascade(text: string, items: AnyRecord[], compra: bool
   const deterministic = deterministicCardSummary(clean, items, compra)
   if (deterministic === clean && clean.length <= 300) return { text: deterministic, source: 'texto-completo' }
   for (const [source, fn] of [
-    ['gemini', summarizeWithGemini],
-    ['groq', summarizeWithGroq],
+    ['cloudflare', summarizeWithCloudflare],
+    ['mistral', summarizeWithMistral],
     ['huggingface', summarizeWithHuggingFace],
+    ['groq-reserva', summarizeWithGroq],
+    ['gemini-reserva', summarizeWithGemini],
   ] as const) {
     try {
       const summary = await fn(clean)
