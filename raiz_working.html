@@ -338,8 +338,57 @@ button{font-family:inherit;cursor:pointer}
 .capex-budget-meter i{display:block;height:100%;background:var(--capex-card-accent);border-radius:999px;min-width:0}
 .capex-overview-foot{margin-top:auto;border-top:1px solid color-mix(in srgb,var(--capex-card-accent) 12%,var(--line));padding-top:11px;display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--brand-text,var(--accent-text));font-size:11.5px;font-weight:950;text-transform:uppercase;letter-spacing:.045em}
 .capex-overview-foot i{font-style:normal;width:28px;height:28px;border-radius:999px;background:color-mix(in srgb,var(--capex-card-accent) 12%,#fff);border:1px solid color-mix(in srgb,var(--capex-card-accent) 30%,var(--line));display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
-.capex-unit-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.capex-unit-actions .btn{font-size:11.5px;padding:6px 9px}
+.capex-brand-card{--capex-card-accent:var(--accent);--capex-card-soft:var(--raiz-soft);--brand-text:var(--accent-text);position:relative;overflow:hidden;border:1px solid color-mix(in srgb,var(--capex-card-accent) 18%,var(--line));border-radius:22px;background:linear-gradient(180deg,rgba(255,255,255,.97),color-mix(in srgb,var(--capex-card-soft) 26%,#fff));box-shadow:0 18px 44px -34px rgba(15,42,36,.58);cursor:pointer;min-height:348px;display:flex;flex-direction:column;transition:transform .16s,border-color .18s,box-shadow .18s}
+.capex-brand-card:before{content:"";position:absolute;inset:0 0 auto 0;height:5px;background:linear-gradient(90deg,var(--capex-card-accent),color-mix(in srgb,var(--capex-card-accent) 52%,#fff));z-index:2}
+.capex-brand-card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--capex-card-accent) 42%,var(--line));box-shadow:0 24px 54px -34px rgba(15,42,36,.68)}
+.capex-brand-head{position:relative;display:grid;grid-template-columns:96px minmax(0,1fr);gap:15px;align-items:center;padding:23px 20px 18px;background:linear-gradient(135deg,color-mix(in srgb,var(--capex-card-accent) 16%,#fff),rgba(255,255,255,.94) 76%);border-bottom:1px solid color-mix(in srgb,var(--capex-card-accent) 13%,var(--line))}
+.capex-brand-head:after{content:"";position:absolute;right:-38px;top:-42px;width:170px;height:170px;border-radius:999px;background:radial-gradient(circle,color-mix(in srgb,var(--capex-card-accent) 14%,transparent),transparent 68%);pointer-events:none}
+.capex-brand-logo{position:relative;z-index:1;width:92px;height:68px;border-radius:17px;background:white;border:1px solid color-mix(in srgb,var(--capex-card-accent) 16%,rgba(0,0,0,.1));box-shadow:0 14px 26px -24px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:9px;overflow:hidden}
+.capex-brand-logo img{max-width:100%;max-height:100%;object-fit:contain}
+.capex-brand-id{position:relative;z-index:1;min-width:0;display:grid;gap:7px}
+.capex-brand-kicker{font-size:10.5px;font-weight:950;text-transform:uppercase;letter-spacing:.09em;color:var(--brand-text,var(--accent-text));line-height:1}
+.capex-brand-title{font-size:22px;font-weight:950;line-height:1.08;color:var(--ink);overflow-wrap:anywhere}
+.capex-brand-tags{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.capex-brand-tag{border:1px solid color-mix(in srgb,var(--capex-card-accent) 22%,var(--line));background:rgba(255,255,255,.7);border-radius:999px;padding:5px 8px;font-size:11px;font-weight:900;color:var(--brand-text,var(--accent-text));line-height:1.1}
+.capex-brand-body{padding:16px 18px 15px;display:grid;gap:12px;flex:1}
+.capex-brand-balance{border:1px solid color-mix(in srgb,var(--capex-card-accent) 12%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.88),color-mix(in srgb,var(--capex-card-soft) 28%,#fff));border-radius:16px;padding:13px 14px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.capex-brand-balance>div{min-width:0}
+.capex-brand-balance span,.capex-brand-stat span,.capex-unit-stat span{display:block;font-size:10.3px;font-weight:950;text-transform:uppercase;letter-spacing:.052em;color:var(--muted);line-height:1.15}
+.capex-brand-balance strong{display:block;font-family:"Space Grotesk",system-ui,sans-serif;font-size:24px;font-weight:950;line-height:1.04;margin-top:5px;overflow-wrap:anywhere}
+.capex-brand-badge{display:inline-flex;align-items:center;border:1px solid color-mix(in srgb,var(--capex-card-accent) 18%,var(--line));background:rgba(255,255,255,.76);border-radius:999px;padding:6px 9px;font-size:11px;font-weight:950;color:var(--brand-text,var(--accent-text));white-space:nowrap}
+.capex-brand-badge.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 30%,var(--line));background:var(--ok-bg)}
+.capex-brand-badge.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 30%,var(--line));background:var(--warn-bg)}
+.capex-brand-badge.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 30%,var(--line));background:var(--danger-bg)}
+.capex-brand-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.capex-brand-stat{border:1px solid color-mix(in srgb,var(--capex-card-accent) 10%,var(--line));background:rgba(255,255,255,.62);border-radius:13px;padding:10px 11px;min-width:0}
+.capex-brand-stat b,.capex-unit-stat b{display:block;font-family:"Space Grotesk",system-ui,sans-serif;font-size:16px;font-weight:950;color:var(--ink);line-height:1.12;margin-top:4px;overflow-wrap:anywhere}
+.capex-brand-progress,.capex-unit-progress{display:grid;gap:7px}
+.capex-brand-progress .row,.capex-unit-progress .row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11.5px;font-weight:850;color:var(--muted)}
+.capex-brand-progress .row b,.capex-unit-progress .row b{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--ink)}
+.capex-brand-footer,.capex-unit-footer{border-top:1px solid color-mix(in srgb,var(--capex-card-accent) 12%,var(--line));padding:12px 18px 15px;display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--brand-text,var(--accent-text));font-size:11.5px;font-weight:950;text-transform:uppercase;letter-spacing:.045em}
+.capex-brand-footer i,.capex-unit-footer i{font-style:normal;width:30px;height:30px;border-radius:999px;background:color-mix(in srgb,var(--capex-card-accent) 12%,#fff);border:1px solid color-mix(in srgb,var(--capex-card-accent) 30%,var(--line));display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+
+.capex-unit-card{--capex-card-accent:var(--accent);--capex-card-soft:var(--raiz-soft);--brand-text:var(--accent-text);position:relative;overflow:hidden;border:1px solid color-mix(in srgb,var(--capex-card-accent) 16%,var(--line));border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.97),color-mix(in srgb,var(--capex-card-soft) 21%,#fff));box-shadow:0 14px 34px -30px rgba(15,42,36,.56);cursor:pointer;min-height:314px;display:flex;flex-direction:column;transition:transform .16s,border-color .18s,box-shadow .18s}
+.capex-unit-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(180deg,var(--capex-card-accent),color-mix(in srgb,var(--capex-card-accent) 48%,#fff));z-index:1}
+.capex-unit-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--capex-card-accent) 38%,var(--line));box-shadow:0 20px 46px -34px rgba(15,42,36,.66)}
+.capex-unit-head{display:grid;grid-template-columns:68px minmax(0,1fr);gap:13px;align-items:center;padding:17px 18px 15px 22px;background:linear-gradient(135deg,color-mix(in srgb,var(--capex-card-accent) 10%,#fff),rgba(255,255,255,.95) 72%);border-bottom:1px solid color-mix(in srgb,var(--capex-card-accent) 11%,var(--line))}
+.capex-unit-logo{width:64px;height:46px;border-radius:13px;background:#fff;border:1px solid color-mix(in srgb,var(--capex-card-accent) 14%,rgba(0,0,0,.1));display:flex;align-items:center;justify-content:center;padding:6px;overflow:hidden;box-shadow:0 12px 22px -22px rgba(0,0,0,.46)}
+.capex-unit-logo img{max-width:100%;max-height:100%;object-fit:contain}
+.capex-unit-id{min-width:0;display:grid;gap:6px}
+.capex-unit-kicker{font-size:10.2px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;color:var(--brand-text,var(--accent-text));line-height:1.1}
+.capex-unit-title{font-size:18px;font-weight:950;line-height:1.12;color:var(--ink);overflow-wrap:anywhere}
+.capex-unit-sub{font-size:12px;font-weight:800;color:var(--muted);line-height:1.25;overflow-wrap:anywhere}
+.capex-unit-body{padding:14px 16px 15px 22px;display:grid;gap:11px;flex:1}
+.capex-unit-balance{border:1px solid color-mix(in srgb,var(--capex-card-accent) 11%,var(--line));background:rgba(255,255,255,.7);border-radius:14px;padding:12px 13px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.capex-unit-balance>div{min-width:0}
+.capex-unit-balance span{display:block;font-size:10.2px;font-weight:950;text-transform:uppercase;letter-spacing:.052em;color:var(--muted);line-height:1.15}
+.capex-unit-balance strong{display:block;font-family:"Space Grotesk",system-ui,sans-serif;font-size:21px;font-weight:950;line-height:1.06;margin-top:5px;overflow-wrap:anywhere}
+.capex-unit-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.capex-unit-stat{border:1px solid color-mix(in srgb,var(--capex-card-accent) 9%,var(--line));background:rgba(255,255,255,.6);border-radius:12px;padding:9px 10px;min-width:0}
+.capex-unit-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.capex-unit-actions .btn{font-size:11.2px;padding:6px 9px}
+
+@media(max-width:620px){.capex-brand-head,.capex-unit-head{grid-template-columns:1fr}.capex-brand-logo,.capex-unit-logo{width:92px}.capex-brand-stats,.capex-unit-stat-grid{grid-template-columns:1fr}.capex-brand-balance,.capex-unit-balance{flex-direction:column}.capex-brand-progress .row,.capex-unit-progress .row{align-items:flex-start;flex-direction:column}.capex-brand-footer,.capex-unit-footer{align-items:flex-start;flex-direction:column}.capex-unit-actions{justify-content:flex-start}}
 
 .capex-year-card{--capex-card-accent:var(--accent);--capex-card-soft:var(--raiz-soft);--capex-card-text:var(--accent-readable);--capex-card-muted:rgba(255,255,255,.78);--capex-card-shadow:none;position:relative;overflow:hidden;border:1px solid color-mix(in srgb,var(--capex-card-accent) 18%,var(--line));border-radius:22px;background:linear-gradient(180deg,rgba(255,255,255,.96) 0%,color-mix(in srgb,var(--capex-card-soft) 28%,#fff) 100%);box-shadow:0 20px 46px -34px rgba(15,42,36,.56);cursor:pointer;min-height:338px;display:flex;flex-direction:column;transition:transform .16s,border-color .18s,box-shadow .18s}
 .capex-year-card:before{content:"";position:absolute;inset:-32% -18% auto auto;width:210px;height:210px;border-radius:999px;background:radial-gradient(circle,color-mix(in srgb,var(--capex-card-accent) 16%,transparent) 0%,transparent 66%);pointer-events:none}
@@ -8199,23 +8248,41 @@ function renderCapexBrands(){
 
     const bc=brandColor(m);
 
-    const emb=brandEmblem(m);
+    const logo=brandLogoImg(m,'width:100%;height:100%;object-fit:contain');
 
-    const resumo=`${unitCount} unidade${unitCount!==1?'s':''} &middot; ${mc.total} pedido${mc.total!==1?'s':''}`;
+    const budget=capexBudgetStats(mi,{ano:capexDrillYear,marca:m});
+    const main=capexBudgetMainInfo(budget,'Sem verba da marca');
+    const mainColor=main.badgeClass==='danger'?'var(--danger)':(main.badgeClass==='ok'?'var(--ok)':bc);
+    const execLabel=`${pct}% resolvido &middot; ${mc.ea} em andamento${mc.canc?` &middot; ${mc.canc} cancelado${mc.canc!==1?'s':''}`:''}`;
 
-    html+=`<div class="capex-overview-card interactive-card" role="button" tabindex="0" onclick="drillCapex(${capexDrillYear},'${ms}',null)" onkeydown="if(cardKeyOpen(event))drillCapex(${capexDrillYear},'${ms}',null)" style="${capexOverviewStyle(m)}">
-      <div class="capex-overview-head">
-        <div class="capex-overview-mark">${emb}</div>
-        <div class="capex-overview-id">
-          <div class="capex-overview-kicker">Marca &middot; ${capexDrillYear}</div>
-          <h3 class="capex-overview-title">${escHtml(m)}</h3>
-          <span class="capex-overview-sub">${resumo}</span>
+    html+=`<div class="capex-brand-card interactive-card" role="button" tabindex="0" onclick="drillCapex(${capexDrillYear},'${ms}',null)" onkeydown="if(cardKeyOpen(event))drillCapex(${capexDrillYear},'${ms}',null)" style="${capexOverviewStyle(m)}">
+      <div class="capex-brand-head">
+        <div class="capex-brand-logo">${logo}</div>
+        <div class="capex-brand-id">
+          <div class="capex-brand-kicker">Marca &middot; ${capexDrillYear}</div>
+          <h3 class="capex-brand-title">${escHtml(m)}</h3>
+          <div class="capex-brand-tags">
+            <span class="capex-brand-tag">${unitCount} unidade${unitCount!==1?'s':''}</span>
+            <span class="capex-brand-tag">${mc.total} pedido${mc.total!==1?'s':''}</span>
+          </div>
         </div>
       </div>
-      <div class="capex-overview-body">
-        ${capexOverviewMoney(mi,{ano:capexDrillYear,marca:m},bc,{emptyLabel:'Sem verba da marca',statusLabel:`${pct}% resolvido &middot; ${mc.ea} em andamento${mc.canc?` &middot; ${mc.canc} cancelado${mc.canc!==1?'s':''}`:''}`})}
+      <div class="capex-brand-body">
+        <div class="capex-brand-balance">
+          <div><span>${escHtml(main.label)}</span><strong style="color:${mainColor}">${escHtml(main.value)}</strong></div>
+          <em class="capex-brand-badge ${main.badgeClass}">${escHtml(main.badge)}</em>
+        </div>
+        <div class="capex-brand-stats">
+          <div class="capex-brand-stat"><span>Disponibilizado</span><b style="color:${bc}">${budget.autorizado>0?fmt(budget.autorizado):'-'}</b></div>
+          <div class="capex-brand-stat"><span>Comprometido</span><b>${budget.comprometido>0?fmt(budget.comprometido):'-'}</b></div>
+        </div>
+        <div class="capex-brand-progress">
+          <div class="row"><span>${execLabel}</span><b>${mc.total} pedido${mc.total!==1?'s':''}</b></div>
+          ${_ciStatusTrack(mc)}
+          ${capexBudgetMeterHtml(budget)}
+        </div>
       </div>
-      <div class="capex-overview-foot"><span>Abrir unidades</span><i>&rarr;</i></div>
+      <div class="capex-brand-footer"><span>Abrir unidades</span><i>&rarr;</i></div>
     </div>`;
 
   }
@@ -8247,7 +8314,7 @@ function renderCapexUnidades(){
 
   const ms=capexJs(capexDrillMarca);
 
-  const bc=brandColor(capexDrillMarca);const emb=brandEmblem(capexDrillMarca);
+  const bc=brandColor(capexDrillMarca);const logo=brandLogoImg(capexDrillMarca,'width:100%;height:100%;object-fit:contain');
 
   let html=renderCapexTabs();
 
@@ -8267,22 +8334,39 @@ function renderCapexUnidades(){
     const us=capexJs(uni);
     const hasBudget=!!capexSaldoRow(capexDrillYear,uni);
     const budgetBtn=capexBudgetAction(capexDrillYear,uni,hasBudget?'Editar CAPEX disponibilizado':'Adicionar CAPEX disponibilizado',capexDrillMarca,'ghost');
+    const budget=capexBudgetStats(ui,{ano:capexDrillYear,marca:capexDrillMarca,unidade:uni});
+    const main=capexBudgetMainInfo(budget,'Sem verba da unidade');
+    const mainColor=main.badgeClass==='danger'?'var(--danger)':(main.badgeClass==='ok'?'var(--ok)':bc);
+    const execLabel=`${uc.res} resolvido${uc.res!==1?'s':''} &middot; ${uc.ea} em andamento${uc.canc?` &middot; ${uc.canc} cancelado${uc.canc!==1?'s':''}`:''}`;
 
-    html+=`<div class="capex-overview-card interactive-card" role="button" tabindex="0" onclick="drillCapex(${capexDrillYear},'${ms}','${us}')" onkeydown="if(cardKeyOpen(event))drillCapex(${capexDrillYear},'${ms}','${us}')" style="${capexOverviewStyle(capexDrillMarca)}">
-      <div class="capex-overview-head">
-        <div class="capex-overview-mark small">${emb}</div>
-        <div class="capex-overview-id">
-          <div class="capex-overview-kicker">${escHtml(capexDrillMarca)} &middot; ${capexDrillYear}</div>
-          <h3 class="capex-overview-title">${escHtml(uni)}</h3>
-          <span class="capex-overview-sub">${ui.length} pedido${ui.length!==1?'s':''} &middot; ${pct}% resolvido</span>
+    html+=`<div class="capex-unit-card interactive-card" role="button" tabindex="0" onclick="drillCapex(${capexDrillYear},'${ms}','${us}')" onkeydown="if(cardKeyOpen(event))drillCapex(${capexDrillYear},'${ms}','${us}')" style="${capexOverviewStyle(capexDrillMarca)}">
+      <div class="capex-unit-head">
+        <div class="capex-unit-logo">${logo}</div>
+        <div class="capex-unit-id">
+          <div class="capex-unit-kicker">${escHtml(capexDrillMarca)} &middot; ${capexDrillYear}</div>
+          <h3 class="capex-unit-title">${escHtml(uni)}</h3>
+          <div class="capex-unit-sub">${ui.length} pedido${ui.length!==1?'s':''} &middot; ${pct}% resolvido</div>
         </div>
       </div>
-      <div class="capex-overview-body">
-        ${capexOverviewMoney(ui,{ano:capexDrillYear,marca:capexDrillMarca,unidade:uni},bc,{emptyLabel:'Sem verba da unidade',statusLabel:`${uc.res} resolvido${uc.res!==1?'s':''} &middot; ${uc.ea} em andamento${uc.canc?` &middot; ${uc.canc} cancelado${uc.canc!==1?'s':''}`:''}`})}
+      <div class="capex-unit-body">
+        <div class="capex-unit-balance">
+          <div><span>${escHtml(main.label)}</span><strong style="color:${mainColor}">${escHtml(main.value)}</strong></div>
+          <em class="capex-brand-badge ${main.badgeClass}">${escHtml(main.badge)}</em>
+        </div>
+        <div class="capex-unit-stat-grid">
+          <div class="capex-unit-stat"><span>Disponibilizado</span><b style="color:${bc}">${budget.autorizado>0?fmt(budget.autorizado):'-'}</b></div>
+          <div class="capex-unit-stat"><span>Comprometido</span><b>${budget.comprometido>0?fmt(budget.comprometido):'-'}</b></div>
+        </div>
+        <div class="capex-unit-progress">
+          <div class="row"><span>${execLabel}</span><b>${uc.total} pedido${uc.total!==1?'s':''}</b></div>
+          ${_ciStatusTrack(uc)}
+          ${capexBudgetMeterHtml(budget)}
+        </div>
       </div>
-      <div class="capex-overview-foot">
+      <div class="capex-unit-footer">
         <span>Abrir pedidos</span>
         <div class="capex-unit-actions" onclick="event.stopPropagation()">${budgetBtn}</div>
+        <i>&rarr;</i>
       </div>
     </div>`;
 
