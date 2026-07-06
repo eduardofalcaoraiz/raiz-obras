@@ -1187,6 +1187,20 @@ async function saveState(id: string, patch: AnyRecord) {
   })
 }
 
+function positiveNumber(value: unknown, fallback: number) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function freshRunningLock(state: AnyRecord | null, ttlMinutes: number) {
+  if (!state?.running) return null
+  const updatedAt = Date.parse(String(state.updated_at || state.last_start_date || ''))
+  if (!Number.isFinite(updatedAt)) return null
+  const ageMs = Date.now() - updatedAt
+  if (ageMs < 0) return state
+  return ageMs <= ttlMinutes * 60 * 1000 ? state : null
+}
+
 function parseFlowIds(value: unknown) {
   return String(value || '')
     .split(',')
@@ -1491,14 +1505,16 @@ async function runSync(input: AnyRecord) {
   const now = new Date()
   const mode = input.mode || 'incremental'
   const state = await getState(stateId)
-  const runningSince = state?.updated_at ? new Date(state.updated_at).getTime() : 0
-  if (state?.running && runningSince && now.getTime() - runningSince < 4 * 60 * 1000) {
+  const lockTtlMinutes = positiveNumber(input.lockTtlMinutes || input.lock_ttl_minutes || env('ZEEV_SYNC_LOCK_TTL_MINUTES', '15'), 15)
+  const freshLock = freshRunningLock(state, lockTtlMinutes)
+  if (freshLock) {
     return {
       ok: true,
       mode,
       skipped: true,
       reason: 'Sincronizacao Zeev ja esta em andamento.',
-      runningSince: state.updated_at,
+      runningSince: freshLock.updated_at,
+      lockTtlMinutes,
     }
   }
   const overlapHours = Number(input.overlapHours || env('ZEEV_SYNC_OVERLAP_HOURS', '12')) || 12
@@ -1671,6 +1687,21 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
   const ref = env('GITHUB_REF', 'main')
   const syncMode = String(input.workflowMode || input.syncMode || 'deep-incremental')
   const flowIds = String(input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','))
+  const requestedMaxPages = positiveNumber(input.maxPages || input.max_pages || (syncMode === 'retro' || syncMode === 'deep-retro' ? '999' : '12'), 12)
+  const lockTtlMinutes = positiveNumber(input.lockTtlMinutes || input.lock_ttl_minutes || env('ZEEV_GITHUB_LOCK_TTL_MINUTES') || (requestedMaxPages > 2 ? '45' : '15'), requestedMaxPages > 2 ? 45 : 15)
+  const state = await getState('zeev-capex')
+  const freshLock = freshRunningLock(state, lockTtlMinutes)
+  if (freshLock) {
+    return {
+      ok: true,
+      mode: 'dispatch',
+      skipped: true,
+      reason: 'Sincronizacao Zeev ja esta em andamento; novo dispatch nao foi criado.',
+      runningSince: freshLock.updated_at,
+      lockTtlMinutes,
+      requestedBy: actor?.profile?.email || actor?.user?.email || '',
+    }
+  }
   let extraTicketIds = String(input.extraTicketIds || input.extra_ticket_ids || '')
   if (!extraTicketIds && syncMode !== 'retro' && input.refreshKnownTickets !== false) {
     extraTicketIds = (await knownTicketRefreshIds(input.refreshLimit || input.backfillLimit || env('ZEEV_GITHUB_REFRESH_LIMIT', '40'), parseFlowIds(flowIds))).join(',')
@@ -1680,7 +1711,7 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
     start: String(input.start || ''),
     end: String(input.end || ''),
     flow_ids: flowIds,
-    max_pages: String(input.maxPages || input.max_pages || (syncMode === 'retro' || syncMode === 'deep-retro' ? '999' : '12')),
+    max_pages: String(requestedMaxPages),
     notify: input.notify === false ? 'false' : 'true',
     extra_ticket_ids: extraTicketIds,
   }
