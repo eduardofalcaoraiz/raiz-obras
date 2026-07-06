@@ -1,5 +1,7 @@
 name: Zeev CAPEX Sync
 
+run-name: Zeev CAPEX ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }} ${{ github.event_name == 'workflow_dispatch' && inputs.start || '' }} ${{ github.event_name == 'workflow_dispatch' && inputs.end || '' }}
+
 on:
   schedule:
     - cron: "*/30 * * * *"
@@ -35,7 +37,7 @@ on:
         required: false
 
 concurrency:
-  group: zeev-capex-sync
+  group: zeev-capex-sync-${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'scheduled' }}
   cancel-in-progress: false
 
 jobs:
