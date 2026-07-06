@@ -1201,6 +1201,24 @@ function freshRunningLock(state: AnyRecord | null, ttlMinutes: number) {
   return ageMs <= ttlMinutes * 60 * 1000 ? state : null
 }
 
+async function claimSyncLock(ttlMinutes: number, start: string | null = null, end: string | null = null) {
+  const rows = await rest('/rpc/claim_zeev_sync_lock', {
+    method: 'POST',
+    body: JSON.stringify({
+      p_id: 'zeev-capex',
+      p_ttl_minutes: Math.max(1, Math.round(ttlMinutes || 15)),
+      p_start: start || null,
+      p_end: end || null,
+    }),
+  })
+  const row = Array.isArray(rows) ? rows[0] : rows
+  return {
+    claimed: row?.claimed === true,
+    runningSince: row?.running_since || null,
+    lockTtlMinutes: Number(row?.lock_ttl_minutes || ttlMinutes || 15),
+  }
+}
+
 function parseFlowIds(value: unknown) {
   return String(value || '')
     .split(',')
@@ -1689,58 +1707,73 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
   const flowIds = String(input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','))
   const requestedMaxPages = positiveNumber(input.maxPages || input.max_pages || (syncMode === 'retro' || syncMode === 'deep-retro' ? '999' : '12'), 12)
   const lockTtlMinutes = positiveNumber(input.lockTtlMinutes || input.lock_ttl_minutes || env('ZEEV_GITHUB_LOCK_TTL_MINUTES') || (requestedMaxPages > 2 ? '45' : '15'), requestedMaxPages > 2 ? 45 : 15)
-  const state = await getState('zeev-capex')
-  const freshLock = freshRunningLock(state, lockTtlMinutes)
-  if (freshLock) {
+  const requestedStart = String(input.start || '')
+  const requestedEnd = String(input.end || '')
+  const lock = await claimSyncLock(lockTtlMinutes, requestedStart || null, requestedEnd || null)
+  if (!lock.claimed) {
     return {
       ok: true,
       mode: 'dispatch',
       skipped: true,
       reason: 'Sincronizacao Zeev ja esta em andamento; novo dispatch nao foi criado.',
-      runningSince: freshLock.updated_at,
-      lockTtlMinutes,
+      runningSince: lock.runningSince,
+      lockTtlMinutes: lock.lockTtlMinutes,
       requestedBy: actor?.profile?.email || actor?.user?.email || '',
     }
   }
   let extraTicketIds = String(input.extraTicketIds || input.extra_ticket_ids || '')
-  if (!extraTicketIds && syncMode !== 'retro' && input.refreshKnownTickets !== false) {
-    extraTicketIds = (await knownTicketRefreshIds(input.refreshLimit || input.backfillLimit || env('ZEEV_GITHUB_REFRESH_LIMIT', '40'), parseFlowIds(flowIds))).join(',')
-  }
-  const workflowInputs: Record<string, string> = {
-    mode: syncMode === 'retro' ? 'retro' : (syncMode === 'deep-retro' ? 'deep-retro' : 'deep-incremental'),
-    start: String(input.start || ''),
-    end: String(input.end || ''),
-    flow_ids: flowIds,
-    max_pages: String(requestedMaxPages),
-    notify: input.notify === false ? 'false' : 'true',
-    extra_ticket_ids: extraTicketIds,
-  }
-  const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'Content-Type': 'application/json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'RaizObraViva-ZeevSync',
-    },
-    body: JSON.stringify({ ref, inputs: workflowInputs }),
-  })
-  const text = await res.text()
-  if (res.status !== 204) throw new Error(`GitHub workflow dispatch ${res.status}: ${text}`)
-  await saveState('zeev-capex', {
-    running: true,
-    last_error: null,
-    last_start_date: workflowInputs.start || null,
-    last_end_date: workflowInputs.end || null,
-  })
-  return {
-    ok: true,
-    mode: 'dispatch',
-    workflow,
-    ref,
-    syncMode: workflowInputs.mode,
-    requestedBy: actor?.profile?.email || actor?.user?.email || '',
+  try {
+    if (!extraTicketIds && syncMode !== 'retro' && input.refreshKnownTickets !== false) {
+      extraTicketIds = (await knownTicketRefreshIds(input.refreshLimit || input.backfillLimit || env('ZEEV_GITHUB_REFRESH_LIMIT', '40'), parseFlowIds(flowIds))).join(',')
+    }
+    const workflowInputs: Record<string, string> = {
+      mode: syncMode === 'retro' ? 'retro' : (syncMode === 'deep-retro' ? 'deep-retro' : 'deep-incremental'),
+      start: requestedStart,
+      end: requestedEnd,
+      flow_ids: flowIds,
+      max_pages: String(requestedMaxPages),
+      notify: input.notify === false ? 'false' : 'true',
+      extra_ticket_ids: extraTicketIds,
+    }
+    const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'RaizObraViva-ZeevSync',
+      },
+      body: JSON.stringify({ ref, inputs: workflowInputs }),
+    })
+    const text = await res.text()
+    if (res.status !== 204) {
+      await saveState('zeev-capex', {
+        running: false,
+        last_error: `GitHub workflow dispatch ${res.status}: ${text}`.slice(0, 1500),
+      })
+      throw new Error(`GitHub workflow dispatch ${res.status}: ${text}`)
+    }
+    await saveState('zeev-capex', {
+      running: true,
+      last_error: null,
+      last_start_date: workflowInputs.start || null,
+      last_end_date: workflowInputs.end || null,
+    })
+    return {
+      ok: true,
+      mode: 'dispatch',
+      workflow,
+      ref,
+      syncMode: workflowInputs.mode,
+      requestedBy: actor?.profile?.email || actor?.user?.email || '',
+    }
+  } catch (error) {
+    await saveState('zeev-capex', {
+      running: false,
+      last_error: error instanceof Error ? error.message.slice(0, 1500) : String(error).slice(0, 1500),
+    })
+    throw error
   }
 }
 
