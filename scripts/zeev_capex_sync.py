@@ -1122,12 +1122,14 @@ def sync(start, end, flows, max_pages, page_size):
     return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
 
 
-def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest=False):
+def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest=False, start_page=1):
     tickets = {}
     flow_counts = {}
     target_count = 0
     page_size = finished_task_page_size(page_size)
-    for page in range(1, max_pages + 1):
+    start_page = max(1, int(start_page or 1))
+    end_page = start_page + max_pages - 1
+    for page in range(start_page, end_page + 1):
         rows = report_page_all(page, start, end, page_size=page_size)
         page_tickets = {}
         for row in rows:
@@ -1179,6 +1181,8 @@ def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest
             break
     print(json.dumps({
         "progress": "deep-end",
+        "startPage": start_page,
+        "endPage": end_page,
         "targetRows": target_count,
         "tickets": len(tickets),
         "flows": [
@@ -1255,7 +1259,8 @@ def main():
     else:
         if deep_mode:
             progressive_ingest = os.environ.get("ZEEV_PROGRESSIVE_INGEST", "1") != "0"
-            merged = {t["zeev_instance_id"]: t for t in deep_sync(start, end, max_pages=max_pages, page_size=page_size, notify=notify, progressive_ingest=progressive_ingest)}
+            start_page = int(os.environ.get("ZEEV_START_PAGE", "1") or "1")
+            merged = {t["zeev_instance_id"]: t for t in deep_sync(start, end, max_pages=max_pages, page_size=page_size, notify=notify, progressive_ingest=progressive_ingest, start_page=start_page)}
         else:
             merged = {t["zeev_instance_id"]: t for t in sync(start, end, FLOW_IDS, max_pages=max_pages, page_size=page_size)}
         for ticket in sync_ids(extra_ticket_ids):

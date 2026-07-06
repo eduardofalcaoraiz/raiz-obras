@@ -23,6 +23,10 @@ on:
         description: "Paginas da varredura"
         required: false
         default: "12"
+      start_page:
+        description: "Pagina inicial da varredura profunda"
+        required: false
+        default: "1"
       notify:
         description: "Enviar email quando encontrar novos tickets"
         required: false
@@ -61,6 +65,7 @@ jobs:
           ZEEV_SYNC_START: ${{ github.event_name == 'workflow_dispatch' && inputs.start || '' }}
           ZEEV_SYNC_END: ${{ github.event_name == 'workflow_dispatch' && inputs.end || '' }}
           ZEEV_MAX_PAGES: ${{ github.event_name == 'workflow_dispatch' && inputs.max_pages || '12' }}
+          ZEEV_START_PAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.start_page || '1' }}
           ZEEV_RECORDS_PER_PAGE: "30"
           ZEEV_DEEP_SCAN: "1"
           ZEEV_SYNC_OVERLAP_HOURS: "24"
