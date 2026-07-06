@@ -8,6 +8,9 @@
     },
     "api/zeev_capex_sync.py": {
       "maxDuration": 60
+    },
+    "api/zeev_file_proxy.py": {
+      "maxDuration": 60
     }
   }
 }
