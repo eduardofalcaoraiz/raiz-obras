@@ -1510,11 +1510,8 @@ function emailWarningText(email: { notified?: unknown[]; failed?: AnyRecord[] } 
   return `Aviso de e-mail: ${failed.length} ticket(s) sem notificacao (${reasons || 'motivo nao informado'}). A captura Zeev foi concluida.`
 }
 
-function syncStateMessage(errors: string[], email: { notified?: unknown[]; failed?: AnyRecord[] } | null | undefined, shouldNotify: boolean) {
-  const parts = [
-    ...errors.map((e) => String(e || '').trim()).filter(Boolean),
-    emailWarningText(email, shouldNotify),
-  ].filter(Boolean)
+function syncStateMessage(errors: string[]) {
+  const parts = errors.map((e) => String(e || '').trim()).filter(Boolean)
   return parts.length ? parts.join(' | ').slice(0, 1500) : null
 }
 
@@ -1600,7 +1597,7 @@ async function runSync(input: AnyRecord) {
     await saveState(stateId, {
       running: false,
       last_success_at: now.toISOString(),
-      last_error: syncStateMessage(errors, email, shouldNotify),
+      last_error: syncStateMessage(errors),
       last_run_found: tickets.length,
       last_run_new: newCount,
       last_run_updated: Math.max(0, saved.length - newCount),
@@ -1619,6 +1616,7 @@ async function runSync(input: AnyRecord) {
       matchedPayments: reconcile.paymentMatched,
       notified: email.notified.length,
       emailFailures: email.failed,
+      emailWarning: emailWarningText(email, shouldNotify),
       warnings: errors,
       ticketIds: input.verbose ? tickets.map((t) => t.zeev_instance_id) : undefined,
     }
@@ -1670,7 +1668,7 @@ async function runIngest(input: AnyRecord) {
   await saveState('zeev-capex', {
     running: false,
     last_success_at: new Date().toISOString(),
-    last_error: syncStateMessage([], email, input.notify === true),
+    last_error: null,
     last_run_found: normalized.length,
     last_run_new: newCount,
     last_run_updated: Math.max(0, saved.length - newCount),
@@ -1685,6 +1683,7 @@ async function runIngest(input: AnyRecord) {
     matchedPayments: reconcile.paymentMatched,
     notified: email.notified.length,
     emailFailures: email.failed,
+    emailWarning: emailWarningText(email, input.notify === true),
   }
 }
 
