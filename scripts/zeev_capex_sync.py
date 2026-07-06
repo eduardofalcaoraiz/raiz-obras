@@ -15,8 +15,23 @@ ZEEV_BASE_URL = os.environ.get("ZEEV_BASE_URL", "https://raizeducacao.zeev.it").
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://hjccxfznojjosvanwztv.supabase.co").rstrip("/")
 ZEEV_TOKEN = os.environ.get("ZEEV_TOKEN", "")
 ZEEV_SYNC_SECRET = os.environ.get("ZEEV_SYNC_SECRET", "")
-FLOW_IDS = [int(x) for x in os.environ.get("ZEEV_FLOW_IDS", "299,275,102,300").split(",") if x.strip()]
+
+
+def parse_flow_ids_env(value):
+    ids = []
+    for x in str(value or "").split(","):
+        try:
+            n = int(x.strip())
+        except (TypeError, ValueError):
+            continue
+        if n:
+            ids.append(n)
+    return ids
+
+
+FLOW_IDS = parse_flow_ids_env(os.environ.get("ZEEV_FLOW_IDS", "299,275,102,300"))
 FINANCE_FLOW_IDS = {299, 275}
+PURCHASE_FLOW_IDS = {102, 300}
 BUSINESS_TIMEZONE = os.environ.get("ZEEV_BUSINESS_TIMEZONE", "America/Sao_Paulo")
 
 
@@ -97,6 +112,14 @@ DEFAULT_CAPEX_FIELDS = {
     102: ["cAPEX", "CAPEX", "Investimento CAPEX"],
     300: ["cAPEX", "CAPEX", "Investimento CAPEX"],
 }
+
+CAPEX_FIELD_CANDIDATES = [
+    "investimentoCAPEX", "cAPEX", "CAPEX", "Capex", "capex",
+    "Investimento CAPEX", "Investimento Capex",
+    "É um investimento (CAPEX)?", "E um investimento (CAPEX)?",
+    "É um investimento CAPEX?", "E um investimento CAPEX?",
+    "É CAPEX?", "E CAPEX?", "É investimento?", "E investimento?",
+]
 
 VALUE_TOTAL_FIELDS = [
     "valorTotalDoPagamento", "valor total do pagamento", "Valor total do pagamento",
@@ -271,8 +294,39 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
     raise last_error
 
 
-def capex_fields(flow_id):
-    return DEFAULT_CAPEX_FIELDS.get(flow_id, ["investimentoCAPEX", "cAPEX"])
+def capex_fields(flow_id=None):
+    names = list(CAPEX_FIELD_CANDIDATES)
+    for extra in DEFAULT_CAPEX_FIELDS.get(int(flow_id or 0), []):
+        if norm_key(extra) not in {norm_key(x) for x in names}:
+            names.append(extra)
+    return names
+
+
+def flow_text(row):
+    flow = row.get("flow") or {}
+    return " ".join(str(x or "") for x in [
+        flow.get("name"),
+        row.get("flowName"),
+        row.get("requestName"),
+        (row.get("service") or {}).get("name"),
+    ])
+
+
+def is_finance_row(row):
+    flow = row.get("flow") or {}
+    flow_id = int(flow.get("id") or row.get("flowId") or 0)
+    return flow_id in FINANCE_FLOW_IDS or "financeir" in norm(flow_text(row))
+
+
+def is_purchase_row(row):
+    flow = row.get("flow") or {}
+    flow_id = int(flow.get("id") or row.get("flowId") or 0)
+    txt = norm(flow_text(row))
+    return flow_id in PURCHASE_FLOW_IDS or "compra" in txt or "solicitacao de compras" in txt
+
+
+def is_target_flow_row(row):
+    return is_finance_row(row) or is_purchase_row(row)
 
 
 def is_yes(value):
@@ -342,6 +396,7 @@ def report_page(flow_id, page, start, end, page_size=30):
         "useCache": False,
         "formFieldNames": capex_fields(flow_id),
         "showPendingInstanceTasks": True,
+        "showFinishedInstanceTasks": True,
         "showPendingAssignees": True,
     }
     data = request_json(
@@ -350,6 +405,30 @@ def report_page(flow_id, page, start, end, page_size=30):
         headers={"Authorization": f"Bearer {ZEEV_TOKEN}"},
         payload=payload,
         timeout=90,
+    )
+    return data if isinstance(data, list) else [data]
+
+
+def report_page_all(page, start, end, page_size=100, fields=None):
+    payload = {
+        "startDateIntervalBegin": start,
+        "startDateIntervalEnd": end,
+        "recordsPerPage": min(max(int(page_size or 100), 1), 100),
+        "pageNumber": page,
+        "useCache": False,
+        "simulation": False,
+        "formFieldNames": fields if fields is not None else capex_fields(None),
+        "showPendingInstanceTasks": True,
+        "showFinishedInstanceTasks": True,
+        "showPendingAssignees": True,
+        "allowOpenUrlsForFilesInForm": True,
+    }
+    data = request_json(
+        "POST",
+        f"{ZEEV_BASE_URL}/api/2/instances/report",
+        headers={"Authorization": f"Bearer {ZEEV_TOKEN}"},
+        payload=payload,
+        timeout=120,
     )
     return data if isinstance(data, list) else [data]
 
@@ -426,8 +505,10 @@ def best_message_description(messages, service_desc="", item_text=""):
 
 def enrich_instance(row):
     flow_id = int((row.get("flow") or {}).get("id") or row.get("flowId") or 0)
+    financeiro = is_finance_row(row)
     fields = unique_fields(
-        FINANCE_FIELDS if flow_id in FINANCE_FLOW_IDS else PURCHASE_FIELDS,
+        capex_fields(flow_id),
+        FINANCE_FIELDS if financeiro else PURCHASE_FIELDS,
         VALUE_TOTAL_FIELDS,
         ITEM_DESC_FIELDS,
         ITEM_QTY_FIELDS,
@@ -483,7 +564,7 @@ def enrich_instance(row):
             continue
         key = f"{display}|{field.get('row') or 1}"
         all_fields[key] = field
-    if flow_id not in FINANCE_FLOW_IDS:
+    if not financeiro:
         current_fields = list(all_fields.values())
         service_desc = field_value_by_priority(current_fields, [x for x in PURCHASE_SERVICE_DESCRIPTION_FIELDS if x != "descricaoMensagemZeev"])
         item_text = field_value_by_priority(current_fields, ITEM_DESC_FIELDS)
@@ -931,8 +1012,8 @@ def build_ticket(row):
         return None
     tasks = row.get("instanceTasks") or []
     ready = delivery_ready(row)
-    compra = flow_id in (102, 300) or "compra" in norm(flow.get("name") or row.get("requestName"))
-    financeiro = flow_id in FINANCE_FLOW_IDS or "financeir" in norm(flow.get("name") or row.get("requestName"))
+    compra = is_purchase_row(row)
+    financeiro = is_finance_row(row)
     itens = extract_items(fields)
     valor = pick_ticket_value(fields, itens, financeiro=financeiro)
     result_kind = ticket_result_kind(row)
@@ -1032,6 +1113,61 @@ def sync(start, end, flows, max_pages, page_size):
     return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
 
 
+def deep_sync(start, end, max_pages, page_size):
+    tickets = {}
+    flow_counts = {}
+    target_count = 0
+    page_size = min(max(int(page_size or 100), 1), 100)
+    for page in range(1, max_pages + 1):
+        rows = report_page_all(page, start, end, page_size=page_size)
+        for row in rows:
+            flow = row.get("flow") or {}
+            flow_id = int(flow.get("id") or row.get("flowId") or 0)
+            flow_name = flow.get("name") or row.get("flowName") or row.get("requestName") or ""
+            flow_version = flow.get("version") or row.get("flowVersion") or ""
+            key = f"{flow_id}|{flow_name}|v{flow_version}"
+            flow_counts[key] = flow_counts.get(key, 0) + 1
+        candidates = [row for row in rows if is_target_flow_row(row) or has_capex(row.get("formFields") or [], int((row.get("flow") or {}).get("id") or row.get("flowId") or 0))]
+        target_count += len(candidates)
+        print(json.dumps({
+            "progress": "deep-page",
+            "page": page,
+            "rows": len(rows),
+            "candidateRows": len(candidates),
+            "ticketsSoFar": len(tickets),
+        }, ensure_ascii=False), flush=True)
+        for row in candidates:
+            try:
+                enriched = enrich_instance(row)
+                if not is_target_flow_row(enriched) and not has_capex(enriched.get("formFields") or [], int((enriched.get("flow") or {}).get("id") or enriched.get("flowId") or 0)):
+                    continue
+                ticket = build_ticket(enriched)
+                if ticket:
+                    tickets[ticket["zeev_instance_id"]] = ticket
+                    print(json.dumps({
+                        "capexFound": ticket["zeev_instance_id"],
+                        "flowId": ticket.get("flow_id"),
+                        "flowName": ticket.get("flow_name") or ticket.get("request_name"),
+                        "flowVersion": ticket.get("flow_version"),
+                        "setor": ticket.get("setor"),
+                        "valor": ticket.get("valor_final") or ticket.get("valor"),
+                    }, ensure_ascii=False), flush=True)
+            except Exception as exc:
+                print(json.dumps({"candidateError": row.get("id"), "error": str(exc)[:500]}, ensure_ascii=False), file=sys.stderr)
+        if len(rows) < page_size:
+            break
+    print(json.dumps({
+        "progress": "deep-end",
+        "targetRows": target_count,
+        "tickets": len(tickets),
+        "flows": [
+            {"flow": key, "rows": count}
+            for key, count in sorted(flow_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        ],
+    }, ensure_ascii=False), flush=True)
+    return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
+
+
 def sync_ids(instance_ids):
     tickets = {}
     for instance_id in parse_ticket_ids(instance_ids):
@@ -1082,12 +1218,13 @@ def main():
     if not ZEEV_TOKEN or not ZEEV_SYNC_SECRET:
         raise SystemExit("ZEEV_TOKEN e ZEEV_SYNC_SECRET sao obrigatorios.")
     mode = os.environ.get("ZEEV_SYNC_MODE", "incremental")
-    if mode == "retro":
+    deep_mode = mode in {"deep", "deep-retro", "deep-incremental"} or os.environ.get("ZEEV_DEEP_SCAN", "0") == "1"
+    if mode in {"retro", "deep", "deep-retro"}:
         start = os.environ.get("ZEEV_SYNC_START", "2026-04-01T00:00:00-03:00")
         end = os.environ.get("ZEEV_SYNC_END", "2026-07-01T23:59:59-03:00")
     else:
         start, end = default_window()
-    max_pages = int(os.environ.get("ZEEV_MAX_PAGES", "2" if mode != "retro" else "999"))
+    max_pages = int(os.environ.get("ZEEV_MAX_PAGES", "2" if mode not in {"retro", "deep", "deep-retro"} else "999"))
     page_size = int(os.environ.get("ZEEV_RECORDS_PER_PAGE", "30"))
     notify = os.environ.get("ZEEV_NOTIFY", "false").lower() == "true"
     ticket_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS", ""))
@@ -1095,12 +1232,15 @@ def main():
     if ticket_ids:
         tickets = sync_ids(ticket_ids)
     else:
-        merged = {t["zeev_instance_id"]: t for t in sync(start, end, FLOW_IDS, max_pages=max_pages, page_size=page_size)}
+        if deep_mode:
+            merged = {t["zeev_instance_id"]: t for t in deep_sync(start, end, max_pages=max_pages, page_size=max(page_size, 100))}
+        else:
+            merged = {t["zeev_instance_id"]: t for t in sync(start, end, FLOW_IDS, max_pages=max_pages, page_size=page_size)}
         for ticket in sync_ids(extra_ticket_ids):
             merged[ticket["zeev_instance_id"]] = ticket
         tickets = sorted(merged.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
     result = ingest(tickets, notify=notify)
-    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "ingest": result}, ensure_ascii=False))
+    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "deep": deep_mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "ingest": result}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
