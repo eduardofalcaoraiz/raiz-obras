@@ -28,7 +28,7 @@ end
 $$;
 
 select cron.schedule(
-  'zeev-capex-sync-flow-299',
+  'zeev-capex-sync-every-5-min',
   '*/5 * * * *',
   $cron$
     select net.http_post(
@@ -41,100 +41,13 @@ select cron.schedule(
       body := jsonb_build_object(
         'mode', 'dispatch',
         'target', 'vercel',
-        'workflowMode', 'incremental',
+        'workflowMode', 'deep-incremental',
         'businessTimezone', 'America/Sao_Paulo',
-        'flowIds', '299',
-        'maxPages', 6,
+        'flowIds', '299,275,102,300',
+        'maxPages', 12,
         'recordsPerPage', 30,
         'refreshKnownTickets', true,
-        'refreshLimit', 8,
-        'notify', true,
-        'source', 'supabase-pg-cron'
-      ),
-      timeout_milliseconds := 180000
-    );
-  $cron$
-);
-
-select cron.schedule(
-  'zeev-capex-sync-flow-275',
-  '1-59/5 * * * *',
-  $cron$
-    select net.http_post(
-      url := 'https://hjccxfznojjosvanwztv.supabase.co/functions/v1/zeev-capex-sync',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'zeev_db_cron_secret'),
-        'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'zeev_db_cron_secret')
-      ),
-      body := jsonb_build_object(
-        'mode', 'dispatch',
-        'target', 'vercel',
-        'workflowMode', 'incremental',
-        'businessTimezone', 'America/Sao_Paulo',
-        'flowIds', '275',
-        'maxPages', 6,
-        'recordsPerPage', 30,
-        'refreshKnownTickets', true,
-        'refreshLimit', 8,
-        'notify', true,
-        'source', 'supabase-pg-cron'
-      ),
-      timeout_milliseconds := 180000
-    );
-  $cron$
-);
-
-select cron.schedule(
-  'zeev-capex-sync-flow-102',
-  '2-59/5 * * * *',
-  $cron$
-    select net.http_post(
-      url := 'https://hjccxfznojjosvanwztv.supabase.co/functions/v1/zeev-capex-sync',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'zeev_db_cron_secret'),
-        'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'zeev_db_cron_secret')
-      ),
-      body := jsonb_build_object(
-        'mode', 'dispatch',
-        'target', 'vercel',
-        'workflowMode', 'incremental',
-        'businessTimezone', 'America/Sao_Paulo',
-        'flowIds', '102',
-        'maxPages', 6,
-        'recordsPerPage', 30,
-        'refreshKnownTickets', true,
-        'refreshLimit', 8,
-        'notify', true,
-        'source', 'supabase-pg-cron'
-      ),
-      timeout_milliseconds := 180000
-    );
-  $cron$
-);
-
-select cron.schedule(
-  'zeev-capex-sync-flow-300',
-  '3-59/5 * * * *',
-  $cron$
-    select net.http_post(
-      url := 'https://hjccxfznojjosvanwztv.supabase.co/functions/v1/zeev-capex-sync',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'zeev_db_cron_secret'),
-        'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'zeev_db_cron_secret')
-      ),
-      body := jsonb_build_object(
-        'mode', 'dispatch',
-        'target', 'vercel',
-        'workflowMode', 'incremental',
-        'businessTimezone', 'America/Sao_Paulo',
-        'flowIds', '300',
-        'maxPages', 6,
-        'recordsPerPage', 30,
-        'refreshKnownTickets', true,
-        'refreshLimit', 8,
+        'refreshLimit', 40,
         'notify', true,
         'source', 'supabase-pg-cron'
       ),
@@ -157,7 +70,7 @@ select cron.schedule(
       body := jsonb_build_object(
         'mode', 'dispatch',
         'target', 'github',
-        'workflowMode', 'incremental',
+        'workflowMode', 'deep-incremental',
         'flowIds', '299,275,102,300',
         'maxPages', 12,
         'refreshKnownTickets', true,
