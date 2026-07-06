@@ -1122,13 +1122,14 @@ def sync(start, end, flows, max_pages, page_size):
     return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
 
 
-def deep_sync(start, end, max_pages, page_size):
+def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest=False):
     tickets = {}
     flow_counts = {}
     target_count = 0
     page_size = finished_task_page_size(page_size)
     for page in range(1, max_pages + 1):
         rows = report_page_all(page, start, end, page_size=page_size)
+        page_tickets = {}
         for row in rows:
             flow = row.get("flow") or {}
             flow_id = int(flow.get("id") or row.get("flowId") or 0)
@@ -1153,6 +1154,7 @@ def deep_sync(start, end, max_pages, page_size):
                 ticket = build_ticket(enriched)
                 if ticket:
                     tickets[ticket["zeev_instance_id"]] = ticket
+                    page_tickets[ticket["zeev_instance_id"]] = ticket
                     print(json.dumps({
                         "capexFound": ticket["zeev_instance_id"],
                         "flowId": ticket.get("flow_id"),
@@ -1163,6 +1165,16 @@ def deep_sync(start, end, max_pages, page_size):
                     }, ensure_ascii=False), flush=True)
             except Exception as exc:
                 print(json.dumps({"candidateError": row.get("id"), "error": str(exc)[:500]}, ensure_ascii=False), file=sys.stderr)
+        if progressive_ingest and page_tickets:
+            page_saved = sorted(page_tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
+            result = ingest(page_saved, notify=notify)
+            print(json.dumps({
+                "progress": "deep-page-ingest",
+                "page": page,
+                "tickets": len(page_saved),
+                "ticketIds": [t.get("zeev_instance_id") for t in page_saved],
+                "ingest": result,
+            }, ensure_ascii=False), flush=True)
         if len(rows) < page_size:
             break
     print(json.dumps({
@@ -1242,7 +1254,8 @@ def main():
         tickets = sync_ids(ticket_ids)
     else:
         if deep_mode:
-            merged = {t["zeev_instance_id"]: t for t in deep_sync(start, end, max_pages=max_pages, page_size=page_size)}
+            progressive_ingest = os.environ.get("ZEEV_PROGRESSIVE_INGEST", "1") != "0"
+            merged = {t["zeev_instance_id"]: t for t in deep_sync(start, end, max_pages=max_pages, page_size=page_size, notify=notify, progressive_ingest=progressive_ingest)}
         else:
             merged = {t["zeev_instance_id"]: t for t in sync(start, end, FLOW_IDS, max_pages=max_pages, page_size=page_size)}
         for ticket in sync_ids(extra_ticket_ids):
