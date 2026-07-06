@@ -143,6 +143,14 @@ ITEM_DESC_FIELDS = [
 ITEM_QTY_FIELDS = ["quantidade", "quantidade solicitada", "quantidadeSolicitada", "qtd", "qtde"]
 ITEM_UNIT_MEASURE_FIELDS = ["unidadeMedida", "unidade medida", "unidade", "un"]
 
+DOCUMENT_FIELDS = [
+    "anexo", "anexos", "arquivo", "arquivos", "arquivoNF", "arquivo NF",
+    "notaFiscal", "nota fiscal", "notaFiscalArquivo", "arquivoNotaFiscal",
+    "documento", "documentoFiscal", "documento fiscal", "danfe", "xml", "pdf",
+    "comprovante", "comprovantePagamento", "comprovante pagamento",
+    "boleto", "pix", "recibo", "fatura",
+]
+
 PURCHASE_FIELDS = [
     "cAPEX", "centroDeCusto", "centroCusto", "item", "itens", "produto", "produtos",
     "material", "materiais", "servico", "servicos", "descricao", "descricaoSolicitacao",
@@ -157,7 +165,7 @@ PURCHASE_FIELDS = [
     "dataEntrega", "prazoEntrega", "unidade", "unidadeEscolar", "escola", "filial", "marca",
     "localEntrega", "solicitante", "setor", "departamento", "categoria", "categoriaCompra",
     "tipoCompra", "numeroTR", "ticket", "tr", "notaFiscal", "numeroNF", "numeroNotaFiscal",
-    "valorNotaFiscal", "chaveAcesso", "anexo", "arquivo", "arquivoNF", "comprovante", "boleto", "pix",
+    "valorNotaFiscal", "chaveAcesso", *DOCUMENT_FIELDS,
     *PURCHASE_SERVICE_DESCRIPTION_FIELDS, *PURCHASE_ITEM_DESCRIPTION_FIELDS,
 ]
 
@@ -169,7 +177,8 @@ FINANCE_FIELDS = [
     "unidade", "unidadeEscolar", "escola", "filial", "marca", "descricao",
     "descricaoSolicitacao", "solicitacao", "pedido", "objeto", "resumo", "justificativa",
     "observacao", "observacoes", "categoria", "categoriaFinanceira", "setor", "departamento",
-    "numeroTR", "ticket", "tr",
+    "numeroTR", "ticket", "tr", "notaFiscal", "numeroNF", "numeroNotaFiscal",
+    "valorNotaFiscal", "chaveAcesso", *DOCUMENT_FIELDS,
     *FINANCE_DESCRIPTION_FIELDS,
 ]
 
