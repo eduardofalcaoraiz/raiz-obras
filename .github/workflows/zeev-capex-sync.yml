@@ -37,7 +37,7 @@ on:
         required: false
 
 concurrency:
-  group: zeev-capex-sync-${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'scheduled' }}
+  group: zeev-capex-sync-${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'scheduled' }}-${{ github.event_name == 'workflow_dispatch' && inputs.max_pages || 'scheduled' }}
   cancel-in-progress: false
 
 jobs:
