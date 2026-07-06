@@ -16,7 +16,8 @@ begin
     'zeev-capex-sync-flow-275',
     'zeev-capex-sync-flow-102',
     'zeev-capex-sync-flow-300',
-    'zeev-capex-sync-github-catchup-30min'
+    'zeev-capex-sync-github-catchup-30min',
+    'zeev-capex-sync-github-catchup-hourly'
   ] loop
     begin
       perform cron.unschedule(job);
@@ -58,8 +59,8 @@ select cron.schedule(
 );
 
 select cron.schedule(
-  'zeev-capex-sync-github-catchup-30min',
-  '4,34 * * * *',
+  'zeev-capex-sync-github-catchup-hourly',
+  '34 * * * *',
   $cron$
     select net.http_post(
       url := 'https://hjccxfznojjosvanwztv.supabase.co/functions/v1/zeev-capex-sync',
@@ -73,10 +74,10 @@ select cron.schedule(
         'target', 'github',
         'workflowMode', 'deep-incremental',
         'flowIds', '299,275,102,300',
-        'maxPages', 12,
+        'maxPages', 8,
         'lockTtlMinutes', 60,
         'refreshKnownTickets', true,
-        'refreshLimit', 60,
+        'refreshLimit', 20,
         'notify', true,
         'source', 'supabase-pg-cron-catchup'
       ),
