@@ -677,8 +677,8 @@ button{font-family:inherit;cursor:pointer}
 .capex-item-modal #ci-m-context.capex-context.zeev{margin-bottom:12px}
 .capex-item-modal #ci-m-context,.capex-item-modal .mbody>div:last-child{grid-column:1/-1}
 .capex-item-modal .capex-form-card{margin-bottom:0}
-.capex-item-modal .capex-form-card:nth-of-type(3){grid-column:1/-1}
-.capex-item-modal .capex-form-card:nth-of-type(3) textarea{min-height:128px}
+.capex-item-modal .capex-description-card{grid-column:1/-1}
+.capex-item-modal .capex-description-card textarea{min-height:128px}
 .capex-context-ticket{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
 .capex-context-ticket:last-child{margin-bottom:0}
 .capex-context-ticket .mark{width:40px;height:40px;border-radius:10px;background:var(--brand-cur-light,var(--raiz-soft));border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 28%,var(--line));display:flex;align-items:center;justify-content:center;font-family:"Geist",sans-serif;font-weight:900;color:var(--brand-text,var(--accent-text));flex:none}
@@ -3230,7 +3230,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       </div>
     </div>
 
-    <div class="capex-form-card">
+    <div class="capex-form-card capex-description-card">
       <div class="capex-form-title">Descrição do lançamento</div>
       <div class="frow"><label class="fl">Pedido</label><textarea class="fi" id="ci-m-pedido" rows="4" style="resize:vertical" placeholder="Descreva a melhoria, compra, reparo ou solicitação"></textarea></div>
 
@@ -3243,6 +3243,20 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div id="ci-m-compra-vinculada-row" style="display:none">
         <div class="frow" style="margin-bottom:8px"><label class="fl">TR da solicita&ccedil;&atilde;o de compra</label><input class="fi" id="ci-m-compra-tr" inputmode="numeric" placeholder="Digite o n&uacute;mero do TR de compra" oninput="updateCapexCompraLinkHint()"></div>
         <div id="ci-m-compra-hint" style="font-size:12.3px;line-height:1.45;color:var(--muted)"></div>
+      </div>
+    </div>
+
+    <div class="capex-form-card" id="ci-m-obra-card">
+      <div class="capex-form-title">Vinculo com pagamento de obra</div>
+      <label class="capex-flag" style="margin-bottom:10px"><input type="checkbox" id="ci-m-obra-vinculada" onchange="toggleCapexObraLink()"> E relacionado a alguma obra?</label>
+      <div id="ci-m-obra-vinculada-row" style="display:none">
+        <div class="frow" style="margin-bottom:8px"><label class="fl">Obra relacionada</label><select class="fi" id="ci-m-obra-id" onchange="updateCapexObraLinkHint()"></select></div>
+        <div style="display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:8px;background:var(--surface)">
+          <button type="button" id="ci-m-obra-escopo-obra-btn" onclick="capexSetObraEscopo('obra')" style="flex:1;padding:9px 12px;font-size:12.5px;font-weight:850;border:0;cursor:pointer;background:var(--accent);color:var(--accent-readable)">Dentro da obra</button>
+          <button type="button" id="ci-m-obra-escopo-extra-btn" onclick="capexSetObraEscopo('extra')" style="flex:1;padding:9px 12px;font-size:12.5px;font-weight:850;border:0;cursor:pointer;background:var(--surface);color:var(--muted)">Fora da obra</button>
+        </div>
+        <input type="hidden" id="ci-m-obra-escopo" value="obra">
+        <div id="ci-m-obra-hint" style="font-size:12.3px;line-height:1.45;color:var(--muted)"></div>
       </div>
     </div>
 
@@ -6038,6 +6052,249 @@ function updateCapexCompraLinkHint(){
   }
 }
 
+function capexObraLinkFromDados(dados){
+  const obj=capexTicketDadosObj(dados);
+  const link=obj?.obraVinculada||obj?.pagamentoObra||null;
+  if(!link)return null;
+  const obraId=+(link.obra_id||link.obraId||link.id||0)||null;
+  return obraId?{...link,obra_id:obraId,escopo:link.escopo||link.escopo_fin||'obra'}:null;
+}
+
+function capexObraLinkFromItem(it){
+  return it?capexObraLinkFromDados(it.ticket_raiz_dados):null;
+}
+
+function populateCapexObraSelect(selected){
+  const sel=document.getElementById('ci-m-obra-id');
+  if(!sel)return;
+  const rows=(obras||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+  sel.innerHTML='<option value="">Selecione a obra</option>'+rows.map(o=>`<option value="${o.id}">${escHtml(o.nome||('Obra '+o.id))}</option>`).join('');
+  if(selected&&rows.some(o=>+o.id===+selected))sel.value=String(selected);
+}
+
+function capexSetObraEscopo(v){
+  const esc=v==='extra'?'extra':'obra';
+  const hid=document.getElementById('ci-m-obra-escopo');
+  if(hid)hid.value=esc;
+  const ob=document.getElementById('ci-m-obra-escopo-obra-btn');
+  const ex=document.getElementById('ci-m-obra-escopo-extra-btn');
+  if(ob){ob.style.background=esc==='obra'?'var(--accent)':'var(--surface)';ob.style.color=esc==='obra'?'var(--accent-readable)':'var(--muted)';}
+  if(ex){ex.style.background=esc==='extra'?'var(--warn)':'var(--surface)';ex.style.color=esc==='extra'?'#fff':'var(--muted)';}
+  updateCapexObraLinkHint();
+}
+
+function setCapexObraLinkForm(link){
+  const check=document.getElementById('ci-m-obra-vinculada');
+  const sel=document.getElementById('ci-m-obra-id');
+  if(!check||!sel)return;
+  populateCapexObraSelect(link?.obra_id||'');
+  check.checked=!!link?.obra_id;
+  if(link?.obra_id)sel.value=String(link.obra_id);
+  capexSetObraEscopo(link?.escopo||'obra');
+  toggleCapexObraLink(false);
+}
+
+function toggleCapexObraLink(focus){
+  const check=document.getElementById('ci-m-obra-vinculada');
+  const row=document.getElementById('ci-m-obra-vinculada-row');
+  if(!check||!row)return;
+  row.style.display=check.checked?'block':'none';
+  if(!check.checked){
+    const sel=document.getElementById('ci-m-obra-id');
+    if(sel)sel.value='';
+  }else{
+    populateCapexObraSelect(document.getElementById('ci-m-obra-id')?.value||'');
+  }
+  updateCapexObraLinkHint();
+  if(focus!==false&&check.checked)setTimeout(()=>document.getElementById('ci-m-obra-id')?.focus(),40);
+}
+
+function updateCapexObraLinkHint(){
+  const hint=document.getElementById('ci-m-obra-hint');
+  const check=document.getElementById('ci-m-obra-vinculada');
+  const sel=document.getElementById('ci-m-obra-id');
+  if(!hint||!check||!sel)return;
+  if(!check.checked){hint.innerHTML='';return;}
+  const obra=obras.find(o=>+o.id===+sel.value);
+  const escopo=document.getElementById('ci-m-obra-escopo')?.value==='extra'?'fora da obra':'dentro da obra';
+  if(!obra){hint.innerHTML='<span style="color:var(--muted)">Selecione a obra para transformar este Ticket Raiz financeiro em pagamento da obra.</span>';return;}
+  const ticket=capexZeevApproveId?(capexZeevSolicitacoes.find(x=>+x.id===+capexZeevApproveId)?.zeev_instance_id||''):'';
+  const exists=ticket?(obra.pag||[]).find(p=>capexZeevSearchDigits(p.ticketRaiz)===capexZeevSearchDigits(ticket)):null;
+  hint.innerHTML=`<span style="color:var(--ok);font-weight:850">${escHtml(obra.nome||'Obra selecionada')}</span> &middot; pagamento ${escopo}.${exists?' Este TR ja existe na lista de pagamentos e sera atualizado.':' Sera criado na lista de pagamentos ao salvar.'}`;
+}
+
+function capexObraLinkPayload(obraId,escopo,oldLink){
+  const cleanId=+obraId||0;
+  if(!cleanId)return null;
+  const obra=obras.find(o=>+o.id===cleanId);
+  return{
+    obra_id:cleanId,
+    obra_nome:obra?.nome||'',
+    escopo:escopo==='extra'?'extra':'obra',
+    vinculado_em:(oldLink&&+oldLink.obra_id===cleanId&&oldLink.vinculado_em)?oldLink.vinculado_em:new Date().toISOString(),
+    vinculado_por:currentUser?.email||''
+  };
+}
+
+function capexZeevFiscalDocuments(z){
+  const docs=[];
+  const push=(name,url,type,source)=>{
+    const cleanUrl=String(url||'').trim();
+    const cleanName=String(name||'documento-fiscal.pdf').trim();
+    if(!cleanUrl&&!cleanName)return;
+    const key=(cleanUrl||cleanName)+'|'+source;
+    if(docs.some(d=>d.key===key))return;
+    docs.push({key,name:cleanName,url:cleanUrl,type:type||inferType(cleanName),source});
+  };
+  const rows=Array.isArray(z?.raw_fields)?z.raw_fields:[];
+  rows.forEach(f=>{
+    if(!f||typeof f!=='object')return;
+    const label=String(f.name||f.label||f.title||f.caption||'');
+    const n=capexZeevNormField(label);
+    const val=String(f.value||f.displayValue||'').trim();
+    const openUrl=String(f.openUrl||f.url||f.downloadUrl||'').trim();
+    const looksDoc=/(notafiscal|nf|nfs|danfe|xml|pdf|arquivo|anexo|boleto|comprovante|documento)/.test(n);
+    if(!looksDoc&&!openUrl&&!/^https?:\/\//i.test(val))return;
+    const fileName=val&&val.length<180?val:(label||'documento-fiscal');
+    push(fileName,openUrl||(/^https?:\/\//i.test(val)?val:''),f.type||'',label||'raw_fields');
+  });
+  const fields=z?.campos_extraidos||{};
+  Object.entries(fields).forEach(([k,v])=>{
+    const n=capexZeevNormField(k);
+    if(!/(notafiscal|nf|nfs|danfe|xml|pdf|arquivo|anexo|boleto|comprovante|documento)/.test(n))return;
+    const values=Array.isArray(v)?v:[v];
+    values.forEach(x=>{
+      const s=String(x||'').trim();
+      if(/^https?:\/\//i.test(s))push(k,s,'',k);
+      else if(s)push(s,'','',k);
+    });
+  });
+  return docs;
+}
+
+function capexZeevFornecedor(z){
+  return capexZeevAnyField(z,['fornecedor','nomeFornecedor','razaoSocial','favorecido','beneficiario','cnpjFornecedor'])||z?.requester_name||('Ticket Raiz '+(z?.zeev_instance_id||''));
+}
+
+function capexZeevPagamentoDate(z,names){
+  const p=z?.pagamento_json||{};
+  for(const name of names){
+    const v=p[name]||capexZeevAnyField(z,[name]);
+    const iso=normalizeDateISO(v);
+    if(iso)return iso;
+  }
+  return'';
+}
+
+function capexBuildPagamentoFromZeev(z,obra,escopo){
+  const valor=+z?.valor_final||+z?.valor||+(z?.pagamento_json?.valor_total||0)||0;
+  const docs=capexZeevFiscalDocuments(z);
+  const nfNum=String(z?.pagamento_json?.nota_fiscal||capexZeevAnyField(z,['notaFiscal','numeroNF','numeroNotaFiscal','numero da nota fiscal','nf'])||'').trim();
+  const hasDoc=docs.some(d=>d.url||d.name);
+  const venc=capexZeevPagamentoDate(z,['previsao_pagamento','dataVencimento','dataDeVencimento','previsaoPagamento','dataPagamento']);
+  const dataPag=capexZeevPagamentoDate(z,['data_pagamento','dataPagamento']);
+  const ref=capexZeevDescricaoLancamento(z)||z?.request_name||('Ticket Raiz '+(z?.zeev_instance_id||''));
+  return{
+    ben:capexZeevFornecedor(z),
+    v:valor,
+    ref,
+    nfNum:cleanImpDocNumber(nfNum,hasDoc?'NFS-e':'Sem nota'),
+    cat:(CATS[0]&&CATS[0].id)||'outros',
+    sub:0,
+    pagn:_defaultPagadorObra(obra),
+    st:dataPag?'PAGO':'PENDENTE',
+    venc:venc||dataPag||'',
+    emissao:'',
+    pagaEm:dataPag||'',
+    nfTipo:hasDoc?'NFS-e':'Sem nota',
+    contratoSeq:null,
+    tipoCusto:'outros',
+    escopoFin:escopo==='extra'?'extra':'obra',
+    construtora_seq:null,
+    ticketRaiz:String(z?.zeev_instance_id||''),
+    obs:(z?.ticket_link?'Ticket Raiz: '+z.ticket_link:''),
+    pagForma:z?.pagamento_json?.forma||'A_VISTA',
+    parcelas:[],
+    itens:Array.isArray(z?.itens_json)?z.itens_json:[]
+  };
+}
+
+function capexFindPaymentByTicket(ticket){
+  const clean=capexZeevSearchDigits(ticket);
+  if(!clean)return null;
+  for(const o of obras||[]){
+    const idx=(o.pag||[]).findIndex(p=>capexZeevSearchDigits(p.ticketRaiz)===clean);
+    if(idx>=0)return{obra:o,idx,pag:o.pag[idx]};
+  }
+  return null;
+}
+
+async function capexDownloadZeevDoc(doc){
+  if(!doc?.url)return null;
+  const{data:{session}}=await db.auth.getSession();
+  if(!session)return null;
+  let res=await fetch(SUPA_URL+'/functions/v1/zeev-capex-sync',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+    body:JSON.stringify({mode:'file-proxy',url:doc.url})
+  });
+  if(!res.ok)res=await fetch('/api/zeev_file_proxy?url='+encodeURIComponent(doc.url),{headers:{Authorization:'Bearer '+session.access_token}});
+  if(!res.ok)throw new Error(await res.text());
+  const blob=await res.blob();
+  const header=(res.headers.get('content-disposition')||'').match(/filename="?([^";]+)"?/i);
+  const name=doc.name||header?.[1]||'documento-fiscal.pdf';
+  return new File([blob],name,{type:blob.type||doc.type||inferType(name)});
+}
+
+async function capexImportFirstZeevDocToPayment(obra,pag,z){
+  if(pag.nfDoc?.storagePath)return false;
+  const docs=capexZeevFiscalDocuments(z).filter(d=>d.url);
+  if(!docs.length)return false;
+  try{
+    const file=await capexDownloadZeevDoc(docs[0]);
+    if(!file)return false;
+    const path=await uploadPagDoc(obra.id,file,'nf');
+    pag.nfDoc={name:file.name,storagePath:path,type:file.type||inferType(file.name)};
+    return true;
+  }catch(e){
+    console.warn('capexImportFirstZeevDocToPayment:',e);
+    pag.obs=[pag.obs,'Documento fiscal identificado no Ticket Raiz, mas a importacao automatica falhou. Use Anexar NF para salvar o arquivo visivel.'].filter(Boolean).join(' | ');
+    return false;
+  }
+}
+
+async function capexEnsureObraPaymentForTicket(link,z){
+  if(!link?.obra_id||!z)return null;
+  const obra=obras.find(o=>+o.id===+link.obra_id);
+  if(!obra){toast('Obra vinculada nao encontrada.');return null;}
+  obra.pag=Array.isArray(obra.pag)?obra.pag:[];
+  const built=capexBuildPagamentoFromZeev(z,obra,link.escopo);
+  const found=capexFindPaymentByTicket(built.ticketRaiz);
+  let targetObra=obra;
+  let idx=-1;
+  if(found){
+    if(+found.obra.id!==+obra.id){
+      found.obra.pag.splice(found.idx,1);
+      targetObra=obra;
+      obra.pag.push({...found.pag,...built,nfDoc:found.pag.nfDoc||built.nfDoc,compDoc:found.pag.compDoc||null});
+      idx=obra.pag.length-1;
+      await persist(found.obra.id);
+    }else{
+      idx=found.idx;
+      targetObra=found.obra;
+      targetObra.pag[idx]={...found.pag,...built,nfDoc:found.pag.nfDoc||built.nfDoc,compDoc:found.pag.compDoc||null};
+    }
+  }else{
+    obra.pag.push({...built,comp:''});
+    idx=obra.pag.length-1;
+  }
+  const pag=targetObra.pag[idx];
+  await capexImportFirstZeevDocToPayment(targetObra,pag,z);
+  sincronizaPagoObra(targetObra);
+  await persist(targetObra.id);
+  return{obra:targetObra,idx,pag};
+}
+
 function capexZeevValueLabel(z){
   const val=+z.valor_final||+z.valor||0;
   const status=capexZeevTicketStatus(z).toLowerCase();
@@ -6625,6 +6882,7 @@ function openCapexZeevApproval(id){
   setCurrencyValue('ci-m-orc',z.valor_final||z.valor||0);
   document.getElementById('ci-m-real').checked=!!z.realizado_sugerido;
   setCapexCompraLinkForm(capexCompraLinkFromZeev(z));
+  setCapexObraLinkForm(null);
   syncCapexResolvedState();
   updateCapexUnitHint();
   document.getElementById('capex-item-overlay').classList.add('show');
@@ -8801,6 +9059,7 @@ function openCapexItemModal(id){
 
   document.getElementById('ci-m-real').checked=it?.realizado||_ciSit(it)==='Resolvido';
   setCapexCompraLinkForm(capexCompraLinkFromItem(it));
+  setCapexObraLinkForm(capexObraLinkFromItem(it));
 
   syncCapexResolvedState();
 
@@ -8844,11 +9103,30 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
   const compraCheck=!!document.getElementById('ci-m-compra-vinculada')?.checked;
   const compraTr=capexZeevSearchDigits(g('ci-m-compra-tr'));
   if(compraCheck&&!compraTr){toast('Informe o TR da compra vinculada.');return;}
+  const obraCheck=!!document.getElementById('ci-m-obra-vinculada')?.checked;
+  const obraId=+(document.getElementById('ci-m-obra-id')?.value||0)||0;
+  const obraEscopo=document.getElementById('ci-m-obra-escopo')?.value==='extra'?'extra':'obra';
+  if(obraCheck&&!obraId){toast('Selecione a obra relacionada ao pagamento.');return;}
   const antigoDados=capexTicketDadosObj(antigo?.ticket_raiz_dados);
   const compraVinculada=compraCheck?capexCompraLinkPayload(compraTr,capexCompraLinkFromDados(antigoDados)):null;
+  const obraVinculada=obraCheck?capexObraLinkPayload(obraId,obraEscopo,capexObraLinkFromDados(antigoDados)):null;
   const ticketDadosBase=zeevRow?{campos:zeevRow.campos_extraidos||{},itens:zeevRow.itens_json||[],pagamento:zeevRow.pagamento_json||{},rawFields:zeevRow.raw_fields||[]}:antigoDados;
-  const ticketDados=(zeevRow||Object.keys(ticketDadosBase).length||compraCheck)?{...ticketDadosBase,compraVinculada}:null;
+  const ticketDados=(zeevRow||Object.keys(ticketDadosBase).length||compraCheck||obraCheck)?{...ticketDadosBase,compraVinculada,obraVinculada}:null;
   const obj={ano,fonte,unidade,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||'',ticket_raiz_url:zeevRow?.ticket_link||antigo?.ticket_raiz_url||'',ticket_raiz_instance_id:zeevRow?.zeev_instance_id||antigo?.ticket_raiz_instance_id||null,origem:zeevRow?'ZEEV':(antigo?.origem||''),ticket_raiz_dados:ticketDados};
+  const paymentSource=zeevRow||((antigo||obj.ticket_raiz_instance_id||obj.referencia)?{
+    zeev_instance_id:obj.ticket_raiz_instance_id||capexZeevSearchDigits(obj.referencia),
+    ticket_link:obj.ticket_raiz_url||'',
+    request_name:'CAPEX registrado',
+    requester_name:'',
+    pedido:obj.pedido,
+    valor_final:obj.realizado?obj.orcamento:null,
+    valor:obj.orcamento,
+    campos_extraidos:ticketDadosBase.campos||{},
+    itens_json:ticketDadosBase.itens||[],
+    pagamento_json:ticketDadosBase.pagamento||{},
+    raw_fields:ticketDadosBase.rawFields||[],
+    setor:obj.setor
+  }:null);
 
   if(!options.skipDuplicateTr){
     const duplicados=await capexTrDuplicateMatchesLive(referencia,editId);
@@ -8867,6 +9145,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
     const idx=capexItens.findIndex(i=>i.id===editId);
 
     if(idx>=0)capexItens[idx]={...capexItens[idx],...obj};
+    if(obraVinculada&&paymentSource)await capexEnsureObraPaymentForTicket(obraVinculada,paymentSource);
 
   }else{
 
@@ -8884,6 +9163,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
       if(zeevErr){toast('Pedido criado, mas houve erro ao vincular Ticket Raiz: '+zeevErr.message);return;}
       Object.assign(zeevRow,upd);
     }
+    if(obraVinculada&&paymentSource)await capexEnsureObraPaymentForTicket(obraVinculada,paymentSource);
 
   }
 
