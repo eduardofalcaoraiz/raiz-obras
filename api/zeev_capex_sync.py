@@ -127,7 +127,7 @@ class handler(BaseHTTPRequestHandler):
                 tickets = mod.sync_ids(ids)
             else:
                 if deep_mode:
-                    merged = {t["zeev_instance_id"]: t for t in mod.deep_sync(start, end, max_pages=int(max_pages), page_size=max(int(page_size), 100))}
+                    merged = {t["zeev_instance_id"]: t for t in mod.deep_sync(start, end, max_pages=int(max_pages), page_size=int(page_size))}
                 else:
                     merged = {t["zeev_instance_id"]: t for t in mod.sync(start, end, flows, max_pages=int(max_pages), page_size=int(page_size))}
                 for ticket in mod.sync_ids(extra_ids):
