@@ -386,7 +386,15 @@ def has_capex(fields, flow_id):
     return None
 
 
+ZEEV_FINISHED_TASK_PAGE_LIMIT = 30
+
+
+def finished_task_page_size(page_size):
+    return min(max(int(page_size or ZEEV_FINISHED_TASK_PAGE_LIMIT), 1), ZEEV_FINISHED_TASK_PAGE_LIMIT)
+
+
 def report_page(flow_id, page, start, end, page_size=30):
+    page_size = finished_task_page_size(page_size)
     payload = {
         "flowId": flow_id,
         "startDateIntervalBegin": start,
@@ -409,11 +417,12 @@ def report_page(flow_id, page, start, end, page_size=30):
     return data if isinstance(data, list) else [data]
 
 
-def report_page_all(page, start, end, page_size=100, fields=None):
+def report_page_all(page, start, end, page_size=30, fields=None):
+    page_size = finished_task_page_size(page_size)
     payload = {
         "startDateIntervalBegin": start,
         "startDateIntervalEnd": end,
-        "recordsPerPage": min(max(int(page_size or 100), 1), 100),
+        "recordsPerPage": page_size,
         "pageNumber": page,
         "useCache": False,
         "simulation": False,
@@ -1117,7 +1126,7 @@ def deep_sync(start, end, max_pages, page_size):
     tickets = {}
     flow_counts = {}
     target_count = 0
-    page_size = min(max(int(page_size or 100), 1), 100)
+    page_size = finished_task_page_size(page_size)
     for page in range(1, max_pages + 1):
         rows = report_page_all(page, start, end, page_size=page_size)
         for row in rows:
@@ -1233,7 +1242,7 @@ def main():
         tickets = sync_ids(ticket_ids)
     else:
         if deep_mode:
-            merged = {t["zeev_instance_id"]: t for t in deep_sync(start, end, max_pages=max_pages, page_size=max(page_size, 100))}
+            merged = {t["zeev_instance_id"]: t for t in deep_sync(start, end, max_pages=max_pages, page_size=page_size)}
         else:
             merged = {t["zeev_instance_id"]: t for t in sync(start, end, FLOW_IDS, max_pages=max_pages, page_size=page_size)}
         for ticket in sync_ids(extra_ticket_ids):
