@@ -1487,7 +1487,7 @@ async function notifyNewTickets(tickets: AnyRecord[], existing: Map<number, AnyR
   for (const ticket of tickets) {
     const old = existing.get(Number(ticket.zeev_instance_id))
     if (old?.email_notified_at) continue
-    if (old && old.status !== 'pendente') continue
+    if (old) continue
     const result = await sendEmail(ticket)
     if (result.sent) {
       notified.push(Number(ticket.zeev_instance_id))
