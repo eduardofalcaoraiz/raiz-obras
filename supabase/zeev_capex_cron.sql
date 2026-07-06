@@ -40,7 +40,7 @@ select cron.schedule(
       ),
       body := jsonb_build_object(
         'mode', 'dispatch',
-        'target', 'vercel',
+        'target', 'github',
         'workflowMode', 'deep-incremental',
         'businessTimezone', 'America/Sao_Paulo',
         'flowIds', '299,275,102,300',
