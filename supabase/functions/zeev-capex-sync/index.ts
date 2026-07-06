@@ -208,6 +208,32 @@ const ITEM_UNIT_MEASURE_FIELDS = ['unidadeMedida', 'unidade medida', 'unidade', 
 const ITEM_UNIT_FIELDS = ['precoUnitario', 'preço unitário', 'preco unitario', 'valorUnitario', 'valor unitario', 'valor un']
 const ITEM_TOTAL_FIELDS = ['valorTotalItem', 'valor total item', 'valor total do item', 'precoTotal', 'preço total', 'valorProduto', 'valor do produto', 'valorServico', 'valor do serviço']
 
+const DOCUMENT_FIELDS = [
+  'anexo',
+  'anexos',
+  'arquivo',
+  'arquivos',
+  'arquivoNF',
+  'arquivo NF',
+  'notaFiscal',
+  'nota fiscal',
+  'notaFiscalArquivo',
+  'arquivoNotaFiscal',
+  'documento',
+  'documentoFiscal',
+  'documento fiscal',
+  'danfe',
+  'xml',
+  'pdf',
+  'comprovante',
+  'comprovantePagamento',
+  'comprovante pagamento',
+  'boleto',
+  'pix',
+  'recibo',
+  'fatura',
+]
+
 const PURCHASE_ENRICH_FIELDS = [
   'cAPEX',
   'centroDeCusto',
@@ -285,12 +311,7 @@ const PURCHASE_ENRICH_FIELDS = [
   'numeroNotaFiscal',
   'valorNotaFiscal',
   'chaveAcesso',
-  'anexo',
-  'arquivo',
-  'arquivoNF',
-  'comprovante',
-  'boleto',
-  'pix',
+  ...DOCUMENT_FIELDS,
   ...PURCHASE_SERVICE_DESCRIPTION_FIELDS,
   ...PURCHASE_ITEM_DESCRIPTION_FIELDS,
 ]
@@ -343,6 +364,12 @@ const FINANCE_ENRICH_FIELDS = [
   'numeroTR',
   'ticket',
   'tr',
+  'notaFiscal',
+  'numeroNF',
+  'numeroNotaFiscal',
+  'valorNotaFiscal',
+  'chaveAcesso',
+  ...DOCUMENT_FIELDS,
   ...FINANCE_DESCRIPTION_FIELDS,
 ]
 
@@ -1085,6 +1112,68 @@ async function upsertTickets(tickets: AnyRecord[]) {
   return saved
 }
 
+function ticketDigits(value: unknown) {
+  return String(value || '').replace(/\D/g, '')
+}
+
+function ticketDataPatch(ticket: AnyRecord, previous: AnyRecord = {}) {
+  const oldDados = previous && typeof previous === 'object' ? previous : {}
+  return {
+    ...oldDados,
+    campos: ticket.campos_extraidos || oldDados.campos || {},
+    itens: ticket.itens_json || oldDados.itens || [],
+    pagamento: ticket.pagamento_json || oldDados.pagamento || {},
+    rawFields: ticket.raw_fields || oldDados.rawFields || [],
+    atualizadoPeloZeevEm: new Date().toISOString(),
+  }
+}
+
+async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
+  if (!tickets.length) return { capexLinked: 0, paymentMatched: 0 }
+  const byTicket = new Map<string, AnyRecord>()
+  for (const ticket of tickets || []) {
+    const key = ticketDigits(ticket?.zeev_instance_id)
+    if (key) byTicket.set(key, ticket)
+  }
+  if (!byTicket.size) return { capexLinked: 0, paymentMatched: 0 }
+
+  const capexRows = await rest('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados')
+  let capexLinked = 0
+  for (const row of capexRows || []) {
+    const key = ticketDigits(row.ticket_raiz_instance_id || row.referencia)
+    const ticket = byTicket.get(key)
+    if (!ticket) continue
+    capexLinked++
+    await rest(`/capex_itens?id=eq.${Number(row.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        ticket_raiz_url: ticket.ticket_link || null,
+        ticket_raiz_instance_id: Number(ticket.zeev_instance_id),
+        origem: 'ZEEV',
+        ticket_raiz_dados: ticketDataPatch(ticket, row.ticket_raiz_dados || {}),
+      }),
+    })
+    await rest(`/capex_zeev_solicitacoes?zeev_instance_id=eq.${Number(ticket.zeev_instance_id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        status: 'aprovado',
+        capex_item_id: Number(row.id),
+        aprovado_em: new Date().toISOString(),
+      }),
+    })
+  }
+
+  const paymentRows = await rest('/pagamentos?select=obra_id,ticket_raiz')
+  let paymentMatched = 0
+  for (const row of paymentRows || []) {
+    const key = ticketDigits(row.ticket_raiz)
+    if (key && byTicket.has(key)) paymentMatched++
+  }
+  return { capexLinked, paymentMatched }
+}
+
 async function getState(id: string) {
   const rows = await rest(`/zeev_sync_state?id=eq.${encodeURIComponent(id)}&select=*`)
   return (rows || [])[0] || null
@@ -1470,6 +1559,7 @@ async function runSync(input: AnyRecord) {
     const tickets = [...unique.values()].sort((a, b) => Number(b.zeev_instance_id) - Number(a.zeev_instance_id))
     const existing = await getExisting(tickets.map((t) => Number(t.zeev_instance_id)))
     const saved = await upsertTickets(tickets)
+    const reconcile = await reconcileRegisteredTickets(tickets)
     const newCount = tickets.filter((t) => !existing.has(Number(t.zeev_instance_id))).length
     const email = shouldNotify ? await notifyNewTickets(tickets, existing) : { notified: [], failed: [] }
 
@@ -1491,6 +1581,8 @@ async function runSync(input: AnyRecord) {
       found: tickets.length,
       new: newCount,
       updated: Math.max(0, saved.length - newCount),
+      linkedRegistered: reconcile.capexLinked,
+      matchedPayments: reconcile.paymentMatched,
       notified: email.notified.length,
       emailFailures: email.failed,
       warnings: errors,
@@ -1538,6 +1630,7 @@ async function runIngest(input: AnyRecord) {
     }))
   const existing = await getExisting(normalized.map((t: AnyRecord) => Number(t.zeev_instance_id)))
   const saved = await upsertTickets(normalized)
+  const reconcile = await reconcileRegisteredTickets(normalized)
   const newCount = normalized.filter((t: AnyRecord) => !existing.has(Number(t.zeev_instance_id))).length
   const email = input.notify === true ? await notifyNewTickets(normalized, existing) : { notified: [], failed: [] }
   await saveState('zeev-capex', {
@@ -1554,6 +1647,8 @@ async function runIngest(input: AnyRecord) {
     found: normalized.length,
     new: newCount,
     updated: Math.max(0, saved.length - newCount),
+    linkedRegistered: reconcile.capexLinked,
+    matchedPayments: reconcile.paymentMatched,
     notified: email.notified.length,
     emailFailures: email.failed,
   }
@@ -1678,6 +1773,54 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
   }
 }
 
+function safeZeevFileUrl(value: unknown) {
+  try {
+    const url = new URL(String(value || ''))
+    const host = url.hostname.toLowerCase()
+    if (!['http:', 'https:'].includes(url.protocol)) return null
+    if (host === 'raizeducacao.zeev.it' || host.endsWith('.zeev.it') || host.includes('zeev')) return url.toString()
+    return null
+  } catch (_) {
+    return null
+  }
+}
+
+function fileNameFromResponse(url: string, headers: Headers) {
+  const disp = headers.get('content-disposition') || ''
+  const match = disp.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i)
+  const fromHeader = match ? decodeURIComponent(match[1] || match[2] || '') : ''
+  const fromUrl = url.split('/').pop()?.split('?')[0] || ''
+  return (fromHeader || decodeURIComponent(fromUrl) || 'documento-fiscal.pdf').replace(/[^A-Za-z0-9._ -]+/g, '_')
+}
+
+async function runFileProxy(input: AnyRecord) {
+  const url = safeZeevFileUrl(input?.url)
+  if (!url) return json({ ok: false, error: 'URL Zeev invalida.' }, 400)
+  const token = env('ZEEV_TOKEN')
+  if (!token) return json({ ok: false, error: 'ZEEV_TOKEN ausente nos secrets da Supabase.' }, 500)
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: '*/*',
+      'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+    },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    return json({ ok: false, error: text.slice(0, 500) || `HTTP ${res.status}` }, res.status === 404 ? 404 : 502)
+  }
+  const body = await res.arrayBuffer()
+  return new Response(body, {
+    status: 200,
+    headers: {
+      ...CORS,
+      'Cache-Control': 'no-store',
+      'Content-Type': res.headers.get('content-type') || 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${fileNameFromResponse(url, res.headers)}"`,
+    },
+  })
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ ok: false, error: 'Use POST.' }, 405)
@@ -1699,6 +1842,10 @@ Deno.serve(async (req) => {
       const actor = secretAuthorized(req) ? null : await requireAppUser(req)
       const out = input?.target === 'github' ? await dispatchGithubWorkflow(input || {}, actor) : await dispatchVercelBridge(input || {}, actor)
       return json(out)
+    }
+    if (input?.mode === 'file-proxy') {
+      await requireAppUser(req)
+      return await runFileProxy(input || {})
     }
     if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
     const out = await runSync(input || {})
