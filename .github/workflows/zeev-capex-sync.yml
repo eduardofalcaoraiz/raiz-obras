@@ -22,9 +22,9 @@ on:
         required: false
         default: "299,275,102,300"
       max_pages:
-        description: "Paginas por fluxo"
+        description: "Paginas da varredura"
         required: false
-        default: "2"
+        default: "12"
       notify:
         description: "Enviar email quando encontrar novos tickets"
         required: false
@@ -62,8 +62,8 @@ jobs:
           ZEEV_SYNC_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
           ZEEV_SYNC_START: ${{ github.event_name == 'workflow_dispatch' && inputs.start || '' }}
           ZEEV_SYNC_END: ${{ github.event_name == 'workflow_dispatch' && inputs.end || '' }}
-          ZEEV_MAX_PAGES: ${{ github.event_name == 'workflow_dispatch' && inputs.max_pages || '6' }}
-          ZEEV_RECORDS_PER_PAGE: "100"
+          ZEEV_MAX_PAGES: ${{ github.event_name == 'workflow_dispatch' && inputs.max_pages || '12' }}
+          ZEEV_RECORDS_PER_PAGE: "30"
           ZEEV_DEEP_SCAN: "1"
           ZEEV_SYNC_OVERLAP_HOURS: "24"
           ZEEV_NOTIFY: ${{ github.event_name == 'workflow_dispatch' && inputs.notify || 'true' }}
