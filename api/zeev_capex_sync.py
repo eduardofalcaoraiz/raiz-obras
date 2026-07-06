@@ -92,6 +92,7 @@ class handler(BaseHTTPRequestHandler):
         os.environ["ZEEV_MAX_PAGES"] = max_pages
         os.environ["ZEEV_RECORDS_PER_PAGE"] = page_size
         os.environ["ZEEV_BUSINESS_TIMEZONE"] = str(payload.get("businessTimezone") or payload.get("business_timezone") or "America/Sao_Paulo")
+        os.environ["ZEEV_DEEP_SCAN"] = "1" if _as_bool(payload.get("deepScan") or payload.get("deep_scan"), False) else os.environ.get("ZEEV_DEEP_SCAN", "0")
         os.environ["ZEEV_NOTIFY"] = "true" if _as_bool(payload.get("notify"), mode != "retro") else "false"
         if payload.get("start"):
             os.environ["ZEEV_SYNC_START"] = str(payload["start"])
@@ -113,7 +114,7 @@ class handler(BaseHTTPRequestHandler):
             sys.path.insert(0, os.getcwd())
             mod = importlib.import_module("scripts.zeev_capex_sync")
             mod = importlib.reload(mod)
-            if mode == "retro":
+            if mode in {"retro", "deep", "deep-retro"}:
                 start = os.environ.get("ZEEV_SYNC_START", "2026-04-01T00:00:00-03:00")
                 end = os.environ.get("ZEEV_SYNC_END", "2026-07-01T23:59:59-03:00")
             else:
@@ -121,10 +122,14 @@ class handler(BaseHTTPRequestHandler):
             flows = [int(x) for x in flow_ids.split(",") if x.strip()]
             ids = mod.parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS", ""))
             extra_ids = mod.parse_ticket_ids(payload.get("extraTicketIds") or payload.get("extra_ticket_ids") or "")
+            deep_mode = mode in {"deep", "deep-retro", "deep-incremental"} or os.environ.get("ZEEV_DEEP_SCAN", "0") == "1"
             if ids:
                 tickets = mod.sync_ids(ids)
             else:
-                merged = {t["zeev_instance_id"]: t for t in mod.sync(start, end, flows, max_pages=int(max_pages), page_size=int(page_size))}
+                if deep_mode:
+                    merged = {t["zeev_instance_id"]: t for t in mod.deep_sync(start, end, max_pages=int(max_pages), page_size=max(int(page_size), 100))}
+                else:
+                    merged = {t["zeev_instance_id"]: t for t in mod.sync(start, end, flows, max_pages=int(max_pages), page_size=int(page_size))}
                 for ticket in mod.sync_ids(extra_ids):
                     merged[ticket["zeev_instance_id"]] = ticket
                 tickets = sorted(merged.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
