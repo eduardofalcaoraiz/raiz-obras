@@ -65,15 +65,24 @@ class Github:
             method=method,
             headers=merged,
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            if resp.status == 204:
-                return {}
-            data = resp.read()
-            if raw:
-                return data
-            if not data:
-                return {}
-            return json.loads(data.decode("utf-8"))
+        last_error = None
+        for attempt in range(6):
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    if resp.status == 204:
+                        return {}
+                    data = resp.read()
+                    if raw:
+                        return data
+                    if not data:
+                        return {}
+                    return json.loads(data.decode("utf-8"))
+            except urllib.error.HTTPError:
+                raise
+            except Exception as exc:
+                last_error = exc
+                time.sleep(min(60, 5 + attempt * 10))
+        raise last_error
 
     def dispatch(self, start, end, start_page, max_pages, notify, exclude_ids=None):
         payload = {
