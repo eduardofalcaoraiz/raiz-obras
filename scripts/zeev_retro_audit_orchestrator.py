@@ -73,7 +73,7 @@ class Github:
                 return {}
             return json.loads(data.decode("utf-8"))
 
-    def dispatch(self, start, end, start_page, max_pages, notify):
+    def dispatch(self, start, end, start_page, max_pages, notify, exclude_ids=None):
         payload = {
             "ref": "main",
             "inputs": {
@@ -89,20 +89,28 @@ class Github:
         }
         before = datetime.now(timezone.utc)
         self.request(f"/actions/workflows/{WORKFLOW}/dispatches", method="POST", payload=payload, timeout=60)
-        return self.find_recent_run(start, end, before)
+        return self.find_recent_run(start, end, before, start_page=start_page, exclude_ids=exclude_ids or set())
 
-    def find_recent_run(self, start, end, before):
+    def find_recent_run(self, start, end, before, start_page=None, exclude_ids=None):
         deadline = time.time() + 180
-        needle = f"Zeev CAPEX deep-retro {start} {end}"
+        prefix = f"Zeev CAPEX deep-retro {start} {end}"
+        page_marker = f"p{start_page}" if start_page else ""
+        exclude_ids = {int(x) for x in (exclude_ids or set())}
         while time.time() < deadline:
             data = self.request("/actions/runs?per_page=20", timeout=60)
             candidates = []
             for run in data.get("workflow_runs", []):
+                if int(run.get("id") or 0) in exclude_ids:
+                    continue
                 created = datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
-                if created < (before - timedelta(minutes=5)).replace(microsecond=0):
+                if created < (before - timedelta(seconds=30)).replace(microsecond=0):
                     continue
                 title = run.get("display_title") or ""
-                if title == needle:
+                if not title.startswith(prefix):
+                    continue
+                if page_marker and page_marker not in title and title != prefix:
+                    continue
+                if title:
                     candidates.append(run)
             if candidates:
                 return sorted(candidates, key=lambda r: r["created_at"], reverse=True)[0]
@@ -247,6 +255,7 @@ def main():
     total_new = args.base_new_total
     total_updated = 0
     resume_run_used = False
+    used_run_ids = set()
 
     for year, month in month_iter(args.start_month, args.end_month):
         month_key = f"{year:04d}-{month:02d}"
@@ -258,9 +267,11 @@ def main():
                 run_id = args.resume_run_id
                 run_start_page = args.resume_run_start_page or page
                 resume_run_used = True
+                used_run_ids.add(int(run_id))
             else:
-                run = gh.dispatch(start, end, page, args.max_pages, args.notify)
+                run = gh.dispatch(start, end, page, args.max_pages, args.notify, exclude_ids=used_run_ids)
                 run_id = int(run["id"])
+                used_run_ids.add(run_id)
                 run_start_page = page
                 print(
                     json.dumps(
