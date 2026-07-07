@@ -7,6 +7,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -1129,6 +1130,7 @@ def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest
     page_size = finished_task_page_size(page_size)
     start_page = max(1, int(start_page or 1))
     end_page = start_page + max_pages - 1
+    enrich_workers = max(1, min(8, int(os.environ.get("ZEEV_ENRICH_CONCURRENCY", "1") or "1")))
     for page in range(start_page, end_page + 1):
         rows = report_page_all(page, start, end, page_size=page_size)
         page_tickets = {}
@@ -1148,25 +1150,43 @@ def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest
             "candidateRows": len(candidates),
             "ticketsSoFar": len(tickets),
         }, ensure_ascii=False), flush=True)
-        for row in candidates:
-            try:
-                enriched = enrich_instance(row)
-                if not is_target_flow_row(enriched) and not has_capex(enriched.get("formFields") or [], int((enriched.get("flow") or {}).get("id") or enriched.get("flowId") or 0)):
-                    continue
-                ticket = build_ticket(enriched)
-                if ticket:
-                    tickets[ticket["zeev_instance_id"]] = ticket
-                    page_tickets[ticket["zeev_instance_id"]] = ticket
-                    print(json.dumps({
-                        "capexFound": ticket["zeev_instance_id"],
-                        "flowId": ticket.get("flow_id"),
-                        "flowName": ticket.get("flow_name") or ticket.get("request_name"),
-                        "flowVersion": ticket.get("flow_version"),
-                        "setor": ticket.get("setor"),
-                        "valor": ticket.get("valor_final") or ticket.get("valor"),
-                    }, ensure_ascii=False), flush=True)
-            except Exception as exc:
-                print(json.dumps({"candidateError": row.get("id"), "error": str(exc)[:500]}, ensure_ascii=False), file=sys.stderr)
+
+        def build_candidate(row):
+            enriched = enrich_instance(row)
+            flow_id = int((enriched.get("flow") or {}).get("id") or enriched.get("flowId") or 0)
+            if not is_target_flow_row(enriched) and not has_capex(enriched.get("formFields") or [], flow_id):
+                return None
+            return build_ticket(enriched)
+
+        def record_ticket(ticket):
+            if not ticket:
+                return
+            tickets[ticket["zeev_instance_id"]] = ticket
+            page_tickets[ticket["zeev_instance_id"]] = ticket
+            print(json.dumps({
+                "capexFound": ticket["zeev_instance_id"],
+                "flowId": ticket.get("flow_id"),
+                "flowName": ticket.get("flow_name") or ticket.get("request_name"),
+                "flowVersion": ticket.get("flow_version"),
+                "setor": ticket.get("setor"),
+                "valor": ticket.get("valor_final") or ticket.get("valor"),
+            }, ensure_ascii=False), flush=True)
+
+        if enrich_workers == 1 or len(candidates) < 2:
+            for row in candidates:
+                try:
+                    record_ticket(build_candidate(row))
+                except Exception as exc:
+                    print(json.dumps({"candidateError": row.get("id"), "error": str(exc)[:500]}, ensure_ascii=False), file=sys.stderr)
+        else:
+            with ThreadPoolExecutor(max_workers=enrich_workers) as executor:
+                futures = {executor.submit(build_candidate, row): row for row in candidates}
+                for future in as_completed(futures):
+                    row = futures[future]
+                    try:
+                        record_ticket(future.result())
+                    except Exception as exc:
+                        print(json.dumps({"candidateError": row.get("id"), "error": str(exc)[:500]}, ensure_ascii=False), file=sys.stderr)
         if progressive_ingest and page_tickets:
             page_saved = sorted(page_tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
             result = ingest(page_saved, notify=notify)
