@@ -104,14 +104,18 @@ class Github:
             for run in data.get("workflow_runs", []):
                 if int(run.get("id") or 0) in exclude_ids:
                     continue
-                created = datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
-                if created < (before - timedelta(seconds=30)).replace(microsecond=0):
-                    continue
                 title = run.get("display_title") or ""
+                if run.get("conclusion") == "cancelled":
+                    continue
                 if not title.startswith(prefix):
                     continue
-                if page_marker and page_marker not in title and title != prefix:
-                    continue
+                if page_marker:
+                    if page_marker not in title:
+                        continue
+                else:
+                    created = datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
+                    if created < (before - timedelta(seconds=30)).replace(microsecond=0):
+                        continue
                 if title:
                     candidates.append(run)
             if candidates:
