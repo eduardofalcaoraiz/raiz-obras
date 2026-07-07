@@ -68,6 +68,7 @@ jobs:
           ZEEV_START_PAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.start_page || '1' }}
           ZEEV_RECORDS_PER_PAGE: "30"
           ZEEV_DEEP_SCAN: "1"
+          ZEEV_ENRICH_CONCURRENCY: "4"
           ZEEV_SYNC_OVERLAP_HOURS: "24"
           ZEEV_NOTIFY: ${{ github.event_name == 'workflow_dispatch' && inputs.notify || 'true' }}
           ZEEV_TICKET_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.ticket_ids || '' }}
