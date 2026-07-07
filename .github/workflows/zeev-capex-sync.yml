@@ -1,6 +1,6 @@
 name: Zeev CAPEX Sync
 
-run-name: Zeev CAPEX ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }} ${{ github.event_name == 'workflow_dispatch' && inputs.start || '' }} ${{ github.event_name == 'workflow_dispatch' && inputs.end || '' }}
+run-name: Zeev CAPEX ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }} ${{ github.event_name == 'workflow_dispatch' && inputs.start || '' }} ${{ github.event_name == 'workflow_dispatch' && inputs.end || '' }} ${{ github.event_name == 'workflow_dispatch' && format('p{0}', inputs.start_page) || '' }}
 
 on:
   workflow_dispatch:
