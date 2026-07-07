@@ -66,6 +66,8 @@ class Github:
             headers=merged,
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 204:
+                return {}
             data = resp.read()
             if raw:
                 return data
