@@ -1771,6 +1771,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <button data-nav="capex" onclick="go('capex')"><span class="ic">🔧</span> Capex de Melhorias</button>
 
+      <button data-nav="registros" onclick="go('registros')"><span class="ic">TR</span> Registros pendentes <span class="pill" id="nav-registros"></span></button>
+
       <button data-nav="expansao" onclick="go('expansao')"><span class="ic">🏗</span> Expansões de Unidades</button>
 
       <button data-nav="nova" onclick="go('nova')"><span class="ic">🏢</span> Novas Unidades</button>
@@ -1812,6 +1814,22 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div style="margin:4px 0 20px"><input class="fi" id="esc-busca" style="max-width:340px;padding:8px 12px;font-size:13px" placeholder="Buscar escola ou marca…" oninput="renderEscolas()"></div>
 
       <div id="esc-body"></div>
+
+    </section>
+
+    <!-- REGISTROS PENDENTES -->
+
+    <section id="view-registros" class="view">
+
+      <div class="phead">
+
+        <div><div class="eyebrow">Ticket Raiz - CAPEX</div><h1>Registros pendentes</h1><p>Fila de solicitações do Zeev marcadas como CAPEX para análise, validação e registro.</p></div>
+
+        <div class="acts"><button class="btn btn-primary" onclick="syncZeevCapexNow()"><span class="ic">TR</span> Atualizar Zeev</button></div>
+
+      </div>
+
+      <div id="registros-pendentes-body"></div>
 
     </section>
 
@@ -5282,9 +5300,34 @@ function go(view){
 
   if(view==="geral")view="escolas";
 
-  const esferaViews=['capex','expansao','nova'];document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById("view-"+(esferaViews.includes(view)?'esfera':view)).classList.add("active");document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===view||(view==="obra"&&b.dataset.nav===(cur?.esfera||curEsfera))||(view==="uni"&&b.dataset.nav==="escolas")));const _main=document.querySelector(".main");if(_main)_main.scrollTo(0,0);window.scrollTo(0,0);if(esferaViews.includes(view)){curEsfera=view;esfBusca='';esfFiltroMarca='Todas';esfNfSearchQuery='';renderEsfera();}if(view==="escolas")renderEscolas();if(view==="cobranca")renderCobranca();if(view==="forn")renderForn();if(view==="admin")renderAdmin();if(view==="investidores")renderInvestidores();updateNavBadge();scheduleActivePageArt();}
+  const esferaViews=['capex','expansao','nova'];
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+  const target=document.getElementById("view-"+(esferaViews.includes(view)?'esfera':view));
+  if(target)target.classList.add("active");
+  document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===view||(view==="obra"&&b.dataset.nav===(cur?.esfera||curEsfera))||(view==="uni"&&b.dataset.nav==="escolas")));
+  const _main=document.querySelector(".main");if(_main)_main.scrollTo(0,0);window.scrollTo(0,0);
+  if(esferaViews.includes(view)){curEsfera=view;esfBusca='';esfFiltroMarca='Todas';esfNfSearchQuery='';renderEsfera();}
+  if(view==="escolas")renderEscolas();
+  if(view==="registros")renderRegistrosPendentes();
+  if(view==="cobranca")renderCobranca();
+  if(view==="forn")renderForn();
+  if(view==="admin")renderAdmin();
+  if(view==="investidores")renderInvestidores();
+  updateNavBadge();scheduleActivePageArt();
+}
 
-function updateNavBadge(){const n=allAtrasos().length;const el=document.getElementById("nav-cobr");el.textContent=n||"";el.style.display=n?"inline-block":"none";}
+function updateNavBadge(){
+  const n=allAtrasos().length;
+  const el=document.getElementById("nav-cobr");
+  if(el){el.textContent=n||"";el.style.display=n?"inline-block":"none";}
+  const reg=document.getElementById("nav-registros");
+  if(reg){
+    let pend=0;
+    try{pend=capexZeevPendingList().length||0;}catch(e){pend=0;}
+    reg.textContent=pend||"";
+    reg.style.display=pend?"inline-block":"none";
+  }
+}
 
 
 
@@ -6834,6 +6877,22 @@ function renderCapexZeevQueue(){
   </section>`;
 }
 
+function renderRegistrosPendentes(){
+  const view=document.getElementById('view-registros');
+  applyBrandVars(view,'RAIZ');
+  const body=document.getElementById('registros-pendentes-body');
+  if(body)body.innerHTML=renderCapexZeevQueue();
+  updateNavBadge();
+  scheduleActivePageArt(['RAIZ']);
+}
+
+function renderCapexZeevCurrentView(){
+  const active=document.querySelector('.view.active')?.id;
+  if(active==='view-registros')renderRegistrosPendentes();
+  else if(curEsfera==='capex')renderCapexView();
+  else updateNavBadge();
+}
+
 async function syncZeevCapexNow(){
   if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para sincronizar.');return;}
   try{
@@ -6843,15 +6902,15 @@ async function syncZeevCapexNow(){
     const res=await fetch(SUPA_URL+'/functions/v1/zeev-capex-sync',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+(session?.access_token||SUPA_ANON)},
-      body:JSON.stringify({mode:'dispatch',workflowMode:'deep-incremental',maxPages:'12',notify:true})
+      body:JSON.stringify({mode:'dispatch',target:'github',workflowMode:'deep-incremental',maxPages:'16',lockTtlMinutes:75,refreshLimit:40,notify:true})
     });
     const out=await res.json().catch(()=>({}));
     if(!res.ok||out.ok===false)throw new Error(out.error||('HTTP '+res.status));
     await loadFromDB();
-    renderCapexView();
+    renderCapexZeevCurrentView();
     toast('Sincronizacao Zeev iniciada na nuvem. A fila atualiza em instantes.');
     setTimeout(async()=>{
-      try{await loadFromDB();renderCapexView();toast('Fila de Tickets Raiz conferida novamente.');}
+      try{await loadFromDB();renderCapexZeevCurrentView();toast('Fila de Tickets Raiz conferida novamente.');}
       catch(err){console.warn('syncZeevCapexNow delayed refresh:',err);}
     },45000);
   }catch(e){
@@ -6897,7 +6956,7 @@ async function ignoreCapexZeev(id){
     const{error}=await db.from('capex_zeev_solicitacoes').update(payload).eq('id',id).eq('status','pendente');
     if(error){toast('Erro ao marcar como NÃO É CAPEX: '+error.message);return;}
     Object.assign(z,payload);
-    renderCapexView();
+    renderCapexZeevCurrentView();
     toast('Ticket Raiz marcado como NÃO É CAPEX.');
   });
 }
@@ -6912,7 +6971,7 @@ async function restoreCapexZeev(id,openAfter){
     if(error){toast('Erro ao voltar Ticket Raiz para CAPEX: '+error.message);return;}
     Object.assign(z,payload);
     closeCapexNotCapexModal();
-    renderCapexView();
+    renderCapexZeevCurrentView();
     toast('Ticket Raiz voltou para a fila de CAPEX.');
     if(openAfter)setTimeout(()=>openCapexZeevApproval(id),60);
   });
@@ -7341,16 +7400,14 @@ function renderCapexTabs(){
     capexTab='pedidos';
     return`<div class="tabs capex-tabs"><button class="tabbtn active" data-capex-tab="pedidos" onclick="showCapexTab('pedidos')">${labels.pedidos}</button></div>`;
   }
-  const pendingTab=!capexDrillYear?`<button class="tabbtn ${capexTab==='tickets'?'active':''}" data-capex-tab="tickets" onclick="showCapexTab('tickets')">${labels.tickets}</button>`:'';
   return`<div class="tabs capex-tabs">
     <button class="tabbtn ${capexTab==='dashboard'?'active':''}" data-capex-tab="dashboard" onclick="showCapexTab('dashboard')">${labels.dashboard}</button>
     <button class="tabbtn ${capexTab==='pedidos'?'active':''}" data-capex-tab="pedidos" onclick="showCapexTab('pedidos')">${labels.pedidos}</button>
-    ${pendingTab}
   </div>`;
 }
 
 function capexTabLabels(){
-  if(!capexDrillYear)return{dashboard:'Dashboard geral',pedidos:'Anos do CAPEX',tickets:'Registros pendentes'};
+  if(!capexDrillYear)return{dashboard:'Dashboard geral',pedidos:'Anos do CAPEX'};
   if(!capexDrillMarca)return{dashboard:`Dashboard ${capexDrillYear}`,pedidos:'Marcas e unidades'};
   if(!capexDrillUnidade)return{dashboard:'',pedidos:'Unidades da marca'};
   return{dashboard:'Resumo da unidade',pedidos:'Pedidos da unidade'};
@@ -7358,9 +7415,8 @@ function capexTabLabels(){
 
 function showCapexTab(tab){
   if(tab==='tickets'){
-    capexDrillYear=null;capexDrillMarca=null;capexDrillUnidade=null;
-    capexListStatus='Todos';capexDashControls={focusDim:'',focusValue:''};
-    capexTab='tickets';
+    go('registros');
+    return;
   }else capexTab=tab==='pedidos'?'pedidos':'dashboard';
   renderCapexView();
 }
@@ -7369,10 +7425,7 @@ function renderCapexView(){
   applyBrandVars(document.getElementById('view-esfera'),capexDrillMarca||'RAIZ');
   if(capexDrillMarca&&!capexDrillUnidade&&capexTab==='dashboard')capexTab='pedidos';
   if(capexTab==='tickets'){
-    applyBrandVars(document.getElementById('view-esfera'),'RAIZ');
-    capexDrillYear=null;capexDrillMarca=null;capexDrillUnidade=null;
-    renderCapexZeevPage();
-    scheduleActivePageArt();
+    go('registros');
     return;
   }
   if(capexTab==='dashboard'){
@@ -9169,7 +9222,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
 
   closeCapexItemModal();
 
-  renderCapexView();
+  renderCapexZeevCurrentView();
 
   toast(wasEdit?'Pedido atualizado.':'Pedido criado.');
 

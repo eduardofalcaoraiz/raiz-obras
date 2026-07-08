@@ -1255,7 +1255,7 @@ def report_sync_error(error):
 
 def default_window():
     now = datetime.now(business_tz())
-    start = now - timedelta(hours=float(os.environ.get("ZEEV_SYNC_OVERLAP_HOURS", "12")))
+    start = now - timedelta(hours=float(os.environ.get("ZEEV_SYNC_OVERLAP_HOURS", "72")))
     return start.isoformat(timespec="seconds"), (now + timedelta(minutes=5)).isoformat(timespec="seconds")
 
 
@@ -1269,7 +1269,7 @@ def main():
         end = os.environ.get("ZEEV_SYNC_END", "2026-07-01T23:59:59-03:00")
     else:
         start, end = default_window()
-    max_pages = int(os.environ.get("ZEEV_MAX_PAGES", "2" if mode not in {"retro", "deep", "deep-retro"} else "999"))
+    max_pages = int(os.environ.get("ZEEV_MAX_PAGES", "16" if mode not in {"retro", "deep", "deep-retro"} else "999"))
     page_size = int(os.environ.get("ZEEV_RECORDS_PER_PAGE", "30"))
     notify = os.environ.get("ZEEV_NOTIFY", "false").lower() == "true"
     ticket_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS", ""))

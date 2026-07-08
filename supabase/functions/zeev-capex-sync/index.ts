@@ -1532,7 +1532,7 @@ async function runSync(input: AnyRecord) {
       lockTtlMinutes,
     }
   }
-  const overlapHours = Number(input.overlapHours || env('ZEEV_SYNC_OVERLAP_HOURS', '12')) || 12
+  const overlapHours = Number(input.overlapHours || env('ZEEV_SYNC_OVERLAP_HOURS', '72')) || 72
   const start =
     input.start ||
     (mode === 'retro'
@@ -1549,7 +1549,7 @@ async function runSync(input: AnyRecord) {
     .split(',')
     .map((v) => Number(v.trim()))
     .filter(Boolean)
-  const maxPages = Number(input.maxPages || env('ZEEV_MAX_PAGES', '1000')) || 1000
+  const maxPages = Number(input.maxPages || env('ZEEV_MAX_PAGES', '16')) || 16
   const shouldNotify = input.notify === true || (mode !== 'retro' && input.notify !== false)
 
   await saveState(stateId, { running: true, last_error: null, last_start_date: start, last_end_date: end })
@@ -1704,8 +1704,8 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
   const ref = env('GITHUB_REF', 'main')
   const syncMode = String(input.workflowMode || input.syncMode || 'deep-incremental')
   const flowIds = String(input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','))
-  const requestedMaxPages = positiveNumber(input.maxPages || input.max_pages || (syncMode === 'retro' || syncMode === 'deep-retro' ? '999' : '12'), 12)
-  const lockTtlMinutes = positiveNumber(input.lockTtlMinutes || input.lock_ttl_minutes || env('ZEEV_GITHUB_LOCK_TTL_MINUTES') || (requestedMaxPages > 2 ? '45' : '15'), requestedMaxPages > 2 ? 45 : 15)
+  const requestedMaxPages = positiveNumber(input.maxPages || input.max_pages || (syncMode === 'retro' || syncMode === 'deep-retro' ? '999' : '16'), 16)
+  const lockTtlMinutes = positiveNumber(input.lockTtlMinutes || input.lock_ttl_minutes || env('ZEEV_GITHUB_LOCK_TTL_MINUTES') || (requestedMaxPages > 2 ? '75' : '25'), requestedMaxPages > 2 ? 75 : 25)
   const requestedStart = String(input.start || '')
   const requestedEnd = String(input.end || '')
   const lock = await claimSyncLock(lockTtlMinutes, requestedStart || null, requestedEnd || null)
@@ -1788,7 +1788,7 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
     start: input.start || '',
     end: input.end || '',
     flowIds: input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','),
-    maxPages: input.maxPages || input.max_pages || (syncMode === 'retro' || syncMode === 'deep-retro' ? '999' : '12'),
+    maxPages: input.maxPages || input.max_pages || (syncMode === 'retro' || syncMode === 'deep-retro' ? '999' : '16'),
     recordsPerPage: input.recordsPerPage || input.records_per_page || env('ZEEV_RECORDS_PER_PAGE', '30'),
     ticketIds: input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '',
     extraTicketIds: input.extraTicketIds || input.extra_ticket_ids || '',
