@@ -5633,6 +5633,115 @@ function findCapexUnit(unidade){
   return getCapexUnitException(unidade)||unidades.find(x=>capexUnitKey(x.nome)===capexUnitKey(unidade))||null;
 }
 
+function capexAllUnitsForInference(){
+  const seen=new Set();
+  return[...CAPEX_UNIT_EXCEPTIONS,...unidades].filter(u=>{
+    const key=capexUnitKey(u?.nome);
+    if(!key||seen.has(key))return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+const CAPEX_UNIT_GENERIC_TOKENS=new Set(['colegio','escola','creche','unidade','educacao','global','school','grupo','raiz','matriz','cubo','qi','apogeu','sarah','dawsey','leonardo','vinci','tree','sao','santo','santa','antonio','colegio','centro','obra','obras','expansao']);
+
+function capexUnitDistinctiveTokens(text){
+  const seen=new Set();
+  return capexNormText(text).split(' ').filter(t=>{
+    if(t.length<3||/^\d+$/.test(t)||CAPEX_UNIT_GENERIC_TOKENS.has(t)||seen.has(t))return false;
+    seen.add(t);
+    return true;
+  });
+}
+
+function capexUnitAliasTexts(u){
+  const name=String(u?.nome||'');
+  const n=capexNormText(name);
+  const parts=[name,u?.marca,u?.cnpj,u?.endereco];
+  if(n.includes('qi metropolitano'))parts.push('QI Metropolitano Lopes da Cruz Jacinto');
+  if(n.includes('leonardo da vinci')){
+    if(n.includes('alfa'))parts.push('LEO Alfa Leonardo Alfa');
+    if(n.includes('beta'))parts.push('LEO Beta Leonardo Beta');
+    if(n.includes('gama'))parts.push('LEO Gama Leonardo Gama');
+  }
+  if(n.includes('matriz bangu'))parts.push('Matriz Bangu Obra Matriz Bangu Expansao');
+  if(n.includes('barra golf'))parts.push('Golf Barra Golf');
+  if(n.includes('marapendi'))parts.push('ABM Marapendi');
+  if(n.includes('botafogo lucena'))parts.push('Lucena Botafogo Cubo Global Tree');
+  if(n.includes('botafogo assuncao'))parts.push('Assuncao Botafogo Cubo');
+  return parts.filter(Boolean);
+}
+
+function capexExtractCnpjs(text){
+  const s=String(text||'');
+  const out=new Set();
+  (s.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g)||[]).forEach(x=>out.add(x.replace(/\D/g,'')));
+  (s.match(/\b\d{14}\b/g)||[]).forEach(x=>out.add(x));
+  return out;
+}
+
+function capexBrandUnitCount(marca){
+  const key=capexNormText(marca);
+  return capexAllUnitsForInference().filter(u=>capexNormText(u.marca)===key).length;
+}
+
+function capexZeevUnitHighSignalText(z){
+  return [
+    capexZeevAnyField(z,['centroDeCusto','centroCusto','centro de custo','centro de custos','filial','coligada','unidade','escola','localidade','cnpjFilial','cnpj filial','cnpjColigada','cnpj coligada']),
+    z?.requester_team,
+    z?.requester_name
+  ].filter(Boolean).join(' ');
+}
+
+function capexZeevUnitAllSignalText(z){
+  return [
+    capexZeevUnitHighSignalText(z),
+    capexZeevDescricaoLancamento(z),
+    z?.pedido,
+    z?.setor,
+    z?.flow_name,
+    z?.request_name,
+    capexZeevFieldText(z)
+  ].filter(Boolean).join(' ');
+}
+
+function capexSuggestUnitFromZeev(z){
+  const highRaw=capexZeevUnitHighSignalText(z);
+  const allRaw=capexZeevUnitAllSignalText(z);
+  const high=capexNormText(highRaw);
+  const all=capexNormText(allRaw);
+  const cnpjs=capexExtractCnpjs(allRaw);
+  const candidates=capexAllUnitsForInference().map(u=>{
+    let score=0;
+    const name=capexNormText(u.nome);
+    const brand=capexNormText(u.marca);
+    const unitCnpj=String(u.cnpj||'').replace(/\D/g,'');
+    if(unitCnpj&&cnpjs.has(unitCnpj))score+=520;
+    capexUnitAliasTexts(u).forEach(alias=>{
+      const a=capexNormText(alias);
+      if(!a||a.length<4)return;
+      if(high.includes(a))score+=260;
+      else if(all.includes(a))score+=135;
+    });
+    const tokens=capexUnitDistinctiveTokens(u.nome);
+    let highHits=0,allHits=0;
+    tokens.forEach(t=>{
+      if(capexTextHas(high,t)){score+=55;highHits++;}
+      else if(capexTextHas(all,t)){score+=18;allHits++;}
+    });
+    if(tokens.length&&highHits===tokens.length)score+=80+(tokens.length*12);
+    else if(tokens.length&&(highHits+allHits)===tokens.length)score+=35+(tokens.length*6);
+    if(brand&&capexTextHas(high,brand))score+=capexBrandUnitCount(u.marca)===1?90:24;
+    else if(brand&&capexTextHas(all,brand))score+=capexBrandUnitCount(u.marca)===1?55:10;
+    return{u,score};
+  }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.u.nome.localeCompare(b.u.nome,'pt-BR'));
+  const best=candidates[0];
+  const second=candidates[1];
+  if(!best||best.score<115)return'';
+  if(second&&best.score-second.score<30)return'';
+  return best.u.nome||'';
+}
+
 function capexUnitsForMarca(marca){
   const seen=new Set();
   return[...CAPEX_UNIT_EXCEPTIONS,...unidades]
@@ -5672,8 +5781,8 @@ function capexTextHas(txt,term){
 }
 
 function capexAutoCategoryId(it){
-  const desc=capexNormText([it?.pedido,it?.referencia].filter(Boolean).join(' '));
-  const meta=capexNormText([it?.setor,it?.fonte].filter(Boolean).join(' '));
+  const desc=capexNormText([it?.pedido,it?.referencia,it?.descricao,it?.itens,it?._autoText].filter(Boolean).join(' '));
+  const meta=capexNormText([it?.setor,it?.fonte,it?.tipo,it?.fluxo].filter(Boolean).join(' '));
   const hits=[];
   CAPEX_CATEGORY_RULES.forEach(([id,terms],idx)=>{
     const score=terms.reduce((n,t)=>n+(capexTextHas(desc,t)?1:0),0);
@@ -5687,6 +5796,42 @@ function capexAutoCategoryId(it){
   }
   hits.sort((a,b)=>b.score-a.score||a.idx-b.idx);
   return hits[0].id||'capex_outros';
+}
+
+function capexFlattenText(v){
+  if(v==null)return'';
+  if(Array.isArray(v))return v.map(capexFlattenText).filter(Boolean).join(' ');
+  if(typeof v==='object')return Object.values(v).map(capexFlattenText).filter(Boolean).join(' ');
+  return String(v||'').trim();
+}
+
+function capexZeevFieldText(z){
+  return [
+    capexFlattenText(z?.campos_extraidos),
+    capexFlattenText(z?.raw_fields),
+    capexFlattenText(z?.itens_json),
+    capexFlattenText(z?.pagamento_json)
+  ].filter(Boolean).join(' ');
+}
+
+function capexZeevCategoryInput(z){
+  return {
+    pedido:capexZeevDescricaoLancamento(z),
+    referencia:String(z?.zeev_instance_id||''),
+    setor:z?.setor||capexZeevKind(z),
+    fonte:z?.requester_team||z?.requester_name||'',
+    tipo:capexZeevType(z),
+    fluxo:[z?.flow_name,z?.request_name].filter(Boolean).join(' '),
+    itens:capexZeevItemSummary(z),
+    _autoText:[
+      capexZeevAnyField(z,['item','itens','descricao','descricaoServico','descricao do servico','justificativa do pedido','informacoes','informacoes referentes a solicitacao']),
+      capexZeevFieldText(z)
+    ].filter(Boolean).join(' ')
+  };
+}
+
+function capexSuggestedCategoryFromZeev(z){
+  return z?.categoria_capex||capexAutoCategoryId(capexZeevCategoryInput(z))||'capex_outros';
 }
 
 function capexCategoriaId(it){
@@ -6930,12 +7075,15 @@ function openCapexZeevApproval(id){
   capexEditId=null;
   capexZeevApproveId=+id;
   const ano=z.start_date_time?(new Date(z.start_date_time).getFullYear()):(capexDrillYear||new Date().getFullYear());
+  const suggestedUnit=capexSuggestUnitFromZeev(z);
+  const suggestedMarca=suggestedUnit?computeCapexMarca(suggestedUnit):'';
+  const suggestedCategory=capexSuggestedCategoryFromZeev(z);
   document.getElementById('ci-modal-title').textContent='Aprovar Ticket Raiz #'+(z.zeev_instance_id||id);
   populateCapexYearSelect(ano);
-  populateEscolasSelect('');
-  populateCapexCategorySelect(z.categoria_capex||'capex_outros');
+  populateEscolasSelect(suggestedMarca);
+  populateCapexCategorySelect(suggestedCategory);
   document.getElementById('ci-m-fonte').value='UNIDADE';
-  document.getElementById('ci-m-unidade').value='';
+  document.getElementById('ci-m-unidade').value=suggestedUnit||'';
   document.getElementById('ci-m-pedido').value=capexZeevDescricaoLancamento(z)||'';
   document.getElementById('ci-m-ref').value=String(z.zeev_instance_id||'');
   updateCapexTrDuplicateHint(String(z.zeev_instance_id||''));
