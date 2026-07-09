@@ -1256,6 +1256,26 @@ def report_sync_error(error):
     )
 
 
+def backfill_docs():
+    payload = {
+        "mode": "backfill-docs",
+        "limit": int(os.environ.get("ZEEV_BACKFILL_LIMIT", os.environ.get("ZEEV_MAX_PAGES", "30"))),
+        "fileLimit": int(os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "8")),
+        "refresh": os.environ.get("ZEEV_BACKFILL_REFRESH", "true").lower() != "false",
+        "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", "8")),
+        "includePending": os.environ.get("ZEEV_BACKFILL_PENDING", "true").lower() != "false",
+        "includePayments": os.environ.get("ZEEV_BACKFILL_PAYMENTS", "true").lower() != "false",
+        "includeCapex": os.environ.get("ZEEV_BACKFILL_CAPEX", "true").lower() != "false",
+    }
+    return request_json(
+        "POST",
+        f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+        headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+        payload=payload,
+        timeout=600,
+    )
+
+
 def default_window():
     now = datetime.now(business_tz())
     start = now - timedelta(hours=float(os.environ.get("ZEEV_SYNC_OVERLAP_HOURS", "72")))
@@ -1266,6 +1286,10 @@ def main():
     if not ZEEV_TOKEN or not ZEEV_SYNC_SECRET:
         raise SystemExit("ZEEV_TOKEN e ZEEV_SYNC_SECRET sao obrigatorios.")
     mode = os.environ.get("ZEEV_SYNC_MODE", "incremental")
+    if mode in {"backfill-docs", "docs-backfill", "backfill"}:
+        result = backfill_docs()
+        print(json.dumps(result, ensure_ascii=False))
+        return
     deep_mode = mode in {"deep", "deep-retro", "deep-incremental"} or os.environ.get("ZEEV_DEEP_SCAN", "0") == "1"
     if mode in {"retro", "deep", "deep-retro"}:
         start = os.environ.get("ZEEV_SYNC_START", "2026-04-01T00:00:00-03:00")
