@@ -693,6 +693,22 @@ button{font-family:inherit;cursor:pointer}
 .capex-context-fact b{display:block;font-size:9.8px;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
 .capex-context-fact span{display:block;font-size:12.5px;color:var(--ink);font-family:"Geist",system-ui,sans-serif;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-context-fact.missing span{font-family:"Geist",system-ui,sans-serif;font-weight:750;color:var(--muted)}
+.zeev-destination-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.zeev-destination-card{border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 18%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.9),color-mix(in srgb,var(--brand-cur-light,var(--raiz-soft)) 42%,#fff));border-radius:14px;padding:15px;text-align:left;cursor:pointer;min-height:146px;display:flex;flex-direction:column;gap:8px;transition:border-color .15s,box-shadow .15s,transform .12s;color:var(--ink);font-family:inherit}
+.zeev-destination-card:hover{border-color:var(--brand-cur,var(--accent));box-shadow:0 12px 26px -24px rgba(0,0,0,.55);transform:translateY(-1px)}
+.zeev-destination-card b{font-size:15px;line-height:1.18;color:var(--ink)}
+.zeev-destination-card span{font-size:12.5px;line-height:1.45;color:var(--muted)}
+.zeev-destination-card em{margin-top:auto;font-style:normal;font-size:11.5px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-text,var(--accent-text))}
+.zeev-obra-modal{max-width:1120px!important;width:min(1120px,calc(100vw - 28px))}
+.zeev-obra-modal .mbody{max-height:min(82vh,820px);overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+.zeev-obra-modal .capex-context,.zeev-obra-modal .full-row,.zeev-obra-modal .modal-actions{grid-column:1/-1}
+.zeev-doc-list{display:grid;gap:7px;margin-top:6px}
+.zeev-doc-pill{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;border:1px solid var(--line);background:rgba(255,255,255,.72);border-radius:10px;padding:8px 10px;font-size:12.2px;color:var(--muted);min-width:0}
+.zeev-doc-pill b{color:var(--ink);font-weight:850;white-space:normal;overflow-wrap:anywhere}
+.payment-docs-list{display:grid;gap:9px;max-height:56vh;overflow:auto;padding:2px}
+.payment-doc-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:10px 12px}
+.payment-doc-row b{display:block;font-size:13px;line-height:1.28;color:var(--ink);overflow-wrap:anywhere}
+.payment-doc-row span{display:block;font-size:11.6px;color:var(--muted);margin-top:2px}
 /* Full names in decision cards: do not hide operational names behind ellipsis. */
 .obra-card h3,
 .obra-card-unit,
@@ -781,6 +797,10 @@ button{font-family:inherit;cursor:pointer}
   .capex-item-modal{width:calc(100vw - 18px)}
   .capex-item-modal .mbody{display:block}
   .capex-item-modal .capex-form-card{margin-bottom:12px}
+  .zeev-destination-grid{grid-template-columns:1fr}
+  .zeev-obra-modal{width:calc(100vw - 18px)}
+  .zeev-obra-modal .mbody{display:block}
+  .zeev-obra-modal .capex-form-card{margin-bottom:12px}
 }
 .global-dashboard{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin-bottom:16px;align-items:start}
 .gd-span-12{grid-column:span 12}.gd-span-8{grid-column:span 8}.gd-span-6{grid-column:span 6}.gd-span-4{grid-column:span 4}
@@ -1441,7 +1461,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 @media(max-width:768px){
   #overlay,#viewer-overlay,#contr-overlay,#forn-detail-overlay,
   #csv-overlay,#aditivo-overlay,#aporte-overlay,#aporteContr-overlay,
-  #cat-overlay,#confirm-overlay,#invest-overlay,#obra-overlay,#capex-item-overlay,#capex-tr-dup-overlay,#capex-notcapex-overlay{
+  #cat-overlay,#confirm-overlay,#invest-overlay,#obra-overlay,#capex-item-overlay,#capex-tr-dup-overlay,#capex-notcapex-overlay,#capex-zeev-destination-overlay,#capex-zeev-obra-overlay,#payment-docs-overlay{
     max-width:100%!important;
     width:100%!important;
   }
@@ -3369,6 +3389,18 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 </div></div>
 
 
+<div class="overlay" id="payment-docs-overlay"><div class="modal" style="max-width:820px;width:100%">
+
+  <div class="mhead"><h2 id="payment-docs-title" style="font-size:18px">Arquivos do pagamento</h2><button class="x" onclick="closePaymentDocsModal()">×</button></div>
+
+  <div class="mbody">
+    <div id="payment-docs-context" style="font-size:12.8px;color:var(--muted);line-height:1.45;margin-bottom:12px"></div>
+    <div id="payment-docs-body" class="payment-docs-list"></div>
+  </div>
+
+</div></div>
+
+
 <div class="overlay" id="capex-tr-dup-overlay"><div class="modal" style="max-width:620px">
 
   <div class="mhead"><h2 style="font-size:18px">TR já utilizado</h2><button class="x" onclick="closeCapexTrDuplicateWarning()">×</button></div>
@@ -3392,6 +3424,83 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
   <div class="mbody">
     <p style="color:var(--muted);font-size:13.5px;line-height:1.5;margin-bottom:12px">Aqui ficam os Tickets Raiz retirados da fila de aprovação de CAPEX. Se mudar de ideia, use <b style="color:var(--ink)">Registrar como CAPEX</b> para devolver o ticket ao fluxo de aprovação.</p>
     <div id="capex-notcapex-body"></div>
+  </div>
+
+</div></div>
+
+
+<div class="overlay" id="capex-zeev-destination-overlay"><div class="modal" style="max-width:820px;width:100%">
+
+  <div class="mhead"><h2 id="czd-title" style="font-size:18px">Registrar Ticket Raiz</h2><button class="x" onclick="closeCapexZeevDestination()">×</button></div>
+
+  <div class="mbody">
+    <div id="czd-context" class="capex-context zeev" style="display:block"></div>
+    <div class="zeev-destination-grid">
+      <button type="button" class="zeev-destination-card" onclick="chooseCapexZeevDestination('capex')">
+        <b>CAPEX DE MELHORIA</b>
+        <span>Registra o ticket dentro do ciclo de CAPEX por ano, marca e unidade. Use para melhorias, compras ou serviços controlados como CAPEX da escola.</span>
+        <em>Aprovar como pedido CAPEX</em>
+      </button>
+      <button type="button" class="zeev-destination-card" onclick="chooseCapexZeevDestination('obra')">
+        <b>OBRA</b>
+        <span>Registra o ticket como pagamento de uma obra existente. Use para notas fiscais, faturas e pagamentos ligados a expansões ou novas unidades.</span>
+        <em>Aprovar como pagamento da obra</em>
+      </button>
+    </div>
+  </div>
+
+</div></div>
+
+
+<div class="overlay" id="capex-zeev-obra-overlay"><div class="modal zeev-obra-modal">
+
+  <div class="mhead"><h2 id="zo-title" style="font-size:18px">Registrar Ticket Raiz em obra</h2><button class="x" onclick="closeCapexZeevObraApproval()">×</button></div>
+
+  <div class="mbody">
+    <div id="zo-context" class="capex-context zeev" style="display:block"></div>
+
+    <div class="capex-form-card">
+      <div class="capex-form-title">Destino na obra</div>
+      <div class="frow"><label class="fl">Obra relacionada</label><select class="fi" id="zo-obra-id" onchange="updateZeevObraDerivedFields()"></select></div>
+      <div style="display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface);margin-top:10px">
+        <button type="button" id="zo-escopo-obra-btn" onclick="setZeevObraEscopo('obra')" style="flex:1;padding:9px 12px;font-size:12.5px;font-weight:850;border:0;cursor:pointer;background:var(--accent);color:var(--accent-readable)">Dentro da obra</button>
+        <button type="button" id="zo-escopo-extra-btn" onclick="setZeevObraEscopo('extra')" style="flex:1;padding:9px 12px;font-size:12.5px;font-weight:850;border:0;cursor:pointer;background:var(--surface);color:var(--muted)">Fora da obra</button>
+      </div>
+      <input type="hidden" id="zo-escopo" value="obra">
+      <div id="zo-obra-hint" style="font-size:12.3px;line-height:1.45;color:var(--muted);margin-top:8px"></div>
+    </div>
+
+    <div class="capex-form-card">
+      <div class="capex-form-title">Dados do pagamento</div>
+      <div class="fgrid">
+        <div class="frow"><label class="fl">Fornecedor / favorecido</label><input class="fi" id="zo-ben"></div>
+        <div class="frow"><label class="fl">Valor total</label><input class="fi num" id="zo-val" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)"></div>
+      </div>
+      <div class="fgrid">
+        <div class="frow"><label class="fl">Previsão de pagamento</label><input class="fi" id="zo-venc" type="date"></div>
+        <div class="frow"><label class="fl">Responsável pelo pagamento</label><select class="fi" id="zo-pag"></select></div>
+      </div>
+      <div class="fgrid">
+        <div class="frow"><label class="fl">Categoria de pagamento</label><select class="fi" id="zo-cat"></select></div>
+        <div class="frow"><label class="fl">Número do documento fiscal</label><input class="fi" id="zo-nf-num" placeholder="NF, fatura ou recibo"></div>
+      </div>
+      <div class="frow"><label class="fl">Tipo de documento</label><select class="fi" id="zo-nf-tipo"><option>NFS-e</option><option>NF-e</option><option>Fatura</option><option>Boleto</option><option>Recibo</option><option>Sem nota</option></select></div>
+    </div>
+
+    <div class="capex-form-card full-row">
+      <div class="capex-form-title">Descrição / referência do lançamento</div>
+      <textarea class="fi" id="zo-ref" rows="5" style="height:auto;resize:vertical"></textarea>
+    </div>
+
+    <div class="capex-form-card full-row">
+      <div class="capex-form-title">Arquivos encontrados no Ticket Raiz</div>
+      <div id="zo-docs" class="zeev-doc-list"></div>
+    </div>
+
+    <div class="modal-actions" style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px">
+      <button class="btn btn-ghost" onclick="closeCapexZeevObraApproval()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCapexZeevObraApproval()"><span class="ic">✓</span> Registrar na obra</button>
+    </div>
   </div>
 
 </div></div>
@@ -3955,7 +4064,7 @@ const ESFERAS={capex:{label:'Capex de Melhorias',desc:'Obras de melhoria e retro
 
 let curEsfera='nova',esfBusca='',esfFiltroMarca='Todas',esfNfSearchQuery='';
 
-let capexItens=[],capexSaldos=[],capexZeevSolicitacoes=[],capexZeevSyncState=null,capexEditId=null,capexZeevApproveId=null,capexSaveInFlight=false;
+let capexItens=[],capexSaldos=[],capexZeevSolicitacoes=[],capexZeevSyncState=null,capexEditId=null,capexZeevApproveId=null,capexSaveInFlight=false,capexZeevDestinationId=null,capexZeevObraApproveId=null,capexZeevObraSaveInFlight=false,activePaymentDocs=null;
 
 function setEsfBusca(v){esfBusca=v;renderEsfera();}
 
@@ -6606,28 +6715,46 @@ function capexZeevFiscalDocuments(z){
     if(docs.some(d=>d.key===key))return;
     docs.push({key,name:cleanName,url:cleanUrl,type:type||inferType(cleanName),source});
   };
+  const pushValue=(label,value,source)=>{
+    if(value==null)return;
+    if(Array.isArray(value)){value.forEach(v=>pushValue(label,v,source));return;}
+    if(typeof value==='object'){
+      const url=value.url||value.openUrl||value.downloadUrl||value.href||value.link||value.fileUrl||value.signedUrl||value.contentUrl||'';
+      const name=value.name||value.fileName||value.filename||value.originalName||value.displayName||value.title||value.label||label||'documento-fiscal.pdf';
+      const type=value.type||value.mimeType||value.contentType||'';
+      if(url||name)push(name,url,type,source);
+      Object.entries(value).forEach(([k,v])=>{
+        const nk=capexZeevNormField(k);
+        if(/url|link|arquivo|anexo|documento|nota|fatura|boleto|recibo|pdf|xml/.test(nk))pushValue(name||k,v,source);
+      });
+      return;
+    }
+    const s=String(value||'').trim();
+    if(!s)return;
+    if(/^https?:\/\//i.test(s))push(label||'documento-fiscal.pdf',s,'',source);
+    else push(s,'','',source);
+  };
   const rows=Array.isArray(z?.raw_fields)?z.raw_fields:[];
   rows.forEach(f=>{
     if(!f||typeof f!=='object')return;
     const label=String(f.name||f.label||f.title||f.caption||'');
     const n=capexZeevNormField(label);
-    const val=String(f.value||f.displayValue||'').trim();
+    const rawVal=f.value??f.displayValue??f.text??f.values??'';
+    const val=String(rawVal||'').trim();
     const openUrl=String(f.openUrl||f.url||f.downloadUrl||'').trim();
     const looksDoc=/(notafiscal|nf|nfs|danfe|xml|pdf|arquivo|anexo|boleto|comprovante|documento)/.test(n);
     if(!looksDoc&&!openUrl&&!/^https?:\/\//i.test(val))return;
-    const fileName=val&&val.length<180?val:(label||'documento-fiscal');
-    push(fileName,openUrl||(/^https?:\/\//i.test(val)?val:''),f.type||'',label||'raw_fields');
+    if(openUrl){
+      push(val&&val.length<180?val:(label||'documento-fiscal'),openUrl,f.type||'',label||'raw_fields');
+      if(!rawVal||typeof rawVal!=='object')return;
+    }
+    pushValue(label||'documento-fiscal',rawVal,label||'raw_fields');
   });
   const fields=z?.campos_extraidos||{};
   Object.entries(fields).forEach(([k,v])=>{
     const n=capexZeevNormField(k);
     if(!/(notafiscal|nf|nfs|danfe|xml|pdf|arquivo|anexo|boleto|comprovante|documento)/.test(n))return;
-    const values=Array.isArray(v)?v:[v];
-    values.forEach(x=>{
-      const s=String(x||'').trim();
-      if(/^https?:\/\//i.test(s))push(k,s,'',k);
-      else if(s)push(s,'','',k);
-    });
+    pushValue(k,v,k);
   });
   return docs;
 }
@@ -6675,7 +6802,8 @@ function capexBuildPagamentoFromZeev(z,obra,escopo){
     obs:(z?.ticket_link?'Ticket Raiz: '+z.ticket_link:''),
     pagForma:z?.pagamento_json?.forma||'A_VISTA',
     parcelas:[],
-    itens:Array.isArray(z?.itens_json)?z.itens_json:[]
+    itens:Array.isArray(z?.itens_json)?z.itens_json:[],
+    docs:[]
   };
 }
 
@@ -6706,21 +6834,110 @@ async function capexDownloadZeevDoc(doc){
   return new File([blob],name,{type:blob.type||doc.type||inferType(name)});
 }
 
-async function capexImportFirstZeevDocToPayment(obra,pag,z){
-  if(pag.nfDoc?.storagePath)return false;
+function paymentDocKey(d){
+  if(!d)return'';
+  return String(d.storagePath||d.url||((d.kind||'')+'|'+(d.name||''))).trim().toLowerCase();
+}
+
+function normalizePaymentDocs(p){
+  if(!p)return[];
+  const rows=[];
+  const push=(doc,kind)=>{
+    if(!doc)return;
+    const item={...doc,kind:doc.kind||kind||'',bucket:doc.bucket||'pagamentos',type:doc.type||inferType(doc.name||doc.storagePath||'')};
+    const key=paymentDocKey(item);
+    if(!key||rows.some(x=>paymentDocKey(x)===key))return;
+    rows.push(item);
+  };
+  (Array.isArray(p.docs)?p.docs:[]).forEach(d=>push(d,d?.kind||''));
+  push(p.nfDoc,'NF');
+  push(p.compDoc,'COMPROVANTE');
+  return rows;
+}
+
+function addPaymentDoc(p,doc,kind){
+  if(!p||!doc)return false;
+  p.docs=normalizePaymentDocs(p);
+  const item={...doc,kind:doc.kind||kind||'',bucket:doc.bucket||'pagamentos',type:doc.type||inferType(doc.name||doc.storagePath||'')};
+  const key=paymentDocKey(item);
+  if(!key||p.docs.some(d=>paymentDocKey(d)===key))return false;
+  p.docs.push(item);
+  return true;
+}
+
+function paymentAllDocs(p){
+  return normalizePaymentDocs(p);
+}
+
+function paymentDocsCount(p){
+  return paymentAllDocs(p).length;
+}
+
+function capexZeevDocKind(doc){
+  const n=capexZeevNormField([doc?.name,doc?.source,doc?.type].filter(Boolean).join(' '));
+  if(/comprovante|recibo|boleto|pix/.test(n))return'COMPROVANTE';
+  if(/fatura/.test(n))return'FATURA';
+  return'NF';
+}
+
+async function capexImportAllZeevDocsToPayment(obra,pag,z){
   const docs=capexZeevFiscalDocuments(z).filter(d=>d.url);
-  if(!docs.length)return false;
-  try{
-    const file=await capexDownloadZeevDoc(docs[0]);
-    if(!file)return false;
-    const path=await uploadPagDoc(obra.id,file,'nf');
-    pag.nfDoc={name:file.name,storagePath:path,type:file.type||inferType(file.name)};
-    return true;
-  }catch(e){
-    console.warn('capexImportFirstZeevDocToPayment:',e);
-    pag.obs=[pag.obs,'Documento fiscal identificado no Ticket Raiz, mas a importacao automatica falhou. Use Anexar NF para salvar o arquivo visivel.'].filter(Boolean).join(' | ');
-    return false;
+  if(!docs.length)return 0;
+  let imported=0;
+  pag.docs=normalizePaymentDocs(pag);
+  for(const doc of docs){
+    try{
+      if(pag.docs.some(d=>String(d.url||'')&&String(d.url)===String(doc.url)))continue;
+      const file=await capexDownloadZeevDoc(doc);
+      if(!file)continue;
+      const kind=capexZeevDocKind(doc);
+      const path=await uploadPagDoc(obra.id,file,kind.toLowerCase());
+      const item={name:file.name,storagePath:path,type:file.type||inferType(file.name),bucket:'pagamentos',kind,origin:'ZEEV',source:doc.source||'',url:doc.url||'',ticketRaiz:String(z?.zeev_instance_id||'')};
+      addPaymentDoc(pag,item,kind);
+      if(kind==='COMPROVANTE'&&!pag.compDoc)pag.compDoc=item;
+      if(kind!=='COMPROVANTE'&&!pag.nfDoc)pag.nfDoc=item;
+      imported++;
+    }catch(e){
+      console.warn('capexImportAllZeevDocsToPayment:',e);
+      pag.obs=[pag.obs,'Arquivo do Ticket Raiz identificado, mas a importacao automatica de um anexo falhou.'].filter(Boolean).join(' | ');
+    }
   }
+  return imported;
+}
+
+async function capexImportFirstZeevDocToPayment(obra,pag,z){
+  return(await capexImportAllZeevDocsToPayment(obra,pag,z))>0;
+}
+
+async function capexUpsertObraPaymentFromZeev(obra,pag,z){
+  obra.pag=Array.isArray(obra.pag)?obra.pag:[];
+  const found=capexFindPaymentByTicket(pag.ticketRaiz);
+  let targetObra=obra;
+  let idx=-1;
+  let oldPag=null;
+  if(found){
+    oldPag=found.pag;
+    const merged={...oldPag,...pag,nfDoc:oldPag.nfDoc||pag.nfDoc||null,compDoc:oldPag.compDoc||pag.compDoc||null,docs:paymentAllDocs(oldPag),comp:oldPag.comp||pag.comp||''};
+    if(+found.obra.id!==+obra.id){
+      found.obra.pag.splice(found.idx,1);
+      await persist(found.obra.id);
+      targetObra=obra;
+      obra.pag.push(merged);
+      idx=obra.pag.length-1;
+    }else{
+      targetObra=found.obra;
+      idx=found.idx;
+      targetObra.pag[idx]=merged;
+    }
+  }else{
+    obra.pag.push({...pag,comp:pag.comp||'',docs:paymentAllDocs(pag)});
+    idx=obra.pag.length-1;
+  }
+  const finalPag=targetObra.pag[idx];
+  const docsImported=await capexImportAllZeevDocsToPayment(targetObra,finalPag,z);
+  sincronizaPagoObra(targetObra);
+  await persist(targetObra.id);
+  return{obra:targetObra,idx,pag:finalPag,docsImported};
 }
 
 async function capexEnsureObraPaymentForTicket(link,z){
@@ -6736,23 +6953,23 @@ async function capexEnsureObraPaymentForTicket(link,z){
     if(+found.obra.id!==+obra.id){
       found.obra.pag.splice(found.idx,1);
       targetObra=obra;
-      obra.pag.push({...found.pag,...built,nfDoc:found.pag.nfDoc||built.nfDoc,compDoc:found.pag.compDoc||null});
+      obra.pag.push({...found.pag,...built,nfDoc:found.pag.nfDoc||built.nfDoc,compDoc:found.pag.compDoc||built.compDoc||null,docs:paymentAllDocs(found.pag)});
       idx=obra.pag.length-1;
       await persist(found.obra.id);
     }else{
       idx=found.idx;
       targetObra=found.obra;
-      targetObra.pag[idx]={...found.pag,...built,nfDoc:found.pag.nfDoc||built.nfDoc,compDoc:found.pag.compDoc||null};
+      targetObra.pag[idx]={...found.pag,...built,nfDoc:found.pag.nfDoc||built.nfDoc,compDoc:found.pag.compDoc||built.compDoc||null,docs:paymentAllDocs(found.pag)};
     }
   }else{
-    obra.pag.push({...built,comp:''});
+    obra.pag.push({...built,comp:'',docs:paymentAllDocs(built)});
     idx=obra.pag.length-1;
   }
   const pag=targetObra.pag[idx];
-  await capexImportFirstZeevDocToPayment(targetObra,pag,z);
+  const docsImported=await capexImportAllZeevDocsToPayment(targetObra,pag,z);
   sincronizaPagoObra(targetObra);
   await persist(targetObra.id);
-  return{obra:targetObra,idx,pag};
+  return{obra:targetObra,idx,pag,docsImported};
 }
 
 function capexZeevValueLabel(z){
@@ -7093,7 +7310,7 @@ function renderCapexZeevCards(pend){
           ])}
           ${value}
           <div class="capex-summary-actions capex-actions-stack">
-            <button class="btn btn-primary btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexZeevApproval(${id})">Registrar</button>
+            <button class="btn btn-primary btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexZeevDestination(${id})">Registrar</button>
             ${link}
             <button class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();ignoreCapexZeev(${id})">NÃO É CAPEX</button>
           </div>
@@ -7111,7 +7328,7 @@ function renderCapexZeevCards(pend){
           <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
             ${z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener">Abrir Ticket Raiz</a>`:''}
             <button class="btn btn-ghost btn-sm" onclick="ignoreCapexZeev(${id})">NÃO É CAPEX</button>
-            <button class="btn btn-primary btn-sm" onclick="openCapexZeevApproval(${id})">Aprovar e registrar</button>
+            <button class="btn btn-primary btn-sm" onclick="openCapexZeevDestination(${id})">Aprovar e registrar</button>
           </div>
         </div>
       </div>
@@ -7409,7 +7626,7 @@ async function restoreCapexZeev(id,openAfter){
     closeCapexNotCapexModal();
     renderCapexZeevCurrentView();
     toast('Ticket Raiz voltou para a fila de CAPEX.');
-    if(openAfter)setTimeout(()=>openCapexZeevApproval(id),60);
+    if(openAfter)setTimeout(()=>openCapexZeevDestination(id),60);
   });
 }
 
@@ -7449,6 +7666,200 @@ function capexZeevContextHtml(){
   const manualUnit=`<div style="font-size:11.7px;color:var(--muted);line-height:1.35"><b style="color:var(--ink)">Unidade:</b> escolha manualmente no formulario</div>`;
   const extra=`<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--line);display:grid;gap:3px">${manualUnit}${itemRows}${fieldRows}</div>`;
   return`<div class="capex-context-ticket"><div class="mark">TR</div><div style="min-width:0"><div class="capex-context-title">Ticket Raiz #${escHtml(z.zeev_instance_id||z.id)}</div><div class="capex-context-sub">${detail}</div><div class="capex-context-sub">${link}</div>${critical}${extra}</div></div>`;
+}
+
+function capexZeevContextHtmlFor(z,opts){
+  opts=opts||{};
+  if(!z)return'';
+  const link=z.ticket_link?`<a href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" style="color:var(--brand-text,var(--accent-text));font-weight:800;text-decoration:none">Abrir Ticket Raiz</a>`:'Sem link informado';
+  const detail=[capexZeevKind(z),z.requester_name,capexZeevDate(z.start_date_time),capexZeevStageLabel(z)].filter(Boolean).map(escHtml).join(' &middot; ');
+  const centroCusto=capexZeevAnyField(z,['centroDeCusto','centroCusto','centro de custo','centro de custos','centro custos']);
+  const cnpjRaw=capexZeevAnyField(z,[
+    'cnpjFilial','cnpj da filial','cnpjDaFilial','cnpjColigada','cnpj da coligada','cnpjDaColigada',
+    'filialCnpj','coligadaCnpj','cnpjUnidade','cnpj da unidade','cnpjDaUnidade',
+    'cnpjEscola','cnpj da escola','cnpjDaEscola','cpfCnpjFilial','cpfCnpjColigada',
+    'cnpjEmpresa','cnpj da empresa','empresaCnpj','cnpjInstituicao','cnpj da instituicao','instituicaoCnpj'
+  ]);
+  const fact=(label,value,source,missing)=>`<div class="capex-context-fact ${missing?'missing':''}" title="${escHtml(value||'')}"><b>${escHtml(label)}${source?` · ${escHtml(source)}`:''}</b><span>${escHtml(value||'Nao informado')}</span></div>`;
+  const docs=capexZeevFiscalDocuments(z);
+  const docLine=docs.length?`${docs.length} arquivo${docs.length!==1?'s':''} identificado${docs.length!==1?'s':''}`:'Nenhum arquivo fiscal identificado';
+  const desc=capexZeevDescricaoLancamento(z)||z.request_name||'Descricao pendente no Zeev';
+  return`<div class="capex-context-ticket"><div class="mark">TR</div><div style="min-width:0;width:100%">
+    <div class="capex-context-title">Ticket Raiz #${escHtml(z.zeev_instance_id||z.id)}</div>
+    <div class="capex-context-sub">${detail}</div>
+    <div class="capex-context-sub">${link}</div>
+    <div class="capex-context-facts">
+      ${fact('CNPJ filial/coligada',capexOnlyCnpj(cnpjRaw)||'Nao informado','Ticket Raiz',!capexOnlyCnpj(cnpjRaw))}
+      ${fact('Centro de custo',centroCusto||'Nao informado','Ticket Raiz',!centroCusto)}
+      ${fact('Valor importado',capexZeevValueLabel(z)||'Nao informado','Zeev',false)}
+      ${fact('Arquivos',docLine,'Zeev',!docs.length)}
+    </div>
+    <div style="font-size:12.4px;line-height:1.45;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;margin-top:8px"><b style="color:var(--ink)">Descricao:</b> ${escHtml(desc)}</div>
+  </div></div>`;
+}
+
+function capexZeevDocsPreviewHtml(z){
+  const docs=capexZeevFiscalDocuments(z);
+  if(!docs.length)return'<div class="zeev-doc-pill"><span>--</span><b>Nenhum arquivo fiscal foi identificado nos campos sincronizados do Zeev.</b><span></span></div>';
+  return docs.map((d,idx)=>`<div class="zeev-doc-pill"><span>${idx+1}</span><b title="${escHtml(d.name||'Arquivo')}">${escHtml(d.name||'Arquivo')}</b><span>${d.url?'link Zeev':'sem link'}</span></div>`).join('');
+}
+
+function openCapexZeevDestination(id){
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para aprovar.');return;}
+  const z=capexZeevSolicitacoes.find(x=>+x.id===+id);
+  if(!z){toast('Ticket Raiz nao encontrado.');return;}
+  if(z.status!=='pendente'||z.capex_item_id){toast('Este Ticket Raiz ja foi tratado.');return;}
+  capexCaptureZeevReturnState(id);
+  capexZeevDestinationId=+id;
+  const title=document.getElementById('czd-title');
+  if(title)title.textContent='Registrar Ticket Raiz #'+(z.zeev_instance_id||id);
+  const ctx=document.getElementById('czd-context');
+  if(ctx)ctx.innerHTML=capexZeevContextHtmlFor(z);
+  document.getElementById('capex-zeev-destination-overlay')?.classList.add('show');
+}
+
+function closeCapexZeevDestination(preserveReturnState){
+  document.getElementById('capex-zeev-destination-overlay')?.classList.remove('show');
+  capexZeevDestinationId=null;
+  if(!preserveReturnState)capexZeevReturnState=null;
+}
+
+function chooseCapexZeevDestination(kind){
+  const id=capexZeevDestinationId;
+  if(!id){toast('Ticket Raiz nao encontrado.');return;}
+  closeCapexZeevDestination(true);
+  if(kind==='obra')openCapexZeevObraApproval(id);
+  else openCapexZeevApproval(id);
+}
+
+function populateZeevObraSelect(selected){
+  const sel=document.getElementById('zo-obra-id');
+  if(!sel)return;
+  const rows=(obras||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+  sel.innerHTML='<option value="">Selecione a obra</option>'+rows.map(o=>`<option value="${o.id}">${escHtml(o.nome||('Obra '+o.id))}</option>`).join('');
+  if(selected&&rows.some(o=>+o.id===+selected))sel.value=String(selected);
+}
+
+function setZeevObraEscopo(v){
+  const esc=v==='extra'?'extra':'obra';
+  const hid=document.getElementById('zo-escopo');
+  if(hid)hid.value=esc;
+  const ob=document.getElementById('zo-escopo-obra-btn');
+  const ex=document.getElementById('zo-escopo-extra-btn');
+  if(ob){ob.style.background=esc==='obra'?'var(--accent)':'var(--surface)';ob.style.color=esc==='obra'?'var(--accent-readable)':'var(--muted)';}
+  if(ex){ex.style.background=esc==='extra'?'var(--warn)':'var(--surface)';ex.style.color=esc==='extra'?'#fff':'var(--muted)';}
+  updateZeevObraDerivedFields();
+}
+
+function updateZeevObraDerivedFields(){
+  const sel=document.getElementById('zo-obra-id');
+  const obra=obras.find(o=>+o.id===+(sel?.value||0));
+  const pagValue=document.getElementById('zo-pag')?.value||'';
+  _fillPagSelect('zo-pag',obra,pagValue||_defaultPagadorObra(obra));
+  const hint=document.getElementById('zo-obra-hint');
+  if(!hint)return;
+  if(!obra){hint.innerHTML='<span style="color:var(--muted)">Escolha a obra para vincular o pagamento ao dashboard e a lista de pagamentos correta.</span>';return;}
+  const esc=document.getElementById('zo-escopo')?.value==='extra'?'fora da obra':'dentro da obra';
+  const ticket=capexZeevObraApproveId?(capexZeevSolicitacoes.find(x=>+x.id===+capexZeevObraApproveId)?.zeev_instance_id||''):'';
+  const exists=ticket?(obra.pag||[]).find(p=>capexZeevSearchDigits(p.ticketRaiz)===capexZeevSearchDigits(ticket)):null;
+  hint.innerHTML=`<span style="color:var(--ok);font-weight:850">${escHtml(obra.nome||'Obra selecionada')}</span> &middot; pagamento ${esc}.${exists?' Este TR ja existe nesta obra e sera atualizado.':' Sera criado na lista de pagamentos ao salvar.'}`;
+}
+
+function capexZeevSuggestedFiscalType(z){
+  const docs=capexZeevFiscalDocuments(z);
+  const text=capexZeevNormField(docs.map(d=>[d.name,d.source,d.type].filter(Boolean).join(' ')).join(' '));
+  if(/boleto/.test(text))return'Boleto';
+  if(/fatura/.test(text))return'Fatura';
+  if(/recibo/.test(text))return'Recibo';
+  if(/nfe|danfe|xml/.test(text))return'NF-e';
+  if(docs.length)return'NFS-e';
+  return'Sem nota';
+}
+
+function openCapexZeevObraApproval(id){
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para aprovar.');return;}
+  const z=capexZeevSolicitacoes.find(x=>+x.id===+id);
+  if(!z){toast('Ticket Raiz nao encontrado.');return;}
+  if(z.status!=='pendente'||z.capex_item_id){toast('Este Ticket Raiz ja foi tratado.');return;}
+  capexCaptureZeevReturnState(id);
+  capexZeevObraApproveId=+id;
+  const title=document.getElementById('zo-title');
+  if(title)title.textContent='Registrar Ticket Raiz #'+(z.zeev_instance_id||id)+' em obra';
+  const ctx=document.getElementById('zo-context');
+  if(ctx)ctx.innerHTML=capexZeevContextHtmlFor(z);
+  populateZeevObraSelect('');
+  const cat=document.getElementById('zo-cat');
+  if(cat)cat.innerHTML=CATS.map(c=>`<option value="${escHtml(c.id)}">${escHtml(c.nome)}</option>`).join('');
+  const tipo=capexZeevSuggestedFiscalType(z);
+  const tipoEl=document.getElementById('zo-nf-tipo');
+  if(tipoEl)tipoEl.value=tipo;
+  const nfNum=String(z?.pagamento_json?.nota_fiscal||capexZeevAnyField(z,['notaFiscal','numeroNF','numeroNotaFiscal','numero da nota fiscal','nf','fatura','boleto'])||'').trim();
+  const ref=capexZeevDescricaoLancamento(z)||z.request_name||('Ticket Raiz '+(z.zeev_instance_id||id));
+  const venc=capexZeevPagamentoDate(z,['previsao_pagamento','dataVencimento','dataDeVencimento','previsaoPagamento','dataPagamento']);
+  document.getElementById('zo-ben').value=capexZeevFornecedor(z);
+  setCurrencyValue('zo-val',+z?.valor_final||+z?.valor||+(z?.pagamento_json?.valor_total||0)||0);
+  document.getElementById('zo-ref').value=ref;
+  document.getElementById('zo-venc').value=venc||'';
+  document.getElementById('zo-nf-num').value=cleanImpDocNumber(nfNum,tipo);
+  document.getElementById('zo-docs').innerHTML=capexZeevDocsPreviewHtml(z);
+  setZeevObraEscopo('obra');
+  document.getElementById('capex-zeev-obra-overlay')?.classList.add('show');
+}
+
+function closeCapexZeevObraApproval(preserveReturnState){
+  document.getElementById('capex-zeev-obra-overlay')?.classList.remove('show');
+  capexZeevObraApproveId=null;
+  if(!preserveReturnState)capexZeevReturnState=null;
+}
+
+async function saveCapexZeevObraApproval(){
+  if(capexZeevObraSaveInFlight){toast('Salvamento em andamento. Aguarde concluir.');return;}
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para esta operacao.');return;}
+  capexZeevObraSaveInFlight=true;
+  try{
+    const id=capexZeevObraApproveId;
+    const z=capexZeevSolicitacoes.find(x=>+x.id===+id);
+    if(!z){toast('Ticket Raiz nao encontrado.');return;}
+    if(z.status!=='pendente'||z.capex_item_id){toast('Este Ticket Raiz ja foi tratado.');return;}
+    const obra=obras.find(o=>+o.id===+(document.getElementById('zo-obra-id')?.value||0));
+    if(!obra){toast('Selecione a obra relacionada.');return;}
+    const ben=(document.getElementById('zo-ben')?.value||'').trim();
+    const ref=(document.getElementById('zo-ref')?.value||'').trim();
+    if(!ben){toast('Informe o fornecedor / favorecido.');return;}
+    if(!ref){toast('Informe a descricao / referencia do lancamento.');return;}
+    const escopo=document.getElementById('zo-escopo')?.value==='extra'?'extra':'obra';
+    const nfTipo=document.getElementById('zo-nf-tipo')?.value||capexZeevSuggestedFiscalType(z);
+    const built=capexBuildPagamentoFromZeev(z,obra,escopo);
+    const pag={
+      ...built,
+      ben,
+      v:parseCurrency(document.getElementById('zo-val')?.value||'0'),
+      ref,
+      cat:document.getElementById('zo-cat')?.value||built.cat,
+      pagn:document.getElementById('zo-pag')?.value||_defaultPagadorObra(obra),
+      venc:document.getElementById('zo-venc')?.value||built.venc||'',
+      nfTipo,
+      nfNum:cleanImpDocNumber((document.getElementById('zo-nf-num')?.value||'').trim(),nfTipo),
+      escopoFin:escopo,
+      ticketRaiz:String(z.zeev_instance_id||''),
+      obs:[built.obs,'Origem: Ticket Raiz / Zeev.'].filter(Boolean).join(' | '),
+      st:'PENDENTE',
+      pagaEm:''
+    };
+    const result=await capexUpsertObraPaymentFromZeev(obra,pag,z);
+    const upd={status:'aprovado',aprovado_por:currentUser?.email||'',aprovado_em:new Date().toISOString()};
+    const{error:zeevErr}=await db.from('capex_zeev_solicitacoes').update(upd).eq('id',id).eq('status','pendente');
+    if(zeevErr){toast('Pagamento criado, mas houve erro ao baixar o Ticket Raiz da fila: '+zeevErr.message);return;}
+    Object.assign(z,upd);
+    closeCapexZeevObraApproval(true);
+    renderCapexZeevCurrentView();
+    toast('Ticket Raiz registrado como pagamento da obra'+(result?.docsImported?` com ${result.docsImported} arquivo${result.docsImported!==1?'s':''}.`:'.'));
+  }catch(e){
+    console.error('saveCapexZeevObraApproval:',e);
+    toast('Erro ao registrar pagamento da obra: '+(e.message||e));
+  }finally{
+    capexZeevObraSaveInFlight=false;
+  }
 }
 
 function capexCategoryOptions(selected){
@@ -10512,7 +10923,29 @@ function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfD
 
   const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">comprovante ↓</button>`:`<button class="linkbtn" onclick="anexarComp(${o.id},${i})">anexar</button>`;
 
-  return `<div style="display:flex;flex-direction:column;gap:3px;font-size:11.5px;min-width:155px"><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">NF</b> ${nf}</span><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Pgto</b> ${comp}</span></div>`;}
+  const docsN=paymentDocsCount(p);
+  const docs=docsN?`<span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Docs</b> <button class="linkbtn" onclick="openPaymentDocsModal(${o.id},${i})">${docsN} arquivo${docsN!==1?'s':''}</button></span>`:'';
+  return `<div style="display:flex;flex-direction:column;gap:3px;font-size:11.5px;min-width:155px"><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">NF</b> ${nf}</span><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Pgto</b> ${comp}</span>${docs}</div>`;}
+
+function openPaymentDocsModal(oid,i){
+  const o=obras.find(x=>+x.id===+oid);
+  const p=o?.pag?.[i];
+  if(!o||!p){toast('Pagamento nao encontrado.');return;}
+  const docs=paymentAllDocs(p);
+  activePaymentDocs={obraId:oid,index:i,docs};
+  const title=document.getElementById('payment-docs-title');
+  if(title)title.textContent='Arquivos do pagamento';
+  const ctx=document.getElementById('payment-docs-context');
+  if(ctx)ctx.innerHTML=`<b style="color:var(--ink)">${escHtml(p.ben||'Pagamento')}</b>${p.ticketRaiz?` &middot; TR ${escHtml(p.ticketRaiz)}`:''}${p.ref?`<br>${escHtml(p.ref)}`:''}`;
+  const body=document.getElementById('payment-docs-body');
+  if(body)body.innerHTML=docs.length?docs.map((d,idx)=>`<div class="payment-doc-row"><div><b>${escHtml(d.name||'Arquivo')}</b><span>${escHtml([d.kind||'',d.origin||'',d.source||''].filter(Boolean).join(' · ')||'Documento salvo na plataforma')}</span></div><button class="btn btn-sm" onclick="viewFile(activePaymentDocs.docs[${idx}])">Ver / baixar</button></div>`).join(''):'<div class="capex-zeev-empty">Nenhum arquivo salvo neste pagamento.</div>';
+  document.getElementById('payment-docs-overlay')?.classList.add('show');
+}
+
+function closePaymentDocsModal(){
+  document.getElementById('payment-docs-overlay')?.classList.remove('show');
+  activePaymentDocs=null;
+}
 
 let pagBusca="",pagDe="",pagAte="",pagPage=0;
 let pagEscopo=null; // null=resumo | 'obra' | 'extra'
@@ -11201,6 +11634,7 @@ function renderPag(){const o=cur;
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)">
           ${p.nfDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">📄 Ver NF</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarNF(${o.id},${i})">📎 Anexar NF</button>`}
           ${p.compDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾 Ver comprovante</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarComp(${o.id},${i})">🧾 Anexar comprovante</button>`}
+          ${paymentDocsCount(p)?`<button class="btn btn-sm" onclick="event.stopPropagation();openPaymentDocsModal(${o.id},${i})">Arquivos (${paymentDocsCount(p)})</button>`:''}
           ${markBtn}
           <div style="margin-left:auto;display:flex;gap:8px">
             <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openPagModal(${i})">✎ Editar</button>
@@ -12899,7 +13333,8 @@ function anexarComp(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.ge
       const{data:{session}}=await db.auth.getSession();
       if(!session){toast('Sessão expirada. Faça login novamente.');return;}
       const path=await uploadPagDoc(oid,f,'comp');
-      o.pag[i].compDoc={name:f.name,storagePath:path,type:f.type};
+      o.pag[i].compDoc={name:f.name,storagePath:path,type:f.type,bucket:'pagamentos',kind:'COMPROVANTE'};
+      addPaymentDoc(o.pag[i],o.pag[i].compDoc,'COMPROVANTE');
       persist(oid);if(cur&&cur.id===oid)renderObra();toast('✓ Comprovante anexado e salvo.');
     }catch(e){
       const msg=e?.message||e?.error||String(e);
@@ -12916,7 +13351,8 @@ function anexarNF(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getE
       const{data:{session}}=await db.auth.getSession();
       if(!session){toast('Sessão expirada. Faça login novamente.');return;}
       const path=await uploadPagDoc(oid,f,'nf');
-      o.pag[i].nfDoc={name:f.name,storagePath:path,type:f.type||inferType(f.name)};
+      o.pag[i].nfDoc={name:f.name,storagePath:path,type:f.type||inferType(f.name),bucket:'pagamentos',kind:'NF'};
+      addPaymentDoc(o.pag[i],o.pag[i].nfDoc,'NF');
       persist(oid);if(cur&&cur.id===oid)renderObra();toast(hasXml&&hasPdf?'✓ PDF anexado como NF visível.':'✓ Nota fiscal anexada e salva.');
     }catch(e){
       const msg=e?.message||e?.error||String(e);
@@ -14139,7 +14575,7 @@ async function persist(obraId){
 
       await db.from('pagamentos').delete().eq('obra_id',o.id);
 
-      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:cleanImpDocNumber(p.nfNum||'',p.nfTipo||''),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',emissao:p.emissao||'',paga_em:p.pagaEm||'',escopo_fin:p.escopoFin||'obra',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null,construtora_seq:p.construtora_seq||null,ticket_raiz:p.ticketRaiz||''})));
+      if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:cleanImpDocNumber(p.nfNum||'',p.nfTipo||''),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',docs_json:paymentAllDocs(p),emissao:p.emissao||'',paga_em:p.pagaEm||'',escopo_fin:p.escopoFin||'obra',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null,construtora_seq:p.construtora_seq||null,ticket_raiz:p.ticketRaiz||''})));
 
       await db.from('aportes').delete().eq('obra_id',o.id);
 
@@ -14222,7 +14658,7 @@ async function loadFromDB(){
 
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
 
-      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:cleanImpDocNumber(p.nf_num||'',p.nf_tipo||'Sem nota'),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path)}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path)}:null,contratoSeq:p.contrato_seq||null,emissao:p.emissao||'',pagaEm:p.paga_em||'',escopoFin:p.escopo_fin||'obra',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:Array.isArray(p.parcelas)?p.parcelas:[],itens:Array.isArray(p.itens_pag)?p.itens_pag:[],construtora_seq:p.construtora_seq||null,ticketRaiz:p.ticket_raiz||''})),
+      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:cleanImpDocNumber(p.nf_num||'',p.nf_tipo||'Sem nota'),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path),bucket:'pagamentos',kind:'NF'}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path),bucket:'pagamentos',kind:'COMPROVANTE'}:null,docs:Array.isArray(p.docs_json)?p.docs_json:[],contratoSeq:p.contrato_seq||null,emissao:p.emissao||'',pagaEm:p.paga_em||'',escopoFin:p.escopo_fin||'obra',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:Array.isArray(p.parcelas)?p.parcelas:[],itens:Array.isArray(p.itens_pag)?p.itens_pag:[],construtora_seq:p.construtora_seq||null,ticketRaiz:p.ticket_raiz||''})),
 
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
 
