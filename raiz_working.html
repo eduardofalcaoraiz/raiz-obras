@@ -6759,6 +6759,33 @@ function capexZeevFiscalDocuments(z){
   return docs;
 }
 
+function capexZeevStoredDocs(z){
+  const rows=Array.isArray(z?.docs_json)?z.docs_json:(Array.isArray(z?.docs)?z.docs:[]);
+  const out=[],seen=new Set();
+  rows.forEach(d=>{
+    if(!d)return;
+    const item={...d,bucket:d.bucket||'pagamentos',type:d.type||inferType(d.name||d.storagePath||'')};
+    const key=paymentDocKey(item);
+    if(!key||seen.has(key))return;
+    seen.add(key);out.push(item);
+  });
+  return out;
+}
+
+function openCapexZeevDocsModal(id){
+  const z=capexZeevSolicitacoes.find(x=>+x.id===+id);
+  if(!z){toast('Ticket Raiz nao encontrado.');return;}
+  const docs=capexZeevStoredDocs(z);
+  activePaymentDocs={zeevId:id,docs};
+  const title=document.getElementById('payment-docs-title');
+  if(title)title.textContent='Arquivos do Ticket Raiz';
+  const ctx=document.getElementById('payment-docs-context');
+  if(ctx)ctx.innerHTML=`<b style="color:var(--ink)">TR ${escHtml(z.zeev_instance_id||id)}</b>${z.request_name?` &middot; ${escHtml(z.request_name)}`:''}${z.pedido?`<br>${escHtml(z.pedido)}`:''}`;
+  const body=document.getElementById('payment-docs-body');
+  if(body)body.innerHTML=docs.length?docs.map((d,idx)=>`<div class="payment-doc-row"><div><b>${escHtml(d.name||'Arquivo')}</b><span>${escHtml([d.kind||'',d.origin||'',d.source||''].filter(Boolean).join(' · ')||'Documento salvo na plataforma')}</span></div><button class="btn btn-sm" onclick="viewFile(activePaymentDocs.docs[${idx}])">Ver / baixar</button></div>`).join(''):'<div class="capex-zeev-empty">Nenhum arquivo salvo neste Ticket Raiz ainda. A automação de Zeev continuará tentando importar.</div>';
+  document.getElementById('payment-docs-overlay')?.classList.add('show');
+}
+
 function capexZeevFornecedor(z){
   return capexZeevAnyField(z,['fornecedor','nomeFornecedor','razaoSocial','favorecido','beneficiario','cnpjFornecedor'])||z?.requester_name||('Ticket Raiz '+(z?.zeev_instance_id||''));
 }
@@ -6803,7 +6830,7 @@ function capexBuildPagamentoFromZeev(z,obra,escopo){
     pagForma:z?.pagamento_json?.forma||'A_VISTA',
     parcelas:[],
     itens:Array.isArray(z?.itens_json)?z.itens_json:[],
-    docs:[]
+    docs:capexZeevStoredDocs(z)
   };
 }
 
@@ -6882,9 +6909,15 @@ function capexZeevDocKind(doc){
 
 async function capexImportAllZeevDocsToPayment(obra,pag,z){
   const docs=capexZeevFiscalDocuments(z).filter(d=>d.url);
-  if(!docs.length)return 0;
   let imported=0;
   pag.docs=normalizePaymentDocs(pag);
+  capexZeevStoredDocs(z).forEach(doc=>{
+    addPaymentDoc(pag,doc,doc.kind||'ZEEV');
+    const kind=String(doc.kind||'').toUpperCase();
+    if(kind==='COMPROVANTE'&&!pag.compDoc)pag.compDoc=doc;
+    if(kind!=='COMPROVANTE'&&!pag.nfDoc)pag.nfDoc=doc;
+  });
+  if(!docs.length)return 0;
   for(const doc of docs){
     try{
       if(pag.docs.some(d=>String(d.url||'')&&String(d.url)===String(doc.url)))continue;
@@ -6917,7 +6950,8 @@ async function capexUpsertObraPaymentFromZeev(obra,pag,z){
   let oldPag=null;
   if(found){
     oldPag=found.pag;
-    const merged={...oldPag,...pag,nfDoc:oldPag.nfDoc||pag.nfDoc||null,compDoc:oldPag.compDoc||pag.compDoc||null,docs:paymentAllDocs(oldPag),comp:oldPag.comp||pag.comp||''};
+    const mergedDocs=[...paymentAllDocs(oldPag),...paymentAllDocs(pag)].reduce((arr,d)=>{const k=paymentDocKey(d);if(k&&!arr.some(x=>paymentDocKey(x)===k))arr.push(d);return arr;},[]);
+    const merged={...oldPag,...pag,nfDoc:oldPag.nfDoc||pag.nfDoc||null,compDoc:oldPag.compDoc||pag.compDoc||null,docs:mergedDocs,comp:oldPag.comp||pag.comp||''};
     if(+found.obra.id!==+obra.id){
       found.obra.pag.splice(found.idx,1);
       await persist(found.obra.id);
@@ -6953,13 +6987,15 @@ async function capexEnsureObraPaymentForTicket(link,z){
     if(+found.obra.id!==+obra.id){
       found.obra.pag.splice(found.idx,1);
       targetObra=obra;
-      obra.pag.push({...found.pag,...built,nfDoc:found.pag.nfDoc||built.nfDoc,compDoc:found.pag.compDoc||built.compDoc||null,docs:paymentAllDocs(found.pag)});
+      const mergedDocs=[...paymentAllDocs(found.pag),...paymentAllDocs(built)].reduce((arr,d)=>{const k=paymentDocKey(d);if(k&&!arr.some(x=>paymentDocKey(x)===k))arr.push(d);return arr;},[]);
+      obra.pag.push({...found.pag,...built,nfDoc:found.pag.nfDoc||built.nfDoc,compDoc:found.pag.compDoc||built.compDoc||null,docs:mergedDocs});
       idx=obra.pag.length-1;
       await persist(found.obra.id);
     }else{
       idx=found.idx;
       targetObra=found.obra;
-      targetObra.pag[idx]={...found.pag,...built,nfDoc:found.pag.nfDoc||built.nfDoc,compDoc:found.pag.compDoc||built.compDoc||null,docs:paymentAllDocs(found.pag)};
+      const mergedDocs=[...paymentAllDocs(found.pag),...paymentAllDocs(built)].reduce((arr,d)=>{const k=paymentDocKey(d);if(k&&!arr.some(x=>paymentDocKey(x)===k))arr.push(d);return arr;},[]);
+      targetObra.pag[idx]={...found.pag,...built,nfDoc:found.pag.nfDoc||built.nfDoc,compDoc:found.pag.compDoc||built.compDoc||null,docs:mergedDocs};
     }
   }else{
     obra.pag.push({...built,comp:'',docs:paymentAllDocs(built)});
@@ -7286,6 +7322,8 @@ function renderCapexZeevCards(pend){
     const fornecedor=capexZeevField(z,['fornecedor','nomeFornecedor','razaoSocial','fornecedorEscolhido','favorecido','beneficiario']);
     const stageSummary=capexStageForSummary(z);
     const link=z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')">VISUALIZAR TICKET</a>`:'';
+    const docsCount=capexZeevStoredDocs(z).length;
+    const docsButton=docsCount?`<button class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexZeevDocsModal(${id})">Arquivos (${docsCount})</button>`:'';
     const requester=[z.requester_name,z.requester_team].filter(Boolean).join(' / ')||'Nao informado';
     const details=[
       {label:'Solicitante',value:requester},
@@ -7312,6 +7350,7 @@ function renderCapexZeevCards(pend){
           <div class="capex-summary-actions capex-actions-stack">
             <button class="btn btn-primary btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexZeevDestination(${id})">Registrar</button>
             ${link}
+            ${docsButton}
             <button class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();ignoreCapexZeev(${id})">NÃO É CAPEX</button>
           </div>
           <span class="capex-summary-toggle">›</span>
@@ -7327,6 +7366,7 @@ function renderCapexZeevCards(pend){
           <span class="capex-detail-label">Aprovação manual antes de virar pedido CAPEX</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
             ${z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener">Abrir Ticket Raiz</a>`:''}
+            ${docsButton}
             <button class="btn btn-ghost btn-sm" onclick="ignoreCapexZeev(${id})">NÃO É CAPEX</button>
             <button class="btn btn-primary btn-sm" onclick="openCapexZeevDestination(${id})">Aprovar e registrar</button>
           </div>
@@ -7681,8 +7721,10 @@ function capexZeevContextHtmlFor(z,opts){
     'cnpjEmpresa','cnpj da empresa','empresaCnpj','cnpjInstituicao','cnpj da instituicao','instituicaoCnpj'
   ]);
   const fact=(label,value,source,missing)=>`<div class="capex-context-fact ${missing?'missing':''}" title="${escHtml(value||'')}"><b>${escHtml(label)}${source?` · ${escHtml(source)}`:''}</b><span>${escHtml(value||'Nao informado')}</span></div>`;
-  const docs=capexZeevFiscalDocuments(z);
-  const docLine=docs.length?`${docs.length} arquivo${docs.length!==1?'s':''} identificado${docs.length!==1?'s':''}`:'Nenhum arquivo fiscal identificado';
+  const docs=capexZeevStoredDocs(z);
+  const links=capexZeevFiscalDocuments(z);
+  const docTotal=docs.length||links.length;
+  const docLine=docTotal?`${docTotal} arquivo${docTotal!==1?'s':''} ${docs.length?'salvo'+(docs.length!==1?'s':''):'identificado'+(docTotal!==1?'s':'')}`:'Nenhum arquivo fiscal identificado';
   const desc=capexZeevDescricaoLancamento(z)||z.request_name||'Descricao pendente no Zeev';
   return`<div class="capex-context-ticket"><div class="mark">TR</div><div style="min-width:0;width:100%">
     <div class="capex-context-title">Ticket Raiz #${escHtml(z.zeev_instance_id||z.id)}</div>
@@ -7699,6 +7741,8 @@ function capexZeevContextHtmlFor(z,opts){
 }
 
 function capexZeevDocsPreviewHtml(z){
+  const stored=capexZeevStoredDocs(z);
+  if(stored.length)return stored.map((d,idx)=>`<div class="zeev-doc-pill"><span>${idx+1}</span><b title="${escHtml(d.name||'Arquivo')}">${escHtml(d.name||'Arquivo')}</b><button class="linkbtn" type="button" onclick="viewFile(capexZeevStoredDocs(capexZeevSolicitacoes.find(x=>+x.id===+capexZeevObraApproveId))[${idx}])">ver</button></div>`).join('');
   const docs=capexZeevFiscalDocuments(z);
   if(!docs.length)return'<div class="zeev-doc-pill"><span>--</span><b>Nenhum arquivo fiscal foi identificado nos campos sincronizados do Zeev.</b><span></span></div>';
   return docs.map((d,idx)=>`<div class="zeev-doc-pill"><span>${idx+1}</span><b title="${escHtml(d.name||'Arquivo')}">${escHtml(d.name||'Arquivo')}</b><span>${d.url?'link Zeev':'sem link'}</span></div>`).join('');
@@ -9568,6 +9612,8 @@ function renderCapexRegisteredCard(it){
   const rateioLabel=rateioInfo?`Parcela ${rateioInfo.indice||'?'} de ${rateioInfo.total_partes||rateioInfo.unidades?.length||'?'} · total ${fmt(+rateioInfo.total||0)}${rateioGrupo}`:'';
   const statusTitle=autoFinalizado?'Pedidos de 2024 ficam resolvidos por exceção':'Alterar status';
   const ticketLink=it.ticket_raiz_url?`<a href="${escHtml(it.ticket_raiz_url)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Abrir Ticket Raiz</a>`:'';
+  const docsCount=capexItemDocs(it).length;
+  const docsButton=docsCount?`<button class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexDocsModal(${it.id})">Arquivos (${docsCount})</button>`:'';
   const compraLink=capexCompraLinkFromItem(it);
   const compraTr=capexZeevSearchDigits(compraLink?.tr||compraLink?.zeev_id||'');
   const respLabel=compraTr?`${fonteSetor} / Compra TR ${compraTr}${compraLink?.encontrado===false?' - conferir':''}`:fonteSetor;
@@ -9604,6 +9650,7 @@ function renderCapexRegisteredCard(it){
         <div class="capex-summary-actions">
           <button class="btn btn-primary btn-sm" title="Editar pedido" onclick="event.preventDefault();event.stopPropagation();openCapexItemModal(${it.id})">Editar</button>
           ${it.ticket_raiz_url?`<a href="${escHtml(it.ticket_raiz_url)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')">VISUALIZAR TICKET</a>`:''}
+          ${docsButton}
         </div>
         <span class="capex-summary-toggle">›</span>
       </div>
@@ -9628,6 +9675,7 @@ function renderCapexRegisteredCard(it){
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
           ${ticketLink}
+          ${docsButton}
           <button class="btn btn-ghost btn-sm" onclick="openCapexItemModal(${it.id})">Editar completo</button>
           <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteCapexItem(${it.id})">Excluir</button>
         </div>
@@ -10074,7 +10122,7 @@ async function saveCapexItemLocked(options){if(['leitor','doc'].includes(current
   const ticketDadosBase=zeevRow?{campos:zeevRow.campos_extraidos||{},itens:zeevRow.itens_json||[],pagamento:zeevRow.pagamento_json||{},rawFields:zeevRow.raw_fields||[]}:antigoDados;
   const ticketDados=(zeevRow||Object.keys(ticketDadosBase).length||compraCheck||obraCheck)?{...ticketDadosBase,compraVinculada,obraVinculada}:null;
   const unidadesObj=existingRateioInfo?(unidade?[unidade]:[]):unidadesJson;
-  const obj={ano,fonte,unidade,unidades_json:unidadesObj,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||'',ticket_raiz_url:zeevRow?.ticket_link||antigo?.ticket_raiz_url||'',ticket_raiz_instance_id:zeevRow?.zeev_instance_id||antigo?.ticket_raiz_instance_id||null,origem:zeevRow?'ZEEV':(antigo?.origem||''),ticket_raiz_dados:ticketDados};
+  const obj={ano,fonte,unidade,unidades_json:unidadesObj,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||'',ticket_raiz_url:zeevRow?.ticket_link||antigo?.ticket_raiz_url||'',ticket_raiz_instance_id:zeevRow?.zeev_instance_id||antigo?.ticket_raiz_instance_id||null,origem:zeevRow?'ZEEV':(antigo?.origem||''),ticket_raiz_dados:ticketDados,docs_json:zeevRow?capexZeevStoredDocs(zeevRow):(antigo?.docs_json||antigo?.docs||[])};
   const paymentSource=zeevRow||((antigo||obj.ticket_raiz_instance_id||obj.referencia)?{
     zeev_instance_id:obj.ticket_raiz_instance_id||capexZeevSearchDigits(obj.referencia),
     ticket_link:obj.ticket_raiz_url||'',
@@ -10945,6 +10993,33 @@ function openPaymentDocsModal(oid,i){
 function closePaymentDocsModal(){
   document.getElementById('payment-docs-overlay')?.classList.remove('show');
   activePaymentDocs=null;
+}
+
+function capexItemDocs(it){
+  const rows=Array.isArray(it?.docs_json)?it.docs_json:(Array.isArray(it?.docs)?it.docs:[]);
+  const out=[],seen=new Set();
+  rows.forEach(d=>{
+    if(!d)return;
+    const item={...d,bucket:d.bucket||'pagamentos',type:d.type||inferType(d.name||d.storagePath||'')};
+    const key=paymentDocKey(item);
+    if(!key||seen.has(key))return;
+    seen.add(key);out.push(item);
+  });
+  return out;
+}
+
+function openCapexDocsModal(id){
+  const it=capexItens.find(x=>+x.id===+id);
+  if(!it){toast('Pedido de CAPEX nao encontrado.');return;}
+  const docs=capexItemDocs(it);
+  activePaymentDocs={capexId:id,docs};
+  const title=document.getElementById('payment-docs-title');
+  if(title)title.textContent='Arquivos do Ticket Raiz';
+  const ctx=document.getElementById('payment-docs-context');
+  if(ctx)ctx.innerHTML=`<b style="color:var(--ink)">${escHtml(it.pedido||'Pedido CAPEX')}</b>${it.ticket_raiz_instance_id||it.referencia?` &middot; TR ${escHtml(it.ticket_raiz_instance_id||it.referencia)}`:''}${it.unidade?`<br>${escHtml(it.unidade)}`:''}`;
+  const body=document.getElementById('payment-docs-body');
+  if(body)body.innerHTML=docs.length?docs.map((d,idx)=>`<div class="payment-doc-row"><div><b>${escHtml(d.name||'Arquivo')}</b><span>${escHtml([d.kind||'',d.origin||'',d.source||''].filter(Boolean).join(' · ')||'Documento salvo na plataforma')}</span></div><button class="btn btn-sm" onclick="viewFile(activePaymentDocs.docs[${idx}])">Ver / baixar</button></div>`).join(''):'<div class="capex-zeev-empty">Nenhum arquivo salvo neste pedido de CAPEX.</div>';
+  document.getElementById('payment-docs-overlay')?.classList.add('show');
 }
 
 let pagBusca="",pagDe="",pagAte="",pagPage=0;
