@@ -1231,6 +1231,12 @@ def sync_ids(instance_ids):
 
 def ingest(tickets, notify=False, partial=False):
     payload = {"mode": "ingest", "tickets": tickets, "notify": notify}
+    backfill_limit = os.environ.get("ZEEV_INGEST_BACKFILL_LIMIT") or os.environ.get("ZEEV_BACKFILL_LIMIT")
+    if backfill_limit and not partial:
+        try:
+            payload["backfillLimit"] = max(0, int(backfill_limit))
+        except ValueError:
+            pass
     if partial:
         payload["partial"] = True
         payload["final"] = False
