@@ -6480,7 +6480,7 @@ function renderCapexZeevTypeFilters(allPend){
 function capexZeevSearchKey(ev){
   if(ev.key!=='Enter')return;
   const first=capexZeevFilteredPendingList()[0];
-  if(first){ev.preventDefault();openCapexZeevApproval(first.id);}
+  if(first){ev.preventDefault();openCapexZeevDestination(first.id);}
 }
 
 function capexZeevDate(v){
