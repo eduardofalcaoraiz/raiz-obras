@@ -1277,6 +1277,7 @@ def backfill_docs():
     ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
     if ticket_ids:
         shared["ticketIds"] = ticket_ids
+        base_batch = min(max(total_limit, 1), 8)
     out = {
         "ok": True,
         "mode": "backfill-docs",
