@@ -1666,8 +1666,8 @@ async function runIngest(input: AnyRecord) {
   const reconcile = await reconcileRegisteredTickets(normalized)
   const newCount = normalized.filter((t: AnyRecord) => !existing.has(Number(t.zeev_instance_id))).length
   const email = input.notify === true ? await notifyNewTickets(normalized, existing) : { notified: [], failed: [] }
-  const backfillLimit = Math.max(0, Math.min(Number(input.backfillLimit || env('ZEEV_INGEST_BACKFILL_LIMIT', '6')), 20))
-  const backfill = finalIngest && backfillLimit ? await runBackfillDocs({ limit: backfillLimit, fileLimit: 4, refresh: false, includePayments: true, includeCapex: true }) : null
+  const backfillLimit = Math.max(0, Math.min(Number(input.backfillLimit || env('ZEEV_INGEST_BACKFILL_LIMIT', '2')), 8))
+  const backfill = finalIngest && backfillLimit ? await runBackfillDocs({ limit: backfillLimit, fileLimit: 2, refresh: false, includePayments: true, includeCapex: true }) : null
   await saveState('zeev-capex', {
     running: !finalIngest,
     last_success_at: finalIngest ? new Date().toISOString() : undefined,
@@ -2103,8 +2103,8 @@ function docsCandidateScore(row: AnyRecord) {
 }
 
 async function runBackfillDocs(input: AnyRecord = {}) {
-  const limit = Math.max(1, Math.min(Number(input.limit || 20), 80))
-  const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || 6), 20))
+  const limit = Math.max(1, Math.min(Number(input.limit || 4), 10))
+  const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || 3), 8))
   const refresh = input.refresh !== false
   const staleHours = Math.max(1, Math.min(Number(input.staleHours || 8), 168))
   const includePending = input.includePending !== false
@@ -2114,7 +2114,8 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   let budget = limit
 
   if (includePending && budget > 0) {
-    const rows = await rest('/capex_zeev_solicitacoes?select=*&status=eq.pendente&order=start_date_time.desc')
+    const pendingSelect = 'id,zeev_instance_id,flow_id,flow_name,flow_version,request_name,ticket_link,raw_fields,raw_instance,raw_tasks,itens_json,pagamento_json,campos_extraidos,docs_json,zeev_docs_checked_at,status,start_date_time'
+    const rows = await rest(`/capex_zeev_solicitacoes?select=${pendingSelect}&status=eq.pendente&order=start_date_time.desc&limit=${Math.max(30, limit * 12)}`)
     const candidates = (rows || [])
       .filter((row: AnyRecord) => Number(row.zeev_instance_id) && docsCheckIsStale(row, staleHours))
       .sort((a: AnyRecord, b: AnyRecord) => docsCandidateScore(a) - docsCandidateScore(b))
@@ -2141,7 +2142,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   }
 
   if (includePayments && budget > 0) {
-    const rows = await rest('/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&ticket_raiz=not.is.null&order=id.asc')
+    const rows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&ticket_raiz=not.is.null&order=id.asc&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
       .filter((row: AnyRecord) => ticketDigits(row.ticket_raiz) && docsCheckIsStale(row, staleHours))
       .sort((a: AnyRecord, b: AnyRecord) => docsCandidateScore(a) - docsCandidateScore(b) || Number(a.id) - Number(b.id))
@@ -2175,7 +2176,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   }
 
   if (includeCapex && budget > 0) {
-    const rows = await rest('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at&order=id.asc')
+    const rows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at&order=id.asc&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
       .filter((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz_instance_id || row.referencia)) && docsCheckIsStale(row, staleHours))
       .sort((a: AnyRecord, b: AnyRecord) => docsCandidateScore(a) - docsCandidateScore(b) || Number(a.id) - Number(b.id))
