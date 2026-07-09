@@ -287,7 +287,7 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
         except urllib.error.HTTPError as exc:
             text = exc.read().decode("utf-8", errors="replace")
             last_error = RuntimeError(f"{method} {url} -> HTTP {exc.code}: {text}")
-            if exc.code not in (429, 500, 502, 503, 504):
+            if exc.code not in (429, 500, 502, 503, 504, 546):
                 raise last_error
         except Exception as exc:
             last_error = exc
@@ -1257,23 +1257,100 @@ def report_sync_error(error):
 
 
 def backfill_docs():
-    payload = {
+    total_limit = max(0, int(os.environ.get("ZEEV_BACKFILL_LIMIT", os.environ.get("ZEEV_MAX_PAGES", "30"))))
+    base_batch = max(1, min(int(os.environ.get("ZEEV_BACKFILL_BATCH", "2")), 8))
+    base_file_limit = max(1, min(int(os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "3")), 8))
+    shared = {
         "mode": "backfill-docs",
-        "limit": int(os.environ.get("ZEEV_BACKFILL_LIMIT", os.environ.get("ZEEV_MAX_PAGES", "30"))),
-        "fileLimit": int(os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "8")),
         "refresh": os.environ.get("ZEEV_BACKFILL_REFRESH", "true").lower() != "false",
         "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", "8")),
         "includePending": os.environ.get("ZEEV_BACKFILL_PENDING", "true").lower() != "false",
         "includePayments": os.environ.get("ZEEV_BACKFILL_PAYMENTS", "true").lower() != "false",
         "includeCapex": os.environ.get("ZEEV_BACKFILL_CAPEX", "true").lower() != "false",
     }
-    return request_json(
-        "POST",
-        f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
-        headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
-        payload=payload,
-        timeout=600,
-    )
+    out = {
+        "ok": True,
+        "mode": "backfill-docs",
+        "requestedLimit": total_limit,
+        "batchSize": base_batch,
+        "fileLimit": base_file_limit,
+        "processed": 0,
+        "calls": 0,
+        "scannedPending": 0,
+        "scannedPayments": 0,
+        "scannedCapex": 0,
+        "updatedPending": 0,
+        "updatedPayments": 0,
+        "updatedCapex": 0,
+        "filesAttached": 0,
+        "paidUpdated": 0,
+        "batches": [],
+        "errors": [],
+    }
+    if total_limit <= 0:
+        out["completed"] = True
+        return out
+
+    remaining = total_limit
+    batch = min(base_batch, remaining)
+    file_limit = base_file_limit
+    while remaining > 0:
+        payload = {**shared, "limit": min(batch, remaining), "fileLimit": file_limit}
+        try:
+            result = request_json(
+                "POST",
+                f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+                headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+                payload=payload,
+                timeout=240,
+                retries=1,
+            )
+        except Exception as exc:
+            msg = str(exc)
+            resource_limited = "WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg
+            out["errors"].append({
+                "batch": payload["limit"],
+                "fileLimit": file_limit,
+                "recoverable": resource_limited,
+                "error": msg[:700],
+            })
+            if resource_limited and (batch > 1 or file_limit > 1):
+                batch = max(1, batch // 2)
+                file_limit = max(1, file_limit // 2)
+                continue
+            if resource_limited:
+                out["ok"] = False
+                out["partial"] = out["processed"] > 0
+                break
+            raise
+
+        out["calls"] += 1
+        scanned = int(result.get("scannedPending", 0) or 0) + int(result.get("scannedPayments", 0) or 0) + int(result.get("scannedCapex", 0) or 0)
+        for key in ("scannedPending", "scannedPayments", "scannedCapex", "updatedPending", "updatedPayments", "updatedCapex", "filesAttached", "paidUpdated"):
+            out[key] += int(result.get(key, 0) or 0)
+        if result.get("errors"):
+            out["errors"].extend(result.get("errors")[:10])
+        out["batches"].append({
+            "limit": payload["limit"],
+            "fileLimit": file_limit,
+            "scanned": scanned,
+            "updated": int(result.get("updatedPending", 0) or 0) + int(result.get("updatedPayments", 0) or 0) + int(result.get("updatedCapex", 0) or 0),
+            "filesAttached": int(result.get("filesAttached", 0) or 0),
+        })
+        if scanned <= 0:
+            out["completed"] = True
+            break
+        out["processed"] += scanned
+        remaining = max(0, remaining - scanned)
+        batch = min(base_batch, remaining) if remaining else 0
+        file_limit = base_file_limit
+        if remaining:
+            time.sleep(float(os.environ.get("ZEEV_BACKFILL_PAUSE_SECONDS", "1")))
+
+    if len(out["errors"]) > 25:
+        out["errors"] = out["errors"][:25]
+    out["completed"] = out.get("completed", False) or out["processed"] >= total_limit
+    return out
 
 
 def default_window():
