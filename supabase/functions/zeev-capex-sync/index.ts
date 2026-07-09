@@ -1631,7 +1631,9 @@ async function runSync(input: AnyRecord) {
 async function runIngest(input: AnyRecord) {
   const tickets = Array.isArray(input.tickets) ? input.tickets : []
   const finalIngest = input.final !== false && input.partial !== true
+  const ingestBackfillLimit = Math.max(0, Math.min(Number(input.backfillLimit || env('ZEEV_INGEST_BACKFILL_LIMIT', '2')), 8))
   if (!tickets.length) {
+    const backfill = finalIngest && ingestBackfillLimit ? await runBackfillDocs({ limit: ingestBackfillLimit, fileLimit: 2, refresh: false, includePayments: true, includeCapex: true }) : null
     await saveState('zeev-capex', {
       running: !finalIngest,
       last_success_at: finalIngest ? new Date().toISOString() : undefined,
@@ -1640,7 +1642,7 @@ async function runIngest(input: AnyRecord) {
       last_run_new: 0,
       last_run_updated: 0,
     })
-    return { ok: true, mode: 'ingest', found: 0, new: 0, updated: 0, notified: 0 }
+    return { ok: true, mode: 'ingest', found: 0, new: 0, updated: 0, backfill, notified: 0 }
   }
   const normalized = await Promise.all(tickets
     .filter((t: AnyRecord) => Number(t?.zeev_instance_id))
@@ -1666,8 +1668,7 @@ async function runIngest(input: AnyRecord) {
   const reconcile = await reconcileRegisteredTickets(normalized)
   const newCount = normalized.filter((t: AnyRecord) => !existing.has(Number(t.zeev_instance_id))).length
   const email = input.notify === true ? await notifyNewTickets(normalized, existing) : { notified: [], failed: [] }
-  const backfillLimit = Math.max(0, Math.min(Number(input.backfillLimit || env('ZEEV_INGEST_BACKFILL_LIMIT', '2')), 8))
-  const backfill = finalIngest && backfillLimit ? await runBackfillDocs({ limit: backfillLimit, fileLimit: 2, refresh: false, includePayments: true, includeCapex: true }) : null
+  const backfill = finalIngest && ingestBackfillLimit ? await runBackfillDocs({ limit: ingestBackfillLimit, fileLimit: 2, refresh: false, includePayments: true, includeCapex: true }) : null
   await saveState('zeev-capex', {
     running: !finalIngest,
     last_success_at: finalIngest ? new Date().toISOString() : undefined,
