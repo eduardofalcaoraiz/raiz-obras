@@ -213,25 +213,73 @@ const DOCUMENT_FIELDS = [
   'anexos',
   'arquivo',
   'arquivos',
+  'Arquivo',
+  'Arquivos',
   'arquivoNF',
   'arquivo NF',
+  'arquivoNf',
+  'arquivoNFS',
+  'arquivoNFSe',
+  'arquivoNFe',
   'notaFiscal',
+  'NotaFiscal',
   'nota fiscal',
   'notaFiscalArquivo',
+  'notaFiscalServico',
+  'notaFiscalServicos',
+  'notaFiscalDeServico',
+  'notaFiscalDeServicos',
+  'notaFiscalPagamento',
+  'notaFiscalAnexo',
   'arquivoNotaFiscal',
+  'anexoNotaFiscal',
+  'anexoNF',
+  'anexoNf',
+  'anexoNFS',
+  'anexoNFSe',
+  'nF',
+  'nf',
+  'nfs',
+  'nfse',
+  'nfe',
+  'nfsE',
   'documento',
+  'Documento',
+  'documentos',
+  'Documentos',
   'documentoFiscal',
+  'DocumentoFiscal',
   'documento fiscal',
+  'documentoNF',
+  'documentoNf',
+  'documentoNFS',
+  'documentoNFSe',
+  'documentoNFe',
+  'documentoNotaFiscal',
+  'documentoPagamento',
+  'arquivoDocumento',
+  'anexoDocumento',
   'danfe',
+  'DANFE',
   'xml',
+  'XML',
   'pdf',
+  'PDF',
   'comprovante',
+  'Comprovante',
   'comprovantePagamento',
   'comprovante pagamento',
+  'comprovanteAnexo',
+  'arquivoComprovante',
+  'documentoComprovante',
   'boleto',
+  'Boleto',
   'pix',
+  'Pix',
   'recibo',
+  'Recibo',
   'fatura',
+  'Fatura',
 ]
 
 const PURCHASE_ENRICH_FIELDS = [
@@ -577,9 +625,65 @@ function capexFieldsForFlow(flow: number) {
   return CAPEX_FIELDS
 }
 
-function enrichFieldsForFlow(flow: number) {
+function parseListEnv(value: unknown) {
+  return String(value || '')
+    .split(/[\n,;|]+/)
+    .map((v) => v.trim())
+    .filter(Boolean)
+}
+
+function looksLikeDocumentDesignField(field: AnyRecord) {
+  const hay = normKey([field?.name, field?.label, field?.typeName, field?.validationName, field?.groupName].filter(Boolean).join(' '))
+  return /(notafiscal|nfse|nfe|nfs|danfe|xml|pdf|arquivo|anexo|documento|fatura|boleto|comprovante|recibo|pix|file|upload|visualizador)/.test(hay)
+}
+
+const FLOW_DESIGN_FIELD_CACHE = new Map<number, string[]>()
+
+async function zeewFlowDesignDocumentFields(flow: number) {
+  if (!flow) return []
+  if (FLOW_DESIGN_FIELD_CACHE.has(flow)) return FLOW_DESIGN_FIELD_CACHE.get(flow) || []
+  const token = env('ZEEV_TOKEN')
+  if (!token) {
+    FLOW_DESIGN_FIELD_CACHE.set(flow, [])
+    return []
+  }
+  const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+  try {
+    const res = await fetch(`${base}/api/2/flows/${flow}/design/form`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+      },
+    })
+    if (!res.ok) {
+      if (res.status === 403) console.warn(`Zeev design/form sem permissao para flow ${flow}; usando campos fiscais configurados.`)
+      else console.warn(`Zeev design/form ${res.status} flow ${flow}: ${(await res.text()).slice(0, 240)}`)
+      FLOW_DESIGN_FIELD_CACHE.set(flow, [])
+      return []
+    }
+    const data = await res.json()
+    const rows = Array.isArray(data) ? data : Array.isArray(data?.fields) ? data.fields : []
+    const fields = rows
+      .filter((field: AnyRecord) => looksLikeDocumentDesignField(field))
+      .flatMap((field: AnyRecord) => [field?.name, field?.label])
+      .map((value: unknown) => String(value || '').trim())
+      .filter(Boolean)
+    const unique = [...new Set(fields)]
+    FLOW_DESIGN_FIELD_CACHE.set(flow, unique)
+    return unique
+  } catch (error) {
+    console.warn(`Zeev design/form flow ${flow}:`, error instanceof Error ? error.message : String(error))
+    FLOW_DESIGN_FIELD_CACHE.set(flow, [])
+    return []
+  }
+}
+
+async function enrichFieldsForFlow(flow: number) {
   const base = FINANCE_FLOW_IDS.has(flow) ? FINANCE_ENRICH_FIELDS : PURCHASE_ENRICH_FIELDS
-  return [...new Set([...capexFieldsForFlow(flow), ...base])]
+  const configuredDocs = parseListEnv(env('ZEEV_EXTRA_DOCUMENT_FIELDS'))
+  const designDocs = await zeewFlowDesignDocumentFields(flow)
+  return [...new Set([...capexFieldsForFlow(flow), ...base, ...configuredDocs, ...designDocs])]
 }
 
 function iso(value: unknown) {
@@ -1404,7 +1508,7 @@ async function enrichRow(row: AnyRecord) {
   const flow = flowId(row) || 0
   const id = Number(row.id)
   if (!id || !flow) return row
-  const fields = enrichFieldsForFlow(flow)
+  const fields = await enrichFieldsForFlow(flow)
   const enriched = await collectInstanceFields(id, flow, fields)
   const detail = enriched.last || row
   let mergedFields = mergeFields(Array.isArray(row.formFields) ? row.formFields : [], enriched.fields)
