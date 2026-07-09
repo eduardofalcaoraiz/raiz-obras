@@ -541,6 +541,8 @@ button{font-family:inherit;cursor:pointer}
 .capex-summary-stage em{font-size:11px;color:var(--soft)}
 .capex-summary-actions{grid-area:actions;display:flex;align-items:stretch;justify-content:center;gap:6px;min-width:0;flex-direction:column}
 .capex-summary-actions .btn{min-height:32px;padding:7px 10px;font-size:12.4px;font-weight:850;white-space:nowrap;border-radius:9px;width:100%;justify-content:center}
+.capex-summary-actions.capex-actions-stack{flex-direction:column}
+.capex-summary-actions.capex-actions-stack .btn{width:100%;min-width:0}
 .capex-summary-toggle{grid-area:toggle;width:28px;height:28px;border-radius:999px;border:1px solid color-mix(in srgb,var(--card-accent) 18%,var(--line));background:rgba(255,255,255,.72);color:var(--brand-text,var(--accent-text));display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;transition:transform .16s,background .16s}
 .capex-expander-card[open] .capex-summary-toggle{transform:rotate(90deg);background:color-mix(in srgb,var(--card-soft) 62%,#fff)}
 .capex-expander-detail{border-top:1px solid color-mix(in srgb,var(--card-accent) 14%,var(--line));background:rgba(255,255,255,.48);padding:12px 14px 14px 18px}
@@ -6675,7 +6677,7 @@ function renderCapexZeevCards(pend){
             {label:'Etapa',value:stageSummary}
           ])}
           ${value}
-          <div class="capex-summary-actions">
+          <div class="capex-summary-actions capex-actions-stack">
             <button class="btn btn-primary btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexZeevApproval(${id})">Registrar</button>
             ${link}
             <button class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();ignoreCapexZeev(${id})">NÃO É CAPEX</button>
