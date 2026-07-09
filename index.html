@@ -3307,13 +3307,21 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div class="fgrid"><div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="ci-m-ano" onchange="updateCapexUnitHint();syncCapexResolvedState()"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option></select></div><div class="frow"><label class="fl">Fonte solicitante</label><select class="fi" id="ci-m-fonte"><option>UNIDADE</option><option>CMEF</option><option>MANUTENÇÃO</option><option>ARQUITETURA</option><option>TI</option><option>RH</option></select></div></div>
 
       <div class="fgrid">
-        <div class="frow"><label class="fl">Unidade principal / escola</label><select class="fi" id="ci-m-unidade" onchange="syncCapexExtraUnitOptions();updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
+        <div class="frow"><label class="fl">Unidade principal / escola</label><select class="fi" id="ci-m-unidade" onchange="syncCapexExtraUnitOptions();syncCapexRateioOptions();updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
         <div class="frow"><label class="fl">Categoria CAPEX <button type="button" onclick="openCatModal(undefined,'capex')" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">+ Nova</button></label><select class="fi" id="ci-m-cat"><option value="capex_outros">A classificar / outros</option></select></div>
       </div>
       <div class="frow">
         <label class="fl">Outras unidades envolvidas <span style="font-weight:500;color:var(--muted)">(opcional)</span></label>
         <select class="fi multi-unit-select" id="ci-m-unidades-extra" multiple size="5" onchange="updateCapexUnitHint()"></select>
         <p class="multi-unit-hint">Use quando o mesmo pedido de CAPEX impactar mais de uma unidade. A unidade principal continua sendo usada para saldo e dashboard, evitando duplicidade financeira.</p>
+      </div>
+      <div class="frow">
+        <label class="capex-flag" style="margin-bottom:8px"><input type="checkbox" id="ci-m-rateio-check" onchange="toggleCapexRateio()"> Ratear custo entre várias unidades?</label>
+        <div id="ci-m-rateio-row" style="display:none">
+          <label class="fl">Unidades do rateio</label>
+          <select class="fi multi-unit-select" id="ci-m-rateio-unidades" multiple size="5" onchange="updateCapexUnitHint()"></select>
+          <p class="multi-unit-hint">Ao salvar, o sistema cria um CAPEX por unidade selecionada, com o valor dividido entre elas.</p>
+        </div>
       </div>
     </div>
 
@@ -7356,6 +7364,10 @@ function openCapexZeevApproval(id){
   const apprExtra=document.getElementById('ci-m-unidades-extra');
   if(apprExtra)Array.from(apprExtra.options||[]).forEach(opt=>{opt.selected=false;});
   renderMultiUnitPicker('ci-m-unidades-extra');
+  const rateioCheck=document.getElementById('ci-m-rateio-check');
+  if(rateioCheck)rateioCheck.checked=false;
+  setCapexRateioSelectedUnits([]);
+  toggleCapexRateio();
   document.getElementById('ci-m-pedido').value=capexZeevDescricaoLancamento(z)||'';
   document.getElementById('ci-m-ref').value=String(z.zeev_instance_id||'');
   updateCapexTrDuplicateHint(String(z.zeev_instance_id||''));
@@ -9140,6 +9152,8 @@ function renderCapexRegisteredCard(it){
   const unidadesLista=capexItemUnits(it);
   const unidadesLabel=unidadesLista.length>1?`${unidade} + ${unidadesLista.length-1} unidade${unidadesLista.length-1!==1?'s':''}`:unidade;
   const unidadesFull=unidadesLista.length?unidadesLista.join(' · '):unidade;
+  const rateioInfo=capexRateioInfoFromItem(it);
+  const rateioLabel=rateioInfo?`Parcela ${rateioInfo.indice||'?'} de ${rateioInfo.total_partes||rateioInfo.unidades?.length||'?'} · total ${fmt(+rateioInfo.total||0)}`:'';
   const statusTitle=autoFinalizado?'Pedidos de 2024 ficam resolvidos por exceção':'Alterar status';
   const ticketLink=it.ticket_raiz_url?`<a href="${escHtml(it.ticket_raiz_url)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Abrir Ticket Raiz</a>`:'';
   const compraLink=capexCompraLinkFromItem(it);
@@ -9147,6 +9161,7 @@ function renderCapexRegisteredCard(it){
   const respLabel=compraTr?`${fonteSetor} / Compra TR ${compraTr}${compraLink?.encontrado===false?' - conferir':''}`:fonteSetor;
   const details=[
     {label:'Unidades envolvidas',value:unidadesFull},
+    ...(rateioInfo?[{label:'Rateio',value:rateioLabel}]:[]),
     {label:'Ano',value:String(it.ano||capexDrillYear||'')},
     {label:'Fonte',value:it.fonte||'Não informada'},
     {label:'Setor',value:it.setor||'Não informado'},
@@ -9403,11 +9418,14 @@ function updateCapexUnitHint(){
   const saldoTxt=budget.autorizado?`Saldo: ${fmt(budget.saldo)} de ${fmt(budget.autorizado)} disponibilizado`:'Sem CAPEX disponibilizado cadastrado';
   const extras=capexSelectedUnits().filter(u=>capexUnitKey(u)!==capexUnitKey(unidade));
   const extrasTxt=extras.length?` · +${extras.length} unidade${extras.length!==1?'s':''} envolvida${extras.length!==1?'s':''}`:'';
+  const rateioOn=!!document.getElementById('ci-m-rateio-check')?.checked;
+  const rateioCount=capexRateioSelectedUnits().length;
+  const rateioTxt=rateioOn?` · Rateio em ${rateioCount||0} unidade${rateioCount!==1?'s':''}`:'';
 
   ctx.innerHTML=`<div class="capex-context-logo" style="border-color:${bc}44">${brandLogoImg(marca,'height:28px;width:52px;object-fit:contain')}</div>
     <div style="min-width:0">
       <div class="capex-context-title">${escHtml(unidade)}</div>
-      <div class="capex-context-sub">${escHtml(marca||'Sem marca')} · CAPEX ${escHtml(ano)} · ${escHtml(saldoTxt)}${escHtml(extrasTxt)}${reg?.cnpj?` · ${escHtml(reg.cnpj)}`:''}</div>
+      <div class="capex-context-sub">${escHtml(marca||'Sem marca')} · CAPEX ${escHtml(ano)} · ${escHtml(saldoTxt)}${escHtml(extrasTxt)}${escHtml(rateioTxt)}${reg?.cnpj?` · ${escHtml(reg.cnpj)}`:''}</div>
     </div>`;
 
   ctx.style.display='flex';
@@ -9535,6 +9553,11 @@ function openCapexItemModal(id){
     Array.from(extraSel.options||[]).forEach(opt=>{opt.selected=extras.some(u=>capexUnitKey(u)===capexUnitKey(opt.value));});
     renderMultiUnitPicker('ci-m-unidades-extra');
   }
+  const rateioInfo=capexRateioInfoFromItem(it);
+  const rateioCheck=document.getElementById('ci-m-rateio-check');
+  if(rateioCheck)rateioCheck.checked=!!rateioInfo;
+  setCapexRateioSelectedUnits(rateioInfo?.unidades||[]);
+  toggleCapexRateio();
 
   document.getElementById('ci-m-pedido').value=it?.pedido||'';
 
@@ -9565,7 +9588,7 @@ function closeCapexItemModal(preserveReturnState){document.getElementById('capex
 
 
 
-async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para esta operacao.');return;}
 
   options=options||{};
 
@@ -9579,6 +9602,8 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
 
   const unidade=g('ci-m-unidade'),pedido=g('ci-m-pedido');
   const unidadesJson=capexSelectedUnits();
+  const rateioAtivo=!!document.getElementById('ci-m-rateio-check')?.checked;
+  const rateioUnits=rateioAtivo?capexRateioSelectedUnits():[];
 
   if(!unidade||!pedido){toast('Preencha unidade e pedido.');return;}
 
@@ -9591,6 +9616,9 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
   const autoFinalizado=capexIsAutoFinalizedYear(ano);
   const situacao=autoFinalizado?'Resolvido':document.getElementById('ci-m-sit').value;
   const antigo=wasEdit?capexItens.find(i=>i.id===editId):null;
+  const existingRateioInfo=capexRateioInfoFromItem(antigo);
+  if(rateioAtivo&&wasEdit&&!existingRateioInfo){toast('O rateio so pode ser criado no registro inicial.');return;}
+  if(rateioAtivo&&!wasEdit&&rateioUnits.length<2){toast('Selecione pelo menos duas unidades para ratear o custo.');return;}
   const compraCheck=!!document.getElementById('ci-m-compra-vinculada')?.checked;
   const compraTr=capexZeevSearchDigits(g('ci-m-compra-tr'));
   if(compraCheck&&!compraTr){toast('Informe o TR da compra vinculada.');return;}
@@ -9603,7 +9631,8 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
   const obraVinculada=obraCheck?capexObraLinkPayload(obraId,obraEscopo,capexObraLinkFromDados(antigoDados)):null;
   const ticketDadosBase=zeevRow?{campos:zeevRow.campos_extraidos||{},itens:zeevRow.itens_json||[],pagamento:zeevRow.pagamento_json||{},rawFields:zeevRow.raw_fields||[]}:antigoDados;
   const ticketDados=(zeevRow||Object.keys(ticketDadosBase).length||compraCheck||obraCheck)?{...ticketDadosBase,compraVinculada,obraVinculada}:null;
-  const obj={ano,fonte,unidade,unidades_json:unidadesJson,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||'',ticket_raiz_url:zeevRow?.ticket_link||antigo?.ticket_raiz_url||'',ticket_raiz_instance_id:zeevRow?.zeev_instance_id||antigo?.ticket_raiz_instance_id||null,origem:zeevRow?'ZEEV':(antigo?.origem||''),ticket_raiz_dados:ticketDados};
+  const unidadesObj=existingRateioInfo?.unidades?.length?existingRateioInfo.unidades:unidadesJson;
+  const obj={ano,fonte,unidade,unidades_json:unidadesObj,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||'',ticket_raiz_url:zeevRow?.ticket_link||antigo?.ticket_raiz_url||'',ticket_raiz_instance_id:zeevRow?.zeev_instance_id||antigo?.ticket_raiz_instance_id||null,origem:zeevRow?'ZEEV':(antigo?.origem||''),ticket_raiz_dados:ticketDados};
   const paymentSource=zeevRow||((antigo||obj.ticket_raiz_instance_id||obj.referencia)?{
     zeev_instance_id:obj.ticket_raiz_instance_id||capexZeevSearchDigits(obj.referencia),
     ticket_link:obj.ticket_raiz_url||'',
@@ -9619,7 +9648,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
     setor:obj.setor
   }:null);
 
-  if(!options.skipDuplicateTr){
+  if(!options.skipDuplicateTr&&!rateioAtivo){
     const duplicados=await capexTrDuplicateMatchesLive(referencia,editId);
     if(duplicados.length){
       showCapexDuplicateTrWarning(referencia,duplicados);
@@ -9641,6 +9670,49 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
   }else{
 
     if(zeevRow&&zeevRow.status!=='pendente'){toast('Este Ticket Raiz ja foi tratado.');return;}
+
+    if(rateioAtivo){
+      const totalRateio=+obj.orcamento||0;
+      const valoresRateio=capexSplitCurrency(totalRateio,rateioUnits.length);
+      const grupoRateio='rateio_'+(obj.ticket_raiz_instance_id||referencia||Date.now())+'_'+Date.now();
+      const baseDados=capexTicketDadosObj(ticketDados);
+      const rows=rateioUnits.map((unit,idx)=>{
+        const reg=findCapexUnit(unit);
+        const rateio={
+          ativo:true,
+          grupo:grupoRateio,
+          indice:idx+1,
+          total_partes:rateioUnits.length,
+          unidades:rateioUnits,
+          total:totalRateio,
+          valor:valoresRateio[idx],
+          metodo:'igualitario'
+        };
+        return{
+          ...obj,
+          unidade:unit,
+          unidades_json:rateioUnits,
+          marca:reg?reg.marca:computeCapexMarca(unit),
+          orcamento:valoresRateio[idx],
+          ticket_raiz_dados:{...baseDados,rateio}
+        };
+      });
+      const{data,error}=await db.from('capex_itens').insert(rows.map(r=>({...r,aprovado:true}))).select();
+      if(error){toast('Erro ao criar rateio: '+error.message);return;}
+      capexItens.unshift(...(data||[]));
+      if(zeevRow){
+        const first=data?.[0]||{};
+        const upd={status:'aprovado',capex_item_id:first.id,aprovado_por:currentUser?.email||'',aprovado_em:new Date().toISOString()};
+        const{error:zeevErr}=await db.from('capex_zeev_solicitacoes').update(upd).eq('id',zeevApproveId).eq('status','pendente');
+        if(zeevErr){toast('Rateio criado, mas houve erro ao vincular Ticket Raiz: '+zeevErr.message);return;}
+        Object.assign(zeevRow,upd);
+      }
+      if(obraVinculada&&paymentSource)await capexEnsureObraPaymentForTicket(obraVinculada,paymentSource);
+      closeCapexItemModal(true);
+      renderCapexZeevCurrentView();
+      toast(`${rateioUnits.length} pedidos criados com rateio de ${fmt(totalRateio)}.`);
+      return;
+    }
 
     const{data,error}=await db.from('capex_itens').insert({...obj,aprovado:true}).select().single();
 
@@ -12829,6 +12901,7 @@ function populateEscolasSelect(preferredMarca){
 
   const sel=document.getElementById('ci-m-unidade');if(!sel)return;
   const extra=document.getElementById('ci-m-unidades-extra');
+  const rateio=document.getElementById('ci-m-rateio-unidades');
 
   const byMarca={};
 
@@ -12856,8 +12929,10 @@ function populateEscolasSelect(preferredMarca){
   sel.innerHTML='<option value="">— Selecione a unidade —</option>'+grouped;
 
   if(extra)extra.innerHTML=grouped;
+  if(rateio)rateio.innerHTML=grouped;
 
   syncCapexExtraUnitOptions();
+  syncCapexRateioOptions();
 
 }
 
@@ -12875,10 +12950,64 @@ function capexItemUnits(it){
   return out;
 }
 
+function capexRateioInfoFromItem(it){
+  const dados=capexTicketDadosObj(it?.ticket_raiz_dados);
+  const r=dados.rateio||dados.rateio_capex||null;
+  if(!r||typeof r!=='object'||!r.ativo)return null;
+  const unidades=Array.isArray(r.unidades)?r.unidades.filter(Boolean):capexItemUnits(it);
+  return{...r,unidades};
+}
+
 function capexSelectedUnits(){
   const main=document.getElementById('ci-m-unidade')?.value||'';
   const extras=selectValues('ci-m-unidades-extra').filter(n=>n&&capexUnitKey(n)!==capexUnitKey(main));
   return [...new Set([main,...extras].filter(Boolean))];
+}
+
+function capexRateioSelectedUnits(){
+  const seen=new Set();
+  return selectValues('ci-m-rateio-unidades').filter(n=>{
+    const key=capexUnitKey(n);
+    if(!key||seen.has(key))return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function setCapexRateioSelectedUnits(units){
+  const sel=document.getElementById('ci-m-rateio-unidades');
+  if(!sel)return;
+  const keys=new Set((units||[]).map(capexUnitKey).filter(Boolean));
+  Array.from(sel.options||[]).forEach(opt=>{opt.selected=keys.has(capexUnitKey(opt.value));});
+  renderMultiUnitPicker('ci-m-rateio-unidades');
+}
+
+function syncCapexRateioOptions(){
+  renderMultiUnitPicker('ci-m-rateio-unidades');
+}
+
+function toggleCapexRateio(){
+  const check=document.getElementById('ci-m-rateio-check');
+  const row=document.getElementById('ci-m-rateio-row');
+  if(!check||!row)return;
+  row.style.display=check.checked?'block':'none';
+  if(check.checked){
+    const current=capexRateioSelectedUnits();
+    if(!current.length)setCapexRateioSelectedUnits(capexSelectedUnits());
+    else renderMultiUnitPicker('ci-m-rateio-unidades');
+  }else{
+    setCapexRateioSelectedUnits([]);
+  }
+  updateCapexUnitHint();
+}
+
+function capexSplitCurrency(total,count){
+  const n=Math.max(0,+count||0);
+  if(!n)return[];
+  const cents=Math.round((+total||0)*100);
+  const base=Math.trunc(cents/n);
+  let rest=cents-base*n;
+  return Array.from({length:n},(_,i)=>(base+(i<rest?1:0))/100);
 }
 
 function syncCapexExtraUnitOptions(){
