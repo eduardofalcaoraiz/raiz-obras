@@ -940,9 +940,41 @@ input.fi,select.fi{width:100%;padding:11px 13px;border:1px solid var(--line-2);b
 
 input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px rgba(23,60,52,.1)}
 
-select.multi-unit-select{min-height:118px;padding:8px 10px;background:linear-gradient(180deg,var(--surface),var(--surface-2));line-height:1.45}
+select.multi-unit-select{display:none!important}
 
-select.multi-unit-select option{padding:7px 8px;border-radius:6px;margin:1px 0}
+.multi-unit-picker{position:relative;width:100%}
+
+.multi-unit-trigger{width:100%;min-height:43px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:inherit;font-size:14.2px;font-weight:650;text-align:left;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s}
+
+.multi-unit-trigger:hover{border-color:color-mix(in srgb,var(--accent) 38%,var(--line-2));background:color-mix(in srgb,var(--accent) 4%,var(--surface))}
+
+.multi-unit-picker.open .multi-unit-trigger{border-color:var(--ink);box-shadow:0 0 0 3px rgba(23,60,52,.1)}
+
+.multi-unit-trigger-main{min-width:0;display:flex;flex-direction:column;gap:2px}
+
+.multi-unit-trigger-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.multi-unit-trigger-sub{font-size:11.6px;color:var(--muted);font-weight:650}
+
+.multi-unit-chevron{font-size:17px;color:var(--muted);line-height:1;transition:transform .15s}
+
+.multi-unit-picker.open .multi-unit-chevron{transform:rotate(180deg)}
+
+.multi-unit-menu{display:none;position:absolute;z-index:80;left:0;right:0;top:calc(100% + 6px);max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface);box-shadow:0 18px 44px -28px rgba(15,42,36,.55);padding:8px}
+
+.multi-unit-picker.open .multi-unit-menu{display:block}
+
+.multi-unit-group{font-size:10.8px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:850;padding:8px 8px 5px}
+
+.multi-unit-option{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:9px;font-size:13.2px;font-weight:720;color:var(--ink);cursor:pointer;line-height:1.25}
+
+.multi-unit-option:hover{background:var(--surface-2)}
+
+.multi-unit-option input{accent-color:var(--accent);width:15px;height:15px;flex:0 0 auto}
+
+.multi-unit-option.disabled{opacity:.45;cursor:not-allowed}
+
+.multi-unit-option.disabled:hover{background:transparent}
 
 .multi-unit-hint{font-size:11.7px;color:var(--muted);margin:6px 0 0;line-height:1.45}
 
@@ -4175,6 +4207,69 @@ function selectValues(id){
   const el=document.getElementById(id);
   return el?Array.from(el.selectedOptions||[]).map(o=>o.value).filter(Boolean):[];
 }
+function renderMultiUnitPicker(selectId){
+  const sel=document.getElementById(selectId);
+  if(!sel)return;
+  let picker=document.getElementById(selectId+'-picker');
+  if(!picker){
+    picker=document.createElement('div');
+    picker.id=selectId+'-picker';
+    picker.className='multi-unit-picker';
+    picker.dataset.selectId=selectId;
+    sel.insertAdjacentElement('afterend',picker);
+  }
+  const selected=Array.from(sel.selectedOptions||[]).filter(o=>!o.disabled);
+  const selectedNames=selected.map(o=>o.textContent.trim()).filter(Boolean);
+  const title=selectedNames.length?(selectedNames.slice(0,2).join(', ')+(selectedNames.length>2?' +' +(selectedNames.length-2):'')):'Selecionar unidades';
+  const sub=selectedNames.length===1?'1 unidade selecionada':(selectedNames.length?selectedNames.length+' unidades selecionadas':'Clique para abrir a lista');
+  const optionHtml=opt=>{
+    const value=escHtml(opt.value);
+    const label=escHtml(opt.textContent.trim());
+    const checked=opt.selected?'checked':'';
+    const disabled=opt.disabled?'disabled':'';
+    return`<label class="multi-unit-option ${opt.disabled?'disabled':''}" data-value="${value}">
+      <input type="checkbox" ${checked} ${disabled} onclick="event.stopPropagation()" onchange="setMultiUnitSelection('${selectId}',this.closest('.multi-unit-option').dataset.value,this.checked)">
+      <span>${label}</span>
+    </label>`;
+  };
+  const chunks=[];
+  Array.from(sel.children||[]).forEach(child=>{
+    if(child.tagName==='OPTGROUP'){
+      chunks.push(`<div class="multi-unit-group">${escHtml(child.label||'Unidades')}</div>`);
+      Array.from(child.children||[]).forEach(opt=>chunks.push(optionHtml(opt)));
+    }else if(child.tagName==='OPTION'&&child.value){
+      chunks.push(optionHtml(child));
+    }
+  });
+  picker.innerHTML=`<button type="button" class="multi-unit-trigger" onclick="toggleMultiUnitPicker('${selectId}',event)">
+    <span class="multi-unit-trigger-main"><span class="multi-unit-trigger-title">${escHtml(title)}</span><span class="multi-unit-trigger-sub">${escHtml(sub)}</span></span>
+    <span class="multi-unit-chevron">⌄</span>
+  </button>
+  <div class="multi-unit-menu">${chunks.join('')||'<div class="empty" style="padding:12px">Nenhuma unidade disponivel.</div>'}</div>`;
+}
+function toggleMultiUnitPicker(selectId,event){
+  if(event)event.stopPropagation();
+  const picker=document.getElementById(selectId+'-picker');
+  if(!picker)return;
+  const willOpen=!picker.classList.contains('open');
+  closeMultiUnitPickers();
+  if(willOpen)picker.classList.add('open');
+}
+function closeMultiUnitPickers(){
+  document.querySelectorAll('.multi-unit-picker.open').forEach(p=>p.classList.remove('open'));
+}
+function setMultiUnitSelection(selectId,value,checked){
+  const sel=document.getElementById(selectId);
+  if(!sel)return;
+  const opt=Array.from(sel.options||[]).find(o=>String(o.value)===String(value));
+  if(!opt||opt.disabled)return;
+  opt.selected=!!checked;
+  sel.dispatchEvent(new Event('change',{bubbles:true}));
+  renderMultiUnitPicker(selectId);
+}
+document.addEventListener('click',function(event){
+  if(!event.target.closest?.('.multi-unit-picker'))closeMultiUnitPickers();
+});
 function _obraYearFromValue(v){
   if(v==null)return null;
   const s=String(v).trim();
@@ -7260,6 +7355,7 @@ function openCapexZeevApproval(id){
   syncCapexExtraUnitOptions();
   const apprExtra=document.getElementById('ci-m-unidades-extra');
   if(apprExtra)Array.from(apprExtra.options||[]).forEach(opt=>{opt.selected=false;});
+  renderMultiUnitPicker('ci-m-unidades-extra');
   document.getElementById('ci-m-pedido').value=capexZeevDescricaoLancamento(z)||'';
   document.getElementById('ci-m-ref').value=String(z.zeev_instance_id||'');
   updateCapexTrDuplicateHint(String(z.zeev_instance_id||''));
@@ -9437,6 +9533,7 @@ function openCapexItemModal(id){
     const primary=document.getElementById('ci-m-unidade').value;
     const extras=capexItemUnits(it).filter(u=>capexUnitKey(u)!==capexUnitKey(primary));
     Array.from(extraSel.options||[]).forEach(opt=>{opt.selected=extras.some(u=>capexUnitKey(u)===capexUnitKey(opt.value));});
+    renderMultiUnitPicker('ci-m-unidades-extra');
   }
 
   document.getElementById('ci-m-pedido').value=it?.pedido||'';
@@ -11735,6 +11832,7 @@ function omSyncExtraOptions(){
     opt.disabled=!!main&&opt.value===main;
     if(opt.disabled)opt.selected=false;
   });
+  renderMultiUnitPicker('om-escolas-extra');
 }
 
 omEscolaChanged=function(){
@@ -12791,6 +12889,7 @@ function syncCapexExtraUnitOptions(){
     opt.disabled=!!main&&capexUnitKey(opt.value)===capexUnitKey(main);
     if(opt.disabled)opt.selected=false;
   });
+  renderMultiUnitPicker('ci-m-unidades-extra');
 }
 
 
