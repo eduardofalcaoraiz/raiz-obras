@@ -1630,10 +1630,11 @@ async function runSync(input: AnyRecord) {
 
 async function runIngest(input: AnyRecord) {
   const tickets = Array.isArray(input.tickets) ? input.tickets : []
+  const finalIngest = input.final !== false && input.partial !== true
   if (!tickets.length) {
     await saveState('zeev-capex', {
-      running: false,
-      last_success_at: new Date().toISOString(),
+      running: !finalIngest,
+      last_success_at: finalIngest ? new Date().toISOString() : undefined,
       last_error: null,
       last_run_found: 0,
       last_run_new: 0,
@@ -1666,8 +1667,8 @@ async function runIngest(input: AnyRecord) {
   const newCount = normalized.filter((t: AnyRecord) => !existing.has(Number(t.zeev_instance_id))).length
   const email = input.notify === true ? await notifyNewTickets(normalized, existing) : { notified: [], failed: [] }
   await saveState('zeev-capex', {
-    running: false,
-    last_success_at: new Date().toISOString(),
+    running: !finalIngest,
+    last_success_at: finalIngest ? new Date().toISOString() : undefined,
     last_error: null,
     last_run_found: normalized.length,
     last_run_new: newCount,

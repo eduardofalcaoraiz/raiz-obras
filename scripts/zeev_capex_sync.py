@@ -1189,7 +1189,7 @@ def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest
                         print(json.dumps({"candidateError": row.get("id"), "error": str(exc)[:500]}, ensure_ascii=False), file=sys.stderr)
         if progressive_ingest and page_tickets:
             page_saved = sorted(page_tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
-            result = ingest(page_saved, notify=notify)
+            result = ingest(page_saved, notify=notify, partial=True)
             print(json.dumps({
                 "progress": "deep-page-ingest",
                 "page": page,
@@ -1229,8 +1229,11 @@ def sync_ids(instance_ids):
     return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
 
 
-def ingest(tickets, notify=False):
+def ingest(tickets, notify=False, partial=False):
     payload = {"mode": "ingest", "tickets": tickets, "notify": notify}
+    if partial:
+        payload["partial"] = True
+        payload["final"] = False
     return request_json(
         "POST",
         f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
