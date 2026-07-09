@@ -88,7 +88,7 @@ jobs:
           ZEEV_TICKET_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.ticket_ids || '' }}
           ZEEV_EXTRA_TICKET_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.extra_ticket_ids || '' }}
           ZEEV_AI_SUMMARY_ENABLED: "1"
-          ZEEV_BACKFILL_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '20' }}
+          ZEEV_BACKFILL_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '2' }}
           ZEEV_BACKFILL_BATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '2' }}
           ZEEV_BACKFILL_STALE_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '8' }}
           ZEEV_BACKFILL_FILE_LIMIT: "3"
