@@ -3955,7 +3955,7 @@ const ESFERAS={capex:{label:'Capex de Melhorias',desc:'Obras de melhoria e retro
 
 let curEsfera='nova',esfBusca='',esfFiltroMarca='Todas',esfNfSearchQuery='';
 
-let capexItens=[],capexSaldos=[],capexZeevSolicitacoes=[],capexZeevSyncState=null,capexEditId=null,capexZeevApproveId=null;
+let capexItens=[],capexSaldos=[],capexZeevSolicitacoes=[],capexZeevSyncState=null,capexEditId=null,capexZeevApproveId=null,capexSaveInFlight=false;
 
 function setEsfBusca(v){esfBusca=v;renderEsfera();}
 
@@ -9611,7 +9611,14 @@ function closeCapexItemModal(preserveReturnState){document.getElementById('capex
 
 
 
-async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para esta operacao.');return;}
+async function saveCapexItem(options){
+  if(capexSaveInFlight){toast('Salvamento em andamento. Aguarde concluir.');return;}
+  capexSaveInFlight=true;
+  try{return await saveCapexItemLocked(options);}
+  finally{capexSaveInFlight=false;}
+}
+
+async function saveCapexItemLocked(options){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para esta operacao.');return;}
 
   options=options||{};
 
@@ -9672,7 +9679,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
     setor:obj.setor
   }:null);
 
-  const shouldCheckDuplicateTr=!options.skipDuplicateTr&&!(wasEdit&&existingRateioInfo);
+  const shouldCheckDuplicateTr=(!options.skipDuplicateTr||rateioAtivo)&&!(wasEdit&&existingRateioInfo);
   if(shouldCheckDuplicateTr){
     const duplicados=await capexTrDuplicateMatchesLive(referencia,editId);
     if(duplicados.length){
@@ -12988,6 +12995,31 @@ function normalizeCapexRateioItem(it){
   return it;
 }
 
+function capexItemDedupKey(it){
+  const ref=capexTrPrimaryNumber(it?.referencia||it?.ticket_raiz_instance_id||'');
+  if(!ref)return'';
+  const unidade=capexUnitKey(it?.unidade||'');
+  const valor=Math.round((+it?.orcamento||0)*100);
+  const pedido=capexNormText(it?.pedido||'');
+  const cat=capexCategoriaId(it);
+  return[+it?.ano||0,ref,unidade,valor,pedido,cat].join('|');
+}
+
+function normalizeCapexItensList(rows){
+  const out=[],seen=new Set();
+  (rows||[]).forEach(row=>{
+    const it=normalizeCapexRateioItem(row);
+    const key=capexItemDedupKey(it);
+    if(key&&seen.has(key)){
+      console.warn('CAPEX duplicado exato ignorado no carregamento:',it?.id,key);
+      return;
+    }
+    if(key)seen.add(key);
+    out.push(it);
+  });
+  return out;
+}
+
 function capexRateioInfoFromItem(it){
   const dados=capexTicketDadosObj(it?.ticket_raiz_dados);
   const r=dados.rateio||dados.rateio_capex||null;
@@ -14233,7 +14265,7 @@ async function loadFromDB(){
 
     const{data:ciR,error:ciErr}=await selectAllRows('capex_itens',{order:'id',ascending:false});
 
-    if(ciErr){console.error('loadFromDB capex_itens error:',ciErr);capexItens=[];}else capexItens=(ciR||[]).map(normalizeCapexRateioItem);
+    if(ciErr){console.error('loadFromDB capex_itens error:',ciErr);capexItens=[];}else capexItens=normalizeCapexItensList(ciR||[]);
 
     const{data:csR,error:csErr}=await selectAllRows('capex_saldos',{order:'ano',ascending:false});
 
