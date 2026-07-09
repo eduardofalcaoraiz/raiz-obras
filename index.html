@@ -235,6 +235,10 @@ button{font-family:inherit;cursor:pointer}
 .obra-status-select{height:27px;border-radius:999px;padding:3px 28px 3px 10px;font-size:11.5px;font-weight:800;font-family:inherit;cursor:pointer;outline:0;min-width:118px;max-width:142px;border-width:1px!important}
 .obra-card-body{display:flex;flex-direction:column;gap:11px;padding:12px 15px 13px;position:relative;z-index:1;flex:1;min-width:0}
 .obra-card h3{font-size:18px;line-height:1.14;margin:0;color:var(--ink);letter-spacing:0}
+.obra-card-subtitle{font-size:12.8px;line-height:1.28;color:var(--brand-text,var(--accent-text));font-weight:850;margin-top:-6px}
+.obra-card-units{display:flex;gap:6px;flex-wrap:wrap;margin-top:-2px}
+.obra-card-unit-chip{display:inline-flex;align-items:center;gap:5px;max-width:100%;border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 16%,var(--line));background:color-mix(in srgb,var(--brand-cur-light,var(--raiz-soft)) 42%,#fff);color:var(--ink);border-radius:999px;padding:4px 8px;font-size:11.6px;font-weight:760;line-height:1.15}
+.obra-card-unit-chip.primary{border-color:color-mix(in srgb,var(--brand-cur,var(--accent)) 34%,var(--line));color:var(--brand-text,var(--accent-text));font-weight:880}
 .obra-card-unit{font-size:12.8px;color:var(--muted);font-weight:650;line-height:1.25;display:flex;gap:6px;min-width:0}
 .obra-card-unit span{color:var(--muted);font-weight:800}
 .obra-card-unit b{color:var(--brand-text,var(--accent-text));font-weight:850;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -935,6 +939,12 @@ label.fl{display:block;font-size:13px;color:var(--muted);margin-bottom:7px;font-
 input.fi,select.fi{width:100%;padding:11px 13px;border:1px solid var(--line-2);border-radius:var(--r);font-family:inherit;font-size:14.5px;background:var(--surface);color:var(--ink)}
 
 input.fi:focus,select.fi:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px rgba(23,60,52,.1)}
+
+select.multi-unit-select{min-height:118px;padding:8px 10px;background:linear-gradient(180deg,var(--surface),var(--surface-2));line-height:1.45}
+
+select.multi-unit-select option{padding:7px 8px;border-radius:6px;margin:1px 0}
+
+.multi-unit-hint{font-size:11.7px;color:var(--muted);margin:6px 0 0;line-height:1.45}
 
 .frow{margin-bottom:16px}.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 
@@ -2695,13 +2705,33 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <label class="fl">Escola (unidade)</label>
 
-      <select class="fi" id="om-escola" onchange="omEscolaChanged()">
+      <select class="fi" id="om-escola" onchange="omEscolaChanged();omSyncExtraOptions()">
 
         <option value="">— Selecionar escola —</option>
 
       </select>
 
       <p style="font-size:11.5px;color:var(--muted);margin:5px 0 0">O nome e a marca da obra serão os da escola selecionada. Cadastre a escola primeiro em <b>Documentos das Escolas</b> se ainda não estiver na lista.</p>
+
+    </div>
+
+    <div class="frow">
+
+      <label class="fl">Outras unidades vinculadas <span style="font-weight:500;color:var(--muted)">(opcional)</span></label>
+
+      <select class="fi multi-unit-select" id="om-escolas-extra" multiple size="5" onchange="omEscolaChanged()"></select>
+
+      <p class="multi-unit-hint">Use quando a mesma obra/expans&atilde;o atende mais de uma unidade. A unidade principal continua comandando a obra e as demais ficam vinculadas ao mesmo registro.</p>
+
+    </div>
+
+    <div class="frow">
+
+      <label class="fl">Subt&iacute;tulo da obra <span style="font-weight:500;color:var(--muted)">(opcional)</span></label>
+
+      <input class="fi" id="om-subtitulo" placeholder="Ex.: expans&atilde;o do bloco infantil, nova ala, reforma compartilhada">
+
+      <p class="multi-unit-hint">Use apenas quando o nome da unidade n&atilde;o identificar bem a obra.</p>
 
     </div>
 
@@ -3245,8 +3275,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div class="fgrid"><div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="ci-m-ano" onchange="updateCapexUnitHint();syncCapexResolvedState()"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option></select></div><div class="frow"><label class="fl">Fonte solicitante</label><select class="fi" id="ci-m-fonte"><option>UNIDADE</option><option>CMEF</option><option>MANUTENÇÃO</option><option>ARQUITETURA</option><option>TI</option><option>RH</option></select></div></div>
 
       <div class="fgrid">
-        <div class="frow"><label class="fl">Unidade / escola</label><select class="fi" id="ci-m-unidade" onchange="updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
+        <div class="frow"><label class="fl">Unidade principal / escola</label><select class="fi" id="ci-m-unidade" onchange="syncCapexExtraUnitOptions();updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
         <div class="frow"><label class="fl">Categoria CAPEX <button type="button" onclick="openCatModal(undefined,'capex')" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">+ Nova</button></label><select class="fi" id="ci-m-cat"><option value="capex_outros">A classificar / outros</option></select></div>
+      </div>
+      <div class="frow">
+        <label class="fl">Outras unidades envolvidas <span style="font-weight:500;color:var(--muted)">(opcional)</span></label>
+        <select class="fi multi-unit-select" id="ci-m-unidades-extra" multiple size="5" onchange="updateCapexUnitHint()"></select>
+        <p class="multi-unit-hint">Use quando o mesmo pedido de CAPEX impactar mais de uma unidade. A unidade principal continua sendo usada para saldo e dashboard, evitando duplicidade financeira.</p>
       </div>
     </div>
 
@@ -4098,6 +4133,47 @@ function _obraLinkedUnit(obraAtual){
     });
   });
   return bestScore>=50?best:null;
+}
+function obraUnitRefs(o){
+  if(!o)return[];
+  const out=[],seen=new Set();
+  const push=(raw,principal)=>{
+    if(!raw)return;
+    const id=String(raw.id||raw.unidade_id||raw.unitId||'').trim();
+    const nome=String(raw.nome||raw.name||raw.unidade||raw.label||'').trim();
+    const found=id?unidades.find(u=>String(u.id)===id):unidades.find(u=>capexUnitKey(u.nome)===capexUnitKey(nome));
+    const ref=found||{id:id||'',nome:nome||'',marca:raw.marca||raw.brand||o.marca||'—'};
+    const key=ref.id||capexUnitKey(ref.nome);
+    if(!key||seen.has(key))return;
+    seen.add(key);
+    out.push({id:ref.id||'',nome:ref.nome||nome,marca:ref.marca||raw.marca||'—',principal:!!principal});
+  };
+  if(Array.isArray(o.unidades_obra))o.unidades_obra.forEach((u,i)=>push(u,i===0||u?.principal));
+  unidades.filter(u=>String(u.obraId||'')===String(o.id||'')).forEach((u,i)=>push(u,!out.length&&i===0));
+  push(_obraLinkedUnit(o),!out.length);
+  if(!out.length&&o.nome)push({nome:o.nome,marca:o.marca},true);
+  if(out.length&&!out.some(u=>u.principal))out[0].principal=true;
+  return out;
+}
+function obraUnitNames(o){
+  return obraUnitRefs(o).map(u=>u.nome).filter(Boolean);
+}
+function obraMarcaNames(o){
+  const marcas=obraUnitRefs(o).map(u=>u.marca).filter(Boolean);
+  const raw=String(o?.marca||'').split(' + ').filter(Boolean);
+  return [...new Set([...marcas,...raw].filter(m=>m&&m!=='—'))];
+}
+function obraUnitPayloadFromIds(ids){
+  const seen=new Set();
+  return(ids||[]).map(id=>unidades.find(u=>String(u.id)===String(id))).filter(Boolean).filter(u=>{
+    if(seen.has(u.id))return false;
+    seen.add(u.id);
+    return true;
+  }).map((u,i)=>({id:u.id,nome:u.nome,marca:u.marca||'—',principal:i===0}));
+}
+function selectValues(id){
+  const el=document.getElementById(id);
+  return el?Array.from(el.selectedOptions||[]).map(o=>o.value).filter(Boolean):[];
 }
 function _obraYearFromValue(v){
   if(v==null)return null;
@@ -5337,7 +5413,8 @@ function updateNavBadge(){
 
 function renderObraCard(o,i){
   const e=ESFERAS[o.esfera||'nova'];
-  const marcas=(o.marca||'').split(' + ').filter(Boolean);
+  const units=obraUnitRefs(o);
+  const marcas=obraMarcaNames(o);
   const marcaBase=marcas[0]||'RAIZ';
   const bc=brandColor(marcaBase);
   const brandText=brandTextOnLight(marcaBase);
@@ -5359,6 +5436,8 @@ function renderObraCard(o,i){
   const constrNames=o.tem_construtora===false?['Sem construtora contratada']:(constrList.length?constrList:[fallbackConstr]);
   const constrFull=constrNames.join(' \u00b7 ');
   const constrHtml=constrNames.map(n=>`<span class="obra-card-builder">${escHtml(n)}</span>`).join('');
+  const subtitulo=String(o.subtitulo_obra||'').trim();
+  const unitChips=units.length?`<div class="obra-card-units" title="${escHtml(units.map(u=>u.nome).join(' · '))}">${units.map((u,idx)=>`<span class="obra-card-unit-chip ${idx===0?'primary':''}">${escHtml(u.nome)}</span>`).join('')}</div>`:'';
   const anoFim=_obraEndYear(o)||'a definir';
   const entregaText=isDone?(anoFim==='a definir'?'ENTREGUE':`ENTREGUE EM ${anoFim}`):(anoFim==='a definir'?'PREVIS\u00c3O DE ENTREGA A DEFINIR':`PREVIS\u00c3O DE ENTREGA EM ${anoFim}`);
   return `<div class="pcard obra-card interactive-card" role="button" tabindex="0" onclick="openObra(${o.id})" onkeydown="if(cardKeyOpen(event))openObra(${o.id})" style="animation-delay:${i*55}ms;--brand-cur:${bc};--brand-text:${brandText};--brand-cur-light:${brandLight(marcaBase)};--brand-readable:${brandReadable};--brand-readable-shadow:${brandShadow}">
@@ -5372,6 +5451,8 @@ function renderObraCard(o,i){
     </div>
     <div class="obra-card-body">
       <h3>${safe(o.nome)}</h3>
+      ${subtitulo?`<div class="obra-card-subtitle">${escHtml(subtitulo)}</div>`:''}
+      ${unitChips}
       <div class="obra-card-constr">
         <div class="obra-card-constr-head"><span class="obra-card-label">Construtora(s)</span></div>
         <div class="obra-card-builders" title="${escHtml(constrFull)}">${constrHtml}</div>
@@ -5591,7 +5672,11 @@ function renderEsfera(){
   const nfSearchEl=document.getElementById('esf-nf-search');
   if(nfSearchEl)nfSearchEl.innerHTML=renderEsferaNfSearch();
 
-  const q=esfBusca.trim().toLowerCase();const filtered=list.filter(o=>(esfFiltroMarca==='Todas'||o.marca.split(' + ').includes(esfFiltroMarca))&&(!q||o.nome.toLowerCase().includes(q)||o.marca.toLowerCase().includes(q)||o.constr.toLowerCase().includes(q)));
+  const q=esfBusca.trim().toLowerCase();const filtered=list.filter(o=>{
+    const marcas=obraMarcaNames(o);
+    const hay=[o.nome,o.subtitulo_obra,o.marca,o.constr,...obraUnitNames(o),...(o.construtoras||[]).map(c=>typeof c==='string'?c:c?.nome)].filter(Boolean).join(' ').toLowerCase();
+    return(esfFiltroMarca==='Todas'||marcas.includes(esfFiltroMarca))&&(!q||hay.includes(q));
+  });
 
   document.getElementById('esf-grid').innerHTML=filtered.length?filtered.map((o,i)=>renderObraCard(o,i)).join(''):'<p class="empty">Nenhuma obra nesta esfera ainda. Clique em "Nova obra" para começar.</p>';
 
@@ -7172,6 +7257,9 @@ function openCapexZeevApproval(id){
   populateCapexCategorySelect(suggestedCategory);
   document.getElementById('ci-m-fonte').value='UNIDADE';
   document.getElementById('ci-m-unidade').value=suggestedUnit||'';
+  syncCapexExtraUnitOptions();
+  const apprExtra=document.getElementById('ci-m-unidades-extra');
+  if(apprExtra)Array.from(apprExtra.options||[]).forEach(opt=>{opt.selected=false;});
   document.getElementById('ci-m-pedido').value=capexZeevDescricaoLancamento(z)||'';
   document.getElementById('ci-m-ref').value=String(z.zeev_instance_id||'');
   updateCapexTrDuplicateHint(String(z.zeev_instance_id||''));
@@ -8953,13 +9041,16 @@ function renderCapexRegisteredCard(it){
   const refLabel=ref?`TR ${escHtml(ref)}`:'Sem referência';
   const fonteSetor=[it.fonte,it.setor].filter(Boolean).join(' / ')||'Sem fonte';
   const unidade=it.unidade||capexDrillUnidade||'Unidade não informada';
+  const unidadesLista=capexItemUnits(it);
+  const unidadesLabel=unidadesLista.length>1?`${unidade} + ${unidadesLista.length-1} unidade${unidadesLista.length-1!==1?'s':''}`:unidade;
+  const unidadesFull=unidadesLista.length?unidadesLista.join(' · '):unidade;
   const statusTitle=autoFinalizado?'Pedidos de 2024 ficam resolvidos por exceção':'Alterar status';
   const ticketLink=it.ticket_raiz_url?`<a href="${escHtml(it.ticket_raiz_url)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Abrir Ticket Raiz</a>`:'';
   const compraLink=capexCompraLinkFromItem(it);
   const compraTr=capexZeevSearchDigits(compraLink?.tr||compraLink?.zeev_id||'');
   const respLabel=compraTr?`${fonteSetor} / Compra TR ${compraTr}${compraLink?.encontrado===false?' - conferir':''}`:fonteSetor;
   const details=[
-    {label:'Unidade',value:unidade},
+    {label:'Unidades envolvidas',value:unidadesFull},
     {label:'Ano',value:String(it.ano||capexDrillYear||'')},
     {label:'Fonte',value:it.fonte||'Não informada'},
     {label:'Setor',value:it.setor||'Não informado'},
@@ -8980,7 +9071,7 @@ function renderCapexRegisteredCard(it){
         </div>
         <div class="capex-summary-main">
           <div class="capex-summary-title" title="${title}">${cardTitle}</div>
-          <div class="capex-summary-meta">${escHtml(unidade)} &middot; ${escHtml(marca)} &middot; ${escHtml(String(it.ano||capexDrillYear||''))}</div>
+          <div class="capex-summary-meta" title="${escHtml(unidadesFull)}">${escHtml(unidadesLabel)} &middot; ${escHtml(marca)} &middot; ${escHtml(String(it.ano||capexDrillYear||''))}</div>
         </div>
         ${capexSummaryFacts([
           {label:'Categoria',value:catName},
@@ -9214,11 +9305,13 @@ function updateCapexUnitHint(){
   const budget=capexBudgetStats(its,{ano:+ano,marca,unidade});
 
   const saldoTxt=budget.autorizado?`Saldo: ${fmt(budget.saldo)} de ${fmt(budget.autorizado)} disponibilizado`:'Sem CAPEX disponibilizado cadastrado';
+  const extras=capexSelectedUnits().filter(u=>capexUnitKey(u)!==capexUnitKey(unidade));
+  const extrasTxt=extras.length?` · +${extras.length} unidade${extras.length!==1?'s':''} envolvida${extras.length!==1?'s':''}`:'';
 
   ctx.innerHTML=`<div class="capex-context-logo" style="border-color:${bc}44">${brandLogoImg(marca,'height:28px;width:52px;object-fit:contain')}</div>
     <div style="min-width:0">
       <div class="capex-context-title">${escHtml(unidade)}</div>
-      <div class="capex-context-sub">${escHtml(marca||'Sem marca')} · CAPEX ${escHtml(ano)} · ${escHtml(saldoTxt)}${reg?.cnpj?` · ${escHtml(reg.cnpj)}`:''}</div>
+      <div class="capex-context-sub">${escHtml(marca||'Sem marca')} · CAPEX ${escHtml(ano)} · ${escHtml(saldoTxt)}${escHtml(extrasTxt)}${reg?.cnpj?` · ${escHtml(reg.cnpj)}`:''}</div>
     </div>`;
 
   ctx.style.display='flex';
@@ -9338,6 +9431,13 @@ function openCapexItemModal(id){
   document.getElementById('ci-m-fonte').value=it?.fonte||'UNIDADE';
 
   document.getElementById('ci-m-unidade').value=it?.unidade||(capexDrillUnidade||'');
+  syncCapexExtraUnitOptions();
+  const extraSel=document.getElementById('ci-m-unidades-extra');
+  if(extraSel){
+    const primary=document.getElementById('ci-m-unidade').value;
+    const extras=capexItemUnits(it).filter(u=>capexUnitKey(u)!==capexUnitKey(primary));
+    Array.from(extraSel.options||[]).forEach(opt=>{opt.selected=extras.some(u=>capexUnitKey(u)===capexUnitKey(opt.value));});
+  }
 
   document.getElementById('ci-m-pedido').value=it?.pedido||'';
 
@@ -9381,6 +9481,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
   const zeevRow=zeevApproveId?capexZeevSolicitacoes.find(x=>+x.id===+zeevApproveId):null;
 
   const unidade=g('ci-m-unidade'),pedido=g('ci-m-pedido');
+  const unidadesJson=capexSelectedUnits();
 
   if(!unidade||!pedido){toast('Preencha unidade e pedido.');return;}
 
@@ -9405,7 +9506,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
   const obraVinculada=obraCheck?capexObraLinkPayload(obraId,obraEscopo,capexObraLinkFromDados(antigoDados)):null;
   const ticketDadosBase=zeevRow?{campos:zeevRow.campos_extraidos||{},itens:zeevRow.itens_json||[],pagamento:zeevRow.pagamento_json||{},rawFields:zeevRow.raw_fields||[]}:antigoDados;
   const ticketDados=(zeevRow||Object.keys(ticketDadosBase).length||compraCheck||obraCheck)?{...ticketDadosBase,compraVinculada,obraVinculada}:null;
-  const obj={ano,fonte,unidade,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||'',ticket_raiz_url:zeevRow?.ticket_link||antigo?.ticket_raiz_url||'',ticket_raiz_instance_id:zeevRow?.zeev_instance_id||antigo?.ticket_raiz_instance_id||null,origem:zeevRow?'ZEEV':(antigo?.origem||''),ticket_raiz_dados:ticketDados};
+  const obj={ano,fonte,unidade,unidades_json:unidadesJson,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||'',ticket_raiz_url:zeevRow?.ticket_link||antigo?.ticket_raiz_url||'',ticket_raiz_instance_id:zeevRow?.zeev_instance_id||antigo?.ticket_raiz_instance_id||null,origem:zeevRow?'ZEEV':(antigo?.origem||''),ticket_raiz_dados:ticketDados};
   const paymentSource=zeevRow||((antigo||obj.ticket_raiz_instance_id||obj.referencia)?{
     zeev_instance_id:obj.ticket_raiz_instance_id||capexZeevSearchDigits(obj.referencia),
     ticket_link:obj.ticket_raiz_url||'',
@@ -9593,19 +9694,19 @@ function editarAditivoFromList(idx){
 
 function renderObra(){const o=cur,pct=execObra(o);
 
-  const _oMarcas=(o.marca||'').split(' + ');const _oMarcaPills=_oMarcas.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;background:${brandLight(m)};color:${brandColor(m)};padding:2px 9px 2px 4px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid ${brandColor(m)}33"><span style="display:inline-flex;background:white;border-radius:4px;padding:1px 3px;overflow:hidden;height:16px;width:26px;align-items:center;flex-shrink:0">${brandLogoImg(m,'height:14px;width:24px;object-fit:contain')}</span>${m}</span>`).join(' ');
+  const _obraUnits=obraUnitRefs(o);
+  const _oMarcas=obraMarcaNames(o).length?obraMarcaNames(o):(o.marca||'').split(' + ').filter(Boolean);
+  const _oMarcaPills=_oMarcas.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;background:${brandLight(m)};color:${brandColor(m)};padding:2px 9px 2px 4px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid ${brandColor(m)}33"><span style="display:inline-flex;background:white;border-radius:4px;padding:1px 3px;overflow:hidden;height:16px;width:26px;align-items:center;flex-shrink:0">${brandLogoImg(m,'height:14px;width:24px;object-fit:contain')}</span>${m}</span>`).join(' ');
 
   document.getElementById("o-nome").textContent=o.nome;
 
   updateObraBanner(o);
 
-  const _ouni=unidades.find(u=>u.obraId===o.id);
-
   const _constrLabel=o.tem_construtora===false?'Sem construtora contratada':(o.construtoras&&o.construtoras.length>0?o.construtoras.map(function(c){return c.nome;}).filter(Boolean).join(' · '):(o.constr&&o.constr!=='—'?o.constr:'—'));
 
-  document.getElementById("o-crumb").innerHTML=_oMarcaPills+`<span style="color:var(--muted);font-size:13px"> · ${_constrLabel}</span>`;
+  document.getElementById("o-crumb").innerHTML=_oMarcaPills+`<span style="color:var(--muted);font-size:13px"> · ${_constrLabel}${o.subtitulo_obra?' · '+escHtml(o.subtitulo_obra):''}</span>`;
 
-  document.getElementById("o-meta").innerHTML=`${statusBadge(o.status)}${_ouni?` <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="openUni('${_ouni.id}')">↗ ${_ouni.nome}</button>`:""}`;
+  document.getElementById("o-meta").innerHTML=`${statusBadge(o.status)}${_obraUnits.length?` <span style="display:inline-flex;gap:6px;flex-wrap:wrap;margin-left:8px">${_obraUnits.map(u=>u.id?`<button class="btn btn-ghost btn-sm" onclick="openUni('${u.id}')">↗ ${escHtml(u.nome)}</button>`:`<span class="badge">${escHtml(u.nome)}</span>`).join('')}</span>`:""}`;
 
   // Logo da marca na barra de identidade
 
@@ -11620,6 +11721,36 @@ function omEscolaChanged(){
 
 }
 
+function omSelectedObraUnitIds(){
+  const main=document.getElementById('om-escola')?.value||'';
+  const extras=selectValues('om-escolas-extra').filter(id=>id&&id!==main);
+  return [...new Set([main,...extras].filter(Boolean))];
+}
+
+function omSyncExtraOptions(){
+  const main=document.getElementById('om-escola')?.value||'';
+  const extra=document.getElementById('om-escolas-extra');
+  if(!extra)return;
+  Array.from(extra.options||[]).forEach(opt=>{
+    opt.disabled=!!main&&opt.value===main;
+    if(opt.disabled)opt.selected=false;
+  });
+}
+
+omEscolaChanged=function(){
+  const ids=omSelectedObraUnitIds();
+  const u=unidades.find(e=>e.id===document.getElementById('om-escola')?.value);
+  if(!u)return;
+  ids.forEach(uid=>{
+    const unidade=unidades.find(e=>e.id===uid);
+    if(!unidade||!unidade.obraId||unidade.obraId===obraEditId)return;
+    const existente=obras.find(o=>o.id===unidade.obraId);
+    if(existente)toast(`⚠ ${unidade.nome} já possui a obra "${existente.nome}" vinculada.`);
+  });
+  const endEl=document.getElementById('om-end');
+  if(endEl&&!endEl.value&&u.endereco)endEl.value=u.endereco;
+};
+
 function omAddMarca2(){document.getElementById('om-marca2-row').style.display='flex';document.getElementById('om-marca2-btn').style.display='none';}
 
 function omRemoveMarca2(){document.getElementById('om-marca2-row').style.display='none';document.getElementById('om-marca2').value='';document.getElementById('om-marca2-btn').style.display='block';}
@@ -11654,9 +11785,13 @@ function openObraModal(id){
 
   g('om-escola').innerHTML='<option value="">— Selecionar escola —</option>'+escolasSorted.map(u=>`<option value="${u.id}">${u.nome}${u.marca&&u.marca!=='—'?' — '+u.marca:''}</option>`).join('');
 
+  if(g('om-escolas-extra'))g('om-escolas-extra').innerHTML=escolasSorted.map(u=>`<option value="${u.id}">${u.nome}${u.marca&&u.marca!=='—'?' — '+u.marca:''}</option>`).join('');
+
   g('om-constr-list').innerHTML=[...new Set(obras.map(o=>o.constr).filter(c=>c&&c!=='—'))].sort().map(c=>`<option value="${c}">`).join('');
 
   ['om-constr','om-contr','om-ano','om-end','om-taxa','om-investimento'].forEach(x=>{if(g(x))g(x).value='';});
+
+  if(g('om-subtitulo'))g('om-subtitulo').value='';
 
   omInvSeq=0;g('om-inv-list').innerHTML='';
 
@@ -11670,9 +11805,18 @@ function openObraModal(id){
 
     // Pre-seleciona a escola vinculada
 
-    const linkedEscola=unidades.find(u=>u.obraId===id);
+    const linkedRefs=obraUnitRefs(o);
+    const linkedIds=linkedRefs.map(u=>u.id).filter(Boolean);
+    const linkedEscola=unidades.find(u=>u.obraId===id)||unidades.find(u=>linkedIds.includes(u.id));
 
     if(linkedEscola)g('om-escola').value=linkedEscola.id;
+
+    const extraSel=g('om-escolas-extra');
+    if(extraSel){
+      const mainId=g('om-escola').value;
+      const extras=linkedIds.filter(uid=>uid&&uid!==mainId);
+      Array.from(extraSel.options||[]).forEach(opt=>{opt.selected=extras.includes(opt.value);});
+    }
 
     // Construtora
 
@@ -11688,6 +11832,8 @@ function openObraModal(id){
 
     g("om-end").value=o.endereco_obra||'';
 
+    if(g('om-subtitulo'))g('om-subtitulo').value=o.subtitulo_obra||'';
+
     // Modelo de contrato
 
     const modelo=o.modelo_contrato||'GLOBAL';
@@ -11699,6 +11845,8 @@ function openObraModal(id){
     if(o.aportes&&o.aportes.length){omToggleInv('sim');o.aportes.forEach(a=>{omInvSeq++;const div=document.createElement('div');div.id='om-inv-'+omInvSeq;div.style.cssText='display:flex;gap:8px;align-items:center;margin-top:8px';div.innerHTML=`<select class="fi" id="om-inv-who-${omInvSeq}" style="flex:1">${[...new Set([...unidades.map(u=>u.nome),...investidores.map(i=>i.nome)])].map(f=>`<option value="${f}"${f===a.inv?' selected':''}>${f}</option>`).join('')}</select><input class="fi num" id="om-inv-val-${omInvSeq}" type="number" min="0" placeholder="Valor (R$)" value="${a.v}" style="flex:1"><button class="iconbtn" type="button" title="Remover" onclick="document.getElementById('om-inv-${omInvSeq}').remove()">✕</button>`;g('om-inv-list').appendChild(div);});}
 
   } else {g("obra-title").textContent="Nova obra";}
+
+  omSyncExtraOptions();
 
   g("obra-overlay").classList.add("show");
 
@@ -12004,11 +12152,11 @@ async function deleteObra(id,e){
 
 
 
-    // Desvincula unidade se houver
+    // Desvincula todas as unidades ligadas a esta obra
 
-    const uni=unidades.find(u=>u.obraId===id);
+    const unis=unidades.filter(u=>u.obraId===id);
 
-    if(uni){uni.obraId=null;persistUnidades();}
+    if(unis.length){unis.forEach(u=>{u.obraId=null;});persistUnidades();}
 
 
 
@@ -12331,14 +12479,17 @@ function saveObra(){
   // Escola (obrigatório)
 
   const escolaId=g('om-escola').value;
+  const unidadeIds=omSelectedObraUnitIds();
 
   const escolaObj=unidades.find(u=>u.id===escolaId);
 
   if(!escolaObj){toast('Selecione a escola para esta obra.');return;}
 
+  const unidadesObra=obraUnitPayloadFromIds(unidadeIds);
+
   const nome=escolaObj.nome;
 
-  const marca=escolaObj.marca||'—';
+  const marca=[...new Set(unidadesObra.map(u=>u.marca).filter(Boolean))].join(' + ')||(escolaObj.marca||'—');
 
   const tem_construtora=_omConstrAct==='sim';
   if(tem_construtora)omSyncConstrutoras();
@@ -12354,6 +12505,7 @@ function saveObra(){
   const ano_inauguracao=+g("om-ano").value||null;
 
   const endereco_obra=g("om-end").value.trim()||escolaObj.endereco||'';
+  const subtitulo_obra=g('om-subtitulo')?.value.trim()||'';
 
   const taxaTotal=modelo_contrato==='ADMINISTRACAO'?parseCurrency(g('om-taxa').value):0;
 
@@ -12369,23 +12521,21 @@ function saveObra(){
 
     // Desvincular escola antiga se mudou
 
-    const oldEscola=unidades.find(u=>u.obraId===obraEditId&&u.id!==escolaId);
+    unidades.filter(u=>u.obraId===obraEditId&&!unidadeIds.includes(u.id)).forEach(u=>{u.obraId=null;});
 
-    if(oldEscola)oldEscola.obraId=null;
-
-    Object.assign(o,{marca,constr,nome,contratado,investimento_disponivel,tem_construtora,construtoras,modelo_contrato,aportado:totalAportado||o.aportado,ano_inauguracao,endereco_obra,esfera:o.esfera,fases_obra:ensureObraFases(o)});
+    Object.assign(o,{marca,constr,nome,contratado,investimento_disponivel,tem_construtora,construtoras,modelo_contrato,aportado:totalAportado||o.aportado,ano_inauguracao,endereco_obra,subtitulo_obra,unidades_obra:unidadesObra,esfera:o.esfera,fases_obra:ensureObraFases(o)});
 
     o.taxa.total=taxaTotal;if(_omInvAct==='sim')o.aportes=novosAportes;
 
-    escolaObj.obraId=obraEditId;
+    unidadeIds.forEach(uid=>{const u=unidades.find(x=>x.id===uid);if(u)u.obraId=obraEditId;});
 
   } else {
 
     const newId=nextObraId;
 
-    obras.push({id:nextObraId++,nome,marca,constr,tem_construtora,construtoras,modelo_contrato,status:'Planejamento',esfera,contratado,investimento_disponivel,aportado:totalAportado,pago:0,taxa:{total:taxaTotal,pago:0},aportes:novosAportes,contratos:[],pag:[],aditivos_contrato:[],fases_obra:buildDefaultObraFases(),ano_inauguracao,endereco_obra});
+    obras.push({id:nextObraId++,nome,marca,constr,tem_construtora,construtoras,modelo_contrato,status:'Planejamento',esfera,contratado,investimento_disponivel,aportado:totalAportado,pago:0,taxa:{total:taxaTotal,pago:0},aportes:novosAportes,contratos:[],pag:[],aditivos_contrato:[],fases_obra:buildDefaultObraFases(),ano_inauguracao,endereco_obra,subtitulo_obra,unidades_obra:unidadesObra});
 
-    escolaObj.obraId=newId;
+    unidadeIds.forEach(uid=>{const u=unidades.find(x=>x.id===uid);if(u)u.obraId=newId;});
 
   }
 
@@ -12580,6 +12730,7 @@ function anexarNF(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getE
 function populateEscolasSelect(preferredMarca){
 
   const sel=document.getElementById('ci-m-unidade');if(!sel)return;
+  const extra=document.getElementById('ci-m-unidades-extra');
 
   const byMarca={};
 
@@ -12602,10 +12753,44 @@ function populateEscolasSelect(preferredMarca){
 
   });
 
-  sel.innerHTML='<option value="">— Selecione a unidade —</option>'+
+  const grouped=marcas.map(m=>`<optgroup label="${m}">${byMarca[m].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(u=>`<option value="${u.nome}">${u.nome}</option>`).join('')}</optgroup>`).join('');
 
-    marcas.map(m=>`<optgroup label="${m}">${byMarca[m].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(u=>`<option value="${u.nome}">${u.nome}</option>`).join('')}</optgroup>`).join('');
+  sel.innerHTML='<option value="">— Selecione a unidade —</option>'+grouped;
 
+  if(extra)extra.innerHTML=grouped;
+
+  syncCapexExtraUnitOptions();
+
+}
+
+function capexItemUnits(it){
+  const out=[],seen=new Set();
+  const push=v=>{
+    const nome=String((typeof v==='string'?v:(v?.nome||v?.unidade||v?.name||v?.label))||'').trim();
+    const key=capexUnitKey(nome);
+    if(!key||seen.has(key))return;
+    seen.add(key);out.push(nome);
+  };
+  push(it?.unidade);
+  const arr=Array.isArray(it?.unidades_json)?it.unidades_json:(Array.isArray(it?.unidades)?it.unidades:[]);
+  arr.forEach(push);
+  return out;
+}
+
+function capexSelectedUnits(){
+  const main=document.getElementById('ci-m-unidade')?.value||'';
+  const extras=selectValues('ci-m-unidades-extra').filter(n=>n&&capexUnitKey(n)!==capexUnitKey(main));
+  return [...new Set([main,...extras].filter(Boolean))];
+}
+
+function syncCapexExtraUnitOptions(){
+  const main=document.getElementById('ci-m-unidade')?.value||'';
+  const extra=document.getElementById('ci-m-unidades-extra');
+  if(!extra)return;
+  Array.from(extra.options||[]).forEach(opt=>{
+    opt.disabled=!!main&&capexUnitKey(opt.value)===capexUnitKey(main);
+    if(opt.disabled)opt.selected=false;
+  });
 }
 
 
@@ -13648,7 +13833,7 @@ async function persist(obraId){
     const ts=obraId!=null?obras.filter(o=>o.id===obraId):obras;
     ts.forEach(sincronizaPagoObra);
 
-    if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:pagoObraOficial(o)||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,teto_escola:o.teto_escola||0,aditivos_contrato:o.aditivos_contrato||[],construtoras:o.construtoras||[],fases_obra:ensureObraFases(o)})));
+    if(ts.length)await db.from('obras').upsert(ts.map(o=>({id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',status:o.status||'Em andamento',contratado:o.contratado||0,aportado:o.aportado||0,pago:pagoObraOficial(o)||0,taxa_total:o.taxa.total||0,taxa_pago:o.taxa.pago||0,esfera:o.esfera||'nova',ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',subtitulo_obra:o.subtitulo_obra||'',unidades_obra:Array.isArray(o.unidades_obra)?o.unidades_obra:obraUnitRefs(o),tem_construtora:o.tem_construtora!==false,modelo_contrato:o.modelo_contrato||'GLOBAL',investimento_disponivel:o.investimento_disponivel||0,teto_escola:o.teto_escola||0,aditivos_contrato:o.aditivos_contrato||[],construtoras:o.construtoras||[],fases_obra:ensureObraFases(o)})));
 
     for(const o of ts){
 
@@ -13722,7 +13907,7 @@ async function loadFromDB(){
 
       contratado:+o.contratado||0,aportado:+o.aportado||0,pago:+o.pago||0,
 
-      ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',
+      ano_inauguracao:o.ano_inauguracao||null,endereco_obra:o.endereco_obra||'',subtitulo_obra:o.subtitulo_obra||'',unidades_obra:Array.isArray(o.unidades_obra)?o.unidades_obra:[],
 
       tem_construtora:o.tem_construtora!==false,
 
