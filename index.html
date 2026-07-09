@@ -3307,10 +3307,10 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div class="fgrid"><div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="ci-m-ano" onchange="updateCapexUnitHint();syncCapexResolvedState()"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option></select></div><div class="frow"><label class="fl">Fonte solicitante</label><select class="fi" id="ci-m-fonte"><option>UNIDADE</option><option>CMEF</option><option>MANUTENÇÃO</option><option>ARQUITETURA</option><option>TI</option><option>RH</option></select></div></div>
 
       <div class="fgrid">
-        <div class="frow"><label class="fl">Unidade principal / escola</label><select class="fi" id="ci-m-unidade" onchange="syncCapexExtraUnitOptions();syncCapexRateioOptions();updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
+        <div class="frow"><label class="fl">Unidade principal / escola <span style="font-weight:500;color:var(--muted)">(opcional no rateio)</span></label><select class="fi" id="ci-m-unidade" onchange="syncCapexExtraUnitOptions();syncCapexRateioOptions();updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
         <div class="frow"><label class="fl">Categoria CAPEX <button type="button" onclick="openCatModal(undefined,'capex')" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">+ Nova</button></label><select class="fi" id="ci-m-cat"><option value="capex_outros">A classificar / outros</option></select></div>
       </div>
-      <div class="frow">
+      <div class="frow" id="ci-m-extra-units-row">
         <label class="fl">Outras unidades envolvidas <span style="font-weight:500;color:var(--muted)">(opcional)</span></label>
         <select class="fi multi-unit-select" id="ci-m-unidades-extra" multiple size="5" onchange="updateCapexUnitHint()"></select>
         <p class="multi-unit-hint">Use quando o mesmo pedido de CAPEX impactar mais de uma unidade. A unidade principal continua sendo usada para saldo e dashboard, evitando duplicidade financeira.</p>
@@ -9398,6 +9398,29 @@ function updateCapexUnitHint(){
   const ctx=document.getElementById('ci-m-context');if(!ctx)return;
 
   const zeevHtml=capexZeevContextHtml();
+  const rateioOn=!!document.getElementById('ci-m-rateio-check')?.checked;
+  const rateioUnits=capexRateioSelectedUnits();
+
+  if(!unidade&&rateioOn){
+    const bc=brandColor('RAIZ EDUCAÇÃO');
+    const qtd=rateioUnits.length;
+    const title=qtd?`${qtd} unidade${qtd!==1?'s':''} no rateio`:'Rateio de CAPEX';
+    const detail=qtd?rateioUnits.join(', '):'Selecione as unidades que receberão o custo rateado';
+    ctx.innerHTML=`<div class="capex-context-logo" style="border-color:${bc}44">${brandLogoImg('RAIZ EDUCAÇÃO','height:28px;width:52px;object-fit:contain')}</div>
+      <div style="min-width:0">
+        <div class="capex-context-title">${escHtml(title)}</div>
+        <div class="capex-context-sub">CAPEX ${escHtml(ano)} · ${escHtml(detail)}</div>
+      </div>`;
+    ctx.style.display='flex';
+    if(zeevHtml){
+      ctx.classList.add('zeev');
+      ctx.style.display='block';
+      ctx.innerHTML=zeevHtml+'<div style="display:flex;align-items:center;gap:12px">'+ctx.innerHTML+'</div>';
+    }else{
+      ctx.classList.remove('zeev');
+    }
+    return;
+  }
 
   if(!unidade){
     if(zeevHtml){ctx.classList.add('zeev');ctx.style.display='block';ctx.innerHTML=zeevHtml;}
@@ -9418,8 +9441,7 @@ function updateCapexUnitHint(){
   const saldoTxt=budget.autorizado?`Saldo: ${fmt(budget.saldo)} de ${fmt(budget.autorizado)} disponibilizado`:'Sem CAPEX disponibilizado cadastrado';
   const extras=capexSelectedUnits().filter(u=>capexUnitKey(u)!==capexUnitKey(unidade));
   const extrasTxt=extras.length?` · +${extras.length} unidade${extras.length!==1?'s':''} envolvida${extras.length!==1?'s':''}`:'';
-  const rateioOn=!!document.getElementById('ci-m-rateio-check')?.checked;
-  const rateioCount=capexRateioSelectedUnits().length;
+  const rateioCount=rateioUnits.length;
   const rateioTxt=rateioOn?` · Rateio em ${rateioCount||0} unidade${rateioCount!==1?'s':''}`:'';
 
   ctx.innerHTML=`<div class="capex-context-logo" style="border-color:${bc}44">${brandLogoImg(marca,'height:28px;width:52px;object-fit:contain')}</div>
@@ -9605,7 +9627,8 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
   const rateioAtivo=!!document.getElementById('ci-m-rateio-check')?.checked;
   const rateioUnits=rateioAtivo?capexRateioSelectedUnits():[];
 
-  if(!unidade||!pedido){toast('Preencha unidade e pedido.');return;}
+  if(!pedido){toast('Preencha o pedido.');return;}
+  if(!rateioAtivo&&!unidade){toast('Selecione a unidade ou ative o rateio entre unidades.');return;}
 
   const regU=findCapexUnit(unidade);
 
@@ -12989,8 +13012,10 @@ function syncCapexRateioOptions(){
 function toggleCapexRateio(){
   const check=document.getElementById('ci-m-rateio-check');
   const row=document.getElementById('ci-m-rateio-row');
+  const extraRow=document.getElementById('ci-m-extra-units-row');
   if(!check||!row)return;
   row.style.display=check.checked?'block':'none';
+  if(extraRow)extraRow.style.display=check.checked?'none':'block';
   if(check.checked){
     const current=capexRateioSelectedUnits();
     if(!current.length)setCapexRateioSelectedUnits(capexSelectedUnits());
