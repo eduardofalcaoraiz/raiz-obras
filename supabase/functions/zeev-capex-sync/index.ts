@@ -2172,7 +2172,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   const includePending = input.includePending !== false
   const includePayments = input.includePayments !== false
   const includeCapex = input.includeCapex !== false
-  const out: AnyRecord = { ok: true, mode: 'backfill-docs', scannedPending: 0, scannedPayments: 0, scannedCapex: 0, updatedPending: 0, updatedPayments: 0, updatedCapex: 0, filesAttached: 0, paidUpdated: 0, errors: [] }
+  const out: AnyRecord = { ok: true, mode: 'backfill-docs', targetTicketIds, scannedPending: 0, scannedPayments: 0, scannedCapex: 0, updatedPending: 0, updatedPayments: 0, updatedCapex: 0, filesAttached: 0, paidUpdated: 0, errors: [] }
   let budget = limit
 
   if (includePending && budget > 0) {
@@ -2201,7 +2201,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         out.errors.push({ target: 'pending', id: row.id, tr: row.zeev_instance_id, error: error instanceof Error ? error.message : String(error) })
       }
     }
-    budget -= candidates.length
+    if (!targetSet.size) budget -= candidates.length
   }
 
   if (includePayments && budget > 0) {
@@ -2236,7 +2236,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         out.errors.push({ target: 'payment', id: row.id, tr: row.ticket_raiz, error: error instanceof Error ? error.message : String(error) })
       }
     }
-    budget -= candidates.length
+    if (!targetSet.size) budget -= candidates.length
   }
 
   if (includeCapex && budget > 0) {
