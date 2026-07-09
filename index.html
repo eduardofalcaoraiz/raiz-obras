@@ -5611,6 +5611,7 @@ let capexListStatus='Todos';
 let capexTrSearchQuery='';
 let capexZeevSearchQuery='';
 let capexZeevTypeFilter='todos';
+let capexZeevReturnState=null;
 let capexCardDescriptionOpen=new Set();
 let capexAutoFinalizeSyncing={};
 
@@ -6077,6 +6078,52 @@ function capexZeevSearchMatches(z,query){
   if(!terms.length)return true;
   const hay=capexZeevSearchHaystack(z);
   return terms.every(term=>hay.includes(term));
+}
+
+function capexZeevScrollEl(){
+  return document.querySelector('.main')||document.scrollingElement||document.documentElement;
+}
+
+function capexZeevVisualTop(el,scroller){
+  if(!el)return null;
+  const er=el.getBoundingClientRect();
+  const sr=scroller&&scroller.getBoundingClientRect?scroller.getBoundingClientRect():{top:0};
+  return er.top-sr.top;
+}
+
+function capexCaptureZeevReturnState(id){
+  const scroller=capexZeevScrollEl();
+  const cards=Array.from(document.querySelectorAll('#capex-zeev-results [data-zeev-card-id]'));
+  const idx=cards.findIndex(el=>String(el.dataset.zeevCardId)===String(id));
+  const current=idx>=0?cards[idx]:null;
+  const anchor=idx>=0?(cards[idx+1]||cards[idx-1]||current):null;
+  capexZeevReturnState={
+    query:capexZeevSearchQuery,
+    typeFilter:capexZeevTypeFilter,
+    scrollTop:scroller?.scrollTop||0,
+    anchorId:anchor?.dataset?.zeevCardId||'',
+    anchorTop:anchor?capexZeevVisualTop(anchor,scroller):null
+  };
+}
+
+function capexRestoreZeevReturnState(){
+  const state=capexZeevReturnState;
+  capexZeevReturnState=null;
+  if(!state)return;
+  capexZeevSearchQuery=state.query||'';
+  capexZeevTypeFilter=state.typeFilter||'todos';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const scroller=capexZeevScrollEl();
+    if(!scroller)return;
+    const cards=Array.from(document.querySelectorAll('#capex-zeev-results [data-zeev-card-id]'));
+    const anchor=state.anchorId?cards.find(el=>String(el.dataset.zeevCardId)===String(state.anchorId)):null;
+    if(anchor&&Number.isFinite(state.anchorTop)){
+      const now=capexZeevVisualTop(anchor,scroller);
+      if(Number.isFinite(now))scroller.scrollTop+=(now-state.anchorTop);
+    }else if(Number.isFinite(state.scrollTop)){
+      scroller.scrollTop=state.scrollTop;
+    }
+  }));
 }
 
 function capexZeevType(z){
@@ -6840,7 +6887,7 @@ function renderCapexZeevCards(pend){
       {label:'Etapa atual',value:capexZeevStageLabel(z)},
       {label:'Status no Zeev',value:capexZeevTicketStatus(z)}
     ].map(f=>`<div class="capex-detail-field"><b>${escHtml(f.label)}</b><span title="${escHtml(f.value)}">${escHtml(f.value)}</span></div>`).join('');
-    return`<details class="capex-expander-card capex-zeev-card ${z.pronto_valor_final?'ready':''}">
+    return`<details class="capex-expander-card capex-zeev-card ${z.pronto_valor_final?'ready':''}" data-zeev-card-id="${id}">
       <summary>
         <div class="capex-expander-summary">
           <div class="capex-summary-id">
@@ -7070,10 +7117,15 @@ function renderRegistrosPendentes(){
 }
 
 function renderCapexZeevCurrentView(){
+  if(capexZeevReturnState){
+    capexZeevSearchQuery=capexZeevReturnState.query||'';
+    capexZeevTypeFilter=capexZeevReturnState.typeFilter||'todos';
+  }
   const active=document.querySelector('.view.active')?.id;
   if(active==='view-registros')renderRegistrosPendentes();
   else if(curEsfera==='capex')renderCapexView();
   else updateNavBadge();
+  capexRestoreZeevReturnState();
 }
 
 async function syncZeevCapexNow(){
@@ -7107,6 +7159,7 @@ function openCapexZeevApproval(id){
   const z=capexZeevSolicitacoes.find(x=>+x.id===+id);
   if(!z){toast('Ticket Raiz nao encontrado.');return;}
   if(z.status!=='pendente'||z.capex_item_id){toast('Este Ticket Raiz ja foi tratado.');return;}
+  capexCaptureZeevReturnState(id);
   capexEditId=null;
   capexZeevApproveId=+id;
   const ano=z.start_date_time?(new Date(z.start_date_time).getFullYear()):(capexDrillYear||new Date().getFullYear());
@@ -7138,6 +7191,7 @@ async function ignoreCapexZeev(id){
   const z=capexZeevSolicitacoes.find(x=>+x.id===+id);
   if(!z)return;
   askConfirm('Marcar o Ticket Raiz #'+(z.zeev_instance_id||id)+' como NÃO É CAPEX?',async()=>{
+    capexCaptureZeevReturnState(id);
     const payload={status:'ignorado',ignorado_por:currentUser?.email||'',ignorado_em:new Date().toISOString()};
     const{error}=await db.from('capex_zeev_solicitacoes').update(payload).eq('id',id).eq('status','pendente');
     if(error){toast('Erro ao marcar como NÃO É CAPEX: '+error.message);return;}
@@ -9310,7 +9364,7 @@ function openCapexItemModal(id){
 
 
 
-function closeCapexItemModal(){document.getElementById('capex-item-overlay').classList.remove('show');capexEditId=null;capexZeevApproveId=null;}
+function closeCapexItemModal(preserveReturnState){document.getElementById('capex-item-overlay').classList.remove('show');capexEditId=null;capexZeevApproveId=null;if(!preserveReturnState)capexZeevReturnState=null;}
 
 
 
@@ -9406,7 +9460,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
 
   }
 
-  closeCapexItemModal();
+  closeCapexItemModal(true);
 
   renderCapexZeevCurrentView();
 
