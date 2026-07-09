@@ -1226,6 +1226,13 @@ function parseFlowIds(value: unknown) {
     .filter(Boolean)
 }
 
+function parseTicketIdList(value: unknown) {
+  return [...new Set(String(value || '')
+    .split(/[,\s;]+/)
+    .map((v) => Number(String(v).replace(/\D/g, '')))
+    .filter(Boolean))]
+}
+
 function uniqueNumbers(values: unknown[]) {
   const out: number[] = []
   const seen = new Set<number>()
@@ -2032,10 +2039,62 @@ async function refreshTicketFromZeev(row: AnyRecord) {
       await upsertTickets([built])
       return built
     }
+    return genericZeevTicket(enriched, row)
   } catch (error) {
     console.warn('refreshTicketFromZeev:', error instanceof Error ? error.message : String(error))
   }
   return row
+}
+
+async function loadGenericTicketFromZeev(row: AnyRecord) {
+  const id = Number(row?.zeev_instance_id || row?.ticket_raiz || row?.ticket_raiz_instance_id || row?.referencia || row?.id || 0)
+  if (!id) return row
+  let base: AnyRecord = row?.raw_instance && typeof row.raw_instance === 'object' ? { ...row.raw_instance } : {}
+  try {
+    const detail = await zeevInstance(id, Number(row?.flow_id || row?.flowId || 0) || 0, [])
+    base = { ...base, ...(detail || {}) }
+  } catch (error) {
+    console.warn('loadGenericTicketFromZeev:', error instanceof Error ? error.message : String(error))
+  }
+  base.id = base.id || id
+  base.flow = base.flow || { id: row.flow_id || row.flowId || null, name: row.flow_name || row.flowName || row.request_name || '', version: row.flow_version || row.flowVersion || null }
+  base.flowId = base.flowId || row.flow_id || row.flowId || base.flow?.id || null
+  base.flowName = base.flowName || row.flow_name || row.flowName || base.flow?.name || ''
+  base.requestName = base.requestName || row.request_name || row.requestName || ''
+  base.formFields = Array.isArray(base.formFields) ? base.formFields : Array.isArray(row.raw_fields) ? row.raw_fields : Array.isArray(row.rawFields) ? row.rawFields : []
+  base.instanceTasks = Array.isArray(base.instanceTasks) ? base.instanceTasks : Array.isArray(row.raw_tasks) ? row.raw_tasks : Array.isArray(row.rawTasks) ? row.rawTasks : []
+  const enriched = await enrichRow(base)
+  const built = await buildTicket(enriched)
+  if (built) {
+    await upsertTickets([built])
+    return built
+  }
+  return genericZeevTicket(enriched, row)
+}
+
+function genericZeevTicket(enriched: AnyRecord, fallback: AnyRecord = {}) {
+  const fields = Array.isArray(enriched?.formFields) ? enriched.formFields : Array.isArray(fallback?.raw_fields) ? fallback.raw_fields : []
+  const tasks = Array.isArray(enriched?.instanceTasks) ? enriched.instanceTasks : Array.isArray(fallback?.raw_tasks) ? fallback.raw_tasks : []
+  const fmap = fieldMap(fields)
+  const financeiro = isFinanceiro(enriched)
+  const compra = isCompra(enriched)
+  const itens = extractItems(fields)
+  const pagamento = extractPagamento(fmap)
+  const valor = pickTicketValue(fmap, itens, financeiro)
+  return {
+    zeev_instance_id: Number(enriched?.id || fallback?.zeev_instance_id || fallback?.ticket_raiz || fallback?.ticket_raiz_instance_id || 0) || null,
+    flow_id: flowId(enriched) || fallback.flow_id || null,
+    flow_name: flowName(enriched) || fallback.flow_name || '',
+    flow_version: flowVersion(enriched) || fallback.flow_version || null,
+    request_name: enriched?.requestName || fallback.request_name || null,
+    ticket_link: enriched?.reportLink || fallback.ticket_link || fallback.ticket_raiz_url || null,
+    raw_fields: fields,
+    raw_instance: enriched || fallback,
+    raw_tasks: tasks,
+    itens_json: itens,
+    pagamento_json: { ...pagamento, valor_total: valor || null },
+    campos_extraidos: fieldsObject(fields),
+  }
 }
 
 function ticketFromCapexDados(row: AnyRecord) {
@@ -2108,6 +2167,8 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || 3), 8))
   const refresh = input.refresh !== false
   const staleHours = Math.max(1, Math.min(Number(input.staleHours || 8), 168))
+  const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+  const targetSet = new Set(targetTicketIds.map((id) => String(id)))
   const includePending = input.includePending !== false
   const includePayments = input.includePayments !== false
   const includeCapex = input.includeCapex !== false
@@ -2116,9 +2177,10 @@ async function runBackfillDocs(input: AnyRecord = {}) {
 
   if (includePending && budget > 0) {
     const pendingSelect = 'id,zeev_instance_id,flow_id,flow_name,flow_version,request_name,ticket_link,raw_fields,raw_instance,raw_tasks,itens_json,pagamento_json,campos_extraidos,docs_json,zeev_docs_checked_at,status,start_date_time'
-    const rows = await rest(`/capex_zeev_solicitacoes?select=${pendingSelect}&status=eq.pendente&order=start_date_time.desc&limit=${Math.max(30, limit * 12)}`)
+    const pendingFilter = targetTicketIds.length ? `&zeev_instance_id=in.(${targetTicketIds.join(',')})` : '&status=eq.pendente'
+    const rows = await rest(`/capex_zeev_solicitacoes?select=${pendingSelect}${pendingFilter}&order=start_date_time.desc&limit=${Math.max(30, limit * 12)}`)
     const candidates = (rows || [])
-      .filter((row: AnyRecord) => Number(row.zeev_instance_id) && docsCheckIsStale(row, staleHours))
+      .filter((row: AnyRecord) => Number(row.zeev_instance_id) && (!targetSet.size || targetSet.has(String(Number(row.zeev_instance_id)))) && (targetSet.size || docsCheckIsStale(row, staleHours)))
       .sort((a: AnyRecord, b: AnyRecord) => docsCandidateScore(a) - docsCandidateScore(b))
       .slice(0, budget)
     out.scannedPending = candidates.length
@@ -2143,9 +2205,10 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   }
 
   if (includePayments && budget > 0) {
-    const rows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&ticket_raiz=not.is.null&order=id.asc&limit=${Math.max(40, limit * 12)}`)
+    const paymentFilter = targetTicketIds.length ? `ticket_raiz=in.(${targetTicketIds.join(',')})` : 'ticket_raiz=not.is.null'
+    const rows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&${paymentFilter}&order=id.asc&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
-      .filter((row: AnyRecord) => ticketDigits(row.ticket_raiz) && docsCheckIsStale(row, staleHours))
+      .filter((row: AnyRecord) => ticketDigits(row.ticket_raiz) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz))) && (targetSet.size || docsCheckIsStale(row, staleHours)))
       .sort((a: AnyRecord, b: AnyRecord) => docsCandidateScore(a) - docsCandidateScore(b) || Number(a.id) - Number(b.id))
       .slice(0, budget)
     out.scannedPayments = candidates.length
@@ -2153,8 +2216,8 @@ async function runBackfillDocs(input: AnyRecord = {}) {
     for (const row of candidates) {
       try {
         const ticketId = Number(ticketDigits(row.ticket_raiz))
-        let ticket = ticketMap.get(ticketId) || { zeev_instance_id: ticketId }
-        if (refresh) ticket = await refreshTicketFromZeev(ticket)
+        let ticket = ticketMap.get(ticketId) || { zeev_instance_id: ticketId, ticket_raiz: ticketId }
+        if (refresh) ticket = await loadGenericTicketFromZeev(ticket)
         const attach = await attachDocsForTarget('payment', row, ticket, fileLimit)
         const paidDate = paymentDateFromTicket(ticket)
         const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
@@ -2177,9 +2240,10 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   }
 
   if (includeCapex && budget > 0) {
-    const rows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at&order=id.asc&limit=${Math.max(40, limit * 12)}`)
+    const capexFilter = targetTicketIds.length ? `&or=(ticket_raiz_instance_id.in.(${targetTicketIds.join(',')}),referencia.in.(${targetTicketIds.join(',')}))` : ''
+    const rows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at${capexFilter}&order=id.asc&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
-      .filter((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz_instance_id || row.referencia)) && docsCheckIsStale(row, staleHours))
+      .filter((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz_instance_id || row.referencia)) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz_instance_id || row.referencia))) && (targetSet.size || docsCheckIsStale(row, staleHours)))
       .sort((a: AnyRecord, b: AnyRecord) => docsCandidateScore(a) - docsCandidateScore(b) || Number(a.id) - Number(b.id))
       .slice(0, budget)
     out.scannedCapex = candidates.length
@@ -2188,7 +2252,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
       try {
         const ticketId = Number(ticketDigits(row.ticket_raiz_instance_id || row.referencia))
         let ticket = ticketMap.get(ticketId) || ticketFromCapexDados(row)
-        if (refresh) ticket = await refreshTicketFromZeev(ticket)
+        if (refresh) ticket = await loadGenericTicketFromZeev(ticket)
         const attach = await attachDocsForTarget('capex', row, ticket, fileLimit)
         const paidDate = paymentDateFromTicket(ticket)
         const patch: AnyRecord = { ticket_raiz_dados: ticketDataPatch(ticket, row.ticket_raiz_dados || {}), zeev_docs_checked_at: new Date().toISOString() }
