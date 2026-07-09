@@ -1274,6 +1274,9 @@ def backfill_docs():
         "includePayments": os.environ.get("ZEEV_BACKFILL_PAYMENTS", "true").lower() != "false",
         "includeCapex": os.environ.get("ZEEV_BACKFILL_CAPEX", "true").lower() != "false",
     }
+    ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
+    if ticket_ids:
+        shared["ticketIds"] = ticket_ids
     out = {
         "ok": True,
         "mode": "backfill-docs",
