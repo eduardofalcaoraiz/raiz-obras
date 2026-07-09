@@ -40,7 +40,11 @@ on:
       backfill_limit:
         description: "Quantidade de registros para reparar anexos/status em backfill-docs"
         required: false
-        default: "30"
+        default: "20"
+      backfill_batch:
+        description: "Tamanho dos micro-lotes do backfill-docs"
+        required: false
+        default: "2"
       backfill_stale_hours:
         description: "Horas antes de rechecagem de anexos/status no Zeev"
         required: false
@@ -82,9 +86,10 @@ jobs:
           ZEEV_TICKET_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.ticket_ids || '' }}
           ZEEV_EXTRA_TICKET_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.extra_ticket_ids || '' }}
           ZEEV_AI_SUMMARY_ENABLED: "1"
-          ZEEV_BACKFILL_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '30' }}
+          ZEEV_BACKFILL_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '20' }}
+          ZEEV_BACKFILL_BATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '2' }}
           ZEEV_BACKFILL_STALE_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '8' }}
-          ZEEV_BACKFILL_FILE_LIMIT: "8"
+          ZEEV_BACKFILL_FILE_LIMIT: "3"
           ZEEV_SUMMARY_ALLOW_GEMINI_GROQ: "0"
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
