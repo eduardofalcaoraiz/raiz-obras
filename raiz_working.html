@@ -6043,6 +6043,42 @@ function capexZeevSearchDigits(v){
   return String(v||'').replace(/\D+/g,'');
 }
 
+function capexZeevHasSearch(){
+  return String(capexZeevSearchQuery||'').trim().length>0;
+}
+
+function capexZeevSearchHaystack(z){
+  return capexNormText([
+    z?.zeev_instance_id,
+    z?.id,
+    z?.request_name,
+    z?.flow_name,
+    z?.requester_name,
+    z?.requester_team,
+    z?.status,
+    z?.setor,
+    z?.pedido,
+    z?.valor,
+    z?.valor_final,
+    capexZeevTypeLabel(capexZeevType(z)),
+    capexZeevTicketStatus(z),
+    capexZeevFornecedor(z),
+    capexZeevDescricaoLancamento(z),
+    capexZeevFieldText(z)
+  ].filter(Boolean).join(' '));
+}
+
+function capexZeevSearchMatches(z,query){
+  const raw=String(query||'').trim();
+  if(!raw)return true;
+  const digits=capexZeevSearchDigits(raw);
+  if(digits&&capexZeevSearchDigits(z?.zeev_instance_id||z?.id).includes(digits))return true;
+  const terms=capexNormText(raw).split(' ').filter(Boolean);
+  if(!terms.length)return true;
+  const hay=capexZeevSearchHaystack(z);
+  return terms.every(term=>hay.includes(term));
+}
+
 function capexZeevType(z){
   if(capexZeevIsCompra(z))return'compras';
   const txt=String(z.flow_name||z.request_name||'').toLowerCase();
@@ -6069,18 +6105,17 @@ function capexZeevFilteredPendingList(list){
   if(capexZeevTypeFilter&&capexZeevTypeFilter!=='todos'){
     pend=pend.filter(z=>capexZeevType(z)===capexZeevTypeFilter);
   }
-  const q=capexZeevSearchDigits(capexZeevSearchQuery);
-  if(!q)return pend;
-  return pend.filter(z=>capexZeevSearchDigits(z.zeev_instance_id||z.id).includes(q));
+  if(!capexZeevHasSearch())return pend;
+  return pend.filter(z=>capexZeevSearchMatches(z,capexZeevSearchQuery));
 }
 
 function capexZeevCountText(visible,total){
-  if(capexZeevSearchDigits(capexZeevSearchQuery)||capexZeevTypeFilter!=='todos')return `${visible} de ${total} pendente${total!==1?'s':''}`;
+  if(capexZeevHasSearch()||capexZeevTypeFilter!=='todos')return `${visible} de ${total} pendente${total!==1?'s':''}`;
   return `${total} pendente${total!==1?'s':''}`;
 }
 
 function setCapexZeevSearch(v){
-  capexZeevSearchQuery=capexZeevSearchDigits(v).slice(0,40);
+  capexZeevSearchQuery=String(v||'').slice(0,120);
   const input=document.getElementById('capex-zeev-ticket-search');
   if(input&&input.value!==capexZeevSearchQuery)input.value=capexZeevSearchQuery;
   renderCapexZeevResults();
@@ -6635,7 +6670,7 @@ function capexCardDescriptionHtml(key,text,limit){
 function toggleCapexCardDescription(key){
   if(capexCardDescriptionOpen.has(key))capexCardDescriptionOpen.delete(key);
   else capexCardDescriptionOpen.add(key);
-  renderCapexView();
+  renderCapexZeevCurrentView();
   if(document.getElementById('capex-notcapex-overlay')?.classList.contains('show'))renderCapexNotCapexModal();
 }
 
@@ -6927,7 +6962,7 @@ function closeCapexNotCapexModal(){
 function capexZeevResultsHtml(pend,total){
   const cards=renderCapexZeevCards(pend);
   if(pend.length)return`<div class="capex-zeev-list">${cards}</div>`;
-  if(capexZeevSearchDigits(capexZeevSearchQuery)||capexZeevTypeFilter!=='todos'){
+  if(capexZeevHasSearch()||capexZeevTypeFilter!=='todos'){
     const tipo=capexZeevTypeFilter!=='todos'?` em ${capexZeevTypeLabel(capexZeevTypeFilter).toLowerCase()}`:'';
     return`<div class="capex-zeev-empty">Nenhum Ticket Raiz pendente encontrado${tipo} para os filtros atuais. Existem ${total} pendente${total!==1?'s':''} na fila.</div>`;
   }
@@ -6985,7 +7020,7 @@ function renderCapexZeevResults(){
   const count=document.getElementById('capex-zeev-visible-count');
   if(count)count.textContent=capexZeevCountText(pend.length,allPend.length);
   const clear=document.getElementById('capex-zeev-clear');
-  if(clear)clear.style.display=capexZeevSearchDigits(capexZeevSearchQuery)?'':'none';
+  if(clear)clear.style.display=capexZeevHasSearch()?'':'none';
   document.querySelectorAll('[data-zeev-type-filter]').forEach(btn=>{
     btn.classList.toggle('active',btn.getAttribute('data-zeev-type-filter')===capexZeevTypeFilter);
   });
@@ -7013,10 +7048,10 @@ function renderCapexZeevQueue(){
     ${renderCapexZeevSyncStatus()}
     <div class="capex-zeev-tools">
       <div class="capex-zeev-search">
-        <label for="capex-zeev-ticket-search">Buscar pelo numero do ticket</label>
+        <label for="capex-zeev-ticket-search">Buscar por TR ou texto</label>
         <div class="capex-zeev-search-row">
-          <input id="capex-zeev-ticket-search" value="${escHtml(capexZeevSearchQuery)}" placeholder="Digite o numero do Ticket Raiz" inputmode="numeric" autocomplete="off" oninput="setCapexZeevSearch(this.value)" onkeydown="capexZeevSearchKey(event)">
-          <button class="btn btn-ghost btn-sm" id="capex-zeev-clear" style="${capexZeevSearchDigits(capexZeevSearchQuery)?'':'display:none'}" onclick="setCapexZeevSearch('')">Limpar</button>
+          <input id="capex-zeev-ticket-search" type="search" value="${escHtml(capexZeevSearchQuery)}" placeholder="TR, unidade, fornecedor, pedido, solicitante..." autocomplete="off" oninput="setCapexZeevSearch(this.value)" onkeydown="capexZeevSearchKey(event)">
+          <button class="btn btn-ghost btn-sm" id="capex-zeev-clear" style="${capexZeevHasSearch()?'':'display:none'}" onclick="setCapexZeevSearch('')">Limpar</button>
         </div>
       </div>
       ${renderCapexZeevTypeFilters(allPend)}
