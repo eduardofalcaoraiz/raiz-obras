@@ -168,11 +168,19 @@ ITEM_QTY_FIELDS = ["quantidade", "quantidade solicitada", "quantidadeSolicitada"
 ITEM_UNIT_MEASURE_FIELDS = ["unidadeMedida", "unidade medida", "unidade", "un"]
 
 DOCUMENT_FIELDS = [
-    "anexo", "anexos", "arquivo", "arquivos", "arquivoNF", "arquivo NF",
-    "notaFiscal", "nota fiscal", "notaFiscalArquivo", "arquivoNotaFiscal",
-    "documento", "documentoFiscal", "documento fiscal", "danfe", "xml", "pdf",
-    "comprovante", "comprovantePagamento", "comprovante pagamento",
-    "boleto", "pix", "recibo", "fatura",
+    "anexo", "anexos", "arquivo", "arquivos", "Arquivo", "Arquivos",
+    "arquivoNF", "arquivo NF", "arquivoNf", "arquivoNFS", "arquivoNFSe", "arquivoNFe",
+    "notaFiscal", "NotaFiscal", "nota fiscal", "notaFiscalArquivo", "notaFiscalServico",
+    "notaFiscalServicos", "notaFiscalDeServico", "notaFiscalDeServicos", "notaFiscalPagamento",
+    "notaFiscalAnexo", "arquivoNotaFiscal", "anexoNotaFiscal", "anexoNF", "anexoNf",
+    "anexoNFS", "anexoNFSe", "nF", "nf", "nfs", "nfse", "nfe", "nfsE",
+    "documento", "Documento", "documentos", "Documentos", "documentoFiscal",
+    "DocumentoFiscal", "documento fiscal", "documentoNF", "documentoNf", "documentoNFS",
+    "documentoNFSe", "documentoNFe", "documentoNotaFiscal", "documentoPagamento",
+    "arquivoDocumento", "anexoDocumento", "danfe", "DANFE", "xml", "XML", "pdf", "PDF",
+    "comprovante", "Comprovante", "comprovantePagamento", "comprovante pagamento",
+    "comprovanteAnexo", "arquivoComprovante", "documentoComprovante",
+    "boleto", "Boleto", "pix", "Pix", "recibo", "Recibo", "fatura", "Fatura",
 ]
 
 PURCHASE_FIELDS = [
@@ -251,6 +259,10 @@ def unique_fields(*groups):
                 seen.add(key)
                 out.append(name)
     return out
+
+
+def env_list(value):
+    return [x.strip() for x in re.split(r"[\n,;|]+", str(value or "")) if x.strip()]
 
 
 def parse_money(value):
@@ -520,6 +532,7 @@ def enrich_instance(row):
     fields = unique_fields(
         capex_fields(flow_id),
         FINANCE_FIELDS if financeiro else PURCHASE_FIELDS,
+        env_list(os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "")),
         VALUE_TOTAL_FIELDS,
         ITEM_DESC_FIELDS,
         ITEM_QTY_FIELDS,
