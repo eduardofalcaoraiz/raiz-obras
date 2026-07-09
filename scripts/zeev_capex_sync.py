@@ -1341,6 +1341,11 @@ def backfill_docs():
             out[key] += int(result.get(key, 0) or 0)
         if result.get("errors"):
             out["errors"].extend(result.get("errors")[:10])
+        if result.get("debugDocs"):
+            out.setdefault("debugDocs", [])
+            out["debugDocs"].extend(result.get("debugDocs")[:12])
+            if len(out["debugDocs"]) > 24:
+                out["debugDocs"] = out["debugDocs"][:24]
         out["batches"].append({
             "limit": payload["limit"],
             "fileLimit": file_limit,
