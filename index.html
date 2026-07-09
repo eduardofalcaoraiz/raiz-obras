@@ -9148,19 +9148,20 @@ function renderCapexRegisteredCard(it){
   const ref=String(it.referencia||it.ticket_raiz_instance_id||'').trim();
   const refLabel=ref?`TR ${escHtml(ref)}`:'Sem referência';
   const fonteSetor=[it.fonte,it.setor].filter(Boolean).join(' / ')||'Sem fonte';
+  const rateioInfo=capexRateioInfoFromItem(it);
   const unidade=it.unidade||capexDrillUnidade||'Unidade não informada';
   const unidadesLista=capexItemUnits(it);
-  const unidadesLabel=unidadesLista.length>1?`${unidade} + ${unidadesLista.length-1} unidade${unidadesLista.length-1!==1?'s':''}`:unidade;
-  const unidadesFull=unidadesLista.length?unidadesLista.join(' · '):unidade;
-  const rateioInfo=capexRateioInfoFromItem(it);
-  const rateioLabel=rateioInfo?`Parcela ${rateioInfo.indice||'?'} de ${rateioInfo.total_partes||rateioInfo.unidades?.length||'?'} · total ${fmt(+rateioInfo.total||0)}`:'';
+  const unidadesLabel=rateioInfo?unidade:(unidadesLista.length>1?`${unidade} + ${unidadesLista.length-1} unidade${unidadesLista.length-1!==1?'s':''}`:unidade);
+  const unidadesFull=rateioInfo?unidade:(unidadesLista.length?unidadesLista.join(' · '):unidade);
+  const rateioGrupo=rateioInfo?.unidades?.length?` · grupo: ${rateioInfo.unidades.join(' / ')}`:'';
+  const rateioLabel=rateioInfo?`Parcela ${rateioInfo.indice||'?'} de ${rateioInfo.total_partes||rateioInfo.unidades?.length||'?'} · total ${fmt(+rateioInfo.total||0)}${rateioGrupo}`:'';
   const statusTitle=autoFinalizado?'Pedidos de 2024 ficam resolvidos por exceção':'Alterar status';
   const ticketLink=it.ticket_raiz_url?`<a href="${escHtml(it.ticket_raiz_url)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Abrir Ticket Raiz</a>`:'';
   const compraLink=capexCompraLinkFromItem(it);
   const compraTr=capexZeevSearchDigits(compraLink?.tr||compraLink?.zeev_id||'');
   const respLabel=compraTr?`${fonteSetor} / Compra TR ${compraTr}${compraLink?.encontrado===false?' - conferir':''}`:fonteSetor;
   const details=[
-    {label:'Unidades envolvidas',value:unidadesFull},
+    {label:rateioInfo?'Unidade desta parcela':'Unidades envolvidas',value:unidadesFull},
     ...(rateioInfo?[{label:'Rateio',value:rateioLabel}]:[]),
     {label:'Ano',value:String(it.ano||capexDrillYear||'')},
     {label:'Fonte',value:it.fonte||'Não informada'},
@@ -9654,7 +9655,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
   const obraVinculada=obraCheck?capexObraLinkPayload(obraId,obraEscopo,capexObraLinkFromDados(antigoDados)):null;
   const ticketDadosBase=zeevRow?{campos:zeevRow.campos_extraidos||{},itens:zeevRow.itens_json||[],pagamento:zeevRow.pagamento_json||{},rawFields:zeevRow.raw_fields||[]}:antigoDados;
   const ticketDados=(zeevRow||Object.keys(ticketDadosBase).length||compraCheck||obraCheck)?{...ticketDadosBase,compraVinculada,obraVinculada}:null;
-  const unidadesObj=existingRateioInfo?.unidades?.length?existingRateioInfo.unidades:unidadesJson;
+  const unidadesObj=existingRateioInfo?(unidade?[unidade]:[]):unidadesJson;
   const obj={ano,fonte,unidade,unidades_json:unidadesObj,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||'',ticket_raiz_url:zeevRow?.ticket_link||antigo?.ticket_raiz_url||'',ticket_raiz_instance_id:zeevRow?.zeev_instance_id||antigo?.ticket_raiz_instance_id||null,origem:zeevRow?'ZEEV':(antigo?.origem||''),ticket_raiz_dados:ticketDados};
   const paymentSource=zeevRow||((antigo||obj.ticket_raiz_instance_id||obj.referencia)?{
     zeev_instance_id:obj.ticket_raiz_instance_id||capexZeevSearchDigits(obj.referencia),
@@ -9671,7 +9672,8 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
     setor:obj.setor
   }:null);
 
-  if(!options.skipDuplicateTr&&!rateioAtivo){
+  const shouldCheckDuplicateTr=!options.skipDuplicateTr&&!(wasEdit&&existingRateioInfo);
+  if(shouldCheckDuplicateTr){
     const duplicados=await capexTrDuplicateMatchesLive(referencia,editId);
     if(duplicados.length){
       showCapexDuplicateTrWarning(referencia,duplicados);
@@ -9687,7 +9689,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
 
     const idx=capexItens.findIndex(i=>i.id===editId);
 
-    if(idx>=0)capexItens[idx]={...capexItens[idx],...obj};
+    if(idx>=0)capexItens[idx]=normalizeCapexRateioItem({...capexItens[idx],...obj});
     if(obraVinculada&&paymentSource)await capexEnsureObraPaymentForTicket(obraVinculada,paymentSource);
 
   }else{
@@ -9714,7 +9716,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
         return{
           ...obj,
           unidade:unit,
-          unidades_json:rateioUnits,
+          unidades_json:[unit],
           marca:reg?reg.marca:computeCapexMarca(unit),
           orcamento:valoresRateio[idx],
           ticket_raiz_dados:{...baseDados,rateio}
@@ -9722,7 +9724,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
       });
       const{data,error}=await db.from('capex_itens').insert(rows.map(r=>({...r,aprovado:true}))).select();
       if(error){toast('Erro ao criar rateio: '+error.message);return;}
-      capexItens.unshift(...(data||[]));
+      capexItens.unshift(...(data||[]).map(normalizeCapexRateioItem));
       if(zeevRow){
         const first=data?.[0]||{};
         const upd={status:'aprovado',capex_item_id:first.id,aprovado_por:currentUser?.email||'',aprovado_em:new Date().toISOString()};
@@ -9741,7 +9743,7 @@ async function saveCapexItem(options){if(['leitor','doc'].includes(currentProfil
 
     if(error){toast('Erro ao criar pedido: '+error.message);return;}
 
-    capexItens.unshift(data);
+    capexItens.unshift(normalizeCapexRateioItem(data));
 
     if(zeevRow){
       const upd={status:'aprovado',capex_item_id:data.id,aprovado_por:currentUser?.email||'',aprovado_em:new Date().toISOString()};
@@ -12968,9 +12970,22 @@ function capexItemUnits(it){
     seen.add(key);out.push(nome);
   };
   push(it?.unidade);
+  const dados=capexTicketDadosObj(it?.ticket_raiz_dados);
+  const rateio=dados.rateio||dados.rateio_capex||null;
+  if(rateio&&typeof rateio==='object'&&rateio.ativo)return out;
   const arr=Array.isArray(it?.unidades_json)?it.unidades_json:(Array.isArray(it?.unidades)?it.unidades:[]);
   arr.forEach(push);
   return out;
+}
+
+function normalizeCapexRateioItem(it){
+  if(!it)return it;
+  const dados=capexTicketDadosObj(it.ticket_raiz_dados);
+  const rateio=dados.rateio||dados.rateio_capex||null;
+  if(!rateio||typeof rateio!=='object'||!rateio.ativo)return it;
+  const unidade=String(it.unidade||'').trim();
+  if(unidade)it.unidades_json=[unidade];
+  return it;
 }
 
 function capexRateioInfoFromItem(it){
@@ -14218,7 +14233,7 @@ async function loadFromDB(){
 
     const{data:ciR,error:ciErr}=await selectAllRows('capex_itens',{order:'id',ascending:false});
 
-    if(ciErr){console.error('loadFromDB capex_itens error:',ciErr);capexItens=[];}else capexItens=ciR||[];
+    if(ciErr){console.error('loadFromDB capex_itens error:',ciErr);capexItens=[];}else capexItens=(ciR||[]).map(normalizeCapexRateioItem);
 
     const{data:csR,error:csErr}=await selectAllRows('capex_saldos',{order:'ano',ascending:false});
 
