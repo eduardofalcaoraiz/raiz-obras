@@ -445,7 +445,8 @@ def report_page_all(page, start, end, page_size=30, fields=None):
 
 def instance_fields(instance_id, fields):
     params = [("showPendingInstanceTasks", "true"), ("showFinishedInstanceTasks", "true"),
-              ("showPendingAssignees", "true"), ("useCache", "false")]
+              ("showPendingAssignees", "true"), ("useCache", "false"),
+              ("allowOpenUrlsForFilesInForm", "true")]
     for field in fields or []:
         params.append(("formFieldNames", field))
     url = f"{ZEEV_BASE_URL}/api/2/instances/{instance_id}?" + urllib.parse.urlencode(params)
