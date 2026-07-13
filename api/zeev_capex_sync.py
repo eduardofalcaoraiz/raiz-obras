@@ -76,7 +76,7 @@ class handler(BaseHTTPRequestHandler):
 
         payload = {**_query(self), **_read_json(self)}
         mode = str(payload.get("mode") or payload.get("workflowMode") or payload.get("syncMode") or "incremental")
-        secure_function_only_modes = {"reconcile-registered", "reconcile", "dedupe-registered", "register-obra-payments", "register-obra", "obra-payments"}
+        secure_function_only_modes = {"reconcile-registered", "reconcile", "dedupe-registered", "register-obra-payments", "register-obra", "obra-payments", "refresh-payment-statuses", "refresh-payments", "payment-statuses"}
         if mode not in secure_function_only_modes and not zeev_token:
             _json(self, 500, {"ok": False, "error": "Token Zeev ausente na chamada segura."})
             return
@@ -131,6 +131,10 @@ class handler(BaseHTTPRequestHandler):
                 return
             if mode in {"register-obra-payments", "register-obra", "obra-payments"}:
                 result = mod.register_obra_payments()
+                _json(self, 200, result)
+                return
+            if mode in {"refresh-payment-statuses", "refresh-payments", "payment-statuses"}:
+                result = mod.refresh_payment_statuses()
                 _json(self, 200, result)
                 return
             if mode in {"retro", "deep", "deep-retro"}:
