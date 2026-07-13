@@ -104,6 +104,8 @@ jobs:
           ZEEV_BACKFILL_BATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '2' }}
           ZEEV_BACKFILL_STALE_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '8' }}
           ZEEV_BACKFILL_FILE_LIMIT: "3"
+          ZEEV_EXTRA_DOCUMENT_FIELDS: ${{ secrets.ZEEV_EXTRA_DOCUMENT_FIELDS }}
+          ZEEV_FILE_DOWNLOAD_URL_TEMPLATE: ${{ secrets.ZEEV_FILE_DOWNLOAD_URL_TEMPLATE }}
           ZEEV_REGISTER_BATCH: "1"
           ZEEV_REGISTER_FILE_LIMIT: "2"
           ZEEV_REGISTER_PAUSE_SECONDS: "1"
