@@ -1382,6 +1382,17 @@ def backfill_docs():
     return out
 
 
+def reconcile_registered():
+    payload = {"mode": "reconcile-registered"}
+    return request_json(
+        "POST",
+        f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+        headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+        payload=payload,
+        timeout=120,
+    )
+
+
 def default_window():
     now = datetime.now(business_tz())
     start = now - timedelta(hours=float(os.environ.get("ZEEV_SYNC_OVERLAP_HOURS", "72")))
@@ -1389,9 +1400,15 @@ def default_window():
 
 
 def main():
-    if not ZEEV_TOKEN or not ZEEV_SYNC_SECRET:
-        raise SystemExit("ZEEV_TOKEN e ZEEV_SYNC_SECRET sao obrigatorios.")
     mode = os.environ.get("ZEEV_SYNC_MODE", "incremental")
+    if not ZEEV_SYNC_SECRET:
+        raise SystemExit("ZEEV_SYNC_SECRET e obrigatorio.")
+    if mode in {"reconcile-registered", "reconcile", "dedupe-registered"}:
+        result = reconcile_registered()
+        print(json.dumps(result, ensure_ascii=False))
+        return
+    if not ZEEV_TOKEN:
+        raise SystemExit("ZEEV_TOKEN e obrigatorio.")
     if mode in {"backfill-docs", "docs-backfill", "backfill"}:
         result = backfill_docs()
         print(json.dumps(result, ensure_ascii=False))
