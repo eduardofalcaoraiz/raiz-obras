@@ -76,7 +76,8 @@ class handler(BaseHTTPRequestHandler):
 
         payload = {**_query(self), **_read_json(self)}
         mode = str(payload.get("mode") or payload.get("workflowMode") or payload.get("syncMode") or "incremental")
-        if mode not in {"reconcile-registered", "reconcile", "dedupe-registered"} and not zeev_token:
+        secure_function_only_modes = {"reconcile-registered", "reconcile", "dedupe-registered", "register-obra-payments", "register-obra", "obra-payments"}
+        if mode not in secure_function_only_modes and not zeev_token:
             _json(self, 500, {"ok": False, "error": "Token Zeev ausente na chamada segura."})
             return
         flow_ids = str(payload.get("flowIds") or payload.get("flow_ids") or "299,275,102,300")
@@ -94,6 +95,16 @@ class handler(BaseHTTPRequestHandler):
         os.environ["ZEEV_BUSINESS_TIMEZONE"] = str(payload.get("businessTimezone") or payload.get("business_timezone") or "America/Sao_Paulo")
         os.environ["ZEEV_DEEP_SCAN"] = "1" if _as_bool(payload.get("deepScan") or payload.get("deep_scan"), False) else os.environ.get("ZEEV_DEEP_SCAN", "0")
         os.environ["ZEEV_NOTIFY"] = "true" if _as_bool(payload.get("notify"), mode != "retro") else "false"
+        target_obra = payload.get("targetObra") or payload.get("target_obra") or payload.get("obraName") or payload.get("obra") or ""
+        if target_obra:
+            os.environ["ZEEV_TARGET_OBRA"] = str(target_obra)
+        else:
+            os.environ.pop("ZEEV_TARGET_OBRA", None)
+        target_escopo = payload.get("targetEscopo") or payload.get("target_escopo") or payload.get("escopo") or ""
+        if target_escopo:
+            os.environ["ZEEV_TARGET_ESCOPO"] = str(target_escopo)
+        else:
+            os.environ.pop("ZEEV_TARGET_ESCOPO", None)
         if payload.get("start"):
             os.environ["ZEEV_SYNC_START"] = str(payload["start"])
         else:
@@ -116,6 +127,10 @@ class handler(BaseHTTPRequestHandler):
             mod = importlib.reload(mod)
             if mode in {"reconcile-registered", "reconcile", "dedupe-registered"}:
                 result = mod.reconcile_registered()
+                _json(self, 200, result)
+                return
+            if mode in {"register-obra-payments", "register-obra", "obra-payments"}:
+                result = mod.register_obra_payments()
                 _json(self, 200, result)
                 return
             if mode in {"retro", "deep", "deep-retro"}:
