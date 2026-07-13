@@ -1296,6 +1296,121 @@ def http_probe(url, method="GET", payload=None):
     return out
 
 
+def redact_debug_text(value):
+    text = str(value or "")
+    text = re.sub(r"(?i)(token|access_token|authorization|bearer|apikey|api_key|key|secret)=([^&\s\"']+)", r"\1=***", text)
+    text = re.sub(r"(?i)Bearer\s+[A-Za-z0-9._%+\-/=]+", "Bearer ***", text)
+    return text
+
+
+def source_matches(label, url, text, limit=12):
+    patterns = [
+        "Documento", "documento", "danfe", "download", "attachment", "attachments",
+        "arquivo", "arquivos", "anexo", "anexos", "file", "files", "openUrl",
+        "downloadUrl", "content", "base64", "/api/", "api/2", "visualizador",
+        "formFields", "fieldValue", "138446",
+    ]
+    out = []
+    compact = re.sub(r"\s+", " ", str(text or ""))
+    for pattern in patterns:
+        for match in re.finditer(re.escape(pattern), compact, flags=re.IGNORECASE):
+            start = max(0, match.start() - 140)
+            end = min(len(compact), match.end() + 220)
+            snippet = redact_debug_text(compact[start:end])
+            out.append({
+                "label": label,
+                "urlPath": urllib.parse.urlparse(url).path,
+                "pattern": pattern,
+                "snippet": snippet[:420],
+            })
+            if len(out) >= limit:
+                return out
+    return out
+
+
+def fetch_text_for_source(url):
+    headers = {
+        "Authorization": f"Bearer {ZEEV_TOKEN}",
+        "Accept": "text/html,application/javascript,text/javascript,application/json,*/*",
+        "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
+    }
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=45) as res:
+            raw = res.read()
+            return res.status, res.headers.get("Content-Type", ""), raw.decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        raw = exc.read()
+        return exc.code, exc.headers.get("Content-Type", ""), raw.decode("utf-8", errors="replace")
+
+
+def inspect_report_source(report_link, instance_id):
+    if not report_link:
+        return {"ok": False, "reason": "sem reportLink"}
+    base = ZEEV_BASE_URL
+    root = report_link if report_link.startswith("http") else f"{base}{report_link}"
+    out = {
+        "ok": True,
+        "reportPath": urllib.parse.urlparse(root).path,
+        "reportQueryKeys": sorted(urllib.parse.parse_qs(urllib.parse.urlparse(root).query).keys()),
+        "assets": [],
+        "matches": [],
+        "errors": [],
+    }
+    try:
+        status, ctype, html = fetch_text_for_source(root)
+        out["reportStatus"] = status
+        out["reportContentType"] = ctype
+        out["reportLength"] = len(html)
+        title = re.search(r"(?is)<title[^>]*>(.*?)</title>", html)
+        if title:
+            out["title"] = redact_debug_text(re.sub(r"\s+", " ", title.group(1)).strip())[:160]
+        body_text = re.sub(r"(?is)<script.*?</script>|<style.*?</style>", " ", html)
+        body_text = re.sub(r"(?is)<[^>]+>", " ", body_text)
+        body_text = re.sub(r"\s+", " ", html_lib.unescape(body_text)).strip()
+        out["bodySnippet"] = redact_debug_text(body_text[:500])
+        out["matches"].extend(source_matches("report-html", root, html, limit=20))
+
+        asset_urls = []
+        for raw in re.findall(r"""(?is)<script[^>]+src=["']([^"']+)["']|<link[^>]+href=["']([^"']+)["']""", html):
+            href = next((x for x in raw if x), "")
+            if href:
+                asset_urls.append(urllib.parse.urljoin(root, href))
+        for raw in re.findall(r"""(?i)(?:href|src)=["']([^"']+)["']""", html):
+            if re.search(r"(?i)(\.js|api|download|file|arquivo|anexo|document)", raw):
+                asset_urls.append(urllib.parse.urljoin(root, raw))
+        seen = set()
+        for asset in asset_urls:
+            parsed = urllib.parse.urlparse(asset)
+            key = parsed.scheme + "://" + parsed.netloc + parsed.path
+            if key in seen:
+                continue
+            seen.add(key)
+            if len(out["assets"]) >= 14:
+                break
+            try:
+                st, ct, text = fetch_text_for_source(asset)
+                asset_info = {
+                    "path": parsed.path,
+                    "status": st,
+                    "contentType": ct,
+                    "length": len(text),
+                }
+                matches = source_matches("asset", asset, text, limit=8)
+                if matches:
+                    asset_info["matches"] = matches[:5]
+                    out["matches"].extend(matches[:8])
+                out["assets"].append(asset_info)
+            except Exception as exc:
+                out["errors"].append({"assetPath": parsed.path, "error": str(exc)[:300]})
+        if len(out["matches"]) > 40:
+            out["matches"] = out["matches"][:40]
+    except Exception as exc:
+        out["ok"] = False
+        out["errors"].append({"stage": "report-source", "error": str(exc)[:500]})
+    return out
+
+
 def inspect_docs():
     if not ZEEV_TOKEN:
         raise SystemExit("ZEEV_TOKEN e obrigatorio.")
@@ -1420,6 +1535,10 @@ def inspect_docs():
                 entry["endpointProbes"].append(http_probe(url))
         except Exception as exc:
             entry["errors"].append({"stage": "endpoint-probes", "error": str(exc)[:500]})
+        try:
+            entry["sourceInspection"] = inspect_report_source(report_link, instance_id)
+        except Exception as exc:
+            entry["errors"].append({"stage": "source-inspection", "error": str(exc)[:500]})
         out["tickets"].append(entry)
     out["ok"] = not any(t.get("errors") for t in out["tickets"]) and not out["errors"]
     return out
