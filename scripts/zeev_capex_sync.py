@@ -1141,6 +1141,81 @@ def sync(start, end, flows, max_pages, page_size):
     return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
 
 
+def read_test():
+    if not ZEEV_TOKEN:
+        raise SystemExit("ZEEV_TOKEN e obrigatorio.")
+    start = os.environ.get("ZEEV_SYNC_START") or "2026-01-01T00:00:00-03:00"
+    end = os.environ.get("ZEEV_SYNC_END") or datetime.now(business_tz()).isoformat(timespec="seconds")
+    max_pages = max(1, int(os.environ.get("ZEEV_MAX_PAGES", "1") or "1"))
+    page_size = finished_task_page_size(int(os.environ.get("ZEEV_RECORDS_PER_PAGE", "30") or "30"))
+    rows_total = 0
+    samples = []
+    flows_seen = {}
+    errors = []
+    for flow_id in FLOW_IDS:
+        flow_rows = 0
+        for page in range(1, max_pages + 1):
+            try:
+                rows = report_page(flow_id, page, start, end, page_size=page_size)
+            except Exception as exc:
+                errors.append({"flowId": flow_id, "page": page, "error": str(exc)[:500]})
+                break
+            rows_total += len(rows)
+            flow_rows += len(rows)
+            for row in rows:
+                flow = row.get("flow") or {}
+                row_flow_id = int(flow.get("id") or row.get("flowId") or flow_id or 0)
+                fields = row.get("formFields") or []
+                capex = has_capex(fields, row_flow_id)
+                key = f"{row_flow_id}|{flow.get('name') or row.get('flowName') or row.get('requestName') or ''}|v{flow.get('version') or row.get('flowVersion') or ''}"
+                flows_seen[key] = flows_seen.get(key, 0) + 1
+                if len(samples) < 10:
+                    task = current_task(row.get("instanceTasks") or [])
+                    samples.append({
+                        "id": row.get("id"),
+                        "flowId": row_flow_id,
+                        "flowName": flow.get("name") or row.get("flowName") or row.get("requestName") or "",
+                        "flowVersion": flow.get("version") or row.get("flowVersion") or "",
+                        "requestName": row.get("requestName") or "",
+                        "startDateTime": row.get("startDateTime") or "",
+                        "endDateTime": row.get("endDateTime") or "",
+                        "active": row.get("active"),
+                        "flowResult": row.get("flowResult") or "",
+                        "currentTask": task_label(task),
+                        "formFieldsCount": len(fields),
+                        "capexField": field_display_name(capex) if capex else "",
+                        "capexValue": str((capex or {}).get("value") or "")[:80],
+                        "hasReportLink": bool(row.get("reportLink")),
+                    })
+            print(json.dumps({
+                "progress": "read-test-page",
+                "flowId": flow_id,
+                "page": page,
+                "rows": len(rows),
+                "rowsInFlow": flow_rows,
+                "rowsTotal": rows_total,
+            }, ensure_ascii=False), flush=True)
+            if len(rows) < page_size:
+                break
+    return {
+        "ok": not errors,
+        "mode": "read-test",
+        "api": "Zeev /api/2/instances/report",
+        "flowsRequested": FLOW_IDS,
+        "start": start,
+        "end": end,
+        "maxPages": max_pages,
+        "pageSize": page_size,
+        "rowsTotal": rows_total,
+        "flowsSeen": [
+            {"flow": key, "rows": count}
+            for key, count in sorted(flows_seen.items(), key=lambda kv: (-kv[1], kv[0]))
+        ],
+        "samples": samples,
+        "errors": errors,
+    }
+
+
 def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest=False, start_page=1):
     tickets = {}
     flow_counts = {}
@@ -1602,6 +1677,10 @@ def main():
         raise SystemExit("ZEEV_TOKEN e obrigatorio.")
     if mode in {"backfill-docs", "docs-backfill", "backfill"}:
         result = backfill_docs()
+        print(json.dumps(result, ensure_ascii=False))
+        return
+    if mode in {"read-test", "test-read", "teste-leitura"}:
+        result = read_test()
         print(json.dumps(result, ensure_ascii=False))
         return
     deep_mode = mode in {"deep", "deep-retro", "deep-incremental"} or os.environ.get("ZEEV_DEEP_SCAN", "0") == "1"
