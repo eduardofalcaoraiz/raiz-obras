@@ -30,8 +30,8 @@ def parse_flow_ids_env(value):
     return ids
 
 
-FLOW_IDS = parse_flow_ids_env(os.environ.get("ZEEV_FLOW_IDS", "299,275,102,300"))
-FINANCE_FLOW_IDS = {299, 275}
+FLOW_IDS = parse_flow_ids_env(os.environ.get("ZEEV_FLOW_IDS", "299,275,263,102,300"))
+FINANCE_FLOW_IDS = {299, 275, 263}
 PURCHASE_FLOW_IDS = {102, 300}
 BUSINESS_TIMEZONE = os.environ.get("ZEEV_BUSINESS_TIMEZONE", "America/Sao_Paulo")
 
@@ -110,6 +110,7 @@ PURCHASE_ITEM_DESCRIPTION_FIELDS = [
 DEFAULT_CAPEX_FIELDS = {
     299: ["investimentoCAPEX", "É um investimento (CAPEX)?", "E um investimento (CAPEX)?", "CAPEX"],
     275: ["investimentoCAPEX", "É um investimento (CAPEX)?", "E um investimento (CAPEX)?", "CAPEX"],
+    263: ["investimentoCAPEX", "É um investimento (CAPEX)?", "E um investimento (CAPEX)?", "CAPEX"],
     102: ["cAPEX", "CAPEX", "Investimento CAPEX"],
     300: ["cAPEX", "CAPEX", "Investimento CAPEX"],
 }
@@ -1250,7 +1251,7 @@ def inspect_docs():
     extra_fields = unique_fields(DOCUMENT_FIELDS, env_list(os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "")))
     out = {"ok": True, "mode": "inspect-docs", "tickets": [], "errors": []}
     for instance_id in ids:
-        entry = {"id": instance_id, "allFields": [], "requestedDocFields": [], "tasks": [], "messages": {}, "errors": []}
+        entry = {"id": instance_id, "allFields": [], "requestedDocFields": [], "reportFieldTests": [], "tasks": [], "messages": {}, "errors": []}
         try:
             data, fields = instance_fields(instance_id, [])
             flow = data.get("flow") or {}
@@ -1296,6 +1297,41 @@ def inspect_docs():
                     })
             except Exception as exc:
                 entry["errors"].append({"stage": "doc-fields", "fields": chunk, "error": str(exc)[:500]})
+
+        flow_for_report = int(entry.get("flowId") or (FLOW_IDS[0] if FLOW_IDS else 0) or 0)
+        if flow_for_report:
+            for field_name in unique_fields(["Documento", "documento"], extra_fields)[:30]:
+                try:
+                    start = os.environ.get("ZEEV_SYNC_START") or "2025-01-01T00:00:00-03:00"
+                    end = os.environ.get("ZEEV_SYNC_END") or datetime.now(business_tz()).isoformat(timespec="seconds")
+                    found_rows = []
+                    for page in range(1, 6):
+                        rows = report_page(flow_for_report, page, start, end, page_size=30)
+                        for row in rows or []:
+                            if int(row.get("id") or 0) == int(instance_id):
+                                found_rows.append(row)
+                        if found_rows or len(rows or []) < 30:
+                            break
+                    if found_rows:
+                        fields = found_rows[0].get("formFields") or []
+                        entry["reportFieldTests"].append({
+                            "requested": field_name,
+                            "fieldCount": len(fields),
+                            "fields": [
+                                {
+                                    "name": field_display_name(field),
+                                    "row": field.get("row") or 1,
+                                    "type": field.get("type") or field.get("fieldType") or "",
+                                    "keys": sorted(str(k) for k in field.keys())[:30],
+                                    **doc_value_meta(field.get("value")),
+                                }
+                                for field in fields[:10]
+                            ],
+                        })
+                    else:
+                        entry["reportFieldTests"].append({"requested": field_name, "foundInReportWindow": False})
+                except Exception as exc:
+                    entry["errors"].append({"stage": "report-field", "field": field_name, "error": str(exc)[:500]})
 
         try:
             messages = instance_messages(instance_id)
