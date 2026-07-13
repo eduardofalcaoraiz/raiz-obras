@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "incremental, retro, deep-incremental, deep-retro, backfill-docs, reconcile-registered, register-obra-payments ou refresh-payment-statuses"
+        description: "incremental, retro, deep-incremental, deep-retro, read-test, backfill-docs, reconcile-registered, register-obra-payments ou refresh-payment-statuses"
         required: true
         default: "deep-incremental"
       start:
