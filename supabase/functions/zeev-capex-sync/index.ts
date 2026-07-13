@@ -2334,6 +2334,7 @@ function addDocDebug(out: AnyRecord, target: string, row: AnyRecord, ticket: Any
     urlCandidates: candidates.filter((doc: AnyRecord) => doc.url).length,
     base64Candidates: candidates.filter((doc: AnyRecord) => doc.base64Content).length,
     attached: Number(attach?.attached || 0),
+    skipped: Array.isArray(attach?.skipped) ? attach.skipped : [],
     docFields: docFieldDebug(ticket),
     taskDocHints: taskDocDebug(ticket),
   })
@@ -2810,13 +2811,28 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
   let attached = 0
   let nfPath = row.nf_doc_path || ''
   let compPath = row.comp_doc_path || ''
+  const skipped: AnyRecord[] = []
   for (const doc of docs) {
     if (attached >= limitFiles) break
     const docKind = fiscalDocKind(doc)
     const docNameKey = `${docKind}|${normKey(doc.name)}|${normKey(doc.source)}`
     if (stored.some((existing) => String(existing.url || '') && String(existing.url) === String(doc.url))) continue
     if (!doc.url && stored.some((existing) => `${existing.kind || ''}|${normKey(existing.name)}|${normKey(existing.source)}` === docNameKey)) continue
-    const file = await downloadZeevDoc(doc)
+    let file: { body: ArrayBuffer; name: string; type: string } | null = null
+    try {
+      file = await downloadZeevDoc(doc)
+    } catch (error) {
+      if (skipped.length < 8) {
+        skipped.push({
+          name: doc.name || '',
+          source: doc.source || '',
+          hasUrl: Boolean(doc.url),
+          hasFileId: Boolean(doc.fileId),
+          reason: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300),
+        })
+      }
+      continue
+    }
     if (!file) continue
     const kind = docKind
     const ticketId = ticketDigits(ticket.zeev_instance_id || row.ticket_raiz || row.ticket_raiz_instance_id || row.referencia || '')
@@ -2833,7 +2849,7 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
     if (!compPath && kind === 'COMPROVANTE') compPath = path
     attached++
   }
-  return { docs: stored, attached, nfPath, compPath }
+  return { docs: stored, attached, nfPath, compPath, skipped }
 }
 
 function docsCheckIsStale(row: AnyRecord, hours: number) {
