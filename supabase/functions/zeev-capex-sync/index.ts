@@ -2350,6 +2350,8 @@ function paymentDateFromTicket(ticket: AnyRecord) {
   const fmap = fieldMap(Array.isArray(ticket?.raw_fields) ? ticket.raw_fields : Array.isArray(ticket?.rawFields) ? ticket.rawFields : [])
   const fromField = dateOnly(firstField(fmap, ['dataPagamento', 'data do pagamento', 'pagoEm', 'pago em', 'dataEfetivaPagamento', 'data efetiva de pagamento', 'dataLiquidacao', 'data liquidacao', 'dataBaixa', 'data baixa']))
   if (fromField) return fromField
+  const fromFinanceCompletion = paymentDateFromFinanceCompletion(ticket)
+  if (fromFinanceCompletion) return fromFinanceCompletion
   const fromTask = paymentDateFromTasks(ticket)
   if (fromTask) return fromTask
   return paymentDateFromMessages(ticket)
@@ -2380,6 +2382,19 @@ function textHasPaymentDoneEvidence(value: unknown) {
   const paymentCue = /(pagamento|pagar|pago|baixad|liquidad|comprovante|recibo|pix)/.test(n)
   const doneCue = /(realizad|efetuad|concluid|finalizad|baixad|liquidad|pago|aprovad|comprovante|recibo|pix)/.test(n)
   return paymentCue && doneCue
+}
+
+function paymentDateFromFinanceCompletion(ticket: AnyRecord) {
+  if (!isFinanceiro(ticket)) return ''
+  const result = ticketResultKind({
+    flowResult: ticket?.flow_result || ticket?.flowResult || ticket?.raw_instance?.flowResult || ticket?.rawInstance?.flowResult || '',
+  })
+  if (result === 'cancelado' || result === 'rejeitado') return ''
+  const raw = ticket?.raw_instance || ticket?.rawInstance || {}
+  const active = ticket?.active ?? raw?.active
+  const completed = active === false || Boolean(ticket?.end_date_time || raw?.endDateTime || ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime)
+  if (!completed) return ''
+  return dateOnly(ticket?.end_date_time || raw?.endDateTime || ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime)
 }
 
 function paymentDateFromTasks(ticket: AnyRecord) {
