@@ -2366,6 +2366,12 @@ function paymentDateFromTicket(ticket: AnyRecord) {
   return paymentDateFromMessages(ticket)
 }
 
+function paymentLifecycleStatusFromTicket(ticket: AnyRecord) {
+  const result = ticketResultKind(ticket)
+  if (result === 'cancelado' || result === 'rejeitado') return 'Cancelado'
+  return ''
+}
+
 function dueDateFromTicket(ticket: AnyRecord) {
   const pagamento = ticket?.pagamento_json || ticket?.pagamento || {}
   const fromJson = dateOnly(pagamento.previsao_pagamento || pagamento.previsaoPagamento || pagamento.dataVencimento || pagamento.data_vencimento)
@@ -2847,6 +2853,7 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
       const attach = await attachDocsForTarget('payment', row, ticket, fileLimit)
       const paidDate = paymentDateFromTicket(ticket)
       const dueDate = dueDateFromTicket(ticket)
+      const lifecycleStatus = paymentLifecycleStatusFromTicket(ticket)
       const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
       if (attach.attached || JSON.stringify(attach.docs || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = attach.docs || []
       if (!row.nf_doc_path && attach.nfPath) patch.nf_doc_path = attach.nfPath
@@ -2855,6 +2862,9 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
         patch.st = 'PAGO'
         patch.paga_em = paidDate
         out.updatedPaid++
+      } else if (lifecycleStatus) {
+        patch.st = lifecycleStatus
+        patch.paga_em = ''
       } else if (dueDate && dueDate !== row.venc) {
         patch.venc = dueDate
         patch.st = 'PENDENTE'
@@ -2933,6 +2943,7 @@ function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: st
   const venc = dateOnly(ticket?.pagamento_json?.previsao_pagamento || ticket?.pagamento_json?.dataVencimento)
     || dateOnly(ticketFirstField(ticket, ['previsaoPagamento', 'dataDeVencimento', 'dataVencimento', 'dataPagamento']))
   const paidDate = paymentDateFromTicket(ticket)
+  const lifecycleStatus = paymentLifecycleStatusFromTicket(ticket)
   const link = String(ticket?.ticket_link || '').trim()
   return {
     obra_id: Number(obra.id),
@@ -2943,7 +2954,7 @@ function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: st
     cat: 'outros',
     sub: 0,
     pagn: defaultPagadorForObra(obra),
-    st: paidDate ? 'PAGO' : 'PENDENTE',
+    st: paidDate ? 'PAGO' : lifecycleStatus || 'PENDENTE',
     venc: venc || paidDate || '',
     nf_tipo: nfTipo,
     comp: '',
@@ -3034,6 +3045,7 @@ async function registerObraPayments(input: AnyRecord = {}) {
         out.errors.push({ tr: ticketId, step: 'anexos', error: error instanceof Error ? error.message : String(error) })
       }
       const paidDate = paymentDateFromTicket(ticket)
+      const lifecycleStatus = paymentLifecycleStatusFromTicket(ticket)
       const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
       if (JSON.stringify(attach.docs || []) !== JSON.stringify(saved.docs_json || [])) patch.docs_json = attach.docs || []
       if (!saved.nf_doc_path && attach.nfPath) patch.nf_doc_path = attach.nfPath
@@ -3042,6 +3054,9 @@ async function registerObraPayments(input: AnyRecord = {}) {
         patch.st = 'PAGO'
         patch.paga_em = paidDate
         out.paidUpdated++
+      } else if (!paidDate && lifecycleStatus && saved.st !== lifecycleStatus) {
+        patch.st = lifecycleStatus
+        patch.paga_em = ''
       }
       await rest(`/pagamentos?id=eq.${Number(saved.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) })
       out.docsAttached += Number(attach.attached || 0)
