@@ -424,6 +424,7 @@ def report_page(flow_id, page, start, end, page_size=30, fields=None):
         "showPendingInstanceTasks": True,
         "showFinishedInstanceTasks": True,
         "showPendingAssignees": True,
+        "allowOpenUrlsForFilesInForm": True,
     }
     data = request_json(
         "POST",
