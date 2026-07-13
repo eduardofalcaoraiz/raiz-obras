@@ -1,4 +1,4 @@
-const CORS = {
+﻿const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -432,6 +432,12 @@ function env(name: string, fallback = '') {
   return Deno.env.get(name) || fallback
 }
 
+let REQUEST_ZEEV_TOKEN = ''
+
+function zeevToken() {
+  return REQUEST_ZEEV_TOKEN || env('ZEEV_TOKEN')
+}
+
 function secretAuthorized(req: Request) {
   const configuredSecrets = [env('ZEEV_SYNC_SECRET'), env('ZEEV_DB_CRON_SECRET')].filter(Boolean)
   if (!configuredSecrets.length) return false
@@ -642,7 +648,7 @@ const FLOW_DESIGN_FIELD_CACHE = new Map<number, string[]>()
 async function zeewFlowDesignDocumentFields(flow: number) {
   if (!flow) return []
   if (FLOW_DESIGN_FIELD_CACHE.has(flow)) return FLOW_DESIGN_FIELD_CACHE.get(flow) || []
-  const token = env('ZEEV_TOKEN')
+  const token = zeevToken()
   if (!token) {
     FLOW_DESIGN_FIELD_CACHE.set(flow, [])
     return []
@@ -1460,7 +1466,7 @@ async function knownTicketRefreshIds(limit: number, flows: number[] = []) {
 }
 
 async function zeevReport(flow: number, page: number, start: string, end: string) {
-  const token = env('ZEEV_TOKEN')
+  const token = zeevToken()
   if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
   const flowCapexFields = capexFieldsForFlow(flow)
@@ -1524,7 +1530,7 @@ async function zeevReport(flow: number, page: number, start: string, end: string
 }
 
 async function zeevInstance(instanceId: number, flow: number, fields: string[]) {
-  const token = env('ZEEV_TOKEN')
+  const token = zeevToken()
   if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
   const url = new URL(`${base}/api/2/instances/${instanceId}`)
@@ -1547,7 +1553,7 @@ async function zeevInstance(instanceId: number, flow: number, fields: string[]) 
 }
 
 async function zeevMessages(instanceId: number) {
-  const token = env('ZEEV_TOKEN')
+  const token = zeevToken()
   if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
   const url = new URL(`${base}/api/2/messages/instance/${instanceId}`)
@@ -1996,7 +2002,7 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
 }
 
 async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
-  const token = env('ZEEV_TOKEN')
+  const token = zeevToken()
   const secret = env('ZEEV_SYNC_SECRET')
   if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   if (!secret) throw new Error('ZEEV_SYNC_SECRET ausente nos secrets da Supabase.')
@@ -2304,7 +2310,7 @@ async function downloadZeevDoc(doc: AnyRecord) {
   if (doc?.base64Content) return decodeBase64Doc(doc)
   const url = safeZeevFileUrl(doc?.url)
   if (!url) return null
-  const token = env('ZEEV_TOKEN')
+  const token = zeevToken()
   if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const res = await fetch(url, {
     headers: {
@@ -2999,7 +3005,7 @@ async function registerObraPayments(input: AnyRecord = {}) {
 async function runFileProxy(input: AnyRecord) {
   const url = safeZeevFileUrl(input?.url)
   if (!url) return json({ ok: false, error: 'URL Zeev invalida.' }, 400)
-  const token = env('ZEEV_TOKEN')
+  const token = zeevToken()
   if (!token) return json({ ok: false, error: 'ZEEV_TOKEN ausente nos secrets da Supabase.' }, 500)
   const res = await fetch(url, {
     headers: {
@@ -3030,6 +3036,7 @@ Deno.serve(async (req) => {
 
   try {
     const input = await req.json().catch(() => ({}))
+    REQUEST_ZEEV_TOKEN = String(input?.zeevToken || input?.zeev_token || req.headers.get('x-zeev-token') || '').trim()
     if (input?.mode === 'ingest') {
       if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
       if (!env('ZEEV_SYNC_SECRET')) return json({ ok: false, error: 'ZEEV_SYNC_SECRET nao configurado.' }, 500)
@@ -3077,3 +3084,4 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: error instanceof Error ? error.message : String(error) }, 500)
   }
 })
+
