@@ -70,15 +70,15 @@ class handler(BaseHTTPRequestHandler):
         if not authorized:
             _json(self, 401, {"ok": False, "error": "Nao autorizado."})
             return
-        if not zeev_token:
-            _json(self, 500, {"ok": False, "error": "Token Zeev ausente na chamada segura."})
-            return
         if not sync_secret:
             _json(self, 500, {"ok": False, "error": "Segredo de sincronizacao ausente."})
             return
 
         payload = {**_query(self), **_read_json(self)}
         mode = str(payload.get("mode") or payload.get("workflowMode") or payload.get("syncMode") or "incremental")
+        if mode not in {"reconcile-registered", "reconcile", "dedupe-registered"} and not zeev_token:
+            _json(self, 500, {"ok": False, "error": "Token Zeev ausente na chamada segura."})
+            return
         flow_ids = str(payload.get("flowIds") or payload.get("flow_ids") or "299,275,102,300")
         max_pages = str(payload.get("maxPages") or payload.get("max_pages") or ("999" if mode == "retro" else "2"))
         page_size = str(payload.get("recordsPerPage") or payload.get("records_per_page") or "30")
@@ -114,6 +114,10 @@ class handler(BaseHTTPRequestHandler):
             sys.path.insert(0, os.getcwd())
             mod = importlib.import_module("scripts.zeev_capex_sync")
             mod = importlib.reload(mod)
+            if mode in {"reconcile-registered", "reconcile", "dedupe-registered"}:
+                result = mod.reconcile_registered()
+                _json(self, 200, result)
+                return
             if mode in {"retro", "deep", "deep-retro"}:
                 start = os.environ.get("ZEEV_SYNC_START", "2026-04-01T00:00:00-03:00")
                 end = os.environ.get("ZEEV_SYNC_END", "2026-07-01T23:59:59-03:00")
