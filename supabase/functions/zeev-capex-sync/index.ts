@@ -1189,6 +1189,20 @@ async function rest(path: string, init: RequestInit = {}) {
   return text ? JSON.parse(text) : null
 }
 
+async function restAll(path: string, pageSize = 1000) {
+  const rows: AnyRecord[] = []
+  let from = 0
+  while (true) {
+    const sep = path.includes('?') ? '&' : '?'
+    const page = await rest(`${path}${sep}limit=${pageSize}&offset=${from}`)
+    const list = Array.isArray(page) ? page : []
+    rows.push(...list)
+    if (list.length < pageSize) break
+    from += pageSize
+  }
+  return rows
+}
+
 async function getExisting(ids: number[]) {
   if (!ids.length) return new Map<number, AnyRecord>()
   const chunks: number[][] = []
@@ -1241,7 +1255,7 @@ async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
   }
   if (!byTicket.size) return { capexLinked: 0, paymentMatched: 0, paymentLinked: 0 }
 
-  const capexRows = await rest('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados')
+  const capexRows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados')
   let capexLinked = 0
   const capexMatchedKeys = new Set<string>()
   for (const row of capexRows || []) {
@@ -1271,7 +1285,7 @@ async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
     })
   }
 
-  const paymentRows = await rest('/pagamentos?select=id,obra_id,ticket_raiz')
+  const paymentRows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz')
   let paymentMatched = 0
   let paymentLinked = 0
   for (const row of paymentRows || []) {
@@ -1296,7 +1310,7 @@ async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
 }
 
 async function reconcilePendingTicketsAlreadyRegistered() {
-  const pending = await rest('/capex_zeev_solicitacoes?status=eq.pendente&select=id,zeev_instance_id,ticket_link,pedido,raw_fields,itens_json,pagamento_json,campos_extraidos')
+  const pending = await restAll('/capex_zeev_solicitacoes?status=eq.pendente&select=id,zeev_instance_id,ticket_link,pedido,raw_fields,itens_json,pagamento_json,campos_extraidos')
   const pendingByTicket = new Map<string, AnyRecord>()
   for (const row of pending || []) {
     const key = ticketDigits(row.zeev_instance_id)
@@ -1306,8 +1320,8 @@ async function reconcilePendingTicketsAlreadyRegistered() {
     return { ok: true, mode: 'reconcile-registered', pending: 0, capexLinked: 0, paymentLinked: 0, tickets: [] }
   }
 
-  const capexRows = await rest('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados')
-  const paymentRows = await rest('/pagamentos?select=id,obra_id,ticket_raiz')
+  const capexRows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados')
+  const paymentRows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz')
   const fixed: AnyRecord[] = []
   let capexLinked = 0
   let paymentLinked = 0
