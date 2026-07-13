@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "incremental, retro, deep-incremental, deep-retro ou backfill-docs"
+        description: "incremental, retro, deep-incremental, deep-retro, backfill-docs ou reconcile-registered"
         required: true
         default: "deep-incremental"
       start:
