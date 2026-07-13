@@ -80,7 +80,7 @@ class handler(BaseHTTPRequestHandler):
         if mode not in secure_function_only_modes and not zeev_token:
             _json(self, 500, {"ok": False, "error": "Token Zeev ausente na chamada segura."})
             return
-        flow_ids = str(payload.get("flowIds") or payload.get("flow_ids") or "299,275,102,300")
+        flow_ids = str(payload.get("flowIds") or payload.get("flow_ids") or "299,275,263,102,300")
         max_pages = str(payload.get("maxPages") or payload.get("max_pages") or ("999" if mode == "retro" else "2"))
         page_size = str(payload.get("recordsPerPage") or payload.get("records_per_page") or "30")
 
