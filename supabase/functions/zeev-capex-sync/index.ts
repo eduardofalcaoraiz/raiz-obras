@@ -2715,10 +2715,11 @@ function paymentIsOverdue(row: AnyRecord) {
 async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
   const limit = Math.max(1, Math.min(Number(input.limit || input.backfillLimit || input.backfill_limit || 150), 350))
   const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || input.file_limit || 4), 8))
+  const staleHours = Math.max(0, Math.min(Number(input.staleHours || input.stale_hours || 8), 168))
   const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const targetSet = new Set(targetTicketIds.map((id) => String(id)))
   const onlyOverdue = input.onlyOverdue !== false && input.only_overdue !== false && !targetTicketIds.length
-  const out: AnyRecord = { ok: true, mode: 'refresh-payment-statuses', requested: targetTicketIds, scannedPayments: 0, updatedPaid: 0, updatedDueDate: 0, filesAttached: 0, errors: [], updated: [], unchanged: [] }
+  const out: AnyRecord = { ok: true, mode: 'refresh-payment-statuses', requested: targetTicketIds, staleHours, scannedPayments: 0, updatedPaid: 0, updatedDueDate: 0, filesAttached: 0, errors: [], updated: [], unchanged: [] }
 
   const paymentFilter = targetTicketIds.length ? `ticket_raiz=in.(${targetTicketIds.join(',')})` : 'ticket_raiz=not.is.null'
   const rows = await restAll(`/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&${paymentFilter}&order=id.asc`, 1000)
@@ -2726,7 +2727,8 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
     .filter((row: AnyRecord) => ticketDigits(row.ticket_raiz) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz))))
     .filter((row: AnyRecord) => !onlyOverdue || paymentIsOverdue(row))
     .filter((row: AnyRecord) => targetSet.size || String(row.st || '').toUpperCase() !== 'PAGO')
-    .sort((a: AnyRecord, b: AnyRecord) => Number(paymentIsOverdue(b)) - Number(paymentIsOverdue(a)) || String(a.venc || '').localeCompare(String(b.venc || '')) || Number(a.id) - Number(b.id))
+    .filter((row: AnyRecord) => targetSet.size || docsCheckIsStale(row, staleHours))
+    .sort((a: AnyRecord, b: AnyRecord) => Number(paymentIsOverdue(b)) - Number(paymentIsOverdue(a)) || docsCandidateScore(a) - docsCandidateScore(b) || String(a.venc || '').localeCompare(String(b.venc || '')) || Number(a.id) - Number(b.id))
     .slice(0, limit)
   out.scannedPayments = candidates.length
 
