@@ -290,7 +290,8 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
         **(headers or {}),
     }
     last_error = None
-    for attempt in range(retries):
+    attempts = max(1, int(retries) if str(retries).strip() else 1)
+    for attempt in range(attempts):
         req = urllib.request.Request(url, data=body, method=method, headers=merged)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -303,8 +304,11 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
                 raise last_error
         except Exception as exc:
             last_error = exc
-        time.sleep(2 + attempt * 3)
-    raise last_error
+        if attempt < attempts - 1:
+            time.sleep(2 + attempt * 3)
+    if isinstance(last_error, BaseException):
+        raise last_error
+    raise RuntimeError(f"{method} {url} falhou sem resposta detalhada.")
 
 
 def capex_fields(flow_id=None):
