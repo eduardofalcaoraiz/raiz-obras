@@ -431,7 +431,7 @@ def report_page(flow_id, page, start, end, page_size=30, fields=None):
         f"{ZEEV_BASE_URL}/api/2/instances/report",
         headers={"Authorization": f"Bearer {ZEEV_TOKEN}"},
         payload=payload,
-        timeout=90,
+        timeout=timeout,
     )
     return data if isinstance(data, list) else [data]
 
@@ -461,7 +461,7 @@ def report_page_all(page, start, end, page_size=30, fields=None):
     return data if isinstance(data, list) else [data]
 
 
-def report_instance(instance_id, flow_id=0, fields=None, page_size=10):
+def report_instance(instance_id, flow_id=0, fields=None, page_size=10, timeout=90, retries=3):
     payload = {
         "instanceId": int(instance_id),
         "recordsPerPage": min(max(int(page_size or 10), 1), 100),
@@ -483,6 +483,7 @@ def report_instance(instance_id, flow_id=0, fields=None, page_size=10):
         headers={"Authorization": f"Bearer {ZEEV_TOKEN}"},
         payload=payload,
         timeout=90,
+        retries=retries,
     )
     return data if isinstance(data, list) else [data]
 
@@ -507,7 +508,7 @@ def merge_zeev_fields(*groups):
     return out
 
 
-def instance_fields(instance_id, fields):
+def instance_fields(instance_id, fields, timeout=90, retries=3):
     params = [("showPendingInstanceTasks", "true"), ("showFinishedInstanceTasks", "true"),
               ("showPendingAssignees", "true"), ("useCache", "false"),
               ("allowOpenUrlsForFilesInForm", "true")]
@@ -518,13 +519,13 @@ def instance_fields(instance_id, fields):
     found = []
     errors = []
     try:
-        data = request_json("GET", url, headers={"Authorization": f"Bearer {ZEEV_TOKEN}"}, timeout=90)
+        data = request_json("GET", url, headers={"Authorization": f"Bearer {ZEEV_TOKEN}"}, timeout=timeout, retries=retries)
         latest = data or latest
         found = merge_zeev_fields(found, data.get("formFields") or [])
     except Exception as exc:
         errors.append(str(exc)[:500])
     try:
-        rows = report_instance(instance_id, 0, fields=fields if fields else None)
+        rows = report_instance(instance_id, 0, fields=fields if fields else None, timeout=timeout, retries=retries)
         target = next((row for row in rows if int(row.get("id") or 0) == int(instance_id)), (rows[0] if rows else {}))
         latest = target or latest
         found = merge_zeev_fields(found, target.get("formFields") or [])
@@ -1307,6 +1308,7 @@ def doc_value_meta(value):
 
 
 def http_probe(url, method="GET", payload=None):
+    timeout = max(5, min(int(os.environ.get("ZEEV_INSPECT_HTTP_TIMEOUT_SECONDS", "15")), 45))
     body = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
     headers = {
         "Authorization": f"Bearer {ZEEV_TOKEN}",
@@ -1316,7 +1318,7 @@ def http_probe(url, method="GET", payload=None):
     }
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=45) as res:
+        with urllib.request.urlopen(req, timeout=timeout) as res:
             raw = res.read()
             status = res.status
             ctype = res.headers.get("Content-Type", "")
@@ -1393,6 +1395,7 @@ def source_matches(label, url, text, limit=12):
 
 
 def fetch_text_for_source(url):
+    timeout = max(5, min(int(os.environ.get("ZEEV_INSPECT_HTTP_TIMEOUT_SECONDS", "15")), 45))
     headers = {
         "Authorization": f"Bearer {ZEEV_TOKEN}",
         "Accept": "text/html,application/javascript,text/javascript,application/json,*/*",
@@ -1400,7 +1403,7 @@ def fetch_text_for_source(url):
     }
     req = urllib.request.Request(url, headers=headers, method="GET")
     try:
-        with urllib.request.urlopen(req, timeout=45) as res:
+        with urllib.request.urlopen(req, timeout=timeout) as res:
             raw = res.read()
             return res.status, res.headers.get("Content-Type", ""), raw.decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
@@ -1482,11 +1485,15 @@ def inspect_docs():
     if not ids:
         raise SystemExit("ZEEV_TICKET_IDS e obrigatorio para inspect-docs.")
     extra_fields = unique_fields(DOCUMENT_FIELDS, env_list(os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "")))
+    inspect_timeout = max(5, min(int(os.environ.get("ZEEV_INSPECT_TIMEOUT_SECONDS", "20")), 90))
+    report_field_limit = max(0, min(int(os.environ.get("ZEEV_INSPECT_REPORT_FIELD_LIMIT", "0")), 30))
+    report_page_limit = max(1, min(int(os.environ.get("ZEEV_INSPECT_REPORT_PAGE_LIMIT", "2")), 15))
+    probe_limit = max(0, min(int(os.environ.get("ZEEV_INSPECT_PROBE_LIMIT", "5")), 12))
     out = {"ok": True, "mode": "inspect-docs", "tickets": [], "errors": []}
     for instance_id in ids:
         entry = {"id": instance_id, "allFields": [], "requestedDocFields": [], "reportFieldTests": [], "tasks": [], "messages": {}, "errors": []}
         try:
-            data, fields = instance_fields(instance_id, [])
+            data, fields = instance_fields(instance_id, [], timeout=inspect_timeout, retries=1)
             report_link = str(data.get("reportLink") or data.get("reportUrl") or "").strip()
             flow = data.get("flow") or {}
             entry.update({
@@ -1519,7 +1526,7 @@ def inspect_docs():
         for i in range(0, len(extra_fields), 8):
             chunk = extra_fields[i:i + 8]
             try:
-                _, found = instance_fields(instance_id, chunk)
+                _, found = instance_fields(instance_id, chunk, timeout=inspect_timeout, retries=1)
                 for field in found or []:
                     name = field_display_name(field)
                     entry["requestedDocFields"].append({
@@ -1542,7 +1549,7 @@ def inspect_docs():
                 [],
             ]
             for field_set in direct_field_sets:
-                rows = report_instance(instance_id, flow_for_report, fields=field_set if field_set else None)
+                rows = report_instance(instance_id, flow_for_report, fields=field_set if field_set else None, timeout=inspect_timeout, retries=1)
                 target = next((row for row in rows if int(row.get("id") or 0) == int(instance_id)), (rows[0] if rows else {}))
                 fields = target.get("formFields") or []
                 direct_tests.append({
@@ -1566,13 +1573,13 @@ def inspect_docs():
         except Exception as exc:
             entry["errors"].append({"stage": "report-instance-tests", "error": str(exc)[:500]})
 
-        if flow_for_report:
-            for field_name in unique_fields(["Documento", "documento"], extra_fields)[:30]:
+        if flow_for_report and report_field_limit:
+            for field_name in unique_fields(["Documento", "documento"], extra_fields)[:report_field_limit]:
                 try:
                     start = os.environ.get("ZEEV_SYNC_START") or "2025-01-01T00:00:00-03:00"
                     end = os.environ.get("ZEEV_SYNC_END") or datetime.now(business_tz()).isoformat(timespec="seconds")
                     found_rows = []
-                    for page in range(1, 16):
+                    for page in range(1, report_page_limit + 1):
                         rows = report_page(flow_for_report, page, start, end, page_size=30, fields=[field_name])
                         for row in rows or []:
                             if int(row.get("id") or 0) == int(instance_id):
@@ -1628,7 +1635,7 @@ def inspect_docs():
             if report_link:
                 probe_urls.insert(0, report_link if report_link.startswith("http") else f"{base}{report_link}")
             entry["endpointProbes"] = []
-            for url in probe_urls:
+            for url in probe_urls[:probe_limit]:
                 entry["endpointProbes"].append(http_probe(url))
         except Exception as exc:
             entry["errors"].append({"stage": "endpoint-probes", "error": str(exc)[:500]})
