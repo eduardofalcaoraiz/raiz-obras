@@ -487,6 +487,26 @@ def report_instance(instance_id, flow_id=0, fields=None, page_size=10):
     return data if isinstance(data, list) else [data]
 
 
+def merge_zeev_fields(*groups):
+    out = []
+    seen = set()
+    for group in groups:
+        for field in group or []:
+            if not isinstance(field, dict):
+                continue
+            key = "|".join(str(x or "") for x in [
+                field_display_name(field),
+                field.get("row") or 1,
+                field.get("id") or "",
+                field.get("openUrl") or field.get("url") or field.get("downloadUrl") or "",
+            ])
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(field)
+    return out
+
+
 def instance_fields(instance_id, fields):
     params = [("showPendingInstanceTasks", "true"), ("showFinishedInstanceTasks", "true"),
               ("showPendingAssignees", "true"), ("useCache", "false"),
@@ -494,8 +514,25 @@ def instance_fields(instance_id, fields):
     for field in fields or []:
         params.append(("formFieldNames", field))
     url = f"{ZEEV_BASE_URL}/api/2/instances/{instance_id}?" + urllib.parse.urlencode(params)
-    data = request_json("GET", url, headers={"Authorization": f"Bearer {ZEEV_TOKEN}"}, timeout=90)
-    return data, data.get("formFields") or []
+    latest = {}
+    found = []
+    errors = []
+    try:
+        data = request_json("GET", url, headers={"Authorization": f"Bearer {ZEEV_TOKEN}"}, timeout=90)
+        latest = data or latest
+        found = merge_zeev_fields(found, data.get("formFields") or [])
+    except Exception as exc:
+        errors.append(str(exc)[:500])
+    try:
+        rows = report_instance(instance_id, 0, fields=fields if fields else None)
+        target = next((row for row in rows if int(row.get("id") or 0) == int(instance_id)), (rows[0] if rows else {}))
+        latest = target or latest
+        found = merge_zeev_fields(found, target.get("formFields") or [])
+    except Exception as exc:
+        errors.append(str(exc)[:500])
+    if not latest and errors:
+        raise RuntimeError(" | ".join(errors))
+    return latest, found
 
 
 def instance_messages(instance_id):
@@ -1710,10 +1747,21 @@ def sync_ids(instance_ids):
     return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
 
 
+def add_document_options(payload):
+    extra_fields = os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "").strip()
+    if extra_fields:
+        payload["extraDocumentFields"] = extra_fields
+    file_template = os.environ.get("ZEEV_FILE_DOWNLOAD_URL_TEMPLATE", "").strip()
+    if file_template:
+        payload["fileDownloadUrlTemplate"] = file_template
+    return payload
+
+
 def ingest(tickets, notify=False, partial=False):
     payload = {"mode": "ingest", "tickets": tickets, "notify": notify}
     if ZEEV_TOKEN:
         payload["zeevToken"] = ZEEV_TOKEN
+    add_document_options(payload)
     backfill_limit = os.environ.get("ZEEV_INGEST_BACKFILL_LIMIT") or os.environ.get("ZEEV_BACKFILL_LIMIT")
     if backfill_limit and not partial:
         try:
@@ -1759,6 +1807,7 @@ def backfill_docs():
     }
     if ZEEV_TOKEN:
         shared["zeevToken"] = ZEEV_TOKEN
+    add_document_options(shared)
     ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
     if ticket_ids:
         shared["ticketIds"] = ticket_ids
@@ -1894,6 +1943,7 @@ def register_obra_payments():
         }
         if ZEEV_TOKEN:
             payload["zeevToken"] = ZEEV_TOKEN
+        add_document_options(payload)
         return request_json(
             "POST",
             f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
@@ -1982,6 +2032,7 @@ def refresh_payment_statuses():
         }
         if ZEEV_TOKEN:
             payload["zeevToken"] = ZEEV_TOKEN
+        add_document_options(payload)
         try:
             result = request_json(
                 "POST",
