@@ -13,7 +13,7 @@ def _json(handler: BaseHTTPRequestHandler, status: int, payload: dict[str, Any])
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Access-Control-Allow-Origin", "*")
     handler.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    handler.send_header("Access-Control-Allow-Headers", "authorization, content-type, x-cron-secret, x-zeev-token")
+    handler.send_header("Access-Control-Allow-Headers", "authorization, content-type, x-cron-secret, x-zeev-token, x-zeev-extra-document-fields, x-zeev-file-download-url-template")
     handler.send_header("Cache-Control", "no-store")
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
@@ -95,6 +95,19 @@ class handler(BaseHTTPRequestHandler):
         os.environ["ZEEV_BUSINESS_TIMEZONE"] = str(payload.get("businessTimezone") or payload.get("business_timezone") or "America/Sao_Paulo")
         os.environ["ZEEV_DEEP_SCAN"] = "1" if _as_bool(payload.get("deepScan") or payload.get("deep_scan"), False) else os.environ.get("ZEEV_DEEP_SCAN", "0")
         os.environ["ZEEV_NOTIFY"] = "true" if _as_bool(payload.get("notify"), mode != "retro") else "false"
+        extra_document_fields = payload.get("extraDocumentFields") or payload.get("extra_document_fields") or ""
+        if extra_document_fields:
+            if isinstance(extra_document_fields, (list, tuple)):
+                os.environ["ZEEV_EXTRA_DOCUMENT_FIELDS"] = ",".join(str(x) for x in extra_document_fields)
+            else:
+                os.environ["ZEEV_EXTRA_DOCUMENT_FIELDS"] = str(extra_document_fields)
+        else:
+            os.environ.pop("ZEEV_EXTRA_DOCUMENT_FIELDS", None)
+        file_download_template = payload.get("fileDownloadUrlTemplate") or payload.get("file_download_url_template") or ""
+        if file_download_template:
+            os.environ["ZEEV_FILE_DOWNLOAD_URL_TEMPLATE"] = str(file_download_template)
+        else:
+            os.environ.pop("ZEEV_FILE_DOWNLOAD_URL_TEMPLATE", None)
         target_obra = payload.get("targetObra") or payload.get("target_obra") or payload.get("obraName") or payload.get("obra") or ""
         if target_obra:
             os.environ["ZEEV_TARGET_OBRA"] = str(target_obra)
