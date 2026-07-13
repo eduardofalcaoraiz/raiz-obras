@@ -2145,6 +2145,14 @@ function pushZeevDocValue(out: AnyRecord[], label: string, value: unknown, sourc
   if (/^https?:\/\//i.test(s)) pushZeevDoc(out, label || 'documento-fiscal.pdf', s, '', source)
 }
 
+function pushZeevDocText(out: AnyRecord[], label: string, value: unknown, source: string) {
+  const text = String(value || '')
+  if (!text) return
+  const proofLabel = /(comprovante|recibo|pix|pagamento|pago|liquidado)/.test(norm(text)) ? 'comprovante pagamento' : label
+  const urls = text.match(/https?:\/\/[^\s"'<>]+/gi) || []
+  for (const url of urls) pushZeevDoc(out, proofLabel || 'documento-fiscal.pdf', url.replace(/[),.;]+$/, ''), '', source)
+}
+
 function zeevDocsFromTicket(ticket: AnyRecord) {
   const docs: AnyRecord[] = []
   const rows = Array.isArray(ticket?.raw_fields) ? ticket.raw_fields : Array.isArray(ticket?.rawFields) ? ticket.rawFields : []
@@ -2169,6 +2177,20 @@ function zeevDocsFromTicket(ticket: AnyRecord) {
   for (const task of tasks || []) {
     if (!task || typeof task !== 'object' || !objectFileHints(task)) continue
     pushZeevDocValue(docs, String(task?.task?.name || task?.alias || 'tarefa'), task, 'instanceTasks')
+    pushZeevDocText(docs, String(task?.task?.name || task?.alias || 'tarefa'), [task?.comments, task?.comment, task?.description, task?.result].filter(Boolean).join(' '), 'instanceTasks')
+  }
+  const messages = Array.isArray(ticket?.raw_messages)
+    ? ticket.raw_messages
+    : Array.isArray(ticket?.rawMessages)
+      ? ticket.rawMessages
+      : Array.isArray(ticket?.raw_instance?.__messages)
+        ? ticket.raw_instance.__messages
+        : []
+  for (const msg of messages || []) {
+    if (!msg || typeof msg !== 'object') continue
+    const label = String(msg?.title || msg?.subject || msg?.author?.name || msg?.createdBy?.name || 'comentario Zeev')
+    pushZeevDocValue(docs, label, msg, 'messages')
+    pushZeevDocText(docs, label, msg?.body || msg?.text || msg?.message || msg?.comment || '', 'messages')
   }
   const instance = ticket?.raw_instance || ticket?.rawInstance || {}
   if (instance && typeof instance === 'object') {
@@ -2326,7 +2348,79 @@ function paymentDateFromTicket(ticket: AnyRecord) {
   const fromJson = dateOnly(pagamento.data_pagamento || pagamento.dataPagamento)
   if (fromJson) return fromJson
   const fmap = fieldMap(Array.isArray(ticket?.raw_fields) ? ticket.raw_fields : Array.isArray(ticket?.rawFields) ? ticket.rawFields : [])
-  return dateOnly(firstField(fmap, ['dataPagamento', 'data do pagamento', 'pagoEm', 'pago em', 'dataEfetivaPagamento', 'data efetiva de pagamento']))
+  const fromField = dateOnly(firstField(fmap, ['dataPagamento', 'data do pagamento', 'pagoEm', 'pago em', 'dataEfetivaPagamento', 'data efetiva de pagamento', 'dataLiquidacao', 'data liquidacao', 'dataBaixa', 'data baixa']))
+  if (fromField) return fromField
+  const fromTask = paymentDateFromTasks(ticket)
+  if (fromTask) return fromTask
+  return paymentDateFromMessages(ticket)
+}
+
+function dueDateFromTicket(ticket: AnyRecord) {
+  const pagamento = ticket?.pagamento_json || ticket?.pagamento || {}
+  const fromJson = dateOnly(pagamento.previsao_pagamento || pagamento.previsaoPagamento || pagamento.dataVencimento || pagamento.data_vencimento)
+  if (fromJson) return fromJson
+  const fmap = fieldMap(Array.isArray(ticket?.raw_fields) ? ticket.raw_fields : Array.isArray(ticket?.rawFields) ? ticket.rawFields : [])
+  return dateOnly(firstField(fmap, ['previsaoPagamento', 'previsao de pagamento', 'dataDeVencimento', 'data de vencimento', 'dataVencimento', 'vencimento']))
+}
+
+function dateFromAnyObject(value: unknown): string {
+  if (!value || typeof value !== 'object') return ''
+  const obj = value as AnyRecord
+  for (const key of ['endDateTime', 'finishedDateTime', 'finishDateTime', 'completedAt', 'completedDate', 'doneAt', 'doneDate', 'dateEnd', 'endedAt', 'lastFinishedTaskDateTime', 'createdAt', 'createdDateTime', 'createDateTime', 'dateTime', 'date']) {
+    const d = dateOnly(obj[key])
+    if (d) return d
+  }
+  return ''
+}
+
+function textHasPaymentDoneEvidence(value: unknown) {
+  const n = norm(value)
+  if (!n) return false
+  if (/(cancelad|rejeitad|reprovad|estornad|nao pago|não pago)/.test(n)) return false
+  const paymentCue = /(pagamento|pagar|pago|baixad|liquidad|comprovante|recibo|pix)/.test(n)
+  const doneCue = /(realizad|efetuad|concluid|finalizad|baixad|liquidad|pago|aprovad|comprovante|recibo|pix)/.test(n)
+  return paymentCue && doneCue
+}
+
+function paymentDateFromTasks(ticket: AnyRecord) {
+  const tasks = Array.isArray(ticket?.raw_tasks) ? ticket.raw_tasks : Array.isArray(ticket?.rawTasks) ? ticket.rawTasks : []
+  for (const task of tasks || []) {
+    const text = [task?.task?.name, task?.alias, task?.result, task?.status, task?.comments, task?.comment, task?.description].filter(Boolean).join(' ')
+    if (!textHasPaymentDoneEvidence(text)) continue
+    const d = dateFromAnyObject(task)
+    if (d) return d
+  }
+  return ''
+}
+
+function dateNearPaymentText(value: unknown) {
+  const text = String(value || '')
+  if (!textHasPaymentDoneEvidence(text)) return ''
+  const br = text.match(/(?:pago|pagamento|baixad[ao]|liquidad[ao]|comprovante|recibo|pix)[\s\S]{0,80}?(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/i)
+  if (br) return dateOnly(br[1])
+  const isoMatch = text.match(/(?:pago|pagamento|baixad[ao]|liquidad[ao]|comprovante|recibo|pix)[\s\S]{0,80}?(\d{4}-\d{2}-\d{2})/i)
+  if (isoMatch) return dateOnly(isoMatch[1])
+  return ''
+}
+
+function paymentDateFromMessages(ticket: AnyRecord) {
+  const messages = Array.isArray(ticket?.raw_messages)
+    ? ticket.raw_messages
+    : Array.isArray(ticket?.rawMessages)
+      ? ticket.rawMessages
+      : Array.isArray(ticket?.raw_instance?.__messages)
+        ? ticket.raw_instance.__messages
+        : []
+  for (const msg of messages || []) {
+    const body = msg?.body || msg?.text || msg?.message || msg?.comment || ''
+    const explicit = dateNearPaymentText(body)
+    if (explicit) return explicit
+    if (textHasPaymentDoneEvidence(body) && /https?:\/\//i.test(String(body || ''))) {
+      const d = dateFromAnyObject(msg)
+      if (d) return d
+    }
+  }
+  return ''
 }
 
 async function refreshTicketFromZeev(row: AnyRecord) {
@@ -2378,6 +2472,26 @@ async function loadGenericTicketFromZeev(row: AnyRecord) {
     return built
   }
   return genericZeevTicket(enriched, row)
+}
+
+async function loadPaymentTicketFromZeev(row: AnyRecord) {
+  const ticket = await loadGenericTicketFromZeev(row)
+  const id = Number(ticket?.zeev_instance_id || row?.ticket_raiz || row?.zeev_instance_id || 0)
+  if (!id) return ticket
+  try {
+    const messages = await zeevMessages(id)
+    return {
+      ...ticket,
+      raw_messages: messages,
+      raw_instance: {
+        ...(ticket?.raw_instance || {}),
+        __messages: messages,
+      },
+    }
+  } catch (error) {
+    console.warn('loadPaymentTicketFromZeev messages:', error instanceof Error ? error.message : String(error))
+  }
+  return ticket
 }
 
 function genericZeevTicket(enriched: AnyRecord, fallback: AnyRecord = {}) {
@@ -2588,6 +2702,66 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   }
 
   if (out.errors.length > 25) out.errors = out.errors.slice(0, 25)
+  return out
+}
+
+function paymentIsOverdue(row: AnyRecord) {
+  if (String(row?.st || '').toUpperCase() === 'PAGO') return false
+  const venc = dateOnly(row?.venc)
+  if (!venc) return false
+  return venc < new Date().toISOString().slice(0, 10)
+}
+
+async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
+  const limit = Math.max(1, Math.min(Number(input.limit || input.backfillLimit || input.backfill_limit || 150), 350))
+  const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || input.file_limit || 4), 8))
+  const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+  const targetSet = new Set(targetTicketIds.map((id) => String(id)))
+  const onlyOverdue = input.onlyOverdue !== false && input.only_overdue !== false && !targetTicketIds.length
+  const out: AnyRecord = { ok: true, mode: 'refresh-payment-statuses', requested: targetTicketIds, scannedPayments: 0, updatedPaid: 0, updatedDueDate: 0, filesAttached: 0, errors: [], updated: [], unchanged: [] }
+
+  const paymentFilter = targetTicketIds.length ? `ticket_raiz=in.(${targetTicketIds.join(',')})` : 'ticket_raiz=not.is.null'
+  const rows = await restAll(`/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&${paymentFilter}&order=id.asc`, 1000)
+  const candidates = (rows || [])
+    .filter((row: AnyRecord) => ticketDigits(row.ticket_raiz) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz))))
+    .filter((row: AnyRecord) => !onlyOverdue || paymentIsOverdue(row))
+    .filter((row: AnyRecord) => targetSet.size || String(row.st || '').toUpperCase() !== 'PAGO')
+    .sort((a: AnyRecord, b: AnyRecord) => Number(paymentIsOverdue(b)) - Number(paymentIsOverdue(a)) || String(a.venc || '').localeCompare(String(b.venc || '')) || Number(a.id) - Number(b.id))
+    .slice(0, limit)
+  out.scannedPayments = candidates.length
+
+  for (const row of candidates) {
+    const tr = Number(ticketDigits(row.ticket_raiz))
+    try {
+      const ticket = await loadPaymentTicketFromZeev({ zeev_instance_id: tr, ticket_raiz: tr })
+      const attach = await attachDocsForTarget('payment', row, ticket, fileLimit)
+      const paidDate = paymentDateFromTicket(ticket)
+      const dueDate = dueDateFromTicket(ticket)
+      const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
+      if (attach.attached || JSON.stringify(attach.docs || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = attach.docs || []
+      if (!row.nf_doc_path && attach.nfPath) patch.nf_doc_path = attach.nfPath
+      if (!row.comp_doc_path && attach.compPath) patch.comp_doc_path = attach.compPath
+      if (paidDate) {
+        patch.st = 'PAGO'
+        patch.paga_em = paidDate
+        out.updatedPaid++
+      } else if (dueDate && dueDate !== row.venc) {
+        patch.venc = dueDate
+        patch.st = 'PENDENTE'
+        out.updatedDueDate++
+      }
+      const changed = Object.keys(patch).filter((key) => key !== 'zeev_docs_checked_at').length > 0
+      await rest(`/pagamentos?id=eq.${Number(row.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) })
+      out.filesAttached += Number(attach.attached || 0)
+      const summary = { tr, pagamento_id: Number(row.id), obra_id: Number(row.obra_id), before: { st: row.st, venc: row.venc, paga_em: row.paga_em || '' }, after: { st: patch.st || row.st, venc: patch.venc || row.venc, paga_em: patch.paga_em || row.paga_em || '' }, docsAttached: Number(attach.attached || 0) }
+      if (changed) out.updated.push(summary)
+      else if (out.unchanged.length < 30) out.unchanged.push({ tr, pagamento_id: Number(row.id), reason: 'sem_evidencia_nova_no_zeev' })
+    } catch (error) {
+      out.errors.push({ tr, pagamento_id: Number(row.id), error: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  if (out.errors.length > 30) out.errors = out.errors.slice(0, 30)
+  if (out.updated.length > 100) out.updated = out.updated.slice(0, 100)
   return out
 }
 
@@ -2838,6 +3012,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'backfill-docs') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await runBackfillDocs(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'refresh-payment-statuses') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await runRefreshPaymentStatuses(input || {})
       return json(out)
     }
     if (input?.mode === 'register-obra-payments') {
