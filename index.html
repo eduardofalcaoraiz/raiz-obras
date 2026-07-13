@@ -2078,7 +2078,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <section id="view-admin" class="view">
 
-      <div class="phead"><div><div class="eyebrow">Controle de acesso</div><h1>Administração</h1><p>Gerencie usuários e categorias de gasto da plataforma.</p></div></div>
+      <div class="phead"><div><div class="eyebrow">Controle de acesso</div><h1>Administração</h1><p>Gerencie usuários, pastas documentais e categorias de CAPEX da plataforma.</p></div></div>
 
       <div class="card"><h2>Usuários</h2><div class="sub">Aprove ou revogue o acesso de cada cadastro.</div>
 
@@ -2094,11 +2094,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
             <h2 style="font-size:19px;margin-bottom:3px">Categorias da plataforma</h2>
 
-            <div class="sub">Gerencie separadamente pagamentos, documentos e CAPEX.</div>
+            <div class="sub">Gerencie documentos e CAPEX. Categorias de pagamentos foram removidas do fluxo operacional.</div>
 
           </div>
-
-          <button class="btn btn-primary btn-sm" onclick="openCatModal(undefined,'pagamento')"><span class="ic">+</span> Nova categoria de pagamento</button>
 
         </div>
 
@@ -2343,26 +2341,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 
 
-      <!-- 2.4. Categoria do gasto -->
-
-      <div class="imp-sec">
-
-        <div class="imp-sec-hd" style="display:flex;justify-content:space-between;align-items:center">
-          <span>Categoria do Gasto</span>
-          <button type="button" onclick="openCatModalFromForm()" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">+ Nova categoria</button>
-        </div>
-
-        <select class="fi" id="imp-cat" onchange="impCatChanged()" style="display:block;margin-bottom:8px"><!-- populado pelo JS --></select>
-
-        <p style="font-size:11.5px;color:var(--muted);margin-bottom:0">Ex: <b>Comissoes</b>, <b>Taxa administrativa</b>, <b>Legalizacao</b>, <b>Material</b>, <b>Mao de obra</b></p>
-
-        <div id="imp-cat-detail" style="display:none"></div>
-
-        <input type="hidden" id="imp-custo-val" value="">
-
-        <input type="hidden" id="imp-tipo" value="OBRA">
-
-      </div>
+      <input type="hidden" id="imp-cat" value="outros">
+      <input type="hidden" id="imp-custo-val" value="">
+      <input type="hidden" id="imp-tipo" value="OBRA">
 
             <!-- 2.5. Referência do pagamento -->
 
@@ -2516,15 +2497,6 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       </div>
 
       </div>
-
-      <!-- campos ocultos mantidos para compatibilidade interna -->
-
-      <select id="imp-cat" style="display:none"></select>
-
-
-      <select id="imp-tipo" style="display:none"><option value="OBRA">OBRA</option></select>
-
-
 
       <!-- Ações -->
 
@@ -2713,19 +2685,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <input class="fi mono" id="pm-ticket" placeholder="Ex: TKR-2024-001" style="text-transform:uppercase">
     </div>
 
-    <div style="padding:12px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--line);margin-bottom:4px">
-      <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Classificação do gasto</div>
-      <div class="fgrid">
-        <div class="frow" style="margin-bottom:0">
-          <label class="fl" style="display:flex;justify-content:space-between;align-items:center">
-            <span>Categoria</span>
-            <button type="button" onclick="openCatModalFromPm()" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">+ Nova categoria</button>
-          </label>
-          <select class="fi" id="pm-cat"></select>
-        </div>
-
-      </div>
-    </div>
+    <input type="hidden" id="pm-cat" value="outros">
 
     <div class="frow" style="margin-bottom:4px">
       <label class="fl" style="display:flex;align-items:center;gap:6px"><span>Vínculo com contrato</span><span style="font-size:11px;color:var(--muted);font-weight:400">(opcional)</span></label>
@@ -3324,7 +3284,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <div class="capex-form-card">
       <div class="capex-form-title">Contexto do pedido</div>
-      <div class="fgrid"><div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="ci-m-ano" onchange="updateCapexUnitHint();syncCapexResolvedState()"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option></select></div><div class="frow"><label class="fl">Fonte solicitante</label><select class="fi" id="ci-m-fonte"><option>UNIDADE</option><option>CMEF</option><option>MANUTENÇÃO</option><option>ARQUITETURA</option><option>TI</option><option>RH</option></select></div></div>
+      <div class="fgrid"><div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="ci-m-ano" onchange="updateCapexUnitHint();syncCapexResolvedState()"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option></select></div><div class="frow"><label class="fl">Solicitante</label><input class="fi" id="ci-m-solicitante" placeholder="Nome da pessoa solicitante"></div></div>
+      <div class="fgrid"><div class="frow"><label class="fl">E-mail do solicitante</label><input class="fi" id="ci-m-solicitante-email" type="email" placeholder="email@raizeducacao.com.br"></div></div>
+      <input type="hidden" id="ci-m-fonte" value="">
 
       <div class="fgrid">
         <div class="frow"><label class="fl">Unidade principal / escola <span style="font-weight:500;color:var(--muted)">(opcional no rateio)</span></label><select class="fi" id="ci-m-unidade" onchange="syncCapexExtraUnitOptions();syncCapexRateioOptions();updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
@@ -3480,10 +3442,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
         <div class="frow"><label class="fl">Previsão de pagamento</label><input class="fi" id="zo-venc" type="date"></div>
         <div class="frow"><label class="fl">Responsável pelo pagamento</label><select class="fi" id="zo-pag"></select></div>
       </div>
-      <div class="fgrid">
-        <div class="frow"><label class="fl">Categoria de pagamento</label><select class="fi" id="zo-cat"></select></div>
-        <div class="frow"><label class="fl">Número do documento fiscal</label><input class="fi" id="zo-nf-num" placeholder="NF, fatura ou recibo"></div>
-      </div>
+      <input type="hidden" id="zo-cat" value="outros">
+      <div class="frow"><label class="fl">Número do documento fiscal</label><input class="fi" id="zo-nf-num" placeholder="NF, fatura ou recibo"></div>
       <div class="frow"><label class="fl">Tipo de documento</label><select class="fi" id="zo-nf-tipo"><option>NFS-e</option><option>NF-e</option><option>Fatura</option><option>Boleto</option><option>Recibo</option><option>Sem nota</option></select></div>
     </div>
 
@@ -3955,7 +3915,7 @@ let investidores=[];
 
 let FORN_DATA={}; // {cnpj: {nome, email, telefone, municipio, uf, atividade, porte, ...}}
 
-// Categorias padrão de pagamentos — usadas como fallback quando DB está vazio
+// Categorias legadas de pagamentos: mantidas apenas para compatibilidade com registros antigos.
 
 const DEFAULT_CATS=[
 
@@ -3989,7 +3949,9 @@ const DEFAULT_CATS=[
 
 ];
 
-let CATS=[]; // Categorias de pagamentos. Preenchido pelo loadFromDB() — se vazio, usa DEFAULT_CATS
+let CATS=[]; // Categorias legadas de pagamentos. Novos lançamentos usam PAYMENT_CAT_DEFAULT.
+
+const PAYMENT_CAT_DEFAULT='outros';
 
 const catById=id=>CATS.find(c=>c.id===id)||{nome:"(removida)",subs:[]};
 
@@ -4219,7 +4181,30 @@ function renderChart(o){const map={};o.pag.filter(p=>p.st==="PAGO").forEach(p=>{
 
 /* EXPORT CSV */
 
-function exportCSV(){if(!cur)return;let rows=cur.pag.map((p,i)=>({p,i}));if(pagFiltro==="pagos")rows=rows.filter(r=>r.p.st==="PAGO");else if(pagFiltro==="atraso")rows=rows.filter(r=>isAtraso(r.p));else if(pagFiltro==="pend")rows=rows.filter(r=>r.p.st==="PENDENTE");if(pagDe)rows=rows.filter(r=>!r.p.venc||r.p.venc>=pagDe);if(pagAte)rows=rows.filter(r=>!r.p.venc||r.p.venc<=pagAte);const q=pagBusca.trim().toLowerCase();if(q)rows=rows.filter(r=>((r.p.ben||"")+" "+(r.p.ref||"")).toLowerCase().indexOf(q)>=0);const h=["Beneficiário","Referência","Nº da NF","Tipo de custo","Contrato","Forma pgto","Categoria","Subcategoria","Pagante","Valor","Vencimento","Status","Doc fiscal"];const esc=v=>'"'+String(v||"").replace(/"/g,'""')+'"';const csv=[h.map(esc).join(",")].concat(rows.map(({p})=>{const cat=catById(p.cat);const contrNome=p.contratoSeq?cur.contratos.find(c=>c.seq===p.contratoSeq)?.nome_contr||"":"";return[p.ben,p.ref,cleanImpDocNumber(p.nfNum||"",p.nfTipo||""),p.tipoCusto||"",contrNome,p.pagForma||"A_VISTA",cat.nome,"",p.pagn,p.v,p.venc,p.st,p.nfTipo||""].map(esc).join(",");})).join("\n");const blob=new Blob([""+csv],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(cur.nome.replace(/[^a-zA-Z0-9\-]/g,"-")+"-pagamentos.csv");a.click();URL.revokeObjectURL(a.href);toast("CSV exportado ("+rows.length+" linhas).");}
+function exportCSV(){
+  if(!cur)return;
+  let rows=cur.pag.map((p,i)=>({p,i}));
+  if(pagFiltro==="pagos")rows=rows.filter(r=>r.p.st==="PAGO");
+  else if(pagFiltro==="atraso")rows=rows.filter(r=>isAtraso(r.p));
+  else if(pagFiltro==="pend")rows=rows.filter(r=>r.p.st==="PENDENTE");
+  if(pagDe)rows=rows.filter(r=>!r.p.venc||r.p.venc>=pagDe);
+  if(pagAte)rows=rows.filter(r=>!r.p.venc||r.p.venc<=pagAte);
+  const q=pagBusca.trim().toLowerCase();
+  if(q)rows=rows.filter(r=>((r.p.ben||"")+" "+(r.p.ref||"")).toLowerCase().indexOf(q)>=0);
+  const h=["Beneficiário","Referência","Nº da NF","Tipo de custo","Contrato","Forma pgto","Pagante","Valor","Vencimento","Status","Doc fiscal"];
+  const esc=v=>'"'+String(v||"").replace(/"/g,'""')+'"';
+  const csv=[h.map(esc).join(",")].concat(rows.map(({p})=>{
+    const contrNome=p.contratoSeq?cur.contratos.find(c=>c.seq===p.contratoSeq)?.nome_contr||"":"";
+    return[p.ben,p.ref,cleanImpDocNumber(p.nfNum||"",p.nfTipo||""),p.tipoCusto||"",contrNome,p.pagForma||"A_VISTA",p.pagn,p.v,p.venc,p.st,p.nfTipo||""].map(esc).join(",");
+  })).join("\n");
+  const blob=new Blob([""+csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=(cur.nome.replace(/[^a-zA-Z0-9\-]/g,"-")+"-pagamentos.csv");
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast("CSV exportado ("+rows.length+" linhas).");
+}
 
 
 
@@ -5737,7 +5722,14 @@ function renderGeral(){
   });
   const marcaRows=Object.values(marcaMap).sort((a,b)=>b.value-a.value).slice(0,8);
 
-  const catRows=CATS.map(c=>({label:c.nome,value:pagamentos.filter(x=>x.p.st==='PAGO'&&x.p.cat===c.id).reduce((a,x)=>a+(+x.p.v||0),0),color:'var(--ok)'})).filter(r=>r.value>0).sort((a,b)=>b.value-a.value).slice(0,7);
+  const fornecedorMap={};
+  pagamentos.filter(x=>x.p.st==='PAGO').forEach(x=>{
+    const nome=(x.p.ben||'Fornecedor não informado').trim();
+    if(!fornecedorMap[nome])fornecedorMap[nome]={label:nome,value:0,count:0,color:'var(--ok)'};
+    fornecedorMap[nome].value+=+x.p.v||0;
+    fornecedorMap[nome].count++;
+  });
+  const fornecedorRows=Object.values(fornecedorMap).sort((a,b)=>b.value-a.value).slice(0,7).map(r=>({...r,display:`${fmt(r.value)} · ${r.count} lançamento${r.count!==1?'s':''}`}));
   const capexCatRows=_ciGroupStats(capexItens,i=>capexCategoriaNome(i)).sort((a,b)=>b.orc-a.orc||b.total-a.total).slice(0,7).map(r=>({label:r.key,value:r.orc||r.total,display:r.orc?fmt(r.orc):`${r.total} pedido(s)`,color:'var(--accent)'}));
 
   const docByMarca={};
@@ -5773,8 +5765,8 @@ function renderGeral(){
       <div class="gd-risk-list">${riskRows.map(r=>`<div class="gd-risk"><i class="dot" style="background:${r.color}"></i><div><b>${escHtml(r.title)}</b><span>${escHtml(r.sub)}</span></div></div>`).join('')}</div>
     </div>
     <div class="capex-panel gd-span-6">
-      <div class="gd-panel-head"><div><h3>Pagamentos por categoria</h3><div class="sub">Onde o gasto pago se concentra nas obras.</div></div><button class="btn btn-ghost btn-sm" onclick="go('cobranca')">Cobrança →</button></div>
-      ${geralBarRows(catRows,{money:true,color:'var(--ok)',empty:'Ainda não há pagamentos quitados por categoria.'})}
+      <div class="gd-panel-head"><div><h3>Maiores fornecedores pagos</h3><div class="sub">Concentração financeira por favorecido nas obras.</div></div><button class="btn btn-ghost btn-sm" onclick="go('cobranca')">Cobrança →</button></div>
+      ${geralBarRows(fornecedorRows,{money:true,color:'var(--ok)',empty:'Ainda não há pagamentos quitados por fornecedor.'})}
     </div>
     <div class="capex-panel gd-span-6">
       <div class="gd-panel-head"><div><h3>CAPEX por categoria</h3><div class="sub">Orçamento mapeado nos pedidos de melhorias.</div></div><button class="btn btn-ghost btn-sm" onclick="go('capex')">CAPEX →</button></div>
@@ -6117,7 +6109,8 @@ function capexZeevCategoryInput(z){
     pedido:capexZeevDescricaoLancamento(z),
     referencia:String(z?.zeev_instance_id||''),
     setor:z?.setor||capexZeevKind(z),
-    fonte:z?.requester_team||z?.requester_name||'',
+    fonte:'',
+    solicitante:[z?.requester_name,z?.requester_email].filter(Boolean).join(' '),
     tipo:capexZeevType(z),
     fluxo:[z?.flow_name,z?.request_name].filter(Boolean).join(' '),
     itens:capexZeevItemSummary(z),
@@ -6533,6 +6526,35 @@ function capexTicketDadosObj(v){
   return{};
 }
 
+function capexFonteLegadaGenerica(v){
+  const n=capexNormText(v);
+  return !n||['unidade','cmef','manutencao','arquitetura','ti','rh','compras','sem fonte','-'].includes(n);
+}
+
+function capexZeevRequester(z){
+  if(!z)return{nome:'',email:'',equipe:''};
+  return{
+    nome:String(z.requester_name||capexZeevAnyField(z,['solicitante','nomeSolicitante','nome do solicitante'])||'').trim(),
+    email:String(z.requester_email||capexZeevAnyField(z,['emailSolicitante','email do solicitante','e-mail solicitante','email'])||'').trim(),
+    equipe:String(z.requester_team||'').trim()
+  };
+}
+
+function capexSolicitanteFromItem(it){
+  const dados=capexTicketDadosObj(it?.ticket_raiz_dados);
+  const s=dados.solicitante||dados.requester||{};
+  const nome=String(s.nome||s.name||dados.requester_name||dados.requesterName||it?.requester_name||(!capexFonteLegadaGenerica(it?.fonte)?it?.fonte:'')||'').trim();
+  const email=String(s.email||dados.requester_email||dados.requesterEmail||it?.requester_email||'').trim();
+  const equipe=String(s.equipe||s.team||dados.requester_team||dados.requesterTeam||'').trim();
+  return{nome,email,equipe};
+}
+
+function capexSolicitanteLabel(it,withEmail){
+  const s=capexSolicitanteFromItem(it);
+  if(s.nome&&withEmail&&s.email)return`${s.nome} (${s.email})`;
+  return s.nome||s.email||'Não informado';
+}
+
 function capexCompraLinkFromDados(dados){
   const obj=capexTicketDadosObj(dados);
   const link=obj.compraVinculada||obj.compra_vinculada||obj.compra||null;
@@ -6813,7 +6835,7 @@ function capexBuildPagamentoFromZeev(z,obra,escopo){
     v:valor,
     ref,
     nfNum:cleanImpDocNumber(nfNum,hasDoc?'NFS-e':'Sem nota'),
-    cat:(CATS[0]&&CATS[0].id)||'outros',
+    cat:PAYMENT_CAT_DEFAULT,
     sub:0,
     pagn:_defaultPagadorObra(obra),
     st:dataPag?'PAGO':'PENDENTE',
@@ -7615,7 +7637,10 @@ function openCapexZeevApproval(id){
   populateCapexYearSelect(ano);
   populateEscolasSelect(suggestedMarca);
   populateCapexCategorySelect(suggestedCategory);
-  document.getElementById('ci-m-fonte').value='UNIDADE';
+  const requester=capexZeevRequester(z);
+  document.getElementById('ci-m-fonte').value='';
+  document.getElementById('ci-m-solicitante').value=requester.nome||'';
+  document.getElementById('ci-m-solicitante-email').value=requester.email||'';
   document.getElementById('ci-m-unidade').value=suggestedUnit||'';
   syncCapexExtraUnitOptions();
   const apprExtra=document.getElementById('ci-m-unidades-extra');
@@ -7833,7 +7858,7 @@ function openCapexZeevObraApproval(id){
   if(ctx)ctx.innerHTML=capexZeevContextHtmlFor(z);
   populateZeevObraSelect('');
   const cat=document.getElementById('zo-cat');
-  if(cat)cat.innerHTML=CATS.map(c=>`<option value="${escHtml(c.id)}">${escHtml(c.nome)}</option>`).join('');
+  if(cat)cat.value=PAYMENT_CAT_DEFAULT;
   const tipo=capexZeevSuggestedFiscalType(z);
   const tipoEl=document.getElementById('zo-nf-tipo');
   if(tipoEl)tipoEl.value=tipo;
@@ -7879,7 +7904,7 @@ async function saveCapexZeevObraApproval(){
       ben,
       v:parseCurrency(document.getElementById('zo-val')?.value||'0'),
       ref,
-      cat:document.getElementById('zo-cat')?.value||built.cat,
+      cat:PAYMENT_CAT_DEFAULT,
       pagn:document.getElementById('zo-pag')?.value||_defaultPagadorObra(obra),
       venc:document.getElementById('zo-venc')?.value||built.venc||'',
       nfTipo,
@@ -8461,7 +8486,7 @@ function capexDashboardDimension(value){
     marca:{value:'marca',label:'Marca',title:'Comprometido por marca',sub:'Distribuição financeira por marca.',fn:i=>extractMarca(i)||'Sem marca'},
     unidade:{value:'unidade',label:'Unidade',title:'Comprometido por unidade',sub:'Concentração de pedidos por escola.',fn:i=>i.unidade||'Sem unidade'},
     categoria:{value:'categoria',label:'Categoria',title:'Comprometido por categoria',sub:'Tipo de melhoria que concentra orçamento.',fn:i=>capexCategoriaNome(i)||'Sem categoria'},
-    fonte:{value:'fonte',label:'Fonte',title:'Comprometido por fonte',sub:'Origem dos pedidos registrados.',fn:i=>i.fonte||'Sem fonte'},
+    solicitante:{value:'solicitante',label:'Solicitante',title:'Pedidos por solicitante',sub:'Pessoa que solicitou o Ticket Raiz.',fn:i=>capexSolicitanteLabel(i,false)},
     setor:{value:'setor',label:'Setor',title:'Comprometido por setor',sub:'Setores informados nos pedidos de CAPEX.',fn:i=>i.setor||'Sem setor'},
     situacao:{value:'situacao',label:'Situação',title:'Pedidos por situação',sub:'Acompanhamento do status administrativo dos pedidos.',fn:i=>_ciSit(i)}
   };
@@ -8573,7 +8598,7 @@ function capexPendenciaLabel(kind){
     sem_orcamento:'Pedidos sem orçamento',
     sem_verba:'Unidades sem CAPEX disponibilizado',
     saldo_negativo:'Unidades com saldo negativo',
-    sem_fonte:'Pedidos sem fonte'
+    sem_fonte:'Pedidos sem solicitante'
   })[kind]||kind;
 }
 
@@ -8602,7 +8627,7 @@ function capexPendenciaGroups(its,kind){
 function capexPendenciaItems(its,kind){
   const list=its||[];
   if(kind==='sem_orcamento')return list.filter(i=>!(+i.orcamento||0)&&_ciSit(i)!=='Cancelado');
-  if(kind==='sem_fonte')return list.filter(i=>!(i.fonte||'').trim()||(i.fonte||'').trim()==='-');
+  if(kind==='sem_fonte')return list.filter(i=>!capexSolicitanteLabel(i,false)||capexSolicitanteLabel(i,false)==='Não informado');
   const keys=new Set(capexPendenciaGroups(list,kind).map(g=>g.key));
   return list.filter(i=>keys.has((+i.ano||0)+'|'+capexUnitKey(i.unidade||'Sem unidade')));
 }
@@ -8612,7 +8637,6 @@ function capexControlCards(its,scope){
   const abertas=capexFilterByStatus(list,'Em Andamento');
   const abertoValor=abertas.reduce((a,i)=>a+(+i.orcamento||0),0);
   const semOrc=capexPendenciaItems(list,'sem_orcamento');
-  const semFonte=capexPendenciaItems(list,'sem_fonte');
   const semVerba=capexPendenciaGroups(list,'sem_verba');
   const saldoNeg=capexPendenciaGroups(list,'saldo_negativo');
   const deficit=saldoNeg.reduce((a,g)=>a+Math.abs(Math.min(g.budget.saldo,0)),0);
@@ -8714,7 +8738,6 @@ function renderCapexZeevPage(){
 function renderCapexUnitSimpleDashboard(its,accent){
   const k=_ciKpis(its);
   const cats=_ciGroupStats(its,i=>capexCategoriaNome(i)).sort((a,b)=>b.orc-a.orc||b.total-a.total).slice(0,5);
-  const fontes=_ciGroupStats(its,i=>i.fonte||'Sem fonte').slice(0,5);
   const open=its.filter(i=>_ciSit(i)==='Em Andamento').sort((a,b)=>(+b.orcamento||0)-(+a.orcamento||0)).slice(0,5);
   return`<div class="capex-unit-simple">
     <div class="capex-panel">
@@ -8735,10 +8758,9 @@ function renderCapexUnitSimpleDashboard(its,accent){
     </div>
     <div class="capex-panel">
       <h3>Recortes da unidade</h3>
-      <div class="sub">Categorias, fontes solicitantes e pedidos em andamento.</div>
+      <div class="sub">Categorias e pedidos que ainda estão em andamento.</div>
       <div style="display:grid;gap:14px">
         <div>${_ciBars(cats,k.total,accent,'Sem categorias neste recorte.',null,'orc','categoria')}${capexFilterChips(cats,'categoria',null,5)}</div>
-        <div>${_ciBars(fontes,k.total,accent,'Sem fonte registrada.',null,'orc','fonte')}${capexFilterChips(fontes,'fonte',null,5)}</div>
         <div>${capexInsightRows(open.map(i=>({label:i.pedido||'Pedido',value:(+i.orcamento||0)>0?fmt(i.orcamento):_ciSit(i),color:_ciStatusColor(i.situacao)})),'Nenhum item em andamento.')}</div>
       </div>
     </div>
@@ -8799,7 +8821,7 @@ function renderCapexScopedDashboard(){
 
     const bc=brandColor(capexDrillMarca);
 
-    html+=capexNavLine(`${capexDrillMarca} · ${capexDrillYear}`,'Comprometido, categorias e origem dos pedidos da marca.',{
+    html+=capexNavLine(`${capexDrillMarca} · ${capexDrillYear}`,'Comprometido, categorias e unidades da marca.',{
       backTitle:'Voltar às marcas',
       right:capexBudgetAction(capexDrillYear,'','Adicionar CAPEX disponibilizado',capexDrillMarca,'ghost')
     });
@@ -8814,10 +8836,10 @@ function renderCapexScopedDashboard(){
       groupALabel:'Pedidos por unidade',
       groupASub:'Unidades da marca por valor comprometido.',
       groupAFocusDim:'unidade',
-      groupB:i=>i.fonte||'Sem fonte',
-      groupBLabel:'Fontes solicitantes',
-      groupBSub:'Origem dos pedidos registrados pela marca.',
-      groupBFocusDim:'fonte',
+      groupB:i=>capexCategoriaNome(i)||'Sem categoria',
+      groupBLabel:'Comprometido por categoria',
+      groupBSub:'Tipos de melhoria que concentram o comprometido da marca.',
+      groupBFocusDim:'categoria',
       hidePriority:true,
       hideSummary:true
     });
@@ -9602,7 +9624,9 @@ function renderCapexRegisteredCard(it){
   const valorLabel=sit==='Cancelado'?'Valor cancelado':(capexIsFinalizado(it)?'Valor registrado':'Orçamento');
   const ref=String(it.referencia||it.ticket_raiz_instance_id||'').trim();
   const refLabel=ref?`TR ${escHtml(ref)}`:'Sem referência';
-  const fonteSetor=[it.fonte,it.setor].filter(Boolean).join(' / ')||'Sem fonte';
+  const solicitante=capexSolicitanteFromItem(it);
+  const solicitanteLabel=capexSolicitanteLabel(it,false);
+  const setorLabel=it.setor||'Setor não informado';
   const rateioInfo=capexRateioInfoFromItem(it);
   const unidade=it.unidade||capexDrillUnidade||'Unidade não informada';
   const unidadesLista=capexItemUnits(it);
@@ -9616,12 +9640,13 @@ function renderCapexRegisteredCard(it){
   const docsButton=docsCount?`<button class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexDocsModal(${it.id})">Arquivos (${docsCount})</button>`:'';
   const compraLink=capexCompraLinkFromItem(it);
   const compraTr=capexZeevSearchDigits(compraLink?.tr||compraLink?.zeev_id||'');
-  const respLabel=compraTr?`${fonteSetor} / Compra TR ${compraTr}${compraLink?.encontrado===false?' - conferir':''}`:fonteSetor;
+  const respLabel=compraTr?`${setorLabel} / Compra TR ${compraTr}${compraLink?.encontrado===false?' - conferir':''}`:setorLabel;
   const details=[
     {label:rateioInfo?'Unidade desta parcela':'Unidades envolvidas',value:unidadesFull},
     ...(rateioInfo?[{label:'Rateio',value:rateioLabel}]:[]),
     {label:'Ano',value:String(it.ano||capexDrillYear||'')},
-    {label:'Fonte',value:it.fonte||'Não informada'},
+    {label:'Solicitante',value:solicitanteLabel},
+    ...(solicitante.email?[{label:'E-mail',value:solicitante.email}]:[]),
     {label:'Setor',value:it.setor||'Não informado'},
     {label:'Categoria',value:catName},
     ...(compraTr?[{label:'TR de compra vinculado',value:`TR ${compraTr}${compraLink?.status?' - '+compraLink.status:''}`},{label:'Descrição da compra',value:compraLink?.pedido||'Descrição não importada'}]:[]),
@@ -10024,7 +10049,10 @@ function openCapexItemModal(id){
 
   populateCapexCategorySelect(it?capexCategoriaId(it):'capex_outros');
 
-  document.getElementById('ci-m-fonte').value=it?.fonte||'UNIDADE';
+  const solicitanteAtual=capexSolicitanteFromItem(it);
+  document.getElementById('ci-m-fonte').value='';
+  document.getElementById('ci-m-solicitante').value=solicitanteAtual.nome||(!capexFonteLegadaGenerica(it?.fonte)?it?.fonte:'');
+  document.getElementById('ci-m-solicitante-email').value=solicitanteAtual.email||'';
 
   document.getElementById('ci-m-unidade').value=it?.unidade||(capexDrillUnidade||'');
   syncCapexExtraUnitOptions();
@@ -10099,7 +10127,9 @@ async function saveCapexItemLocked(options){if(['leitor','doc'].includes(current
 
   const regU=findCapexUnit(unidade);
 
-  const fonte=g('ci-m-fonte');
+  const solicitanteNome=g('ci-m-solicitante');
+  const solicitanteEmail=g('ci-m-solicitante-email');
+  const fonte='';
   const referencia=g('ci-m-ref');
   const setor=g('ci-m-setor')||'COMPRAS';
   const ano=+document.getElementById('ci-m-ano').value;
@@ -10119,15 +10149,22 @@ async function saveCapexItemLocked(options){if(['leitor','doc'].includes(current
   const antigoDados=capexTicketDadosObj(antigo?.ticket_raiz_dados);
   const compraVinculada=compraCheck?capexCompraLinkPayload(compraTr,capexCompraLinkFromDados(antigoDados)):null;
   const obraVinculada=obraCheck?capexObraLinkPayload(obraId,obraEscopo,capexObraLinkFromDados(antigoDados)):null;
+  const requester=zeevRow?capexZeevRequester(zeevRow):{nome:solicitanteNome,email:solicitanteEmail,equipe:''};
+  const solicitanteDados={
+    nome:solicitanteNome||requester.nome||'',
+    email:solicitanteEmail||requester.email||'',
+    equipe:requester.equipe||''
+  };
   const ticketDadosBase=zeevRow?{campos:zeevRow.campos_extraidos||{},itens:zeevRow.itens_json||[],pagamento:zeevRow.pagamento_json||{},rawFields:zeevRow.raw_fields||[]}:antigoDados;
-  const ticketDados=(zeevRow||Object.keys(ticketDadosBase).length||compraCheck||obraCheck)?{...ticketDadosBase,compraVinculada,obraVinculada}:null;
+  const ticketDados=(zeevRow||Object.keys(ticketDadosBase).length||compraCheck||obraCheck||solicitanteDados.nome||solicitanteDados.email)?{...ticketDadosBase,solicitante:solicitanteDados,compraVinculada,obraVinculada}:null;
   const unidadesObj=existingRateioInfo?(unidade?[unidade]:[]):unidadesJson;
   const obj={ano,fonte,unidade,unidades_json:unidadesObj,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||'',ticket_raiz_url:zeevRow?.ticket_link||antigo?.ticket_raiz_url||'',ticket_raiz_instance_id:zeevRow?.zeev_instance_id||antigo?.ticket_raiz_instance_id||null,origem:zeevRow?'ZEEV':(antigo?.origem||''),ticket_raiz_dados:ticketDados,docs_json:zeevRow?capexZeevStoredDocs(zeevRow):(antigo?.docs_json||antigo?.docs||[])};
   const paymentSource=zeevRow||((antigo||obj.ticket_raiz_instance_id||obj.referencia)?{
     zeev_instance_id:obj.ticket_raiz_instance_id||capexZeevSearchDigits(obj.referencia),
     ticket_link:obj.ticket_raiz_url||'',
     request_name:'CAPEX registrado',
-    requester_name:'',
+    requester_name:solicitanteDados.nome||'',
+    requester_email:solicitanteDados.email||'',
     pedido:obj.pedido,
     valor_final:obj.realizado?obj.orcamento:null,
     valor:obj.orcamento,
@@ -10963,8 +11000,8 @@ function renderMatServ(){
 }
 
 function setPagFiltro(f){pagFiltro=f;pagPage=0;renderPag();}
-function drillPag(escopo){pagEscopo=escopo;pagExpanded=new Set();pagMes="";pagBusca="";pagFornecedor="";pagPagante="";pagCategoria="";pagNfTipo="";pagContrato="";renderPag();}
-function backPag(){pagEscopo=null;pagExpanded=new Set();pagMes="";pagFornecedor="";pagPagante="";pagCategoria="";pagNfTipo="";pagContrato="";renderPag();}
+function drillPag(escopo){pagEscopo=escopo;pagExpanded=new Set();pagMes="";pagBusca="";pagFornecedor="";pagPagante="";pagNfTipo="";pagContrato="";renderPag();}
+function backPag(){pagEscopo=null;pagExpanded=new Set();pagMes="";pagFornecedor="";pagPagante="";pagNfTipo="";pagContrato="";renderPag();}
 function togglePagRow(i){pagExpanded.has(i)?pagExpanded.delete(i):pagExpanded.add(i);renderPag();}
 
 function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfDoc.name.slice(0,14)+"…":p.nfDoc.name;nf=`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${nm} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:10.5px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${p.nota?("NF "+p.nota):(p.nfTipo||"NF")}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
@@ -11024,14 +11061,14 @@ function openCapexDocsModal(id){
 
 let pagBusca="",pagDe="",pagAte="",pagPage=0;
 let pagEscopo=null; // null=resumo | 'obra' | 'extra'
-let pagFornecedor="",pagPagante="",pagCategoria="",pagNfTipo="",pagContrato="",pagMes="";
+let pagFornecedor="",pagPagante="",pagNfTipo="",pagContrato="",pagMes="";
 function setPagFornecedor(v){pagFornecedor=v;pagPage=0;renderPag();}
 function setPagPagante(v){pagPagante=v;pagPage=0;renderPag();}
-function setPagCategoria(v){pagCategoria=v;pagPage=0;renderPag();}
+function setPagCategoria(v){pagPage=0;renderPag();}
 function setPagNfTipo(v){pagNfTipo=v;pagPage=0;renderPag();}
 function setPagContrato(v){pagContrato=v;pagPage=0;renderPag();}
 function setPagMes(v){pagMes=v;pagPage=0;renderPag();}
-function limparFiltrosPag(){pagBusca='';pagDe='';pagAte='';pagMes='';pagFornecedor='';pagPagante='';pagCategoria='';pagNfTipo='';pagContrato='';pagFiltro='todos';pagPage=0;renderPag();}
+function limparFiltrosPag(){pagBusca='';pagDe='';pagAte='';pagMes='';pagFornecedor='';pagPagante='';pagNfTipo='';pagContrato='';pagFiltro='todos';pagPage=0;renderPag();}
 let pagExpanded=new Set(); // indices expandidos
 
 const PAGE_SIZE=30;
@@ -11414,33 +11451,14 @@ function renderDashboard(){
   // ── Evolução mensal (EXCLUSIVO) ───────────────────────────────────────
   var chartH_=renderChart(o);
 
-  // ── Distribuição por categoria (EXCLUSIVO — UMA VEZ) ─────────────────
-  var catData_=CATS.filter(function(c){return gastoCat(o,c.id)>0;}).map(function(c){return{cat:c,v:gastoCat(o,c.id)};}).sort(function(a,b){return b.v-a.v;});
-  var catTot_=catData_.reduce(function(a,x){return a+x.v;},0)||1;
-  var catRows_=catData_.map(function(x){
-    var pct=Math.round(x.v/catTot_*100);
-    return'<div style="margin-bottom:10px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">'
-      +'<span style="font-size:13px;font-weight:600">'+x.cat.nome+'</span>'
-      +'<div style="display:flex;gap:10px;align-items:baseline">'
-      +'<span style="font-size:11.5px;color:var(--muted)">'+pct+'%</span>'
-      +'<span style="font-size:14px;font-weight:700;font-family:"Geist",sans-serif;color:var(--brand-text)">'+fmt(x.v)+'</span>'
-      +'</div></div>'
-      +'<div style="height:5px;background:var(--line);border-radius:3px;overflow:hidden">'
-      +'<div style="height:100%;width:'+pct+'%;background:var(--brand-cur);border-radius:3px;transition:width .5s"></div></div>'
-      +'</div>';
-  }).join('');
-
   // ── Últimas movimentações (EXCLUSIVO) ────────────────────────────────
   var ultimos_=pagsPagos.slice().sort(function(a,b){return(b.pagaEm||b.venc||'').localeCompare(a.pagaEm||a.venc||'');}).slice(0,6);
   var ultRows_=ultimos_.map(function(p){
-    var cat_=catById(p.cat);
     return'<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)">'
       +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:13.5px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;line-height:1.35;overflow-wrap:anywhere">'+p.ben+'</div>'
       +'<div style="display:flex;gap:8px;font-size:11.5px;color:var(--muted);margin-top:2px;flex-wrap:wrap">'
       +(p.ref?'<span>'+p.ref+'</span>':'')
-      +(cat_&&cat_.nome&&cat_.nome!=='(removida)'?'<span>· '+cat_.nome+'</span>':'')
       +'</div></div>'
       +'<div style="text-align:right;flex-shrink:0">'
       +'<div style="font-size:15px;font-weight:800;font-family:"Geist",sans-serif;color:var(--ok)">'+fmt(p.v)+'</div>'
@@ -11509,11 +11527,10 @@ function renderDashboard(){
   html+=sDashCards;
   // Contratos + Urgentes lado a lado
   if(sContr||sUrg)html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:12px;margin-bottom:14px;align-items:start">'+(sContr||'')+(sUrg||'')+'</div>';
-  // Evolução + Categorias lado a lado
-  if(chartH_||catRows_){
+  // Evolução mensal
+  if(chartH_){
     html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:12px;margin-bottom:14px;align-items:start">';
     if(chartH_)html+='<div class="card" style="padding:14px 16px"><h2 style="font-size:15px;margin-bottom:12px">Evolução mensal</h2>'+chartH_+'</div>';
-    if(catRows_)html+='<div class="card" style="padding:14px 16px"><h2 style="font-size:15px;margin-bottom:12px">Distribuição por categoria</h2>'+catRows_+'</div>';
     html+='</div>';
   }
   if(sInsights)html+=sInsights;
@@ -11649,7 +11666,6 @@ function renderPag(){const o=cur;
   // Filtros avançados
   if(pagFornecedor)rows=rows.filter(r=>(r.p.ben||"")==pagFornecedor);
   if(pagPagante)rows=rows.filter(r=>(r.p.pagn||"")==pagPagante);
-  if(pagCategoria)rows=rows.filter(r=>(r.p.cat||"")==pagCategoria);
   if(pagNfTipo)rows=rows.filter(r=>(r.p.nfTipo||"")==pagNfTipo);
   if(pagContrato)rows=rows.filter(r=>String(r.p.contratoSeq||"")==pagContrato);
   if(pagMes==='sem-data')rows=rows.filter(r=>!r.p.venc&&!r.p.emissao&&!r.p.pagaEm);
@@ -11668,7 +11684,6 @@ function renderPag(){const o=cur;
   const uniq=(arr)=>[...new Set(arr.filter(Boolean))].sort();
   const optForn=uniq(baseRows.map(r=>r.p.ben));
   const optPag=uniq(baseRows.map(r=>r.p.pagn&&r.p.pagn!=='—'?r.p.pagn:null));
-  const optCat=uniq(baseRows.map(r=>{const c=catById(r.p.cat);return c&&c.nome&&c.nome!=='(removida)'&&c.nome!=='outros'?r.p.cat:null;}));
   const optNf=uniq(baseRows.map(r=>r.p.nfTipo));
   const optContr=uniq(baseRows.map(r=>r.p.contratoSeq?String(r.p.contratoSeq):null));
   // Meses disponíveis (baseRows)
@@ -11677,7 +11692,7 @@ function renderPag(){const o=cur;
   }).filter(Boolean))].sort();
   const hasSemData=baseRows.some(function(r){return !r.p.venc&&!r.p.emissao&&!r.p.pagaEm;});
   // Contar filtros ativos
-  const nFiltrosAtivos=[pagMes,pagFornecedor,pagPagante,pagCategoria,pagNfTipo,pagContrato].filter(Boolean).length;
+  const nFiltrosAtivos=[pagMes,pagFornecedor,pagPagante,pagNfTipo,pagContrato].filter(Boolean).length;
 
   const fb=(f,l)=>`<button class="chip ${pagFiltro===f?'active':''}" onclick="setPagFiltro('${f}')">${l}</button>`;
   const tp=sumPago(rows),tpe=sumPend(rows);
@@ -11688,7 +11703,6 @@ function renderPag(){const o=cur;
     const exp=pagExpanded.has(i);
     const stColor=atr?'var(--danger)':p.st==='PAGO'?'var(--ok)':'var(--warn)';
     const stLabel=atr?`⚠ ${diasAtraso(p)}d em atraso`:p.st==='PAGO'?'✓ Pago':'⏳ Pendente';
-    const cat=catById(p.cat);
     const cVinc=p.contratoSeq?o.contratos.find(c=>c.seq===p.contratoSeq):null;
     const tc=getTipoCusto(p);
     const markBtn=(p.st==='PENDENTE'||atr)?`<button onclick="event.stopPropagation();marcarPagoLista(${o.id},${i})" class="btn btn-sm" style="background:var(--ok-bg);color:var(--ok);border-color:var(--ok);font-size:12px">✓ Marcar pago</button>`:'';
@@ -11701,7 +11715,6 @@ function renderPag(){const o=cur;
           ${p.venc?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Previsão de pagamento</div><div style="font-size:13.5px">📅 ${fmtD(p.venc)}</div></div>`:''}
           ${p.pagaEm&&p.st==='PAGO'?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Pago em</div><div style="font-size:13.5px;color:var(--ok);font-weight:600">✓ ${fmtD(p.pagaEm)}</div></div>`:''}
           ${p.pagn?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Pago por</div><div style="font-size:13.5px">👤 ${p.pagn}</div></div>`:''}
-          ${cat&&cat.nome!=='(removida)'?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Categoria</div><div style="font-size:13.5px">🏷 ${cat.nome}</div></div>`:''}
           ${cVinc?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Contrato vinculado</div><button onclick="event.stopPropagation();goToContract(${cVinc.seq})" style="font-size:13px;color:var(--info);background:var(--info)12;border:1px solid var(--info)33;border-radius:8px;padding:3px 10px;cursor:pointer;font-family:inherit;font-weight:600;text-align:left">📋 ${cVinc.nome_contr||cVinc.forn} →</button></div>`:''}
           ${p.nfTipo?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Documento fiscal</div><div style="font-size:13.5px">${p.nfTipo}${p.nfNum?' · Nº '+cleanImpDocNumber(p.nfNum,p.nfTipo):''}</div></div>`:''}
           ${p.ticketRaiz?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Ticket Raiz</div><div style="font-size:13.5px;font-family:Geist,sans-serif;font-weight:700;color:var(--brand-text)">TR ${p.ticketRaiz}</div></div>`:''}${p.obs?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Observações</div><div style="font-size:13px;color:var(--ink)">${p.obs}</div></div>`:''}${p.itens&&p.itens.length?`<div style="grid-column:1/-1;margin-top:8px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:5px">Itens da Nota (${p.itens.length})</div><div style="overflow-x:auto"><table class="imp-itens-tbl"><thead><tr><th>#</th><th>Descrição</th><th style="text-align:right">Qtd</th><th>Un</th><th style="text-align:right">Total</th></tr></thead><tbody>${p.itens.map((it,ii)=>`<tr><td style="color:var(--muted);text-align:center;width:24px">${ii+1}</td><td>${it.descricao||'—'}</td><td style="text-align:right;white-space:nowrap">${it.quantidade!=null?parseFloat(it.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:4}):'—'}</td><td style="color:var(--muted)">${it.unidade||'—'}</td><td style="text-align:right;font-weight:600;white-space:nowrap">R$ ${it.valor_total!=null?parseFloat(it.valor_total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}
@@ -11741,7 +11754,6 @@ function renderPag(){const o=cur;
       _nfInteg='<span style="display:inline-flex;align-items:center;font-size:11px;color:var(--soft);background:var(--surface-2);padding:2px 9px;border-radius:20px;border:1px solid var(--line);font-style:italic">Sem nota</span>';
     }
     // Chips de metadados (sem NF — ela vai integrada acima)
-    var _rowCat=(cat&&cat.nome&&cat.nome!=='(removida)'&&cat.nome!=='outros')?'<span style="font-size:11px;background:var(--brand-cur-light);color:var(--brand-text);padding:2px 8px;border-radius:20px;font-weight:600;border:1px solid var(--brand-cur)30">'+cat.nome+'</span>':'';
     var _tkBadge=p.ticketRaiz?('<span style="font-size:11px;background:var(--brand-cur-light);color:var(--brand-text);padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid var(--brand-cur)40">TR '+p.ticketRaiz+'</span>'):'';
     var _constrTag=p.construtora_seq&&o.construtoras&&o.construtoras.length>=2?(function(){
       var _c=o.construtoras.find(function(x){return x.seq===p.construtora_seq;});
@@ -11756,7 +11768,7 @@ function renderPag(){const o=cur;
     var _btnEdit='<button onclick="event.stopPropagation();openPagModal('+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#9998; Editar</button>';
     var _btnDel='<button onclick="event.stopPropagation();deletePagment('+o.id+','+i+')" style="'+_bs+'color:var(--danger);background:var(--danger)08;border-color:var(--danger)30">&#128465; Excluir</button>';
     // ── Montar chips do bloco esquerdo ───────────────────────────────────────
-    var _infoChips=[_nfInteg,_rowCat,_tkBadge,_constrTag,_pagante].filter(function(x){return x;}).join('');
+    var _infoChips=[_nfInteg,_tkBadge,_constrTag,_pagante].filter(function(x){return x;}).join('');
     var _collapsedHtml='<div class="flow-row" role="button" tabindex="0" onclick="togglePagRow('+i+')" onkeydown="if(cardKeyOpen(event))togglePagRow('+i+')" style="padding:12px 14px;cursor:pointer;border-left:4px solid '+stColor+';'+_rowBg+'transition:background .12s" onmouseenter="this.style.background=\'var(--surface-2)\'" onmouseleave="this.style.background=\'\'">'
       +'<div class="pag-card-grid" style="display:grid;grid-template-columns:1.5fr 2.4fr 1.1fr;gap:0 14px;align-items:start">'
       // ── Bloco esquerdo: nome + chips ──────────────────────────────────────
@@ -11818,7 +11830,6 @@ function renderPag(){const o=cur;
     ${optMes.length>1||hasSemData?'<select class="fi" style="flex:1;min-width:115px;max-width:160px;padding:5px 8px;font-size:12.5px" onchange="setPagMes(this.value)"><option value="">Mês / Ano</option>'+optMes.map(m=>'<option value="'+m+'"'+(m===pagMes?' selected':'')+'>'+_monthLabel(m)+'</option>').join('')+(hasSemData?'<option value="sem-data"'+(pagMes==="sem-data"?' selected':'')+'>Sem data</option>':'')+"</select>":''}
     ${optForn.length>1?'<select class="fi" style="flex:1;min-width:130px;max-width:260px;padding:5px 8px;font-size:12.5px" onchange="setPagFornecedor(this.value)"><option value="">Fornecedor</option>'+optForn.map(f=>'<option value="'+f+'"'+(f===pagFornecedor?' selected':'')+'>'+f+'</option>').join('')+'</select>':''}
     ${optPag.length>0?'<select class="fi" style="flex:1;min-width:130px;max-width:175px;padding:5px 8px;font-size:12.5px" onchange="setPagPagante(this.value)"><option value="">Investidor / Pagante</option>'+optPag.map(p=>'<option value="'+p+'"'+(p===pagPagante?' selected':'')+'>'+p+'</option>').join('')+'</select>':''}
-    ${optCat.length>1?'<select class="fi" style="flex:1;min-width:105px;max-width:155px;padding:5px 8px;font-size:12.5px" onchange="setPagCategoria(this.value)"><option value="">Categoria</option>'+optCat.map(c=>{const cat=catById(c);return'<option value="'+c+'"'+(c===pagCategoria?' selected':'')+'>'+cat.nome+'</option>';}).join('')+'</select>':''}
     ${optNf.length>1?'<select class="fi" style="flex:1;min-width:95px;max-width:135px;padding:5px 8px;font-size:12.5px" onchange="setPagNfTipo(this.value)"><option value="">Tipo de NF</option>'+optNf.map(n=>'<option value="'+n+'"'+(n===pagNfTipo?' selected':'')+'>'+n+'</option>').join('')+'</select>':''}
     ${optContr.length>1?'<select class="fi" style="flex:1;min-width:110px;max-width:165px;padding:5px 8px;font-size:12.5px" onchange="setPagContrato(this.value)"><option value="">Contrato</option>'+optContr.map(s=>{const c2=o.contratos.find(x=>String(x.seq)===s);return'<option value="'+s+'"'+(s===pagContrato?' selected':'>')+(c2?c2.nome_contr||c2.forn:'Contrato '+s)+'</option>';}).join('')+'</select>':''}
     ${nFiltrosAtivos>0?'<button onclick="limparFiltrosPag()" style="font-size:12px;font-weight:600;color:var(--danger);background:var(--danger)10;border:1px solid var(--danger)30;border-radius:var(--r);padding:4px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:inherit">✕ Limpar ('+nFiltrosAtivos+')</button>':''}
@@ -13021,7 +13032,7 @@ function _parseDate(raw){if(!raw)return'';const m1=raw.match(/^(\d{1,2})[\/\-](\
 
 const _norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 
-function _autoCategoria(texto){const t=_norm(texto);if(/projeto|arquitet|planta|desenho/.test(t))return'proj';if(/alvara|licenc|habite|bombeiro|cbmerj|darm|ambiental|supressao/.test(t))return'legal';if(/demoli|entulho|terraplan|escavac/.test(t))return'demo';if(/concret|estrutur|hidraul|eletric|material|\baco\b|ferro|alvenaria|tijol|cimento|areia|brita|revestim|piso|azulejo|tinta/.test(t))return'mat';if(/empreit|pedreiro|mao.de.obra|servicos|m\.o\./.test(t))return'mo';if(/elevador|climati|ar.condicion|movel|mobili/.test(t))return'equip';if(/seguranca|\bepi\b|frete|transport|limpeza|ferramenta|andaime|cacamba/.test(t))return'cant';if(/topograf/.test(t))return'topog';if(/sondagem/.test(t))return'sond';if(/matricula|iptu|escritura|certidao/.test(t))return'imovel';if(/\bart\b|\brrt\b/.test(t))return'arts';if(/locacao|aluguel/.test(t))return'locacao';if(/taxa|administr|gerenciam/.test(t))return'taxa';return'outros';}
+function _autoCategoria(texto){return PAYMENT_CAT_DEFAULT;}
 
 function _parseRawCSV(text){
 
@@ -13125,7 +13136,7 @@ function csvApplyMapping(){
 
     const st=stRaw.includes('pago')||stRaw.includes('liquid')||stRaw.includes('quita')?'PAGO':'PENDENTE';
 
-    rows.push({ben,v,ref,venc,st,cat:_autoCategoria(ben+' '+ref),sub:0,include:true});
+    rows.push({ben,v,ref,venc,st,cat:PAYMENT_CAT_DEFAULT,sub:0,include:true});
 
   }
 
@@ -13161,7 +13172,7 @@ function _parsePDFLines(lines){
 
     if(!ben||ben.length<3)return;
 
-    rows.push({ben,v,ref:'',venc,st:'PENDENTE',cat:_autoCategoria(ben),sub:0,include:true});
+    rows.push({ben,v,ref:'',venc,st:'PENDENTE',cat:PAYMENT_CAT_DEFAULT,sub:0,include:true});
 
   });
 
@@ -13171,7 +13182,14 @@ function _parsePDFLines(lines){
 
 }
 
-function _renderCsvReview(){document.getElementById('csv-reading').style.display='none';document.getElementById('csv-review').style.display='block';const tot=_csvRows.reduce((a,r)=>a+r.v,0);document.getElementById('csv-summary').innerHTML=`<div class="kpis" style="margin-bottom:14px"><div class="kpi"><div class="lab">Lançamentos detectados</div><div class="val">${_csvRows.length}</div></div><div class="kpi"><div class="lab">Total</div><div class="val acc">${fmt(tot)}</div></div><div class="kpi"><div class="lab">Já pagos</div><div class="val ok">${_csvRows.filter(r=>r.st==='PAGO').length}</div></div><div class="kpi"><div class="lab">Pendentes</div><div class="val">${_csvRows.filter(r=>r.st==='PENDENTE').length}</div></div></div><p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Revise e ajuste categorias antes de confirmar. Desmarque linhas que não deve importar.</p>`;const catOpts=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');document.getElementById('csv-table').innerHTML=`<table><thead><tr><th><input type="checkbox" checked title="Marcar/desmarcar todos" onchange="csvToggleAll(this.checked)"></th><th>Beneficiário</th><th>Referência</th><th>Categoria</th><th style="text-align:right">Valor</th><th>Vencimento</th><th>Status</th></tr></thead><tbody>${_csvRows.map((r,i)=>`<tr id="csv-tr-${i}" style="opacity:${r.include?1:.4}"><td><input type="checkbox" ${r.include?'checked':''} onchange="csvToggleRow(${i},this.checked)"></td><td><input class="fi" style="font-size:12px;padding:3px 6px;height:26px;min-width:130px" value="${(r.ben||'').replace(/"/g,'&quot;')}" onchange="_csvRows[${i}].ben=this.value"></td><td><input class="fi" style="font-size:12px;padding:3px 6px;height:26px;min-width:110px" value="${(r.ref||'').replace(/"/g,'&quot;')}" onchange="_csvRows[${i}].ref=this.value"></td><td><select class="fi" style="font-size:12px;padding:3px 6px;height:26px" onchange="_csvRows[${i}].cat=this.value">${catOpts.replace(`value="${r.cat}"`,`value="${r.cat}" selected`)}</select></td><td class="n" style="font-size:12px;font-weight:500">${fmt(r.v)}</td><td><input class="fi" type="date" style="font-size:12px;padding:3px 6px;height:26px;width:130px" value="${r.venc}" onchange="_csvRows[${i}].venc=this.value"></td><td><select class="fi" style="font-size:12px;padding:3px 6px;height:26px" onchange="_csvRows[${i}].st=this.value"><option value="PENDENTE" ${r.st==='PENDENTE'?'selected':''}>PENDENTE</option><option value="PAGO" ${r.st==='PAGO'?'selected':''}>PAGO</option></select></td></tr>`).join('')}</tbody></table>`;_updateCsvCount();}
+function _renderCsvReview(){
+  document.getElementById('csv-reading').style.display='none';
+  document.getElementById('csv-review').style.display='block';
+  const tot=_csvRows.reduce((a,r)=>a+r.v,0);
+  document.getElementById('csv-summary').innerHTML=`<div class="kpis" style="margin-bottom:14px"><div class="kpi"><div class="lab">Lançamentos detectados</div><div class="val">${_csvRows.length}</div></div><div class="kpi"><div class="lab">Total</div><div class="val acc">${fmt(tot)}</div></div><div class="kpi"><div class="lab">Já pagos</div><div class="val ok">${_csvRows.filter(r=>r.st==='PAGO').length}</div></div><div class="kpi"><div class="lab">Pendentes</div><div class="val">${_csvRows.filter(r=>r.st==='PENDENTE').length}</div></div></div><p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Revise os dados antes de confirmar. Desmarque linhas que não devem ser importadas.</p>`;
+  document.getElementById('csv-table').innerHTML=`<table><thead><tr><th><input type="checkbox" checked title="Marcar/desmarcar todos" onchange="csvToggleAll(this.checked)"></th><th>Beneficiário</th><th>Referência</th><th style="text-align:right">Valor</th><th>Vencimento</th><th>Status</th></tr></thead><tbody>${_csvRows.map((r,i)=>`<tr id="csv-tr-${i}" style="opacity:${r.include?1:.4}"><td><input type="checkbox" ${r.include?'checked':''} onchange="csvToggleRow(${i},this.checked)"></td><td><input class="fi" style="font-size:12px;padding:3px 6px;height:26px;min-width:130px" value="${(r.ben||'').replace(/"/g,'&quot;')}" onchange="_csvRows[${i}].ben=this.value"></td><td><input class="fi" style="font-size:12px;padding:3px 6px;height:26px;min-width:160px" value="${(r.ref||'').replace(/"/g,'&quot;')}" onchange="_csvRows[${i}].ref=this.value"></td><td class="n" style="font-size:12px;font-weight:500">${fmt(r.v)}</td><td><input class="fi" type="date" style="font-size:12px;padding:3px 6px;height:26px;width:130px" value="${r.venc}" onchange="_csvRows[${i}].venc=this.value"></td><td><select class="fi" style="font-size:12px;padding:3px 6px;height:26px" onchange="_csvRows[${i}].st=this.value"><option value="PENDENTE" ${r.st==='PENDENTE'?'selected':''}>PENDENTE</option><option value="PAGO" ${r.st==='PAGO'?'selected':''}>PAGO</option></select></td></tr>`).join('')}</tbody></table>`;
+  _updateCsvCount();
+}
 
 function csvToggleRow(i,checked){_csvRows[i].include=checked;const tr=document.getElementById('csv-tr-'+i);if(tr)tr.style.opacity=checked?'1':'.4';_updateCsvCount();}
 
@@ -13179,7 +13197,7 @@ function csvToggleAll(checked){_csvRows.forEach((_,i)=>{_csvRows[i].include=chec
 
 function _updateCsvCount(){const inc=_csvRows.filter(r=>r.include);document.getElementById('csv-count-msg').textContent=`${inc.length} lançamento(s) selecionado(s) · Total: ${fmt(inc.reduce((a,r)=>a+r.v,0))}`;}
 
-function confirmCsvImport(){if(!cur)return;const pagante=document.getElementById('csv-pagante').value;const toAdd=_csvRows.filter(r=>r.include);if(!toAdd.length){toast('Nenhum lançamento selecionado.');return;}toAdd.forEach(r=>{const p={ben:r.ben,v:r.v,ref:r.ref,cat:r.cat,sub:0,pagn:pagante,st:r.st,venc:r.venc,nfTipo:'Sem nota',comp:''};cur.pag.push(p);});sincronizaPagoObra(cur);persist(cur.id);closeCsvImport();renderObra();renderPainel();updateNavBadge();toast(`${toAdd.length} pagamento(s) importados com sucesso.`);}
+function confirmCsvImport(){if(!cur)return;const pagante=document.getElementById('csv-pagante').value;const toAdd=_csvRows.filter(r=>r.include);if(!toAdd.length){toast('Nenhum lançamento selecionado.');return;}toAdd.forEach(r=>{const p={ben:r.ben,v:r.v,ref:r.ref,cat:PAYMENT_CAT_DEFAULT,sub:0,pagn:pagante,st:r.st,venc:r.venc,nfTipo:'Sem nota',comp:''};cur.pag.push(p);});sincronizaPagoObra(cur);persist(cur.id);closeCsvImport();renderObra();renderPainel();updateNavBadge();toast(`${toAdd.length} pagamento(s) importados com sucesso.`);}
 
 function saveObra(){
 
@@ -13278,7 +13296,7 @@ function pmSubs(){}
 
 function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(typeof idx==="number")?idx:null;const g=v=>document.getElementById(v);
 
-  g("pm-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
+  if(g("pm-cat"))g("pm-cat").value=PAYMENT_CAT_DEFAULT;
 
   const _pagEditVal=pagEditIdx!==null?(cur.pag[pagEditIdx]?.pagn||''):_defaultPagadorObra(cur);
   _fillPagSelect("pm-pag", cur, _pagEditVal);
@@ -13287,9 +13305,9 @@ function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(
 
   _fillContrSelect("pm-contrato",cur,'');_fillConstrSel('pm-constr-sel',cur,pagEditIdx!==null&&cur.pag[pagEditIdx]?cur.pag[pagEditIdx].construtora_seq||'':''  );
 
-  if(pagEditIdx!==null){const p=cur.pag[pagEditIdx];g("pag-title").textContent="Editar pagamento";g("pm-ben").value=p.ben;setCurrencyValue("pm-val",p.v);g("pm-ref").value=p.ref||'';if(g("pm-nfnum"))g("pm-nfnum").value=cleanImpDocNumber(p.nfNum||'',p.nfTipo||"Sem nota");g("pm-cat").value=p.cat||CATS[0].id;g("pm-pag").value=p.pagn;g("pm-st").value=p.st;g("pm-venc").value=p.venc||"";if(g("pm-emissao"))g("pm-emissao").value=p.emissao||"";if(g("pm-pago-em"))g("pm-pago-em").value=p.pagaEm||"";g("pm-nf").value=p.nfTipo||"Sem nota";pmNfChange();pmStChange();pmSetEscopo(p.escopoFin||"obra");if(g("pm-contrato"))g("pm-contrato").value=p.contratoSeq||'';var _pmCS=document.getElementById('pm-constr-sel');if(_pmCS)_pmCS.value=p.construtora_seq||'';var _pmTkEl=document.getElementById('pm-ticket');if(_pmTkEl)_pmTkEl.value=p.ticketRaiz||'';}
+  if(pagEditIdx!==null){const p=cur.pag[pagEditIdx];g("pag-title").textContent="Editar pagamento";g("pm-ben").value=p.ben;setCurrencyValue("pm-val",p.v);g("pm-ref").value=p.ref||'';if(g("pm-nfnum"))g("pm-nfnum").value=cleanImpDocNumber(p.nfNum||'',p.nfTipo||"Sem nota");if(g("pm-cat"))g("pm-cat").value=PAYMENT_CAT_DEFAULT;g("pm-pag").value=p.pagn;g("pm-st").value=p.st;g("pm-venc").value=p.venc||"";if(g("pm-emissao"))g("pm-emissao").value=p.emissao||"";if(g("pm-pago-em"))g("pm-pago-em").value=p.pagaEm||"";g("pm-nf").value=p.nfTipo||"Sem nota";pmNfChange();pmStChange();pmSetEscopo(p.escopoFin||"obra");if(g("pm-contrato"))g("pm-contrato").value=p.contratoSeq||'';var _pmCS=document.getElementById('pm-constr-sel');if(_pmCS)_pmCS.value=p.construtora_seq||'';var _pmTkEl=document.getElementById('pm-ticket');if(_pmTkEl)_pmTkEl.value=p.ticketRaiz||'';}
 
-  else{g("pag-title").textContent="Lançar pagamento";["pm-ben","pm-val","pm-ref","pm-venc","pm-emissao","pm-pago-em"].forEach(x=>{const el=g(x);if(el)el.value="";});if(g("pm-nfnum"))g("pm-nfnum").value="";g("pm-cat").value=CATS[0].id;g("pm-st").value="PENDENTE";g("pm-nf").value="Sem nota";pmNfChange();pmStChange();pmSetEscopo("obra");if(g("pm-contrato"))g("pm-contrato").value='';var _pmTkNew=document.getElementById("pm-ticket");if(_pmTkNew)_pmTkNew.value="";}
+  else{g("pag-title").textContent="Lançar pagamento";["pm-ben","pm-val","pm-ref","pm-venc","pm-emissao","pm-pago-em"].forEach(x=>{const el=g(x);if(el)el.value="";});if(g("pm-nfnum"))g("pm-nfnum").value="";if(g("pm-cat"))g("pm-cat").value=PAYMENT_CAT_DEFAULT;g("pm-st").value="PENDENTE";g("pm-nf").value="Sem nota";pmNfChange();pmStChange();pmSetEscopo("obra");if(g("pm-contrato"))g("pm-contrato").value='';var _pmTkNew=document.getElementById("pm-ticket");if(_pmTkNew)_pmTkNew.value="";}
 
   const _pmNote=document.getElementById('pm-status-note');
   const _pmCur=pagEditIdx!==null?cur.pag[pagEditIdx]:null;
@@ -13391,7 +13409,7 @@ async function savePag(){if(['leitor','doc'].includes(currentProfile?.role)){toa
   const _existTipo=oldPag?(oldPag.tipoCusto||''):'';
   const tipoCusto=['material','servico','equipamento'].includes(_existTipo)?_existTipo:'outros';
   const stVal=oldPag?(oldPag.st||'PENDENTE'):'PENDENTE';
-  const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=stVal==='PAGO'?(oldPag?.pagaEm||''):'';const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const _pmCrRow=document.getElementById('pm-constr-row');const _pmCrSel=document.getElementById('pm-constr-sel');const _pmCrSeq=_pmCrRow&&_pmCrRow.style.display!=='none'&&_pmCrSel&&_pmCrSel.value?+_pmCrSel.value:null;const _pmTk=(document.getElementById('pm-ticket')?.value||'').trim().toUpperCase();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:g("pm-cat"),sub:0,pagn:g("pm-pag"),st:stVal,venc:g("pm-venc"),emissao,pagaEm,nfTipo:pmNfTipo,contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin,construtora_seq:_pmCrSeq,ticketRaiz:_pmTk};
+  const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=stVal==='PAGO'?(oldPag?.pagaEm||''):'';const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const _pmCrRow=document.getElementById('pm-constr-row');const _pmCrSel=document.getElementById('pm-constr-sel');const _pmCrSeq=_pmCrRow&&_pmCrRow.style.display!=='none'&&_pmCrSel&&_pmCrSel.value?+_pmCrSel.value:null;const _pmTk=(document.getElementById('pm-ticket')?.value||'').trim().toUpperCase();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:PAYMENT_CAT_DEFAULT,sub:0,pagn:g("pm-pag"),st:stVal,venc:g("pm-venc"),emissao,pagaEm,nfTipo:pmNfTipo,contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin,construtora_seq:_pmCrSeq,ticketRaiz:_pmTk};
   if(!(await applyPastDuePaidCheck(obj,obj.ref||obj.ben)))return;
 
   if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];cur.pag[pagEditIdx]={...old,...obj};sincronizaPagoObra(cur);}
@@ -13898,6 +13916,10 @@ let catEditId=null;
 
 function openCatModal(id,tipo){
   _catTipo=normalizeCatTipo(tipo||(CAPEX_CATS.some(c=>c.id===id)?'capex':DOC_CATS.some(c=>c.id===id)?'documento':'pagamento'));
+  if(_catTipo==='pagamento'){
+    toast('Categorias de pagamento foram removidas do fluxo.');
+    return;
+  }
 
   catEditId=id||null;
 
@@ -14032,8 +14054,8 @@ let _catModalFromForm=false;
 let _catModalFromPm=false;
 let _catTipo='pagamento'; // contexto: 'pagamento', 'documento' ou 'capex'
 
-function openCatModalFromForm(){_catModalFromForm=true;openCatModal(undefined,'pagamento');}
-function openCatModalFromPm(){_catModalFromPm=true;openCatModal(undefined,'pagamento');}
+function openCatModalFromForm(){toast('Categorias de pagamento foram removidas do fluxo.');}
+function openCatModalFromPm(){toast('Categorias de pagamento foram removidas do fluxo.');}
 
 
 
@@ -15022,7 +15044,8 @@ function openImport(){
 
   _fillContrSelect("imp-contrato",cur,'');_fillConstrSel('imp-constr-sel',cur,'');
 
-  document.getElementById("imp-cat").innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
+  const impCat=document.getElementById("imp-cat");
+  if(impCat)impCat.value=PAYMENT_CAT_DEFAULT;
 
   _fillPagSelect("imp-pag", cur, _defaultPagadorObra(cur));
 
@@ -15087,9 +15110,7 @@ function showAdiantamento(){
 
   tag.style.cssText='display:inline-flex;gap:6px;align-items:center;font-size:11.5px;color:var(--warn);background:var(--warn-bg);padding:4px 12px;border-radius:30px';
 
-  // Pré-seleciona categoria Outros > Adiantamentos
-
-  setTimeout(()=>{impSetCusto('outros');const cat=document.getElementById('imp-cat');if(cat){cat.value='outros';impCatChanged();}},50);
+  setTimeout(()=>{impSetCusto('outros');const cat=document.getElementById('imp-cat');if(cat)cat.value=PAYMENT_CAT_DEFAULT;},50);
 
 }
 
@@ -15099,10 +15120,8 @@ function showAdiantamento(){
 
 function impCatChanged(){
 
-  const cat=catById(document.getElementById('imp-cat')?.value||'outros');
-
-
-  if(sub)sub.innerHTML=cat.subs.map((s,i)=>`<option value="${i}">${s}</option>`).join('');
+  const cat=document.getElementById('imp-cat');
+  if(cat)cat.value=PAYMENT_CAT_DEFAULT;
 
 }
 
@@ -15146,21 +15165,8 @@ function impSetCusto(tipo){
 
   if(catDetail)catDetail.style.display=tipo==='outros'?'block':'none';
 
-  // Preenche dropdown de categorias quando exibido
-
-  if(tipo==='outros'){
-
-    const catEl=document.getElementById('imp-cat');
-
-    if(catEl&&CATS.length){
-
-      catEl.innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
-
-      impCatChanged();
-
-    }
-
-  }
+  const catEl=document.getElementById('imp-cat');
+  if(catEl)catEl.value=PAYMENT_CAT_DEFAULT;
 
   // Preenche tipos de material
 
@@ -17489,11 +17495,8 @@ function showImportReview(data){
   const _obsEl=document.getElementById("imp-obs");
   if(_obsEl)_obsEl.value='';
 
-  // Categoria
-
-  const cat=_autoCategoria((data.desc||'')+(data.ben||''));
-
-  document.getElementById("imp-cat").innerHTML=CATS.map(c=>`<option value="${c.id}" ${c.id===cat?'selected':''}>${c.nome}</option>`).join("");
+  const catEl=document.getElementById("imp-cat");
+  if(catEl)catEl.value=PAYMENT_CAT_DEFAULT;
 
   fillSubs();
 
@@ -17818,13 +17821,7 @@ async function confirmImport(){
 
   const chave=document.getElementById("imp-chave").value.trim();
 
-  // cat/sub: lê dos selects (visíveis quando modo 'categorizar', ou default)
-
-  const _catEl=document.getElementById('imp-cat');
-
-  
-
-  const cat=(_catEl&&_catEl.value)||'outros';
+  const cat=PAYMENT_CAT_DEFAULT;
 
   const sub=0;
 
@@ -18009,19 +18006,13 @@ function renderAdminCats(){
 
   if(!el)return;
 
-  const defaultIds=['proj','legal','demo','mat','mo','equip','cant','topog','sond','imovel','arts','locacao','taxa','outros'];
-
-  const custom=CATS.filter(c=>!defaultIds.includes(c.id)).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
-
-  const defaults=CATS.filter(c=>defaultIds.includes(c.id)).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
-
   const catRow=(c,isDef,tipo)=>`<tr>
 
     <td style="font-weight:500">${c.nome}</td>
 
     <td style="font-size:13px;color:var(--muted)">${(c.subs||[]).join(' · ')}</td>
 
-    <td><span class="badge ${isDef?'b-neutral':'b-ok'}" style="font-size:11px">${tipo==='capex'?'CAPEX':tipo==='documento'?'Documento':(isDef?'Pagamento padrão':'Pagamento')}</span></td>
+    <td><span class="badge ${isDef?'b-neutral':'b-ok'}" style="font-size:11px">${tipo==='capex'?'CAPEX':'Documento'}</span></td>
 
     <td style="white-space:nowrap;display:flex;gap:6px">
 
@@ -18058,23 +18049,7 @@ function renderAdminCats(){
         <button class="btn btn-primary btn-sm" onclick="openCatModal(undefined,'documento')"><span class="ic">+</span> Nova pasta documental</button>
       </div>
       <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${docRows.length?docRows.map(c=>catRow(c,false,'documento')).join(''):'<tr><td colspan="4"><p class="empty">Nenhuma pasta documental criada ainda.</p></td></tr>'}</tbody></table></div>
-    </div>
-
-    ${custom.length>0?`<div style="margin-bottom:12px">
-
-      <div style="font-size:11.5px;font-weight:700;color:var(--ok);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">✦ Categorias de pagamentos personalizadas</div>
-
-      <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${custom.map(c=>catRow(c,false,c.tipo||'pagamento')).join('')}</tbody></table></div>
-
-    </div>`:'<p style="font-size:13px;color:var(--muted);margin-bottom:12px">Você ainda não criou categorias personalizadas. Clique em "+ Nova categoria" para começar.</p>'}
-
-    <details style="margin-top:4px">
-
-      <summary style="font-size:13px;color:var(--muted);cursor:pointer;user-select:none">Ver ${defaults.length} categorias padrão de pagamentos</summary>
-
-      <div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${defaults.map(c=>catRow(c,true,c.tipo||'pagamento')).join('')}</tbody></table></div>
-
-    </details>`;
+    </div>`;
 
 }
 
