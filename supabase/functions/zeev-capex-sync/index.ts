@@ -1,6 +1,6 @@
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-zeev-token, x-zeev-extra-document-fields, x-zeev-file-download-url-template',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
@@ -433,6 +433,13 @@ function env(name: string, fallback = '') {
 }
 
 let REQUEST_ZEEV_TOKEN = ''
+let REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS = ''
+let REQUEST_ZEEV_FILE_DOWNLOAD_URL_TEMPLATE = ''
+
+function requestListInput(value: unknown) {
+  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean).join(',')
+  return String(value || '').trim()
+}
 
 function zeevToken() {
   return REQUEST_ZEEV_TOKEN || env('ZEEV_TOKEN')
@@ -687,7 +694,7 @@ async function zeewFlowDesignDocumentFields(flow: number) {
 
 async function enrichFieldsForFlow(flow: number) {
   const base = FINANCE_FLOW_IDS.has(flow) ? FINANCE_ENRICH_FIELDS : PURCHASE_ENRICH_FIELDS
-  const configuredDocs = parseListEnv(env('ZEEV_EXTRA_DOCUMENT_FIELDS'))
+  const configuredDocs = parseListEnv([env('ZEEV_EXTRA_DOCUMENT_FIELDS'), REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS].filter(Boolean).join(','))
   const designDocs = await zeewFlowDesignDocumentFields(flow)
   return [...new Set([...capexFieldsForFlow(flow), ...base, ...configuredDocs, ...designDocs])]
 }
@@ -1553,6 +1560,40 @@ async function zeevInstance(instanceId: number, flow: number, fields: string[]) 
   return text ? JSON.parse(text) : {}
 }
 
+async function zeevInstanceReport(instanceId: number, flow: number, fields: string[]) {
+  const token = zeevToken()
+  if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
+  const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+  const body: AnyRecord = {
+    instanceId,
+    recordsPerPage: 10,
+    pageNumber: 1,
+    useCache: false,
+    simulation: false,
+    showPendingInstanceTasks: true,
+    showFinishedInstanceTasks: true,
+    showPendingAssignees: true,
+    allowOpenUrlsForFilesInForm: true,
+  }
+  if (flow) body.flowId = flow
+  if (Array.isArray(fields) && fields.length) body.formFieldNames = fields
+  const res = await fetch(`${base}/api/2/instances/report`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+    },
+    body: JSON.stringify(body),
+  })
+  const text = await res.text()
+  if (!res.ok) throw new Error(`Zeev report instance ${res.status} id ${instanceId} fields ${fields.join(',')}: ${text}`)
+  const data = text ? JSON.parse(text) : []
+  const rows = Array.isArray(data) ? data : [data]
+  return rows.find((row: AnyRecord) => Number(row?.id) === Number(instanceId)) || rows[0] || {}
+}
+
 async function zeevMessages(instanceId: number) {
   const token = zeevToken()
   if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
@@ -1577,35 +1618,39 @@ async function collectInstanceFields(instanceId: number, flow: number, fields: s
   const errors: AnyRecord[] = []
   let last: AnyRecord | null = null
 
-  try {
-    const data = await zeevInstance(instanceId, flow, [])
-    if (Array.isArray(data.formFields)) found.push(...data.formFields)
-    last = data
-  } catch (error) {
-    errors.push({ field: '__all__', error: error instanceof Error ? error.message : String(error) })
+  const collectFrom = async (fieldSet: string[], label: string) => {
+    let ok = false
+    let lastData: AnyRecord | null = null
+    const localErrors: string[] = []
+    for (const loader of [zeevInstance, zeevInstanceReport]) {
+      try {
+        const data = await loader(instanceId, flow, fieldSet)
+        if (Array.isArray(data.formFields)) found.push(...data.formFields)
+        lastData = data
+        ok = true
+      } catch (error) {
+        localErrors.push(error instanceof Error ? error.message : String(error))
+      }
+    }
+    if (!ok) errors.push({ field: label, error: localErrors.join(' | ').slice(0, 1200) })
+    if (lastData) last = lastData
+    return ok
   }
+
+  await collectFrom([], '__all__')
 
   const queryChunk = async (chunk: string[]) => {
     if (!chunk.length) return
-    try {
-      const data = await zeevInstance(instanceId, flow, chunk)
-      found.push(...(Array.isArray(data.formFields) ? data.formFields : []))
-      return data
-    } catch (error) {
-      if (chunk.length === 1) {
-        errors.push({ field: chunk[0], error: error instanceof Error ? error.message : String(error) })
-        return null
-      }
+    const ok = await collectFrom(chunk, chunk.join(','))
+    if (!ok && chunk.length > 1) {
       const mid = Math.ceil(chunk.length / 2)
       await queryChunk(chunk.slice(0, mid))
       await queryChunk(chunk.slice(mid))
-      return null
     }
   }
 
   for (let i = 0; i < fields.length; i += chunkSize) {
-    const data = await queryChunk(fields.slice(i, i + chunkSize))
-    if (data) last = data
+    await queryChunk(fields.slice(i, i + chunkSize))
   }
   return { fields: found, last, errors }
 }
@@ -2062,13 +2107,30 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
   }
 }
 
+function isBlockedFileHost(host: string) {
+  const h = host.toLowerCase()
+  if (!h || h === 'localhost' || h === '0.0.0.0' || h === '::1') return true
+  if (h.startsWith('127.') || h.startsWith('10.') || h.startsWith('192.168.')) return true
+  if (h === '169.254.169.254' || h.startsWith('169.254.')) return true
+  const private172 = h.match(/^172\.(\d{1,3})\./)
+  if (private172) {
+    const n = Number(private172[1])
+    if (n >= 16 && n <= 31) return true
+  }
+  return false
+}
+
 function safeZeevFileUrl(value: unknown) {
   try {
-    const url = new URL(String(value || ''))
+    const raw = String(value || '').trim()
+    if (!raw) return null
+    const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+    const url = new URL(raw, base)
     const host = url.hostname.toLowerCase()
     if (!['http:', 'https:'].includes(url.protocol)) return null
-    if (host === 'raizeducacao.zeev.it' || host.endsWith('.zeev.it') || host.includes('zeev')) return url.toString()
-    return null
+    if (isBlockedFileHost(host)) return null
+    if (url.protocol === 'http:' && !(host === 'raizeducacao.zeev.it' || host.endsWith('.zeev.it') || host.includes('zeev'))) return null
+    return url.toString()
   } catch (_) {
     return null
   }
@@ -2115,6 +2177,15 @@ function pushZeevDoc(out: AnyRecord[], name: unknown, url: unknown, type = '', s
   out.push({ key, name: cleanName || 'documento-fiscal.pdf', url: cleanUrl, type: String(type || ''), source: String(source || '') })
 }
 
+function pushZeevFileIdDoc(out: AnyRecord[], name: unknown, fileId: unknown, type = '', source = '') {
+  const id = String(fileId || '').trim()
+  if (!id || id.length > 180) return
+  const cleanName = String(name || 'documento-fiscal.pdf').trim() || 'documento-fiscal.pdf'
+  const key = `fileId:${source || cleanName}:${id}`
+  if (out.some((d) => d.key === key)) return
+  out.push({ key, name: cleanName, fileId: id, type: String(type || ''), source: String(source || '') })
+}
+
 function pushZeevBase64Doc(out: AnyRecord[], name: unknown, base64Content: unknown, type = '', source = '') {
   const raw = String(base64Content || '').trim()
   if (!raw || raw.length < 80) return
@@ -2140,6 +2211,8 @@ function pushZeevDocValue(out: AnyRecord[], label: string, value: unknown, sourc
     const url = v.url || v.openUrl || v.downloadUrl || v.href || v.link || v.fileUrl || v.signedUrl || v.contentUrl || ''
     const name = v.name || v.fileName || v.filename || v.originalName || v.displayName || v.title || v.label || label || 'documento-fiscal.pdf'
     pushZeevDoc(out, name, url, v.type || v.mimeType || v.contentType || '', source)
+    const fileId = v.fileId || v.fileID || v.file_id || v.arquivoId || v.arquivoID || v.documentId || v.documentID || v.document_id || v.attachmentId || v.attachmentID || v.attachment_id || (objectFileHints(v) ? v.id : '')
+    if (fileId) pushZeevFileIdDoc(out, name, fileId, v.type || v.mimeType || v.contentType || '', source)
     const base64Content = v.base64Content || v.base64 || v.contentBase64 || v.fileBase64 || v.bytesBase64 || ''
     if (base64Content) pushZeevBase64Doc(out, name, base64Content, v.type || v.mimeType || v.contentType || '', source)
     for (const [k, nested] of Object.entries(v)) {
@@ -2293,6 +2366,25 @@ function safeStorageName(name: unknown) {
   return String(name || 'documento-fiscal.pdf').replace(/[^A-Za-z0-9._ -]+/g, '_').slice(0, 140) || 'documento-fiscal.pdf'
 }
 
+function extensionFromContentType(type: unknown) {
+  const t = String(type || '').toLowerCase()
+  if (t.includes('pdf')) return '.pdf'
+  if (t.includes('xml')) return '.xml'
+  if (t.includes('png')) return '.png'
+  if (t.includes('jpeg') || t.includes('jpg')) return '.jpg'
+  if (t.includes('webp')) return '.webp'
+  if (t.includes('tiff') || t.includes('tif')) return '.tif'
+  if (t.includes('json')) return '.json'
+  if (t.includes('plain')) return '.txt'
+  return ''
+}
+
+function ensureStorageExtension(name: unknown, type: unknown) {
+  const clean = safeStorageName(name)
+  if (/\.[A-Za-z0-9]{2,8}$/.test(clean)) return clean
+  return `${clean}${extensionFromContentType(type) || '.pdf'}`
+}
+
 function decodeBase64Doc(doc: AnyRecord) {
   const raw = String(doc?.base64Content || '').trim()
   if (!raw) return null
@@ -2304,15 +2396,47 @@ function decodeBase64Doc(doc: AnyRecord) {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
   return {
     body: bytes.buffer,
-    name: safeStorageName(doc.name || 'documento-fiscal.pdf'),
+    name: ensureStorageExtension(doc.name || 'documento-fiscal.pdf', type),
     type,
   }
 }
 
-async function downloadZeevDoc(doc: AnyRecord) {
-  if (doc?.base64Content) return decodeBase64Doc(doc)
-  const url = safeZeevFileUrl(doc?.url)
-  if (!url) return null
+function fileDownloadUrls(doc: AnyRecord) {
+  const urls: string[] = []
+  const push = (value: unknown) => {
+    const url = safeZeevFileUrl(value)
+    if (url && !urls.includes(url)) urls.push(url)
+  }
+  push(doc?.url)
+  push(doc?.openUrl)
+  push(doc?.downloadUrl)
+  push(doc?.fileUrl)
+  push(doc?.signedUrl)
+  push(doc?.contentUrl)
+  const fileId = String(doc?.fileId || '').trim()
+  if (fileId) {
+    const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+    const template = REQUEST_ZEEV_FILE_DOWNLOAD_URL_TEMPLATE || env('ZEEV_FILE_DOWNLOAD_URL_TEMPLATE')
+    if (template) push(template.replace(/\{fileId\}/g, encodeURIComponent(fileId)).replace(/\{id\}/g, encodeURIComponent(fileId)))
+    for (const path of [
+      `/api/2/files/${encodeURIComponent(fileId)}`,
+      `/api/2/files/${encodeURIComponent(fileId)}/download`,
+      `/api/2/files/download/${encodeURIComponent(fileId)}`,
+      `/api/2/files/instance-task/${encodeURIComponent(fileId)}`,
+      `/api/2/files/instance-task/${encodeURIComponent(fileId)}/download`,
+    ]) push(`${base}${path}`)
+  }
+  return urls
+}
+
+function docFromJsonPayload(payload: unknown, fallback: AnyRecord) {
+  if (!payload || typeof payload !== 'object') return null
+  const found: AnyRecord[] = []
+  pushZeevDocValue(found, fallback.name || 'documento-fiscal.pdf', payload, fallback.source || 'download-json')
+  return found.find((doc) => doc.base64Content || doc.url || doc.fileId) || null
+}
+
+async function downloadZeevDocFromUrl(doc: AnyRecord, url: string, depth = 0): Promise<{ body: ArrayBuffer; name: string; type: string } | null> {
   const token = zeevToken()
   if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const res = await fetch(url, {
@@ -2326,12 +2450,41 @@ async function downloadZeevDoc(doc: AnyRecord) {
     const text = await res.text()
     throw new Error(`Zeev arquivo ${res.status}: ${text.slice(0, 300)}`)
   }
+  const type = res.headers.get('content-type') || doc.type || 'application/octet-stream'
+  if (depth < 2 && /application\/json|text\/json/i.test(type)) {
+    const text = await res.text()
+    try {
+      const nested = docFromJsonPayload(JSON.parse(text), doc)
+      if (nested) return await downloadZeevDoc(nested, depth + 1)
+    } catch (_) {
+      // Some Zeev download endpoints return JSON metadata before a final signed URL.
+    }
+    const bytes = new TextEncoder().encode(text)
+    return { body: bytes.buffer, name: ensureStorageExtension(doc.name || fileNameFromResponse(url, res.headers) || 'zeev-metadata.json', 'application/json'), type: 'application/json' }
+  }
   const body = await res.arrayBuffer()
   return {
     body,
-    name: safeStorageName(doc.name || fileNameFromResponse(url, res.headers)),
-    type: res.headers.get('content-type') || doc.type || 'application/octet-stream',
+    name: ensureStorageExtension(doc.name || fileNameFromResponse(url, res.headers), type),
+    type,
   }
+}
+
+async function downloadZeevDoc(doc: AnyRecord, depth = 0): Promise<{ body: ArrayBuffer; name: string; type: string } | null> {
+  if (doc?.base64Content) return decodeBase64Doc(doc)
+  const urls = fileDownloadUrls(doc)
+  if (!urls.length) return null
+  const errors: string[] = []
+  for (const url of urls) {
+    try {
+      const file = await downloadZeevDocFromUrl(doc, url, depth)
+      if (file) return file
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error))
+    }
+  }
+  if (errors.length) throw new Error(errors.join(' | ').slice(0, 900))
+  return null
 }
 
 async function uploadPaymentStorage(path: string, file: { body: ArrayBuffer; type: string }) {
@@ -2653,7 +2806,7 @@ async function loadPaymentTicketForRefresh(row: AnyRecord, storedTicket: AnyReco
 
 async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row: AnyRecord, ticket: AnyRecord, limitFiles: number) {
   const stored = normalizeStoredDocs(row)
-  const docs = zeevDocsFromTicket(ticket).filter((doc) => doc.url || doc.base64Content)
+  const docs = zeevDocsFromTicket(ticket).filter((doc) => doc.url || doc.base64Content || doc.fileId)
   let attached = 0
   let nfPath = row.nf_doc_path || ''
   let compPath = row.comp_doc_path || ''
@@ -3119,6 +3272,8 @@ Deno.serve(async (req) => {
   try {
     const input = await req.json().catch(() => ({}))
     REQUEST_ZEEV_TOKEN = String(input?.zeevToken || input?.zeev_token || req.headers.get('x-zeev-token') || '').trim()
+    REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS = requestListInput(input?.extraDocumentFields || input?.extra_document_fields || req.headers.get('x-zeev-extra-document-fields'))
+    REQUEST_ZEEV_FILE_DOWNLOAD_URL_TEMPLATE = String(input?.fileDownloadUrlTemplate || input?.file_download_url_template || req.headers.get('x-zeev-file-download-url-template') || '').trim()
     if (input?.mode === 'ingest') {
       if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
       if (!env('ZEEV_SYNC_SECRET')) return json({ ok: false, error: 'ZEEV_SYNC_SECRET nao configurado.' }, 500)
