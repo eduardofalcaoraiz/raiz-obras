@@ -1490,6 +1490,7 @@ async function zeevReport(flow: number, page: number, start: string, end: string
     useCache: false,
     formFieldNames,
     showPendingInstanceTasks: true,
+    showFinishedInstanceTasks: true,
     showPendingAssignees: true,
     allowOpenUrlsForFilesInForm: true,
   })
@@ -2461,6 +2462,7 @@ function paymentStatusDebug(ticket: AnyRecord) {
     messagePaid: paymentDateFromMessages(ticket),
     due: dueDateFromTicket(ticket),
     docs: zeevDocsFromTicket(ticket).length,
+    source: String(ticket?.__zeev_load_source || raw?.__zeev_load_source || ''),
     loadError: String(ticket?.__zeev_load_error || raw?.__zeev_load_error || ''),
     messageError: String(ticket?.__zeev_message_error || raw?.__zeev_message_error || ''),
   }
@@ -2523,13 +2525,20 @@ async function loadPaymentTicketFromZeev(row: AnyRecord) {
   const ticket = await loadGenericTicketFromZeev(row)
   const id = Number(ticket?.zeev_instance_id || row?.ticket_raiz || row?.zeev_instance_id || 0)
   if (!id) return ticket
+  return await attachZeevMessagesToTicket(ticket, id)
+}
+
+async function attachZeevMessagesToTicket(ticket: AnyRecord, id: number) {
+  if (!id) return ticket
   try {
     const messages = await zeevMessages(id)
     return {
       ...ticket,
+      __zeev_load_source: ticket?.__zeev_load_source || 'zeev-instance',
       raw_messages: messages,
       raw_instance: {
         ...(ticket?.raw_instance || {}),
+        __zeev_load_source: ticket?.__zeev_load_source || 'zeev-instance',
         __messages: messages,
       },
     }
@@ -2594,6 +2603,44 @@ async function loadTicketsByIds(ids: number[]) {
     for (const row of rows || []) out.set(Number(row.zeev_instance_id), row)
   }
   return out
+}
+
+function ticketHasStoredZeevData(ticket: AnyRecord) {
+  return Boolean(
+    (Array.isArray(ticket?.raw_fields) && ticket.raw_fields.length) ||
+    (Array.isArray(ticket?.rawFields) && ticket.rawFields.length) ||
+    (Array.isArray(ticket?.raw_tasks) && ticket.raw_tasks.length) ||
+    (Array.isArray(ticket?.rawTasks) && ticket.rawTasks.length) ||
+    (ticket?.raw_instance && typeof ticket.raw_instance === 'object') ||
+    (ticket?.rawInstance && typeof ticket.rawInstance === 'object'),
+  )
+}
+
+function normalizeStoredTicketSnapshot(ticket: AnyRecord, ticketId: number) {
+  const rawInstance = ticket?.raw_instance && typeof ticket.raw_instance === 'object'
+    ? ticket.raw_instance
+    : ticket?.rawInstance && typeof ticket.rawInstance === 'object'
+      ? ticket.rawInstance
+      : {}
+  return {
+    ...ticket,
+    zeev_instance_id: Number(ticket?.zeev_instance_id || ticketId) || ticketId,
+    raw_fields: Array.isArray(ticket?.raw_fields) ? ticket.raw_fields : Array.isArray(ticket?.rawFields) ? ticket.rawFields : Array.isArray(rawInstance?.formFields) ? rawInstance.formFields : [],
+    raw_tasks: Array.isArray(ticket?.raw_tasks) ? ticket.raw_tasks : Array.isArray(ticket?.rawTasks) ? ticket.rawTasks : Array.isArray(rawInstance?.instanceTasks) ? rawInstance.instanceTasks : [],
+    raw_instance: {
+      ...rawInstance,
+      __zeev_load_source: 'stored-report',
+    },
+    __zeev_load_source: 'stored-report',
+  }
+}
+
+async function loadPaymentTicketForRefresh(row: AnyRecord, storedTicket: AnyRecord | undefined) {
+  const ticketId = Number(ticketDigits(row.ticket_raiz))
+  if (storedTicket && ticketHasStoredZeevData(storedTicket)) {
+    return await attachZeevMessagesToTicket(normalizeStoredTicketSnapshot(storedTicket, ticketId), ticketId)
+  }
+  return await loadPaymentTicketFromZeev({ zeev_instance_id: ticketId, ticket_raiz: ticketId })
 }
 
 async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row: AnyRecord, ticket: AnyRecord, limitFiles: number) {
@@ -2697,7 +2744,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
       try {
         const ticketId = Number(ticketDigits(row.ticket_raiz))
         let ticket = ticketMap.get(ticketId) || { zeev_instance_id: ticketId, ticket_raiz: ticketId }
-        if (refresh) ticket = await loadGenericTicketFromZeev(ticket)
+        if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadGenericTicketFromZeev(ticket)
         const attach = await attachDocsForTarget('payment', row, ticket, fileLimit)
         if (targetSet.size && !attach.attached) addDocDebug(out, 'payment', row, ticket, attach)
         const paidDate = paymentDateFromTicket(ticket)
@@ -2733,7 +2780,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
       try {
         const ticketId = Number(ticketDigits(row.ticket_raiz_instance_id || row.referencia))
         let ticket = ticketMap.get(ticketId) || ticketFromCapexDados(row)
-        if (refresh) ticket = await loadGenericTicketFromZeev(ticket)
+        if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadGenericTicketFromZeev(ticket)
         const attach = await attachDocsForTarget('capex', row, ticket, fileLimit)
         if (targetSet.size && !attach.attached) addDocDebug(out, 'capex', row, ticket, attach)
         const paidDate = paymentDateFromTicket(ticket)
@@ -2773,7 +2820,7 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
   const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const targetSet = new Set(targetTicketIds.map((id) => String(id)))
   const onlyOverdue = input.onlyOverdue !== false && input.only_overdue !== false && !targetTicketIds.length
-  const out: AnyRecord = { ok: true, mode: 'refresh-payment-statuses', requested: targetTicketIds, staleHours, scannedPayments: 0, updatedPaid: 0, updatedDueDate: 0, filesAttached: 0, errors: [], updated: [], unchanged: [] }
+  const out: AnyRecord = { ok: true, mode: 'refresh-payment-statuses', requested: targetTicketIds, staleHours, scannedPayments: 0, updatedPaid: 0, updatedDueDate: 0, filesAttached: 0, errors: [], updated: [], unchanged: [], sources: { storedReport: 0, zeevInstance: 0, failedInstance: 0 } }
 
   const paymentFilter = targetTicketIds.length ? `ticket_raiz=in.(${targetTicketIds.join(',')})` : 'ticket_raiz=not.is.null'
   const rows = await restAll(`/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&${paymentFilter}&order=id.asc`, 1000)
@@ -2785,11 +2832,16 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
     .sort((a: AnyRecord, b: AnyRecord) => Number(paymentIsOverdue(b)) - Number(paymentIsOverdue(a)) || docsCandidateScore(a) - docsCandidateScore(b) || String(a.venc || '').localeCompare(String(b.venc || '')) || Number(a.id) - Number(b.id))
     .slice(0, limit)
   out.scannedPayments = candidates.length
+  const ticketMap = await loadTicketsByIds(candidates.map((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz))))
 
   for (const row of candidates) {
     const tr = Number(ticketDigits(row.ticket_raiz))
     try {
-      const ticket = await loadPaymentTicketFromZeev({ zeev_instance_id: tr, ticket_raiz: tr })
+      const ticket = await loadPaymentTicketForRefresh(row, ticketMap.get(tr))
+      const source = String(ticket?.__zeev_load_source || ticket?.raw_instance?.__zeev_load_source || (ticket?.__zeev_load_error || ticket?.raw_instance?.__zeev_load_error ? 'failed-instance' : 'zeev-instance'))
+      if (source === 'stored-report') out.sources.storedReport++
+      else if (source === 'failed-instance') out.sources.failedInstance++
+      else out.sources.zeevInstance++
       const attach = await attachDocsForTarget('payment', row, ticket, fileLimit)
       const paidDate = paymentDateFromTicket(ticket)
       const dueDate = dueDateFromTicket(ticket)
