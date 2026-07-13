@@ -2591,6 +2591,200 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   return out
 }
 
+function ticketFieldMap(ticket: AnyRecord) {
+  return fieldMap(Array.isArray(ticket?.raw_fields) ? ticket.raw_fields : Array.isArray(ticket?.rawFields) ? ticket.rawFields : [])
+}
+
+function ticketFirstField(ticket: AnyRecord, names: string[]) {
+  return firstField(ticketFieldMap(ticket), names)
+}
+
+function ticketValueForPayment(ticket: AnyRecord) {
+  const direct = Number(ticket?.valor_final || ticket?.valor || ticket?.pagamento_json?.valor_total || 0)
+  if (Number.isFinite(direct) && direct > 0) return direct
+  return pickTicketValue(ticketFieldMap(ticket), Array.isArray(ticket?.itens_json) ? ticket.itens_json : [], isFinanceiro(ticket))
+}
+
+function ticketFornecedorForPayment(ticket: AnyRecord) {
+  return ticketFirstField(ticket, ['fornecedor', 'nomeFornecedor', 'razaoSocial', 'razao social', 'favorecido', 'beneficiario', 'cnpjFornecedor', 'prestador', 'empresa'])
+    || ticket?.requester_name
+    || `Ticket Raiz ${ticket?.zeev_instance_id || ''}`.trim()
+}
+
+function ticketDescriptionForPayment(ticket: AnyRecord) {
+  const fmap = ticketFieldMap(ticket)
+  const items = Array.isArray(ticket?.itens_json) ? ticket.itens_json : []
+  return cleanSummaryText(ticket?.pedido || '')
+    || cleanSummaryText(ticketDescription(fmap, items, isFinanceiro(ticket), isCompra(ticket)))
+    || cleanSummaryText(ticketFirstField(ticket, [...FINANCE_DESCRIPTION_FIELDS, ...PURCHASE_JUSTIFICATION_FIELDS, ...PURCHASE_SERVICE_DESCRIPTION_FIELDS, ...PURCHASE_ITEM_DESCRIPTION_FIELDS, 'descricao', 'pedido', 'solicitacao', 'objeto', 'resumo']))
+    || ticket?.request_name
+    || `Ticket Raiz ${ticket?.zeev_instance_id || ''}`.trim()
+}
+
+function defaultPagadorForObra(obra: AnyRecord) {
+  const refs = Array.isArray(obra?.unidades_obra) ? obra.unidades_obra : []
+  const principal = refs.find((u: AnyRecord) => u?.principal) || refs[0]
+  return String(principal?.nome || obra?.nome || '').trim()
+}
+
+function fiscalTypeForTicket(ticket: AnyRecord, storedDocs: AnyRecord[]) {
+  const candidates = [...storedDocs, ...zeevDocsFromTicket(ticket)]
+  const text = normKey(candidates.map((doc) => [doc?.name, doc?.source, doc?.type, doc?.kind].filter(Boolean).join(' ')).join(' '))
+  if (text.includes('boleto')) return 'Boleto'
+  if (text.includes('fatura')) return 'Fatura'
+  if (text.includes('recibo')) return 'Recibo'
+  if (text.includes('nfe') || text.includes('danfe') || text.includes('xml')) return 'NF-e'
+  if (candidates.length) return 'NFS-e'
+  return 'Sem nota'
+}
+
+function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: string) {
+  const storedDocs = normalizeStoredDocs(ticket)
+  const fiscalDocs = storedDocs.filter((doc) => String(doc?.kind || '').toUpperCase() !== 'COMPROVANTE')
+  const comprovantes = storedDocs.filter((doc) => String(doc?.kind || '').toUpperCase() === 'COMPROVANTE')
+  const nfTipo = fiscalTypeForTicket(ticket, storedDocs)
+  const nfNum = ticket?.pagamento_json?.nota_fiscal
+    || ticketFirstField(ticket, ['notaFiscal', 'numeroNF', 'numeroNotaFiscal', 'numero da nota fiscal', 'nf', 'fatura', 'boleto'])
+    || ''
+  const venc = dateOnly(ticket?.pagamento_json?.previsao_pagamento || ticket?.pagamento_json?.dataVencimento)
+    || dateOnly(ticketFirstField(ticket, ['previsaoPagamento', 'dataDeVencimento', 'dataVencimento', 'dataPagamento']))
+  const paidDate = paymentDateFromTicket(ticket)
+  const link = String(ticket?.ticket_link || '').trim()
+  return {
+    obra_id: Number(obra.id),
+    ben: ticketFornecedorForPayment(ticket),
+    v: ticketValueForPayment(ticket),
+    ref: ticketDescriptionForPayment(ticket),
+    nf_num: String(nfNum || '').trim(),
+    cat: 'outros',
+    sub: 0,
+    pagn: defaultPagadorForObra(obra),
+    st: paidDate ? 'PAGO' : 'PENDENTE',
+    venc: venc || paidDate || '',
+    nf_tipo: nfTipo,
+    comp: '',
+    nf_doc_path: fiscalDocs[0]?.storagePath || '',
+    comp_doc_path: comprovantes[0]?.storagePath || '',
+    docs_json: storedDocs,
+    emissao: '',
+    paga_em: paidDate || '',
+    escopo_fin: escopo === 'extra' ? 'extra' : 'obra',
+    contrato_seq: null,
+    tipo_custo: 'outros',
+    mat_tipo: '',
+    mat_qtd: null,
+    mat_unidade: '',
+    chave: ticket?.pagamento_json?.chave_acesso || ticketFirstField(ticket, ['chaveAcesso', 'chave de acesso']) || '',
+    obs: link ? `Ticket Raiz: ${link}` : '',
+    pag_forma: ticket?.pagamento_json?.forma || 'A_VISTA',
+    parcelas: [],
+    itens_pag: Array.isArray(ticket?.itens_json) ? ticket.itens_json : [],
+    construtora_seq: null,
+    ticket_raiz: String(ticket?.zeev_instance_id || ''),
+  }
+}
+
+function findTargetObra(obras: AnyRecord[], name: string) {
+  const key = normKey(name)
+  if (!key) return null
+  const exact = obras.filter((obra) => normKey(obra?.nome) === key)
+  if (exact.length === 1) return exact[0]
+  if (exact.length > 1) throw new Error(`Mais de uma obra encontrada com o nome "${name}".`)
+  const partial = obras.filter((obra) => {
+    const n = normKey(obra?.nome)
+    return n && (n.includes(key) || key.includes(n))
+  })
+  if (partial.length === 1) return partial[0]
+  if (partial.length > 1) throw new Error(`Obra "${name}" ambigua: ${partial.map((o) => o.nome).join(', ')}.`)
+  return null
+}
+
+async function registerObraPayments(input: AnyRecord = {}) {
+  const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+  const obraName = String(input.obraName || input.targetObra || input.target_obra || input.obra || '').trim()
+  const escopo = input.escopo === 'extra' || input.targetEscopo === 'extra' || input.target_escopo === 'extra' ? 'extra' : 'obra'
+  const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || input.file_limit || 5), 8))
+  if (!ticketIds.length) throw new Error('Nenhum TR informado para registrar como pagamento.')
+  if (!obraName) throw new Error('Informe a obra destino para registrar os pagamentos.')
+
+  const obras = await restAll('/obras?select=id,nome,marca,unidades_obra')
+  const obra = findTargetObra(obras, obraName)
+  if (!obra) throw new Error(`Obra destino nao encontrada: ${obraName}`)
+
+  const existingRows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs&ticket_raiz=in.(${ticketIds.join(',')})`)
+  const existingByTicket = new Map<string, AnyRecord[]>()
+  for (const row of existingRows || []) {
+    const key = ticketDigits(row.ticket_raiz)
+    if (!key) continue
+    const rows = existingByTicket.get(key) || []
+    rows.push(row)
+    existingByTicket.set(key, rows)
+  }
+
+  const dbTickets = await loadTicketsByIds(ticketIds)
+  const out: AnyRecord = { ok: true, mode: 'register-obra-payments', obra: { id: obra.id, nome: obra.nome }, escopo, requested: ticketIds, inserted: [], updated: [], skipped: [], errors: [], docsAttached: 0, paidUpdated: 0 }
+
+  for (const id of ticketIds) {
+    try {
+      let ticket = dbTickets.get(id) || { zeev_instance_id: id }
+      ticket = await loadGenericTicketFromZeev(ticket)
+      const ticketId = Number(ticket?.zeev_instance_id || id)
+      if (!ticketId) {
+        out.skipped.push({ tr: id, reason: 'ticket_nao_encontrado' })
+        continue
+      }
+      const payload = paymentPayloadFromTicket({ ...ticket, zeev_instance_id: ticketId }, obra, escopo)
+      if (!payload.v) out.errors.push({ tr: ticketId, warning: 'valor_nao_encontrado_no_zeev' })
+      const currentRows = existingByTicket.get(ticketDigits(ticketId)) || []
+      const target = currentRows.find((row) => Number(row.obra_id) === Number(obra.id)) || currentRows[0] || null
+      const savedRows = target
+        ? await rest(`/pagamentos?id=eq.${Number(target.id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) })
+        : await rest('/pagamentos', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify([payload]) })
+      const saved = Array.isArray(savedRows) ? savedRows[0] : savedRows
+      if (!saved?.id) throw new Error('Supabase nao retornou o pagamento salvo.')
+
+      let attach: AnyRecord = { docs: saved.docs_json || [], attached: 0, nfPath: saved.nf_doc_path || '', compPath: saved.comp_doc_path || '' }
+      try {
+        attach = await attachDocsForTarget('payment', saved, { ...ticket, zeev_instance_id: ticketId }, fileLimit)
+      } catch (error) {
+        out.errors.push({ tr: ticketId, step: 'anexos', error: error instanceof Error ? error.message : String(error) })
+      }
+      const paidDate = paymentDateFromTicket(ticket)
+      const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
+      if (JSON.stringify(attach.docs || []) !== JSON.stringify(saved.docs_json || [])) patch.docs_json = attach.docs || []
+      if (!saved.nf_doc_path && attach.nfPath) patch.nf_doc_path = attach.nfPath
+      if (!saved.comp_doc_path && attach.compPath) patch.comp_doc_path = attach.compPath
+      if (paidDate && (saved.st !== 'PAGO' || saved.paga_em !== paidDate)) {
+        patch.st = 'PAGO'
+        patch.paga_em = paidDate
+        out.paidUpdated++
+      }
+      await rest(`/pagamentos?id=eq.${Number(saved.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) })
+      out.docsAttached += Number(attach.attached || 0)
+
+      await rest(`/capex_zeev_solicitacoes?zeev_instance_id=eq.${ticketId}&status=eq.pendente`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          status: 'aprovado',
+          capex_item_id: null,
+          aprovado_em: new Date().toISOString(),
+          aprovado_por: 'pagamento_obra_lote',
+        }),
+      })
+
+      const item = { tr: ticketId, pagamento_id: Number(saved.id), obra_id: Number(obra.id), valor: payload.v, docsAttached: Number(attach.attached || 0) }
+      if (target) out.updated.push(item)
+      else out.inserted.push(item)
+      if (currentRows.length > 1) out.errors.push({ tr: ticketId, warning: 'pagamento_duplicado_preexistente', ids: currentRows.map((row) => row.id) })
+    } catch (error) {
+      out.errors.push({ tr: id, error: error instanceof Error ? error.message : String(error) })
+    }
+  }
+
+  return out
+}
+
 async function runFileProxy(input: AnyRecord) {
   const url = safeZeevFileUrl(input?.url)
   if (!url) return json({ ok: false, error: 'URL Zeev invalida.' }, 400)
@@ -2644,6 +2838,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'backfill-docs') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await runBackfillDocs(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'register-obra-payments') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await registerObraPayments(input || {})
       return json(out)
     }
     if (input?.mode === 'dispatch') {
