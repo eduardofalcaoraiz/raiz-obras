@@ -1249,6 +1249,8 @@ def sync_ids(instance_ids):
 
 def ingest(tickets, notify=False, partial=False):
     payload = {"mode": "ingest", "tickets": tickets, "notify": notify}
+    if ZEEV_TOKEN:
+        payload["zeevToken"] = ZEEV_TOKEN
     backfill_limit = os.environ.get("ZEEV_INGEST_BACKFILL_LIMIT") or os.environ.get("ZEEV_BACKFILL_LIMIT")
     if backfill_limit and not partial:
         try:
@@ -1292,6 +1294,8 @@ def backfill_docs():
         "includePayments": os.environ.get("ZEEV_BACKFILL_PAYMENTS", "true").lower() != "false",
         "includeCapex": os.environ.get("ZEEV_BACKFILL_CAPEX", "true").lower() != "false",
     }
+    if ZEEV_TOKEN:
+        shared["zeevToken"] = ZEEV_TOKEN
     ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
     if ticket_ids:
         shared["ticketIds"] = ticket_ids
@@ -1425,6 +1429,8 @@ def register_obra_payments():
             "escopo": escopo,
             "fileLimit": file_limit,
         }
+        if ZEEV_TOKEN:
+            payload["zeevToken"] = ZEEV_TOKEN
         return request_json(
             "POST",
             f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
@@ -1503,6 +1509,8 @@ def refresh_payment_statuses():
             "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", "8")),
             "onlyOverdue": os.environ.get("ZEEV_STATUS_ONLY_OVERDUE", "true").lower() != "false",
         }
+        if ZEEV_TOKEN:
+            payload["zeevToken"] = ZEEV_TOKEN
         try:
             result = request_json(
                 "POST",
