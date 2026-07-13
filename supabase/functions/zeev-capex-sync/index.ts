@@ -568,7 +568,7 @@ function taskName(task: AnyRecord | null) {
 }
 
 function ticketResultKind(row: AnyRecord) {
-  const result = norm(row?.flowResult || '')
+  const result = norm(row?.flowResult || row?.flow_result || row?.raw_instance?.flowResult || row?.rawInstance?.flowResult || '')
   if (result.includes('cancelado') || result.includes('cancelada')) return 'cancelado'
   if (result.includes('rejeitado') || result.includes('rejeitada') || result.includes('reprovado') || result.includes('reprovada')) return 'rejeitado'
   if (result.includes('concluido') || result.includes('concluida') || result.includes('aprovado') || result.includes('aprovada') || result.includes('finalizado') || result.includes('finalizada')) return 'concluido'
@@ -598,25 +598,25 @@ function suggestedCapexStatus(row: AnyRecord, ready: boolean) {
 }
 
 function isCompra(row: AnyRecord) {
-  const name = norm(row?.flow?.name || row?.flowName || row?.requestName || '')
+  const name = norm(row?.flow?.name || row?.flowName || row?.flow_name || row?.requestName || row?.request_name || row?.raw_instance?.flow?.name || row?.raw_instance?.flowName || '')
   return name.includes('solicitacao de compras') || name.includes('solicitacoes de compras')
 }
 
 function isFinanceiro(row: AnyRecord) {
-  const name = norm(row?.flow?.name || row?.flowName || row?.requestName || '')
+  const name = norm(row?.flow?.name || row?.flowName || row?.flow_name || row?.requestName || row?.request_name || row?.raw_instance?.flow?.name || row?.raw_instance?.flowName || '')
   return name.includes('solicitacao financeira') || name.includes('solicitacoes financeiras') || name.includes('financeiro')
 }
 
 function flowId(row: AnyRecord) {
-  return Number(row?.flow?.id || row?.flowId || 0) || null
+  return Number(row?.flow?.id || row?.flowId || row?.flow_id || row?.raw_instance?.flow?.id || row?.raw_instance?.flowId || 0) || null
 }
 
 function flowName(row: AnyRecord) {
-  return String(row?.flow?.name || row?.flowName || row?.requestName || '').trim()
+  return String(row?.flow?.name || row?.flowName || row?.flow_name || row?.requestName || row?.request_name || row?.raw_instance?.flow?.name || row?.raw_instance?.flowName || '').trim()
 }
 
 function flowVersion(row: AnyRecord) {
-  return Number(row?.flow?.version || row?.flowVersion || 0) || null
+  return Number(row?.flow?.version || row?.flowVersion || row?.flow_version || row?.raw_instance?.flow?.version || row?.raw_instance?.flowVersion || 0) || null
 }
 
 function capexFieldsForFlow(flow: number) {
