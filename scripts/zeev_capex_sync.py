@@ -1479,7 +1479,10 @@ def register_obra_payments():
 
 def refresh_payment_statuses():
     ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
+    target_ids = parse_ticket_ids(ticket_ids)
     total_limit = max(1, int(os.environ.get("ZEEV_STATUS_REFRESH_LIMIT", os.environ.get("ZEEV_BACKFILL_LIMIT", "40"))))
+    if target_ids:
+        total_limit = len(target_ids)
     base_batch = max(1, min(int(os.environ.get("ZEEV_STATUS_REFRESH_BATCH", os.environ.get("ZEEV_BACKFILL_BATCH", "6"))), 12))
     base_file_limit = max(1, min(int(os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "3")), 6))
     out = {
@@ -1500,11 +1503,16 @@ def refresh_payment_statuses():
     remaining = total_limit
     batch = min(base_batch, remaining)
     file_limit = base_file_limit
+    target_chunks = [target_ids[i:i + base_batch] for i in range(0, len(target_ids), base_batch)] if target_ids else []
+    target_index = 0
     while remaining > 0:
+        current_target_chunk = target_chunks[target_index] if target_chunks else []
+        current_ticket_ids = ",".join(str(x) for x in current_target_chunk) if current_target_chunk else ticket_ids
+        current_limit = len(current_target_chunk) if current_target_chunk else min(batch, remaining)
         payload = {
             "mode": "refresh-payment-statuses",
-            "ticketIds": ticket_ids,
-            "limit": min(batch, remaining),
+            "ticketIds": current_ticket_ids,
+            "limit": current_limit,
             "fileLimit": file_limit,
             "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", "8")),
             "onlyOverdue": os.environ.get("ZEEV_STATUS_ONLY_OVERDUE", "true").lower() != "false",
@@ -1524,6 +1532,12 @@ def refresh_payment_statuses():
             msg = str(exc)
             resource_limited = "WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg
             out["errors"].append({"batch": payload["limit"], "fileLimit": file_limit, "recoverable": resource_limited, "error": msg[:700]})
+            if resource_limited and current_target_chunk and len(current_target_chunk) > 1:
+                mid = max(1, len(current_target_chunk) // 2)
+                target_chunks[target_index:target_index + 1] = [current_target_chunk[:mid], current_target_chunk[mid:]]
+                batch = max(1, batch // 2)
+                file_limit = max(1, file_limit // 2)
+                continue
             if resource_limited and (batch > 1 or file_limit > 1):
                 batch = max(1, batch // 2)
                 file_limit = max(1, file_limit // 2)
@@ -1541,11 +1555,15 @@ def refresh_payment_statuses():
         for key in ("updated", "unchanged", "errors"):
             if isinstance(result.get(key), list):
                 out[key].extend(result.get(key))
-        if scanned <= 0:
+        if scanned <= 0 and not target_chunks:
             out["completed"] = True
             break
         out["processed"] += scanned
-        remaining = max(0, remaining - scanned)
+        if target_chunks:
+            target_index += 1
+            remaining = max(0, len(target_ids) - sum(len(chunk) for chunk in target_chunks[:target_index]))
+        else:
+            remaining = max(0, remaining - scanned)
         batch = min(base_batch, remaining) if remaining else 0
         file_limit = base_file_limit
         if remaining:
@@ -1554,7 +1572,7 @@ def refresh_payment_statuses():
     for key in ("updated", "unchanged", "errors"):
         if len(out[key]) > 80:
             out[key] = out[key][:80]
-    out["completed"] = out.get("completed", False) or out["processed"] >= total_limit
+    out["completed"] = out.get("completed", False) or (target_chunks and target_index >= len(target_chunks)) or out["processed"] >= total_limit
     return out
 
 
