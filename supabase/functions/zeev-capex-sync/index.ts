@@ -2200,6 +2200,13 @@ function objectFileHints(value: AnyRecord) {
   return Object.keys(value).some((k) => /(url|link|file|arquivo|anexo|base64|document|doc|attachment|filename|originalname|download|mimetype|contenttype|contenturl)/i.test(k))
 }
 
+function looksLikeZeevDocumentLabel(value: unknown) {
+  const n = normKey(value)
+  if (!n) return false
+  if (n === 'nf' || n.startsWith('nfe') || n.startsWith('nfse') || n.startsWith('nfs')) return true
+  return /(notafiscal|notafiscal|notasfiscais|nota|danfe|xml|pdf|arquivo|anexo|boleto|comprovante|documento|document|doc|fatura|recibo|file|attachment|download)/.test(n)
+}
+
 function pushZeevDocValue(out: AnyRecord[], label: string, value: unknown, source: string) {
   if (value == null) return
   if (Array.isArray(value)) {
@@ -2211,7 +2218,9 @@ function pushZeevDocValue(out: AnyRecord[], label: string, value: unknown, sourc
     const url = v.url || v.openUrl || v.downloadUrl || v.href || v.link || v.fileUrl || v.signedUrl || v.contentUrl || ''
     const name = v.name || v.fileName || v.filename || v.originalName || v.displayName || v.title || v.label || label || 'documento-fiscal.pdf'
     pushZeevDoc(out, name, url, v.type || v.mimeType || v.contentType || '', source)
-    const fileId = v.fileId || v.fileID || v.file_id || v.arquivoId || v.arquivoID || v.documentId || v.documentID || v.document_id || v.attachmentId || v.attachmentID || v.attachment_id || (objectFileHints(v) ? v.id : '')
+    const explicitFileId = v.fileId || v.fileID || v.file_id || v.arquivoId || v.arquivoID || v.documentId || v.documentID || v.document_id || v.attachmentId || v.attachmentID || v.attachment_id || ''
+    const inferredFileId = !explicitFileId && objectFileHints(v) && looksLikeZeevDocumentLabel([source, label, name].filter(Boolean).join(' ')) ? v.id : ''
+    const fileId = explicitFileId || inferredFileId
     if (fileId) pushZeevFileIdDoc(out, name, fileId, v.type || v.mimeType || v.contentType || '', source)
     const base64Content = v.base64Content || v.base64 || v.contentBase64 || v.fileBase64 || v.bytesBase64 || ''
     if (base64Content) pushZeevBase64Doc(out, name, base64Content, v.type || v.mimeType || v.contentType || '', source)
@@ -2242,7 +2251,7 @@ function zeevDocsFromTicket(ticket: AnyRecord) {
     if (!f || typeof f !== 'object') continue
     const label = String(f.name || f.label || f.title || f.caption || '')
     const n = normKey(label)
-    const looksDoc = /(notafiscal|nf|nfs|danfe|xml|pdf|arquivo|anexo|boleto|comprovante|documento|fatura|recibo)/.test(n)
+    const looksDoc = looksLikeZeevDocumentLabel(n)
     const openUrl = f.openUrl || f.url || f.downloadUrl || ''
     if (!looksDoc && !openUrl && !objectFileHints(f)) continue
     const rawVal = f.value ?? f.displayValue ?? f.text ?? f.values ?? ''
@@ -2252,7 +2261,7 @@ function zeevDocsFromTicket(ticket: AnyRecord) {
   }
   const fields = ticket?.campos_extraidos || ticket?.campos || {}
   for (const [k, v] of Object.entries(fields || {})) {
-    if (!/(notafiscal|nf|nfs|danfe|xml|pdf|arquivo|anexo|boleto|comprovante|documento|fatura|recibo)/.test(normKey(k))) continue
+    if (!looksLikeZeevDocumentLabel(k)) continue
     pushZeevDocValue(docs, k, v, k)
   }
   const tasks = Array.isArray(ticket?.raw_tasks) ? ticket.raw_tasks : Array.isArray(ticket?.rawTasks) ? ticket.rawTasks : []
@@ -2292,7 +2301,7 @@ function docFieldDebug(ticket: AnyRecord) {
       const label = String(f?.name || f?.label || f?.title || f?.caption || '')
       const n = normKey(label)
       const value = f?.value ?? f?.displayValue ?? f?.text ?? f?.values ?? ''
-      const looksDoc = /(notafiscal|nf|nfs|danfe|xml|pdf|arquivo|anexo|boleto|comprovante|documento|fatura|recibo)/.test(n)
+      const looksDoc = looksLikeZeevDocumentLabel(n)
       const keys = f && typeof f === 'object' ? Object.keys(f).filter((k) => /(url|link|file|arquivo|anexo|base64|content|name|id|value)/i.test(k)).slice(0, 12) : []
       const hasUrl = Boolean(f?.openUrl || f?.url || f?.downloadUrl || (typeof value === 'string' && /^https?:\/\//i.test(value)))
       if (!looksDoc && !hasUrl && !keys.some((k) => /(file|arquivo|anexo|base64)/i.test(k))) return null
