@@ -461,6 +461,32 @@ def report_page_all(page, start, end, page_size=30, fields=None):
     return data if isinstance(data, list) else [data]
 
 
+def report_instance(instance_id, flow_id=0, fields=None, page_size=10):
+    payload = {
+        "instanceId": int(instance_id),
+        "recordsPerPage": min(max(int(page_size or 10), 1), 100),
+        "pageNumber": 1,
+        "useCache": False,
+        "simulation": False,
+        "showPendingInstanceTasks": True,
+        "showFinishedInstanceTasks": True,
+        "showPendingAssignees": True,
+        "allowOpenUrlsForFilesInForm": True,
+    }
+    if flow_id:
+        payload["flowId"] = int(flow_id)
+    if fields is not None:
+        payload["formFieldNames"] = fields
+    data = request_json(
+        "POST",
+        f"{ZEEV_BASE_URL}/api/2/instances/report",
+        headers={"Authorization": f"Bearer {ZEEV_TOKEN}"},
+        payload=payload,
+        timeout=90,
+    )
+    return data if isinstance(data, list) else [data]
+
+
 def instance_fields(instance_id, fields):
     params = [("showPendingInstanceTasks", "true"), ("showFinishedInstanceTasks", "true"),
               ("showPendingAssignees", "true"), ("useCache", "false"),
@@ -1470,6 +1496,39 @@ def inspect_docs():
                 entry["errors"].append({"stage": "doc-fields", "fields": chunk, "error": str(exc)[:500]})
 
         flow_for_report = int(entry.get("flowId") or (FLOW_IDS[0] if FLOW_IDS else 0) or 0)
+        try:
+            direct_tests = []
+            direct_field_sets = [
+                ["Documento"],
+                ["documento"],
+                ["Documento", "documento", "danfe", "arquivo", "notaFiscal", "nota fiscal"],
+                [],
+            ]
+            for field_set in direct_field_sets:
+                rows = report_instance(instance_id, flow_for_report, fields=field_set if field_set else None)
+                target = next((row for row in rows if int(row.get("id") or 0) == int(instance_id)), (rows[0] if rows else {}))
+                fields = target.get("formFields") or []
+                direct_tests.append({
+                    "requested": field_set or "__no_formFieldNames__",
+                    "rows": len(rows or []),
+                    "fieldCount": len(fields),
+                    "fields": [
+                        {
+                            "name": field_display_name(field),
+                            "row": field.get("row") or 1,
+                            "type": field.get("type") or field.get("fieldType") or "",
+                            "keys": sorted(str(k) for k in field.keys())[:30],
+                            **doc_value_meta(field.get("value")),
+                            "hasOpenUrl": bool(field.get("openUrl")),
+                            "openUrlPath": urllib.parse.urlparse(str(field.get("openUrl") or "")).path[:180],
+                        }
+                        for field in fields[:12]
+                    ],
+                })
+            entry["reportInstanceTests"] = direct_tests
+        except Exception as exc:
+            entry["errors"].append({"stage": "report-instance-tests", "error": str(exc)[:500]})
+
         if flow_for_report:
             for field_name in unique_fields(["Documento", "documento"], extra_fields)[:30]:
                 try:
