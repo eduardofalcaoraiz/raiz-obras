@@ -2197,7 +2197,7 @@ function pushZeevBase64Doc(out: AnyRecord[], name: unknown, base64Content: unkno
 
 function objectFileHints(value: AnyRecord) {
   if (!value || typeof value !== 'object') return false
-  return Object.keys(value).some((k) => /(url|link|file|arquivo|anexo|base64|content|document|doc|attachment|name|filename)/i.test(k))
+  return Object.keys(value).some((k) => /(url|link|file|arquivo|anexo|base64|document|doc|attachment|filename|originalname|download|mimetype|contenttype|contenturl)/i.test(k))
 }
 
 function pushZeevDocValue(out: AnyRecord[], label: string, value: unknown, source: string) {
