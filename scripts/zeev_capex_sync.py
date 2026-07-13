@@ -1402,6 +1402,8 @@ def inspect_docs():
         try:
             base = ZEEV_BASE_URL
             probe_urls = [
+                f"{base}/api/2/flows/{flow_for_report}/design/form",
+                f"{base}/api/2/flows/{flow_for_report}",
                 f"{base}/api/2/instances/{instance_id}",
                 f"{base}/api/2/instances/{instance_id}/files",
                 f"{base}/api/2/instances/{instance_id}/attachments",
