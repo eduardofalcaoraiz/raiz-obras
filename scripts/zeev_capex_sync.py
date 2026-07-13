@@ -1394,15 +1394,87 @@ def reconcile_registered():
 
 
 def register_obra_payments():
-    ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
+    ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     obra = os.environ.get("ZEEV_TARGET_OBRA") or os.environ.get("ZEEV_OBRA_DESTINO") or ""
     escopo = os.environ.get("ZEEV_TARGET_ESCOPO") or "obra"
-    payload = {
+    batch_size = max(1, min(int(os.environ.get("ZEEV_REGISTER_BATCH", "1")), 4))
+    file_limit = max(1, min(int(os.environ.get("ZEEV_REGISTER_FILE_LIMIT", "2")), 4))
+    out = {
+        "ok": True,
         "mode": "register-obra-payments",
+        "requested": ids,
+        "batchSize": batch_size,
+        "inserted": [],
+        "updated": [],
+        "skipped": [],
+        "errors": [],
+        "docsAttached": 0,
+        "paidUpdated": 0,
+        "calls": 0,
+    }
+
+    def call_chunk(chunk):
+        payload = {
+            "mode": "register-obra-payments",
+            "ticketIds": ",".join(str(x) for x in chunk),
+            "obraName": obra,
+            "escopo": escopo,
+            "fileLimit": file_limit,
+        }
+        return request_json(
+            "POST",
+            f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+            headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+            payload=payload,
+            timeout=240,
+            retries=0,
+        )
+
+    def merge_result(result):
+        out["calls"] += 1
+        for key in ("inserted", "updated", "skipped", "errors"):
+            if isinstance(result.get(key), list):
+                out[key].extend(result.get(key))
+        out["docsAttached"] += int(result.get("docsAttached", 0) or 0)
+        out["paidUpdated"] += int(result.get("paidUpdated", 0) or 0)
+        if result.get("obra"):
+            out["obra"] = result.get("obra")
+        if result.get("escopo"):
+            out["escopo"] = result.get("escopo")
+
+    def run_chunk(chunk):
+        try:
+            merge_result(call_chunk(chunk))
+        except Exception as exc:
+            msg = str(exc)
+            if ("WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg) and len(chunk) > 1:
+                mid = max(1, len(chunk) // 2)
+                run_chunk(chunk[:mid])
+                run_chunk(chunk[mid:])
+                return
+            if "WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg:
+                out["ok"] = False
+                out["errors"].append({"tr": chunk[0] if chunk else None, "recoverable": False, "error": msg[:700]})
+                return
+            raise
+
+    for i in range(0, len(ids), batch_size):
+        run_chunk(ids[i:i + batch_size])
+        time.sleep(float(os.environ.get("ZEEV_REGISTER_PAUSE_SECONDS", "1")))
+
+    if len(out["errors"]) > 50:
+        out["errors"] = out["errors"][:50]
+    return out
+
+
+def refresh_payment_statuses():
+    ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
+    payload = {
+        "mode": "refresh-payment-statuses",
         "ticketIds": ticket_ids,
-        "obraName": obra,
-        "escopo": escopo,
-        "fileLimit": int(os.environ.get("ZEEV_REGISTER_FILE_LIMIT", "5")),
+        "limit": int(os.environ.get("ZEEV_STATUS_REFRESH_LIMIT", os.environ.get("ZEEV_BACKFILL_LIMIT", "12"))),
+        "fileLimit": int(os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "4")),
+        "onlyOverdue": os.environ.get("ZEEV_STATUS_ONLY_OVERDUE", "true").lower() != "false",
     }
     return request_json(
         "POST",
@@ -1430,6 +1502,10 @@ def main():
         return
     if mode in {"register-obra-payments", "register-obra", "obra-payments"}:
         result = register_obra_payments()
+        print(json.dumps(result, ensure_ascii=False))
+        return
+    if mode in {"refresh-payment-statuses", "refresh-payments", "payment-statuses"}:
+        result = refresh_payment_statuses()
         print(json.dumps(result, ensure_ascii=False))
         return
     if not ZEEV_TOKEN:
