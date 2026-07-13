@@ -1,4 +1,4 @@
-﻿const CORS = {
+const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -2461,6 +2461,8 @@ function paymentStatusDebug(ticket: AnyRecord) {
     messagePaid: paymentDateFromMessages(ticket),
     due: dueDateFromTicket(ticket),
     docs: zeevDocsFromTicket(ticket).length,
+    loadError: String(ticket?.__zeev_load_error || raw?.__zeev_load_error || ''),
+    messageError: String(ticket?.__zeev_message_error || raw?.__zeev_message_error || ''),
   }
 }
 
@@ -2497,7 +2499,9 @@ async function loadGenericTicketFromZeev(row: AnyRecord) {
     const detail = await zeevInstance(id, Number(row?.flow_id || row?.flowId || 0) || 0, [])
     base = { ...base, ...(detail || {}) }
   } catch (error) {
-    console.warn('loadGenericTicketFromZeev:', error instanceof Error ? error.message : String(error))
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn('loadGenericTicketFromZeev:', message)
+    base.__zeev_load_error = message
   }
   base.id = base.id || id
   base.flow = base.flow || { id: row.flow_id || row.flowId || null, name: row.flow_name || row.flowName || row.request_name || '', version: row.flow_version || row.flowVersion || null }
@@ -2530,7 +2534,16 @@ async function loadPaymentTicketFromZeev(row: AnyRecord) {
       },
     }
   } catch (error) {
-    console.warn('loadPaymentTicketFromZeev messages:', error instanceof Error ? error.message : String(error))
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn('loadPaymentTicketFromZeev messages:', message)
+    return {
+      ...ticket,
+      __zeev_message_error: message,
+      raw_instance: {
+        ...(ticket?.raw_instance || {}),
+        __zeev_message_error: message,
+      },
+    }
   }
   return ticket
 }
