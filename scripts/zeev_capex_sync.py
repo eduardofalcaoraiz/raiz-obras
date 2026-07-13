@@ -1447,13 +1447,14 @@ def inspect_report_source(report_link, instance_id):
             if re.search(r"(?i)(\.js|api|download|file|arquivo|anexo|document)", raw):
                 asset_urls.append(urllib.parse.urljoin(root, raw))
         seen = set()
+        asset_limit = max(0, min(int(os.environ.get("ZEEV_INSPECT_SOURCE_ASSET_LIMIT", "0")), 14))
         for asset in asset_urls:
             parsed = urllib.parse.urlparse(asset)
             key = parsed.scheme + "://" + parsed.netloc + parsed.path
             if key in seen:
                 continue
             seen.add(key)
-            if len(out["assets"]) >= 14:
+            if len(out["assets"]) >= asset_limit:
                 break
             try:
                 st, ct, text = fetch_text_for_source(asset)
@@ -1486,6 +1487,7 @@ def inspect_docs():
         raise SystemExit("ZEEV_TICKET_IDS e obrigatorio para inspect-docs.")
     extra_fields = unique_fields(DOCUMENT_FIELDS, env_list(os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "")))
     inspect_timeout = max(5, min(int(os.environ.get("ZEEV_INSPECT_TIMEOUT_SECONDS", "20")), 90))
+    doc_field_limit = max(0, min(int(os.environ.get("ZEEV_INSPECT_DOC_FIELD_LIMIT", "8")), len(extra_fields)))
     report_field_limit = max(0, min(int(os.environ.get("ZEEV_INSPECT_REPORT_FIELD_LIMIT", "0")), 30))
     report_page_limit = max(1, min(int(os.environ.get("ZEEV_INSPECT_REPORT_PAGE_LIMIT", "2")), 15))
     probe_limit = max(0, min(int(os.environ.get("ZEEV_INSPECT_PROBE_LIMIT", "5")), 12))
@@ -1523,8 +1525,9 @@ def inspect_docs():
         except Exception as exc:
             entry["errors"].append({"stage": "all-fields", "error": str(exc)[:500]})
 
-        for i in range(0, len(extra_fields), 8):
-            chunk = extra_fields[i:i + 8]
+        doc_fields_to_query = extra_fields[:doc_field_limit]
+        for i in range(0, len(doc_fields_to_query), 8):
+            chunk = doc_fields_to_query[i:i + 8]
             try:
                 _, found = instance_fields(instance_id, chunk, timeout=inspect_timeout, retries=1)
                 for field in found or []:
