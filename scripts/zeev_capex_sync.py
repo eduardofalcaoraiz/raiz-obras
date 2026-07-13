@@ -411,7 +411,7 @@ def finished_task_page_size(page_size):
     return min(max(int(page_size or ZEEV_FINISHED_TASK_PAGE_LIMIT), 1), ZEEV_FINISHED_TASK_PAGE_LIMIT)
 
 
-def report_page(flow_id, page, start, end, page_size=30):
+def report_page(flow_id, page, start, end, page_size=30, fields=None):
     page_size = finished_task_page_size(page_size)
     payload = {
         "flowId": flow_id,
@@ -420,7 +420,7 @@ def report_page(flow_id, page, start, end, page_size=30):
         "recordsPerPage": page_size,
         "pageNumber": page,
         "useCache": False,
-        "formFieldNames": capex_fields(flow_id),
+        "formFieldNames": fields if fields is not None else capex_fields(flow_id),
         "showPendingInstanceTasks": True,
         "showFinishedInstanceTasks": True,
         "showPendingAssignees": True,
@@ -1305,8 +1305,8 @@ def inspect_docs():
                     start = os.environ.get("ZEEV_SYNC_START") or "2025-01-01T00:00:00-03:00"
                     end = os.environ.get("ZEEV_SYNC_END") or datetime.now(business_tz()).isoformat(timespec="seconds")
                     found_rows = []
-                    for page in range(1, 6):
-                        rows = report_page(flow_for_report, page, start, end, page_size=30)
+                    for page in range(1, 16):
+                        rows = report_page(flow_for_report, page, start, end, page_size=30, fields=[field_name])
                         for row in rows or []:
                             if int(row.get("id") or 0) == int(instance_id):
                                 found_rows.append(row)
