@@ -6,8 +6,8 @@ const CORS = {
 
 type AnyRecord = Record<string, any>
 
-const DEFAULT_FLOW_IDS = [299, 275, 102, 300]
-const FINANCE_FLOW_IDS = new Set([299, 275])
+const DEFAULT_FLOW_IDS = [299, 275, 263, 102, 300]
+const FINANCE_FLOW_IDS = new Set([299, 275, 263])
 const CAPEX_FIELDS = ['investimentoCAPEX', 'cAPEX', 'CAPEX', 'capex']
 const FINANCE_DESCRIPTION_FIELDS = [
   'informacoesReferentesASolicitacao',
