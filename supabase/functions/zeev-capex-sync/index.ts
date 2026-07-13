@@ -1233,21 +1233,23 @@ function ticketDataPatch(ticket: AnyRecord, previous: AnyRecord = {}) {
 }
 
 async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
-  if (!tickets.length) return { capexLinked: 0, paymentMatched: 0 }
+  if (!tickets.length) return { capexLinked: 0, paymentMatched: 0, paymentLinked: 0 }
   const byTicket = new Map<string, AnyRecord>()
   for (const ticket of tickets || []) {
     const key = ticketDigits(ticket?.zeev_instance_id)
     if (key) byTicket.set(key, ticket)
   }
-  if (!byTicket.size) return { capexLinked: 0, paymentMatched: 0 }
+  if (!byTicket.size) return { capexLinked: 0, paymentMatched: 0, paymentLinked: 0 }
 
   const capexRows = await rest('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados')
   let capexLinked = 0
+  const capexMatchedKeys = new Set<string>()
   for (const row of capexRows || []) {
     const key = ticketDigits(row.ticket_raiz_instance_id || row.referencia)
     const ticket = byTicket.get(key)
     if (!ticket) continue
     capexLinked++
+    capexMatchedKeys.add(key)
     await rest(`/capex_itens?id=eq.${Number(row.id)}`, {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
@@ -1269,13 +1271,96 @@ async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
     })
   }
 
-  const paymentRows = await rest('/pagamentos?select=obra_id,ticket_raiz')
+  const paymentRows = await rest('/pagamentos?select=id,obra_id,ticket_raiz')
   let paymentMatched = 0
+  let paymentLinked = 0
   for (const row of paymentRows || []) {
     const key = ticketDigits(row.ticket_raiz)
-    if (key && byTicket.has(key)) paymentMatched++
+    if (capexMatchedKeys.has(key)) continue
+    const ticket = byTicket.get(key)
+    if (!key || !ticket) continue
+    paymentMatched++
+    await rest(`/capex_zeev_solicitacoes?zeev_instance_id=eq.${Number(ticket.zeev_instance_id)}&status=eq.pendente`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        status: 'aprovado',
+        capex_item_id: null,
+        aprovado_em: new Date().toISOString(),
+        aprovado_por: 'pagamento_obra_auto',
+      }),
+    })
+    paymentLinked++
   }
-  return { capexLinked, paymentMatched }
+  return { capexLinked, paymentMatched, paymentLinked }
+}
+
+async function reconcilePendingTicketsAlreadyRegistered() {
+  const pending = await rest('/capex_zeev_solicitacoes?status=eq.pendente&select=id,zeev_instance_id,ticket_link,pedido,raw_fields,itens_json,pagamento_json,campos_extraidos')
+  const pendingByTicket = new Map<string, AnyRecord>()
+  for (const row of pending || []) {
+    const key = ticketDigits(row.zeev_instance_id)
+    if (key) pendingByTicket.set(key, row)
+  }
+  if (!pendingByTicket.size) {
+    return { ok: true, mode: 'reconcile-registered', pending: 0, capexLinked: 0, paymentLinked: 0, tickets: [] }
+  }
+
+  const capexRows = await rest('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados')
+  const paymentRows = await rest('/pagamentos?select=id,obra_id,ticket_raiz')
+  const fixed: AnyRecord[] = []
+  let capexLinked = 0
+  let paymentLinked = 0
+
+  for (const row of capexRows || []) {
+    const key = ticketDigits(row.ticket_raiz_instance_id || row.referencia)
+    const ticket = pendingByTicket.get(key)
+    if (!ticket) continue
+    await rest(`/capex_itens?id=eq.${Number(row.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        ticket_raiz_url: ticket.ticket_link || null,
+        ticket_raiz_instance_id: Number(ticket.zeev_instance_id),
+        origem: 'ZEEV',
+        ticket_raiz_dados: ticketDataPatch(ticket, row.ticket_raiz_dados || {}),
+      }),
+    })
+    await rest(`/capex_zeev_solicitacoes?id=eq.${Number(ticket.id)}&status=eq.pendente`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        status: 'aprovado',
+        capex_item_id: Number(row.id),
+        aprovado_em: new Date().toISOString(),
+        aprovado_por: 'capex_registrado_auto',
+      }),
+    })
+    capexLinked++
+    fixed.push({ tr: Number(ticket.zeev_instance_id), destino: 'capex', capex_item_id: Number(row.id) })
+    pendingByTicket.delete(key)
+  }
+
+  for (const row of paymentRows || []) {
+    const key = ticketDigits(row.ticket_raiz)
+    const ticket = pendingByTicket.get(key)
+    if (!ticket) continue
+    await rest(`/capex_zeev_solicitacoes?id=eq.${Number(ticket.id)}&status=eq.pendente`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        status: 'aprovado',
+        capex_item_id: null,
+        aprovado_em: new Date().toISOString(),
+        aprovado_por: 'pagamento_obra_auto',
+      }),
+    })
+    paymentLinked++
+    fixed.push({ tr: Number(ticket.zeev_instance_id), destino: 'pagamento_obra', pagamento_id: Number(row.id), obra_id: Number(row.obra_id) })
+    pendingByTicket.delete(key)
+  }
+
+  return { ok: true, mode: 'reconcile-registered', pending: pendingByTicket.size, capexLinked, paymentLinked, tickets: fixed }
 }
 
 async function getState(id: string) {
@@ -1727,6 +1812,7 @@ async function runSync(input: AnyRecord) {
       updated: Math.max(0, saved.length - newCount),
       linkedRegistered: reconcile.capexLinked,
       matchedPayments: reconcile.paymentMatched,
+      linkedPayments: reconcile.paymentLinked,
       notified: email.notified.length,
       emailFailures: email.failed,
       emailWarning: emailWarningText(email, shouldNotify),
@@ -1798,6 +1884,7 @@ async function runIngest(input: AnyRecord) {
     updated: Math.max(0, saved.length - newCount),
     linkedRegistered: reconcile.capexLinked,
     matchedPayments: reconcile.paymentMatched,
+    linkedPayments: reconcile.paymentLinked,
     backfill,
     notified: email.notified.length,
     emailFailures: email.failed,
@@ -2533,6 +2620,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'sync-error') {
       if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
       const out = await runSyncError(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'reconcile-registered') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await reconcilePendingTicketsAlreadyRegistered()
       return json(out)
     }
     if (input?.mode === 'backfill-docs') {
