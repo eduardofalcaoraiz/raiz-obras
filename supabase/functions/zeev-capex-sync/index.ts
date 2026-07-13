@@ -2438,6 +2438,26 @@ function paymentDateFromMessages(ticket: AnyRecord) {
   return ''
 }
 
+function paymentStatusDebug(ticket: AnyRecord) {
+  const raw = ticket?.raw_instance || ticket?.rawInstance || {}
+  const fmap = ticketFieldMap(ticket)
+  return {
+    flow: flowName(ticket) || ticket?.flow_name || ticket?.flowName || raw?.flow?.name || '',
+    financeiro: isFinanceiro(ticket),
+    compra: isCompra(ticket),
+    result: ticket?.flow_result || ticket?.flowResult || raw?.flowResult || '',
+    active: ticket?.active ?? raw?.active ?? null,
+    end: dateOnly(ticket?.end_date_time || raw?.endDateTime),
+    lastFinished: dateOnly(ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime),
+    fieldPaid: dateOnly(firstField(fmap, ['dataPagamento', 'data do pagamento', 'pagoEm', 'pago em', 'dataEfetivaPagamento', 'data efetiva de pagamento', 'dataLiquidacao', 'data liquidacao', 'dataBaixa', 'data baixa'])),
+    financeCompletionPaid: paymentDateFromFinanceCompletion(ticket),
+    taskPaid: paymentDateFromTasks(ticket),
+    messagePaid: paymentDateFromMessages(ticket),
+    due: dueDateFromTicket(ticket),
+    docs: zeevDocsFromTicket(ticket).length,
+  }
+}
+
 async function refreshTicketFromZeev(row: AnyRecord) {
   const id = Number(row?.zeev_instance_id || row?.id || 0)
   if (!id) return row
@@ -2772,7 +2792,7 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
       out.filesAttached += Number(attach.attached || 0)
       const summary = { tr, pagamento_id: Number(row.id), obra_id: Number(row.obra_id), before: { st: row.st, venc: row.venc, paga_em: row.paga_em || '' }, after: { st: patch.st || row.st, venc: patch.venc || row.venc, paga_em: patch.paga_em || row.paga_em || '' }, docsAttached: Number(attach.attached || 0) }
       if (changed) out.updated.push(summary)
-      else if (out.unchanged.length < 30) out.unchanged.push({ tr, pagamento_id: Number(row.id), reason: 'sem_evidencia_nova_no_zeev' })
+      else if (out.unchanged.length < 30) out.unchanged.push({ tr, pagamento_id: Number(row.id), reason: 'sem_evidencia_nova_no_zeev', debug: paymentStatusDebug(ticket) })
     } catch (error) {
       out.errors.push({ tr, pagamento_id: Number(row.id), error: error instanceof Error ? error.message : String(error) })
     }
