@@ -1216,6 +1216,103 @@ def read_test():
     }
 
 
+def doc_value_meta(value):
+    text = "" if value is None else str(value)
+    urls = re.findall(r"https?://[^\s\"'<>),;]+", text)
+    meta = {
+        "valueType": type(value).__name__,
+        "isList": isinstance(value, list),
+        "isObject": isinstance(value, dict),
+        "valueLength": len(text),
+        "hasUrl": bool(urls),
+        "urlCount": len(urls),
+    }
+    if isinstance(value, dict):
+        meta["keys"] = sorted(str(k) for k in value.keys())[:30]
+    elif isinstance(value, list):
+        meta["items"] = len(value)
+        if value and isinstance(value[0], dict):
+            keys = set()
+            for item in value[:5]:
+                keys.update(str(k) for k in item.keys())
+            meta["itemKeys"] = sorted(keys)[:30]
+    if urls:
+        meta["sampleUrls"] = urls[:3]
+    return meta
+
+
+def inspect_docs():
+    if not ZEEV_TOKEN:
+        raise SystemExit("ZEEV_TOKEN e obrigatorio.")
+    ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
+    if not ids:
+        raise SystemExit("ZEEV_TICKET_IDS e obrigatorio para inspect-docs.")
+    extra_fields = unique_fields(DOCUMENT_FIELDS, env_list(os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "")))
+    out = {"ok": True, "mode": "inspect-docs", "tickets": [], "errors": []}
+    for instance_id in ids:
+        entry = {"id": instance_id, "allFields": [], "requestedDocFields": [], "tasks": [], "messages": {}, "errors": []}
+        try:
+            data, fields = instance_fields(instance_id, [])
+            flow = data.get("flow") or {}
+            entry.update({
+                "flowId": int(flow.get("id") or data.get("flowId") or 0),
+                "flowName": flow.get("name") or data.get("flowName") or data.get("requestName") or "",
+                "flowVersion": flow.get("version") or data.get("flowVersion") or "",
+                "requestName": data.get("requestName") or "",
+                "reportLink": bool(data.get("reportLink")),
+                "fieldCountAll": len(fields or []),
+                "taskCount": len(data.get("instanceTasks") or []),
+            })
+            for field in fields or []:
+                name = field_display_name(field)
+                value = field.get("value")
+                n = norm_key(name)
+                looks_doc = bool(re.search(r"(nota|nf|nfs|danfe|xml|pdf|arquivo|anexo|documento|comprovante|boleto|fatura|recibo|file|upload)", n))
+                if looks_doc or len(entry["allFields"]) < 25:
+                    item = {
+                        "name": name,
+                        "row": field.get("row") or 1,
+                        "type": field.get("type") or field.get("fieldType") or "",
+                        "keys": sorted(str(k) for k in field.keys())[:30],
+                        "looksDoc": looks_doc,
+                        **doc_value_meta(value),
+                    }
+                    entry["allFields"].append(item)
+        except Exception as exc:
+            entry["errors"].append({"stage": "all-fields", "error": str(exc)[:500]})
+
+        for i in range(0, len(extra_fields), 8):
+            chunk = extra_fields[i:i + 8]
+            try:
+                _, found = instance_fields(instance_id, chunk)
+                for field in found or []:
+                    name = field_display_name(field)
+                    entry["requestedDocFields"].append({
+                        "name": name,
+                        "row": field.get("row") or 1,
+                        "type": field.get("type") or field.get("fieldType") or "",
+                        "keys": sorted(str(k) for k in field.keys())[:30],
+                        **doc_value_meta(field.get("value")),
+                    })
+            except Exception as exc:
+                entry["errors"].append({"stage": "doc-fields", "fields": chunk, "error": str(exc)[:500]})
+
+        try:
+            messages = instance_messages(instance_id)
+            url_messages = []
+            for msg in messages or []:
+                body = clean_zeev_message_body((msg or {}).get("body"))
+                urls = re.findall(r"https?://[^\s\"'<>),;]+", body)
+                if urls:
+                    url_messages.append({"keys": sorted(str(k) for k in msg.keys())[:20], "urlCount": len(urls), "sampleUrls": urls[:3]})
+            entry["messages"] = {"count": len(messages or []), "withUrls": len(url_messages), "samples": url_messages[:5]}
+        except Exception as exc:
+            entry["errors"].append({"stage": "messages", "error": str(exc)[:500]})
+        out["tickets"].append(entry)
+    out["ok"] = not any(t.get("errors") for t in out["tickets"]) and not out["errors"]
+    return out
+
+
 def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest=False, start_page=1):
     tickets = {}
     flow_counts = {}
@@ -1681,6 +1778,10 @@ def main():
         return
     if mode in {"read-test", "test-read", "teste-leitura"}:
         result = read_test()
+        print(json.dumps(result, ensure_ascii=False))
+        return
+    if mode in {"inspect-docs", "doc-inspect", "inspect-documentos"}:
+        result = inspect_docs()
         print(json.dumps(result, ensure_ascii=False))
         return
     deep_mode = mode in {"deep", "deep-retro", "deep-incremental"} or os.environ.get("ZEEV_DEEP_SCAN", "0") == "1"
