@@ -1242,6 +1242,60 @@ def doc_value_meta(value):
     return meta
 
 
+def http_probe(url, method="GET", payload=None):
+    body = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    headers = {
+        "Authorization": f"Bearer {ZEEV_TOKEN}",
+        "Accept": "application/json,text/html,*/*",
+        "Content-Type": "application/json",
+        "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
+    }
+    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=45) as res:
+            raw = res.read()
+            status = res.status
+            ctype = res.headers.get("Content-Type", "")
+    except urllib.error.HTTPError as exc:
+        raw = exc.read()
+        status = exc.code
+        ctype = exc.headers.get("Content-Type", "")
+    text = raw.decode("utf-8", errors="replace")
+    urls = re.findall(r"https?://[^\s\"'<>),;]+", text)
+    hrefs = re.findall(r"""(?i)(?:href|src)=["']([^"']+)["']""", text)
+    interesting = []
+    for link in urls + hrefs:
+        if re.search(r"(?i)(arquivo|anexo|document|doc|file|download|attachment|nota|danfe|pdf|xml|Documento)", link):
+            interesting.append(link[:300])
+    out = {
+        "urlPath": urllib.parse.urlparse(url).path,
+        "status": status,
+        "contentType": ctype,
+        "length": len(raw),
+        "hasDocumento": "Documento" in text or "documento" in text.lower(),
+        "hasDanfe": "danfe" in text.lower(),
+        "hasPdf": ".pdf" in text.lower() or "application/pdf" in text.lower(),
+        "urlCount": len(urls),
+        "interestingLinks": interesting[:10],
+    }
+    if "json" in ctype.lower() or text.strip().startswith(("{", "[")):
+        try:
+            data = json.loads(text)
+            if isinstance(data, dict):
+                out["jsonKeys"] = sorted(str(k) for k in data.keys())[:50]
+                out["jsonDocKeys"] = [k for k in out["jsonKeys"] if re.search(r"(?i)(arquivo|anexo|document|file|download|nota|pdf|xml)", k)]
+            elif isinstance(data, list):
+                out["jsonListLength"] = len(data)
+                keys = set()
+                for item in data[:5]:
+                    if isinstance(item, dict):
+                        keys.update(str(k) for k in item.keys())
+                out["jsonItemKeys"] = sorted(keys)[:50]
+        except Exception:
+            out["jsonParseError"] = True
+    return out
+
+
 def inspect_docs():
     if not ZEEV_TOKEN:
         raise SystemExit("ZEEV_TOKEN e obrigatorio.")
@@ -1254,13 +1308,14 @@ def inspect_docs():
         entry = {"id": instance_id, "allFields": [], "requestedDocFields": [], "reportFieldTests": [], "tasks": [], "messages": {}, "errors": []}
         try:
             data, fields = instance_fields(instance_id, [])
+            report_link = str(data.get("reportLink") or data.get("reportUrl") or "").strip()
             flow = data.get("flow") or {}
             entry.update({
                 "flowId": int(flow.get("id") or data.get("flowId") or 0),
                 "flowName": flow.get("name") or data.get("flowName") or data.get("requestName") or "",
                 "flowVersion": flow.get("version") or data.get("flowVersion") or "",
                 "requestName": data.get("requestName") or "",
-                "reportLink": bool(data.get("reportLink")),
+                "reportLink": bool(report_link),
                 "fieldCountAll": len(fields or []),
                 "taskCount": len(data.get("instanceTasks") or []),
             })
@@ -1344,6 +1399,25 @@ def inspect_docs():
             entry["messages"] = {"count": len(messages or []), "withUrls": len(url_messages), "samples": url_messages[:5]}
         except Exception as exc:
             entry["errors"].append({"stage": "messages", "error": str(exc)[:500]})
+        try:
+            base = ZEEV_BASE_URL
+            probe_urls = [
+                f"{base}/api/2/instances/{instance_id}",
+                f"{base}/api/2/instances/{instance_id}/files",
+                f"{base}/api/2/instances/{instance_id}/attachments",
+                f"{base}/api/2/instances/{instance_id}/documents",
+                f"{base}/api/2/files/instance/{instance_id}",
+                f"{base}/api/2/attachments/instance/{instance_id}",
+                f"{base}/api/2/documents/instance/{instance_id}",
+                f"{base}/api/2/instances/{instance_id}/form-fields/Documento",
+            ]
+            if report_link:
+                probe_urls.insert(0, report_link if report_link.startswith("http") else f"{base}{report_link}")
+            entry["endpointProbes"] = []
+            for url in probe_urls:
+                entry["endpointProbes"].append(http_probe(url))
+        except Exception as exc:
+            entry["errors"].append({"stage": "endpoint-probes", "error": str(exc)[:500]})
         out["tickets"].append(entry)
     out["ok"] = not any(t.get("errors") for t in out["tickets"]) and not out["errors"]
     return out
