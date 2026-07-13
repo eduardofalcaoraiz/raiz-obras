@@ -5013,8 +5013,8 @@ function normalizeDateISO(v){
   const s=String(v||'').trim();
   if(!s)return'';
   if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
-  const br=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if(br)return`${br[3]}-${br[2]}-${br[1]}`;
+  const br=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/);
+  if(br)return`${br[3]}-${br[2].padStart(2,'0')}-${br[1].padStart(2,'0')}`;
   return s;
 }
 
@@ -5038,7 +5038,7 @@ function porFonte(o){const m={};o.pag.filter(p=>p.st==="PAGO").forEach(p=>{if(p.
 
 function barClass(pct){return pct>100?"b-danger":pct>=100?"b-ok":pct>=90?"b-warn":pct<70?"b-ok":"";}
 
-function fmtD(iso){if(!iso)return"—";const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;}
+function fmtD(v){const iso=normalizeDateISO(v);if(!iso)return"—";const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:String(v||'');}
 
 function statusBadge(s){const m={"Em andamento":"b-info","Planejamento":"b-neutral","Concluído":"b-ok"};return `<span class="badge ${m[s]||'b-neutral'}">${s}</span>`;}
 
@@ -6478,6 +6478,8 @@ function capexZeevSearchKey(ev){
 
 function capexZeevDate(v){
   if(!v)return'';
+  const iso=normalizeDateISO(v);
+  if(iso&&/^\d{4}-\d{2}-\d{2}$/.test(iso))return fmtD(iso);
   const d=new Date(v);
   if(Number.isNaN(d.getTime()))return String(v).slice(0,10);
   return d.toLocaleDateString('pt-BR');
@@ -11081,7 +11083,7 @@ function setPagPage(p){pagPage=p;renderPag();}
 
 function setPagBusca(v){pagBusca=v;pagPage=0;renderPag();}
 
-function marcarPagoLista(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==='PAGO'){toast('Pagamento já estava marcado como pago.');return;}const hoje=new Date().toISOString().slice(0,10);const dt=prompt('Data do pagamento (AAAA-MM-DD):',hoje)||hoje;o.pag[i].st='PAGO';o.pag[i].pagaEm=dt;sincronizaPagoObra(o);persist(oid);renderObra();updateNavBadge();toast('✓ Pago em '+dt.split('-').reverse().join('/'));}
+function marcarPagoLista(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==='PAGO'){toast('Pagamento já estava marcado como pago.');return;}const hoje=new Date().toISOString().slice(0,10);const raw=prompt('Data do pagamento (DD/MM/AAAA):',fmtD(hoje))||fmtD(hoje);const dt=normalizeDateISO(raw)||hoje;o.pag[i].st='PAGO';o.pag[i].pagaEm=dt;sincronizaPagoObra(o);persist(oid);renderObra();updateNavBadge();toast('✓ Pago em '+fmtD(dt));}
 
 
 
@@ -11870,7 +11872,7 @@ function renderCobranca(){const pend=allPendentes();const atr=allAtrasos().slice
 
 }
 
-function marcarPago(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==="PAGO"){toast("Pagamento já estava marcado como pago.");return;}const hoje=new Date().toISOString().slice(0,10);const dt=prompt("Data do pagamento (AAAA-MM-DD):",hoje)||hoje;o.pag[i].st="PAGO";o.pag[i].pagaEm=dt;sincronizaPagoObra(o);persist(oid);renderCobranca();updateNavBadge();toast("✓ Pago em "+dt.split("-").reverse().join("/"));}
+function marcarPago(oid,i){const o=obras.find(x=>x.id===oid);if(!o||!o.pag[i])return;if(o.pag[i].st==="PAGO"){toast("Pagamento já estava marcado como pago.");return;}const hoje=new Date().toISOString().slice(0,10);const raw=prompt("Data do pagamento (DD/MM/AAAA):",fmtD(hoje))||fmtD(hoje);const dt=normalizeDateISO(raw)||hoje;o.pag[i].st="PAGO";o.pag[i].pagaEm=dt;sincronizaPagoObra(o);persist(oid);renderCobranca();updateNavBadge();toast("✓ Pago em "+fmtD(dt));}
 
 let confirmCb=null;
 
@@ -14755,7 +14757,7 @@ async function loadFromDB(){
 
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
 
-      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:cleanImpDocNumber(p.nf_num||'',p.nf_tipo||'Sem nota'),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path),bucket:'pagamentos',kind:'NF'}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path),bucket:'pagamentos',kind:'COMPROVANTE'}:null,docs:Array.isArray(p.docs_json)?p.docs_json:[],contratoSeq:p.contrato_seq||null,emissao:p.emissao||'',pagaEm:p.paga_em||'',escopoFin:p.escopo_fin||'obra',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:Array.isArray(p.parcelas)?p.parcelas:[],itens:Array.isArray(p.itens_pag)?p.itens_pag:[],construtora_seq:p.construtora_seq||null,ticketRaiz:p.ticket_raiz||''})),
+      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:cleanImpDocNumber(p.nf_num||'',p.nf_tipo||'Sem nota'),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:normalizeDateISO(p.venc)||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path),bucket:'pagamentos',kind:'NF'}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path),bucket:'pagamentos',kind:'COMPROVANTE'}:null,docs:Array.isArray(p.docs_json)?p.docs_json:[],contratoSeq:p.contrato_seq||null,emissao:normalizeDateISO(p.emissao)||'',pagaEm:normalizeDateISO(p.paga_em)||'',escopoFin:p.escopo_fin||'obra',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:Array.isArray(p.parcelas)?p.parcelas:[],itens:Array.isArray(p.itens_pag)?p.itens_pag:[],construtora_seq:p.construtora_seq||null,ticketRaiz:p.ticket_raiz||''})),
 
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
 
