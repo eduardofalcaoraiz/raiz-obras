@@ -2085,7 +2085,9 @@ function fileNameFromResponse(url: string, headers: Headers) {
 function dateOnly(value: unknown) {
   const s = String(value || '').trim()
   if (!s) return ''
-  const br = s.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/)
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/)
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`
+  const br = s.match(/(?:^|[^\d])(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})(?!\d)/)
   if (br) {
     const y = br[3].length === 2 ? `20${br[3]}` : br[3]
     return `${y.padStart(4, '0')}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}`
