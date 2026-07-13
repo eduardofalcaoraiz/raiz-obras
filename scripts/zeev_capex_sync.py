@@ -1393,6 +1393,27 @@ def reconcile_registered():
     )
 
 
+def register_obra_payments():
+    ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
+    obra = os.environ.get("ZEEV_TARGET_OBRA") or os.environ.get("ZEEV_OBRA_DESTINO") or ""
+    escopo = os.environ.get("ZEEV_TARGET_ESCOPO") or "obra"
+    payload = {
+        "mode": "register-obra-payments",
+        "ticketIds": ticket_ids,
+        "obraName": obra,
+        "escopo": escopo,
+        "fileLimit": int(os.environ.get("ZEEV_REGISTER_FILE_LIMIT", "5")),
+    }
+    return request_json(
+        "POST",
+        f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+        headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+        payload=payload,
+        timeout=300,
+        retries=1,
+    )
+
+
 def default_window():
     now = datetime.now(business_tz())
     start = now - timedelta(hours=float(os.environ.get("ZEEV_SYNC_OVERLAP_HOURS", "72")))
@@ -1405,6 +1426,10 @@ def main():
         raise SystemExit("ZEEV_SYNC_SECRET e obrigatorio.")
     if mode in {"reconcile-registered", "reconcile", "dedupe-registered"}:
         result = reconcile_registered()
+        print(json.dumps(result, ensure_ascii=False))
+        return
+    if mode in {"register-obra-payments", "register-obra", "obra-payments"}:
+        result = register_obra_payments()
         print(json.dumps(result, ensure_ascii=False))
         return
     if not ZEEV_TOKEN:
