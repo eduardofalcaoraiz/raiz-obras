@@ -556,6 +556,81 @@ def clean_zeev_message_body(value):
     return text.strip()
 
 
+def strip_html_to_lines(raw_html):
+    text = str(raw_html or "")
+    text = re.sub(r"(?is)<\s*script.*?<\s*/\s*script\s*>", " ", text)
+    text = re.sub(r"(?is)<\s*style.*?<\s*/\s*style\s*>", " ", text)
+    text = re.sub(r"(?i)<\s*br\s*/?\s*>", "\n", text)
+    text = re.sub(r"(?i)</\s*(p|div|tr|li|section|article|h[1-6]|label|td|th)\s*>", "\n", text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html_lib.unescape(text).replace("\r", "\n")
+    return [re.sub(r"\s+", " ", line).strip() for line in text.split("\n") if re.sub(r"\s+", " ", line).strip()]
+
+
+def split_report_line(line):
+    clean = re.sub(r"\s+", " ", str(line or "")).strip()
+    if len(clean) < 3:
+        return None
+    explicit = re.match(r"^(.{2,90}?)(?:\s*[:：]\s+|\s{2,}| \* +)(.{1,6000})$", clean)
+    if explicit:
+        return {"label": re.sub(r"\s*\*$", "", explicit.group(1)).strip(), "value": explicit.group(2).strip()}
+    known_labels = [
+        "Valor total do pagamento",
+        "Informações referentes à solicitação",
+        "Informacoes referentes a solicitacao",
+        "Justificativa do pedido",
+        "Descrição do serviço",
+        "Descricao do servico",
+        "Lista para cotação",
+        "Lista para cotacao",
+        "Documento",
+        "CAPEX",
+        "É um investimento (CAPEX)?",
+        "E um investimento (CAPEX)?",
+        "Centro de custo",
+        "CNPJ",
+    ]
+    clean_norm = norm(clean)
+    for label in known_labels:
+        if not clean_norm.startswith(norm(label)):
+            continue
+        rest = clean[min(len(label), len(clean)):].lstrip(" :*.-").strip()
+        if rest:
+            return {"label": label, "value": rest}
+    return None
+
+
+def report_fields_from_html(raw_html):
+    fields = []
+    seen = set()
+    for line in strip_html_to_lines(raw_html):
+        pair = split_report_line(line)
+        if not pair:
+            continue
+        label = re.sub(r"\s+", " ", pair["label"]).strip()
+        value = re.sub(r"\s+", " ", pair["value"]).strip()
+        if not label or not value or value == "*" or len(label) > 120:
+            continue
+        key = f"{norm_key(label)}|{value}"
+        if key in seen:
+            continue
+        seen.add(key)
+        fields.append({"name": label, "label": label, "value": value, "row": 1, "source": "reportLink"})
+    return fields
+
+
+def fetch_report_link_fields(report_link):
+    link = str(report_link or "").strip()
+    if not link or not ZEEV_TOKEN:
+        return [], {}
+    url = link if link.startswith("http") else f"{ZEEV_BASE_URL.rstrip('/')}/{'/' if not link.startswith('/') else ''}{link}"
+    status, ctype, text = fetch_text_for_source(url)
+    meta = {"status": status, "contentType": ctype, "length": len(text)}
+    if status < 200 or status >= 300:
+        raise RuntimeError(f"reportLink HTTP {status}: {text[:240]}")
+    return report_fields_from_html(text), meta
+
+
 def generic_purchase_text(value):
     text = clean_item_description(value)
     n = norm(text)
@@ -658,6 +733,23 @@ def enrich_instance(row):
             continue
         key = f"{display}|{field.get('row') or 1}"
         all_fields[key] = field
+    report_link = (latest or {}).get("reportLink") or (latest or {}).get("reportUrl") or row.get("reportLink") or row.get("reportUrl") or ""
+    if report_link:
+        try:
+            report_fields, report_meta = fetch_report_link_fields(report_link)
+            for field in report_fields:
+                display = field_display_name(field)
+                if not display:
+                    continue
+                key = f"{display}|{field.get('row') or 1}"
+                all_fields[key] = field
+            latest["__reportLinkExtraction"] = {
+                "fields": len(report_fields),
+                "length": report_meta.get("length", 0),
+                "contentType": report_meta.get("contentType", ""),
+            }
+        except Exception as exc:
+            errors.append({"field": "__reportLink__", "error": str(exc)[:300]})
     if not financeiro:
         current_fields = list(all_fields.values())
         service_desc = field_value_by_priority(current_fields, [x for x in PURCHASE_SERVICE_DESCRIPTION_FIELDS if x != "descricaoMensagemZeev"])
