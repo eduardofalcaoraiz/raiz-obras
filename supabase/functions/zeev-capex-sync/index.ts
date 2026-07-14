@@ -827,6 +827,86 @@ function cleanZeevMessageBody(value: unknown) {
     .trim()
 }
 
+function stripHtmlToLines(html: string) {
+  const normalized = String(html || '')
+    .replace(/<\s*script[\s\S]*?<\s*\/\s*script\s*>/gi, ' ')
+    .replace(/<\s*style[\s\S]*?<\s*\/\s*style\s*>/gi, ' ')
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/\s*(p|div|tr|li|section|article|h[1-6]|label|td|th)\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+  return decodeHtmlEntities(normalized)
+    .replace(/\r/g, '\n')
+    .split(/\n+/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+}
+
+function splitReportLine(line: string) {
+  const clean = line.replace(/\s+/g, ' ').trim()
+  if (!clean || clean.length < 3) return null
+  const explicit = clean.match(/^(.{2,90}?)(?:\s*[:：]\s+|\s{2,}| \* +)(.{1,6000})$/)
+  if (explicit) return { label: explicit[1].replace(/\s*\*$/, '').trim(), value: explicit[2].trim() }
+  const knownLabels = [
+    'Valor total do pagamento',
+    'Informações referentes à solicitação',
+    'Informacoes referentes a solicitacao',
+    'Justificativa do pedido',
+    'Descrição do serviço',
+    'Descricao do servico',
+    'Lista para cotação',
+    'Lista para cotacao',
+    'Documento',
+    'CAPEX',
+    'É um investimento (CAPEX)?',
+    'E um investimento (CAPEX)?',
+    'Centro de custo',
+    'CNPJ',
+  ]
+  const cleanNorm = norm(clean)
+  for (const label of knownLabels) {
+    const labelNorm = norm(label)
+    if (!cleanNorm.startsWith(labelNorm)) continue
+    const rest = clean.slice(Math.min(label.length, clean.length)).replace(/^[\s:*.-]+/, '').trim()
+    if (rest) return { label, value: rest }
+  }
+  return null
+}
+
+function reportFieldsFromHtml(html: string) {
+  const fields: AnyRecord[] = []
+  const seen = new Set<string>()
+  for (const line of stripHtmlToLines(html)) {
+    const pair = splitReportLine(line)
+    if (!pair) continue
+    const label = pair.label.replace(/\s+/g, ' ').trim()
+    const value = pair.value.replace(/\s+/g, ' ').trim()
+    if (!label || !value || value === '*' || label.length > 120) continue
+    const key = `${normKey(label)}|${value}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    fields.push({ name: label, label, value, row: 1, source: 'reportLink' })
+  }
+  return fields
+}
+
+async function fetchReportLinkFields(reportLink: unknown) {
+  const token = zeevToken()
+  const link = String(reportLink || '').trim()
+  if (!token || !link) return { fields: [], error: '' }
+  const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+  const url = link.startsWith('http') ? link : `${base}${link.startsWith('/') ? '' : '/'}${link}`
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'text/html,application/xhtml+xml,application/json,*/*',
+      'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+    },
+  })
+  const text = await res.text()
+  if (!res.ok) return { fields: [], error: `reportLink HTTP ${res.status}: ${text.slice(0, 240)}` }
+  return { fields: reportFieldsFromHtml(text), error: '', length: text.length, contentType: res.headers.get('Content-Type') || '' }
+}
+
 function genericPurchaseText(value: unknown) {
   const text = cleanItemDescription(value)
   const n = norm(text)
@@ -1664,6 +1744,24 @@ async function enrichRow(row: AnyRecord) {
   const detail = enriched.last || row
   let mergedFields = mergeFields(Array.isArray(row.formFields) ? row.formFields : [], enriched.fields)
   const errors = [...enriched.errors]
+  const reportLink = detail.reportLink || row.reportLink || detail.reportUrl || row.reportUrl || ''
+  if (reportLink) {
+    try {
+      const report = await fetchReportLinkFields(reportLink)
+      if (report.fields.length) {
+        mergedFields = mergeFields(mergedFields, report.fields)
+        ;(detail as AnyRecord).__reportLinkExtraction = {
+          fields: report.fields.length,
+          length: report.length || 0,
+          contentType: report.contentType || '',
+        }
+      } else if (report.error) {
+        errors.push({ field: '__reportLink__', error: report.error })
+      }
+    } catch (error) {
+      errors.push({ field: '__reportLink__', error: error instanceof Error ? error.message : String(error) })
+    }
+  }
   if (!FINANCE_FLOW_IDS.has(flow)) {
     const fmap = fieldMap(mergedFields)
     const serviceDesc = firstField(fmap, PURCHASE_SERVICE_DESCRIPTION_FIELDS.filter((name) => name !== 'descricaoMensagemZeev'))
