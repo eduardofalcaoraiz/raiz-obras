@@ -2171,13 +2171,13 @@ def register_obra_payments():
         "calls": 0,
     }
 
-    def call_chunk(chunk):
+    def call_chunk(chunk, current_file_limit):
         payload = {
             "mode": "register-obra-payments",
             "ticketIds": ",".join(str(x) for x in chunk),
             "obraName": obra,
             "escopo": escopo,
-            "fileLimit": file_limit,
+            "fileLimit": current_file_limit,
         }
         if ZEEV_TOKEN:
             payload["zeevToken"] = ZEEV_TOKEN
@@ -2203,19 +2203,25 @@ def register_obra_payments():
         if result.get("escopo"):
             out["escopo"] = result.get("escopo")
 
-    def run_chunk(chunk):
+    def run_chunk(chunk, current_file_limit=None):
+        if current_file_limit is None:
+            current_file_limit = file_limit
         try:
-            merge_result(call_chunk(chunk))
+            merge_result(call_chunk(chunk, current_file_limit))
         except Exception as exc:
             msg = str(exc)
             if ("WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg) and len(chunk) > 1:
                 mid = max(1, len(chunk) // 2)
-                run_chunk(chunk[:mid])
-                run_chunk(chunk[mid:])
+                run_chunk(chunk[:mid], current_file_limit)
+                run_chunk(chunk[mid:], current_file_limit)
+                return
+            if ("WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg) and current_file_limit > 1:
+                out["errors"].append({"tr": chunk[0] if chunk else None, "fileLimit": current_file_limit, "recoverable": True, "retrying": True, "error": msg[:700]})
+                run_chunk(chunk, max(1, current_file_limit // 2))
                 return
             if "WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg:
                 out["ok"] = False
-                out["errors"].append({"tr": chunk[0] if chunk else None, "recoverable": False, "error": msg[:700]})
+                out["errors"].append({"tr": chunk[0] if chunk else None, "fileLimit": current_file_limit, "recoverable": False, "error": msg[:700]})
                 return
             raise
 
