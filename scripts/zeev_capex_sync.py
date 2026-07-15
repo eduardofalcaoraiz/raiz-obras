@@ -1436,6 +1436,8 @@ def http_probe(url, method="GET", payload=None):
         "urlCount": len(urls),
         "interestingLinks": interesting[:10],
     }
+    if status >= 400:
+        out["errorSnippet"] = redact_debug_text(re.sub(r"\s+", " ", text).strip())[:500]
     if "json" in ctype.lower() or text.strip().startswith(("{", "[")):
         try:
             data = json.loads(text)
