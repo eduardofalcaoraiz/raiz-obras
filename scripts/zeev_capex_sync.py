@@ -411,7 +411,7 @@ def finished_task_page_size(page_size):
     return min(max(int(page_size or ZEEV_FINISHED_TASK_PAGE_LIMIT), 1), ZEEV_FINISHED_TASK_PAGE_LIMIT)
 
 
-def report_page(flow_id, page, start, end, page_size=30, fields=None):
+def report_page(flow_id, page, start, end, page_size=30, fields=None, timeout=120):
     page_size = finished_task_page_size(page_size)
     payload = {
         "flowId": flow_id,
@@ -482,7 +482,7 @@ def report_instance(instance_id, flow_id=0, fields=None, page_size=10, timeout=9
         f"{ZEEV_BASE_URL}/api/2/instances/report",
         headers={"Authorization": f"Bearer {ZEEV_TOKEN}"},
         payload=payload,
-        timeout=90,
+        timeout=timeout,
         retries=retries,
     )
     return data if isinstance(data, list) else [data]
