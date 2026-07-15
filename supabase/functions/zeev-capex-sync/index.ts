@@ -506,8 +506,21 @@ function requestListInput(value: unknown) {
 }
 
 function tokenListInput(value: unknown) {
-  if (Array.isArray(value)) return value.flatMap((item) => parseListEnv(item))
-  return parseListEnv(value)
+  const out: string[] = []
+  const add = (token: string) => {
+    const clean = String(token || '').trim()
+    if (clean && !out.includes(clean)) out.push(clean)
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) tokenListInput(item).forEach(add)
+    return out
+  }
+  const raw = String(value || '').trim()
+  if (!raw) return out
+  const joinedWrappedToken = raw.replace(/\s+/g, '')
+  if (joinedWrappedToken && joinedWrappedToken !== raw) add(joinedWrappedToken)
+  parseListEnv(raw).forEach(add)
+  return out
 }
 
 function tokenVariants(token: string) {
