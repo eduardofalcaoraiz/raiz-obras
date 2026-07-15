@@ -13,7 +13,7 @@ def _json(handler: BaseHTTPRequestHandler, status: int, payload: dict[str, Any])
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Access-Control-Allow-Origin", "*")
     handler.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    handler.send_header("Access-Control-Allow-Headers", "authorization, content-type, x-cron-secret, x-zeev-token, x-zeev-extra-document-fields, x-zeev-file-download-url-template")
+    handler.send_header("Access-Control-Allow-Headers", "authorization, content-type, x-cron-secret, x-zeev-token, x-zeev-extra-tokens, x-zeev-extra-document-fields, x-zeev-file-download-url-template")
     handler.send_header("Cache-Control", "no-store")
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
@@ -59,6 +59,7 @@ class handler(BaseHTTPRequestHandler):
         auth = self.headers.get("authorization") or ""
         sent_secret = self.headers.get("x-cron-secret") or ""
         zeev_token = self.headers.get("x-zeev-token") or os.environ.get("ZEEV_TOKEN") or ""
+        zeev_extra_tokens = self.headers.get("x-zeev-extra-tokens") or payload.get("zeevExtraTokens") or payload.get("zeev_extra_tokens") or os.environ.get("ZEEV_EXTRA_TOKENS") or ""
 
         if expected:
             authorized = auth == f"Bearer {expected}" or sent_secret == expected
@@ -85,6 +86,13 @@ class handler(BaseHTTPRequestHandler):
         page_size = str(payload.get("recordsPerPage") or payload.get("records_per_page") or "30")
 
         os.environ["ZEEV_TOKEN"] = zeev_token
+        if zeev_extra_tokens:
+            if isinstance(zeev_extra_tokens, (list, tuple)):
+                os.environ["ZEEV_EXTRA_TOKENS"] = "\n".join(str(x) for x in zeev_extra_tokens)
+            else:
+                os.environ["ZEEV_EXTRA_TOKENS"] = str(zeev_extra_tokens)
+        else:
+            os.environ.pop("ZEEV_EXTRA_TOKENS", None)
         os.environ["ZEEV_SYNC_SECRET"] = sync_secret
         os.environ["ZEEV_BASE_URL"] = str(payload.get("baseUrl") or "https://raizeducacao.zeev.it")
         os.environ["SUPABASE_URL"] = str(payload.get("supabaseUrl") or "https://hjccxfznojjosvanwztv.supabase.co")
@@ -137,6 +145,12 @@ class handler(BaseHTTPRequestHandler):
         try:
             sys.path.insert(0, os.getcwd())
             mod = importlib.import_module("scripts.zeev_capex_sync")
+            mod.ZEEV_TOKEN = os.environ.get("ZEEV_TOKEN", "")
+            mod.ZEEV_EXTRA_TOKENS = os.environ.get("ZEEV_EXTRA_TOKENS", "")
+            mod.ZEEV_SYNC_SECRET = os.environ.get("ZEEV_SYNC_SECRET", "")
+            mod.ZEEV_BASE_URL = os.environ.get("ZEEV_BASE_URL", "https://raizeducacao.zeev.it").rstrip("/")
+            mod.SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://hjccxfznojjosvanwztv.supabase.co").rstrip("/")
+            mod.BAD_ZEEV_TOKENS.clear()
             mod = importlib.reload(mod)
             if mode in {"reconcile-registered", "reconcile", "dedupe-registered"}:
                 result = mod.reconcile_registered()
