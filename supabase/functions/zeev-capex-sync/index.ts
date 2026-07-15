@@ -3559,7 +3559,8 @@ async function registerCapexItems(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const unidadeName = String(input.unidadeName || input.targetUnidade || input.target_unidade || input.unidade || input.escola || input.school || '').trim()
   const ano = Number(input.ano || input.targetAno || input.target_ano || input.year || new Date().getFullYear()) || new Date().getFullYear()
-  const fileLimit = Math.max(0, Math.min(Number(input.fileLimit || input.file_limit || 2), 6))
+  const requestedFileLimit = input.fileLimit ?? input.file_limit ?? 2
+  const fileLimit = Math.max(0, Math.min(Number(requestedFileLimit), 6))
   if (!ticketIds.length) throw new Error('Nenhum TR informado para registrar no CAPEX.')
   if (!unidadeName) throw new Error('Informe a unidade destino para registrar no CAPEX.')
 
@@ -3665,7 +3666,8 @@ async function registerObraPayments(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const obraName = String(input.obraName || input.targetObra || input.target_obra || input.obra || '').trim()
   const escopo = input.escopo === 'extra' || input.targetEscopo === 'extra' || input.target_escopo === 'extra' ? 'extra' : 'obra'
-  const fileLimit = Math.max(0, Math.min(Number(input.fileLimit || input.file_limit || 5), 8))
+  const requestedFileLimit = input.fileLimit ?? input.file_limit ?? 5
+  const fileLimit = Math.max(0, Math.min(Number(requestedFileLimit), 8))
   if (!ticketIds.length) throw new Error('Nenhum TR informado para registrar como pagamento.')
   if (!obraName) throw new Error('Informe a obra destino para registrar os pagamentos.')
 
