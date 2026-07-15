@@ -2322,6 +2322,27 @@ def register_capex_items():
     return out
 
 
+def force_pending_ticket():
+    ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
+    reason = os.environ.get("ZEEV_FORCE_PENDING_REASON") or "Erro da solicitante: ticket deve ser tratado como CAPEX."
+    payload = {
+        "mode": "force-pending-ticket",
+        "ticketIds": ",".join(str(x) for x in ids),
+        "reason": reason,
+    }
+    if ZEEV_TOKEN:
+        payload["zeevToken"] = ZEEV_TOKEN
+    add_document_options(payload)
+    return request_json(
+        "POST",
+        f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+        headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+        payload=payload,
+        timeout=240,
+        retries=0,
+    )
+
+
 def refresh_payment_statuses():
     ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
     target_ids = parse_ticket_ids(ticket_ids)
@@ -2442,6 +2463,10 @@ def main():
         return
     if mode in {"register-capex-items", "register-capex", "capex-items"}:
         result = register_capex_items()
+        print(json.dumps(result, ensure_ascii=False))
+        return
+    if mode in {"force-pending-ticket", "force-pending", "pending-ticket"}:
+        result = force_pending_ticket()
         print(json.dumps(result, ensure_ascii=False))
         return
     if mode in {"refresh-payment-statuses", "refresh-payments", "payment-statuses"}:
