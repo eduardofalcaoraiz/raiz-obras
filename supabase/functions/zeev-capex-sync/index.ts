@@ -3602,8 +3602,20 @@ async function registerCapexItems(input: AnyRecord = {}) {
         continue
       }
 
-      let ticket = dbTickets.get(id) || { zeev_instance_id: id }
-      ticket = await loadGenericTicketFromZeev(ticket)
+      const storedTicket = dbTickets.get(id)
+      const hasStoredTicketData = Boolean(
+        storedTicket && (
+          storedTicket.pedido ||
+          storedTicket.valor ||
+          storedTicket.valor_final ||
+          storedTicket.ticket_link ||
+          Object.keys(storedTicket.campos_extraidos || {}).length ||
+          (Array.isArray(storedTicket.raw_fields) && storedTicket.raw_fields.length) ||
+          (Array.isArray(storedTicket.itens_json) && storedTicket.itens_json.length)
+        ),
+      )
+      let ticket = hasStoredTicketData ? storedTicket : (storedTicket || { zeev_instance_id: id })
+      if (!hasStoredTicketData) ticket = await loadGenericTicketFromZeev(ticket)
       const ticketId = Number(ticket?.zeev_instance_id || id)
       if (!ticketId) {
         out.skipped.push({ tr: id, reason: 'ticket_nao_encontrado' })
