@@ -3665,7 +3665,7 @@ async function registerObraPayments(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const obraName = String(input.obraName || input.targetObra || input.target_obra || input.obra || '').trim()
   const escopo = input.escopo === 'extra' || input.targetEscopo === 'extra' || input.target_escopo === 'extra' ? 'extra' : 'obra'
-  const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || input.file_limit || 5), 8))
+  const fileLimit = Math.max(0, Math.min(Number(input.fileLimit || input.file_limit || 5), 8))
   if (!ticketIds.length) throw new Error('Nenhum TR informado para registrar como pagamento.')
   if (!obraName) throw new Error('Informe a obra destino para registrar os pagamentos.')
 
@@ -3688,8 +3688,20 @@ async function registerObraPayments(input: AnyRecord = {}) {
 
   for (const id of ticketIds) {
     try {
-      let ticket = dbTickets.get(id) || { zeev_instance_id: id }
-      ticket = await loadGenericTicketFromZeev(ticket)
+      const storedTicket = dbTickets.get(id)
+      const hasStoredTicketData = Boolean(
+        storedTicket && (
+          storedTicket.pedido ||
+          storedTicket.valor ||
+          storedTicket.valor_final ||
+          storedTicket.ticket_link ||
+          Object.keys(storedTicket.campos_extraidos || {}).length ||
+          (Array.isArray(storedTicket.raw_fields) && storedTicket.raw_fields.length) ||
+          (Array.isArray(storedTicket.itens_json) && storedTicket.itens_json.length)
+        ),
+      )
+      let ticket = hasStoredTicketData ? storedTicket : (storedTicket || { zeev_instance_id: id })
+      if (!hasStoredTicketData) ticket = await loadGenericTicketFromZeev(ticket)
       const ticketId = Number(ticket?.zeev_instance_id || id)
       if (!ticketId) {
         out.skipped.push({ tr: id, reason: 'ticket_nao_encontrado' })
@@ -3706,10 +3718,12 @@ async function registerObraPayments(input: AnyRecord = {}) {
       if (!saved?.id) throw new Error('Supabase nao retornou o pagamento salvo.')
 
       let attach: AnyRecord = { docs: saved.docs_json || [], attached: 0, nfPath: saved.nf_doc_path || '', compPath: saved.comp_doc_path || '' }
-      try {
-        attach = await attachDocsForTarget('payment', saved, { ...ticket, zeev_instance_id: ticketId }, fileLimit)
-      } catch (error) {
-        out.errors.push({ tr: ticketId, step: 'anexos', error: error instanceof Error ? error.message : String(error) })
+      if (fileLimit > 0) {
+        try {
+          attach = await attachDocsForTarget('payment', saved, { ...ticket, zeev_instance_id: ticketId }, fileLimit)
+        } catch (error) {
+          out.errors.push({ tr: ticketId, step: 'anexos', error: error instanceof Error ? error.message : String(error) })
+        }
       }
       const paidDate = paymentDateFromTicket(ticket)
       const lifecycleStatus = paymentLifecycleStatusFromTicket(ticket)
