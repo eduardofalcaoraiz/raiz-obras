@@ -2156,8 +2156,8 @@ def register_obra_payments():
     ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     obra = os.environ.get("ZEEV_TARGET_OBRA") or os.environ.get("ZEEV_OBRA_DESTINO") or ""
     escopo = os.environ.get("ZEEV_TARGET_ESCOPO") or "obra"
-    batch_size = max(1, min(int(os.environ.get("ZEEV_REGISTER_BATCH", "1")), 4))
-    file_limit = max(1, min(int(os.environ.get("ZEEV_REGISTER_FILE_LIMIT", "2")), 4))
+    batch_size = max(1, min(int(os.environ.get("ZEEV_REGISTER_BATCH", "3")), 8))
+    file_limit = max(0, min(int(os.environ.get("ZEEV_REGISTER_FILE_LIMIT", "0")), 4))
     out = {
         "ok": True,
         "mode": "register-obra-payments",
@@ -2216,9 +2216,9 @@ def register_obra_payments():
                 run_chunk(chunk[:mid], current_file_limit)
                 run_chunk(chunk[mid:], current_file_limit)
                 return
-            if ("WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg) and current_file_limit > 1:
+            if ("WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg) and current_file_limit > 0:
                 out["errors"].append({"tr": chunk[0] if chunk else None, "fileLimit": current_file_limit, "recoverable": True, "retrying": True, "error": msg[:700]})
-                run_chunk(chunk, max(1, current_file_limit // 2))
+                run_chunk(chunk, max(0, current_file_limit // 2))
                 return
             if "WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg:
                 out["ok"] = False
