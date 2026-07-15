@@ -1,6 +1,6 @@
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-zeev-token, x-zeev-extra-document-fields, x-zeev-file-download-url-template',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-zeev-token, x-zeev-extra-tokens, x-zeev-extra-document-fields, x-zeev-file-download-url-template',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
@@ -494,16 +494,141 @@ function env(name: string, fallback = '') {
 }
 
 let REQUEST_ZEEV_TOKEN = ''
+let REQUEST_ZEEV_EXTRA_TOKENS = ''
 let REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS = ''
 let REQUEST_ZEEV_FILE_DOWNLOAD_URL_TEMPLATE = ''
+
+const BAD_ZEEV_TOKENS = new Set<string>()
 
 function requestListInput(value: unknown) {
   if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean).join(',')
   return String(value || '').trim()
 }
 
+function tokenListInput(value: unknown) {
+  if (Array.isArray(value)) return value.flatMap((item) => parseListEnv(item))
+  return parseListEnv(value)
+}
+
+function zeevTokens() {
+  const tokens: string[] = []
+  for (const raw of [REQUEST_ZEEV_TOKEN, env('ZEEV_TOKEN'), REQUEST_ZEEV_EXTRA_TOKENS, env('ZEEV_EXTRA_TOKENS')]) {
+    for (const token of tokenListInput(raw)) {
+      if (token && !tokens.includes(token)) tokens.push(token)
+    }
+  }
+  return tokens
+}
+
+function zeevExtraTokensString() {
+  return zeevTokens().slice(1).join('\n')
+}
+
 function zeevToken() {
-  return REQUEST_ZEEV_TOKEN || env('ZEEV_TOKEN')
+  return zeevTokens()[0] || ''
+}
+
+function hasFormFields(data: unknown) {
+  if (Array.isArray(data)) return data.some((row) => Array.isArray(row?.formFields) && row.formFields.length > 0)
+  return !!(data && typeof data === 'object' && Array.isArray((data as AnyRecord).formFields) && (data as AnyRecord).formFields.length > 0)
+}
+
+function mergeZeevRows(rows: AnyRecord[]) {
+  const map = new Map<string, AnyRecord>()
+  for (const row of rows || []) {
+    if (!row || typeof row !== 'object') continue
+    const key = String(row.id || row.instanceId || row.zeev_instance_id || `row-${map.size}`)
+    const prev = map.get(key)
+    if (!prev) {
+      map.set(key, row)
+      continue
+    }
+    map.set(key, {
+      ...prev,
+      ...row,
+      formFields: mergeFields(prev.formFields || [], row.formFields || []),
+    })
+  }
+  return [...map.values()]
+}
+
+async function zeevJsonRequest(url: string, init: RequestInit = {}, options: { needsFormFields?: boolean; mergeRows?: boolean } = {}): Promise<any> {
+  const tokens = zeevTokens().filter((token) => token && !BAD_ZEEV_TOKENS.has(token))
+  if (!tokens.length) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
+  const errors: string[] = []
+  const rows: AnyRecord[] = []
+  let fallback: unknown = null
+  let fallbackSet = false
+
+  for (const token of tokens) {
+    const headers = new Headers(init.headers || {})
+    headers.set('Authorization', `Bearer ${token}`)
+    if (!headers.has('Accept')) headers.set('Accept', 'application/json')
+    if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+
+    const res = await fetch(url, { ...init, headers })
+    const text = await res.text()
+    if (!res.ok) {
+      if (res.status === 401) BAD_ZEEV_TOKENS.add(token)
+      errors.push(`HTTP ${res.status}: ${text.slice(0, 220)}`)
+      if ([401, 403].includes(res.status)) continue
+      throw new Error(`Zeev API ${res.status}: ${text.slice(0, 500)}`)
+    }
+
+    const data = text ? JSON.parse(text) : {}
+    if (options.mergeRows) {
+      rows.push(...(Array.isArray(data) ? data : [data]))
+      continue
+    }
+    if (options.needsFormFields && !hasFormFields(data)) {
+      if (!fallbackSet) {
+        fallback = data
+        fallbackSet = true
+      }
+      continue
+    }
+    return data
+  }
+
+  if (options.mergeRows && rows.length) return mergeZeevRows(rows)
+  if (fallbackSet) return fallback
+  throw new Error(`Zeev API sem resposta autorizada: ${errors.join(' | ')}`)
+}
+
+async function zeevTextRequest(url: string, init: RequestInit = {}): Promise<{ res: Response; text: string }> {
+  const tokens = zeevTokens().filter((token) => token && !BAD_ZEEV_TOKENS.has(token))
+  if (!tokens.length) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
+  const errors: string[] = []
+  for (const token of tokens) {
+    const headers = new Headers(init.headers || {})
+    headers.set('Authorization', `Bearer ${token}`)
+    if (!headers.has('Accept')) headers.set('Accept', '*/*')
+    const res = await fetch(url, { ...init, headers })
+    const text = await res.text()
+    if (res.ok) return { res, text }
+    if (res.status === 401) BAD_ZEEV_TOKENS.add(token)
+    errors.push(`HTTP ${res.status}: ${text.slice(0, 220)}`)
+    if (![401, 403].includes(res.status)) break
+  }
+  throw new Error(`Zeev API sem resposta autorizada: ${errors.join(' | ')}`)
+}
+
+async function zeevBinaryRequest(url: string, init: RequestInit = {}): Promise<Response> {
+  const tokens = zeevTokens().filter((token) => token && !BAD_ZEEV_TOKENS.has(token))
+  if (!tokens.length) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
+  const errors: string[] = []
+  for (const token of tokens) {
+    const headers = new Headers(init.headers || {})
+    headers.set('Authorization', `Bearer ${token}`)
+    if (!headers.has('Accept')) headers.set('Accept', '*/*')
+    const res = await fetch(url, { ...init, headers })
+    if (res.ok) return res
+    const text = await res.text()
+    if (res.status === 401) BAD_ZEEV_TOKENS.add(token)
+    errors.push(`HTTP ${res.status}: ${text.slice(0, 220)}`)
+    if (![401, 403].includes(res.status)) break
+  }
+  throw new Error(`Zeev arquivo sem resposta autorizada: ${errors.join(' | ')}`)
 }
 
 function secretAuthorized(req: Request) {
@@ -716,27 +841,18 @@ const FLOW_DESIGN_FIELD_CACHE = new Map<number, string[]>()
 async function zeewFlowDesignDocumentFields(flow: number) {
   if (!flow) return []
   if (FLOW_DESIGN_FIELD_CACHE.has(flow)) return FLOW_DESIGN_FIELD_CACHE.get(flow) || []
-  const token = zeevToken()
-  if (!token) {
+  if (!zeevToken()) {
     FLOW_DESIGN_FIELD_CACHE.set(flow, [])
     return []
   }
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
   try {
-    const res = await fetch(`${base}/api/2/flows/${flow}/design/form`, {
+    const data = await zeevJsonRequest(`${base}/api/2/flows/${flow}/design/form`, {
       headers: {
-        Authorization: `Bearer ${token}`,
         Accept: 'application/json',
         'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
       },
     })
-    if (!res.ok) {
-      if (res.status === 403) console.warn(`Zeev design/form sem permissao para flow ${flow}; usando campos fiscais configurados.`)
-      else console.warn(`Zeev design/form ${res.status} flow ${flow}: ${(await res.text()).slice(0, 240)}`)
-      FLOW_DESIGN_FIELD_CACHE.set(flow, [])
-      return []
-    }
-    const data = await res.json()
     const rows = Array.isArray(data) ? data : Array.isArray(data?.fields) ? data.fields : []
     const fields = rows
       .filter((field: AnyRecord) => looksLikeDocumentDesignField(field))
@@ -951,20 +1067,16 @@ function reportFieldsFromHtml(html: string) {
 }
 
 async function fetchReportLinkFields(reportLink: unknown) {
-  const token = zeevToken()
   const link = String(reportLink || '').trim()
-  if (!token || !link) return { fields: [], error: '' }
+  if (!zeevToken() || !link) return { fields: [], error: '' }
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
   const url = link.startsWith('http') ? link : `${base}${link.startsWith('/') ? '' : '/'}${link}`
-  const res = await fetch(url, {
+  const { res, text } = await zeevTextRequest(url, {
     headers: {
-      Authorization: `Bearer ${token}`,
       Accept: 'text/html,application/xhtml+xml,application/json,*/*',
       'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
     },
   })
-  const text = await res.text()
-  if (!res.ok) return { fields: [], error: `reportLink HTTP ${res.status}: ${text.slice(0, 240)}` }
   return { fields: reportFieldsFromHtml(text), error: '', length: text.length, contentType: res.headers.get('Content-Type') || '' }
 }
 
@@ -1614,8 +1726,7 @@ async function knownTicketRefreshIds(limit: number, flows: number[] = []) {
 }
 
 async function zeevReport(flow: number, page: number, start: string, end: string) {
-  const token = zeevToken()
-  if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
+  if (!zeevToken()) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
   const flowCapexFields = capexFieldsForFlow(flow)
   const cleanDate = (value: string) => String(value || '').replace(/\.\d{1,6}/, '').replace(/(?:Z|[+-]\d\d:\d\d)$/i, '')
@@ -1644,16 +1755,15 @@ async function zeevReport(flow: number, page: number, start: string, end: string
   })
   const request = async (formFieldNames: string[], pageSize: number, begin: string, finish: string) => {
     const body = makeBody(formFieldNames, pageSize, begin, finish)
-    return await fetch(`${base}/api/2/instances/report`, {
+    return await zeevJsonRequest(`${base}/api/2/instances/report`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
         'Accept': '*/*',
         'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
       },
       body: JSON.stringify(body),
-    })
+    }, { needsFormFields: true, mergeRows: true })
   }
   const attempts = [
     { begin: offsetDate(start), finish: offsetDate(end) },
@@ -1665,22 +1775,20 @@ async function zeevReport(flow: number, page: number, start: string, end: string
   const errors: string[] = []
   for (const dates of attempts) {
     for (const pageSize of pageSizes) {
-      const res = await request(flowCapexFields, pageSize, dates.begin, dates.finish)
-      const text = await res.text()
-      if (res.ok) {
-        const data = text ? JSON.parse(text) : []
+      try {
+        const data = await request(flowCapexFields, pageSize, dates.begin, dates.finish)
         const rows = Array.isArray(data) ? data : [data]
         return { rows, pageSize }
+      } catch (error) {
+        errors.push(`size=${pageSize} begin=${dates.begin}: ${error instanceof Error ? error.message : String(error)}`)
       }
-      errors.push(`${res.status} size=${pageSize} begin=${dates.begin}: ${text}`)
     }
   }
   throw new Error(`Zeev report flow ${flow} page ${page}: ${errors.join(' | ')}`)
 }
 
 async function zeevInstance(instanceId: number, flow: number, fields: string[]) {
-  const token = zeevToken()
-  if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
+  if (!zeevToken()) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
   const url = new URL(`${base}/api/2/instances/${instanceId}`)
   for (const field of fields) url.searchParams.append('formFieldNames', field)
@@ -1689,21 +1797,16 @@ async function zeevInstance(instanceId: number, flow: number, fields: string[]) 
   url.searchParams.set('showPendingAssignees', 'true')
   url.searchParams.set('useCache', 'false')
   url.searchParams.set('allowOpenUrlsForFilesInForm', 'true')
-  const res = await fetch(url.toString(), {
+  return await zeevJsonRequest(url.toString(), {
     headers: {
-      Authorization: `Bearer ${token}`,
       Accept: 'application/json',
       'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
     },
-  })
-  const text = await res.text()
-  if (!res.ok) throw new Error(`Zeev instance ${res.status} id ${instanceId} fields ${fields.join(',')}: ${text}`)
-  return text ? JSON.parse(text) : {}
+  }, { needsFormFields: Array.isArray(fields) && fields.length > 0 })
 }
 
 async function zeevInstanceReport(instanceId: number, flow: number, fields: string[]) {
-  const token = zeevToken()
-  if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
+  if (!zeevToken()) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
   const body: AnyRecord = {
     instanceId,
@@ -1718,39 +1821,30 @@ async function zeevInstanceReport(instanceId: number, flow: number, fields: stri
   }
   if (flow) body.flowId = flow
   if (Array.isArray(fields) && fields.length) body.formFieldNames = fields
-  const res = await fetch(`${base}/api/2/instances/report`, {
+  const data = await zeevJsonRequest(`${base}/api/2/instances/report`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
       Accept: 'application/json',
       'Content-Type': 'application/json',
       'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
     },
     body: JSON.stringify(body),
-  })
-  const text = await res.text()
-  if (!res.ok) throw new Error(`Zeev report instance ${res.status} id ${instanceId} fields ${fields.join(',')}: ${text}`)
-  const data = text ? JSON.parse(text) : []
+  }, { needsFormFields: Array.isArray(fields) && fields.length > 0, mergeRows: true })
   const rows = Array.isArray(data) ? data : [data]
   return rows.find((row: AnyRecord) => Number(row?.id) === Number(instanceId)) || rows[0] || {}
 }
 
 async function zeevMessages(instanceId: number) {
-  const token = zeevToken()
-  if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
+  if (!zeevToken()) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
   const url = new URL(`${base}/api/2/messages/instance/${instanceId}`)
   url.searchParams.set('useCache', 'false')
-  const res = await fetch(url.toString(), {
+  const data = await zeevJsonRequest(url.toString(), {
     headers: {
-      Authorization: `Bearer ${token}`,
       Accept: 'application/json',
       'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
     },
   })
-  const text = await res.text()
-  if (!res.ok) throw new Error(`Zeev messages ${res.status} id ${instanceId}: ${text}`)
-  const data = text ? JSON.parse(text) : []
   return Array.isArray(data) ? data : []
 }
 
@@ -2208,6 +2302,7 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
 
 async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
   const token = zeevToken()
+  const extraTokens = zeevExtraTokensString()
   const secret = env('ZEEV_SYNC_SECRET')
   if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   if (!secret) throw new Error('ZEEV_SYNC_SECRET ausente nos secrets da Supabase.')
@@ -2225,6 +2320,9 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
     businessTimezone: input.businessTimezone || input.business_timezone || env('ZEEV_BUSINESS_TIMEZONE', 'America/Sao_Paulo'),
     notify: input.notify !== false,
   }
+  if (extraTokens) {
+    ;(body as AnyRecord).zeevExtraTokens = extraTokens
+  }
   if (!body.ticketIds && !body.extraTicketIds && input.refreshKnownTickets !== false && input.backfillMissingValues !== false && syncMode !== 'retro') {
     body.extraTicketIds = await knownTicketRefreshIds(input.refreshLimit || input.backfillLimit || env('ZEEV_REFRESH_LIMIT', '8'), parseFlowIds(body.flowIds))
   }
@@ -2240,6 +2338,7 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
       Authorization: `Bearer ${secret}`,
       'x-cron-secret': secret,
       'x-zeev-token': token,
+      ...(extraTokens ? { 'x-zeev-extra-tokens': extraTokens } : {}),
       'Content-Type': 'application/json',
       'User-Agent': 'RaizObraViva-SupabaseDispatcher',
     },
@@ -2606,19 +2705,13 @@ function docFromJsonPayload(payload: unknown, fallback: AnyRecord) {
 }
 
 async function downloadZeevDocFromUrl(doc: AnyRecord, url: string, depth = 0): Promise<{ body: ArrayBuffer; name: string; type: string } | null> {
-  const token = zeevToken()
-  if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
-  const res = await fetch(url, {
+  if (!zeevToken()) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
+  const res = await zeevBinaryRequest(url, {
     headers: {
-      Authorization: `Bearer ${token}`,
       Accept: '*/*',
       'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
     },
   })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Zeev arquivo ${res.status}: ${text.slice(0, 300)}`)
-  }
   const type = res.headers.get('content-type') || doc.type || 'application/octet-stream'
   if (depth < 2 && /application\/json|text\/json/i.test(type)) {
     const text = await res.text()
@@ -3436,18 +3529,17 @@ async function registerObraPayments(input: AnyRecord = {}) {
 async function runFileProxy(input: AnyRecord) {
   const url = safeZeevFileUrl(input?.url)
   if (!url) return json({ ok: false, error: 'URL Zeev invalida.' }, 400)
-  const token = zeevToken()
-  if (!token) return json({ ok: false, error: 'ZEEV_TOKEN ausente nos secrets da Supabase.' }, 500)
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: '*/*',
-      'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
-    },
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    return json({ ok: false, error: text.slice(0, 500) || `HTTP ${res.status}` }, res.status === 404 ? 404 : 502)
+  if (!zeevToken()) return json({ ok: false, error: 'ZEEV_TOKEN ausente nos secrets da Supabase.' }, 500)
+  let res: Response
+  try {
+    res = await zeevBinaryRequest(url, {
+      headers: {
+        Accept: '*/*',
+        'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+      },
+    })
+  } catch (error) {
+    return json({ ok: false, error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500) }, 502)
   }
   const body = await res.arrayBuffer()
   return new Response(body, {
@@ -3467,7 +3559,9 @@ Deno.serve(async (req) => {
 
   try {
     const input = await req.json().catch(() => ({}))
+    BAD_ZEEV_TOKENS.clear()
     REQUEST_ZEEV_TOKEN = String(input?.zeevToken || input?.zeev_token || req.headers.get('x-zeev-token') || '').trim()
+    REQUEST_ZEEV_EXTRA_TOKENS = requestListInput(input?.zeevExtraTokens || input?.zeev_extra_tokens || input?.extraZeevTokens || input?.extra_zeev_tokens || req.headers.get('x-zeev-extra-tokens'))
     REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS = requestListInput(input?.extraDocumentFields || input?.extra_document_fields || req.headers.get('x-zeev-extra-document-fields'))
     REQUEST_ZEEV_FILE_DOWNLOAD_URL_TEMPLATE = String(input?.fileDownloadUrlTemplate || input?.file_download_url_template || req.headers.get('x-zeev-file-download-url-template') || '').trim()
     if (input?.mode === 'ingest') {
