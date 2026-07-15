@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "incremental, retro, deep-incremental, deep-retro, read-test, inspect-docs, backfill-docs, reconcile-registered, register-obra-payments ou refresh-payment-statuses"
+        description: "incremental, retro, deep-incremental, deep-retro, read-test, inspect-docs, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items ou refresh-payment-statuses"
         required: true
         default: "deep-incremental"
       start:
@@ -58,6 +58,12 @@ on:
         description: "Escopo financeiro: obra ou extra"
         required: false
         default: "obra"
+      target_unidade:
+        description: "Unidade destino para register-capex-items"
+        required: false
+      target_ano:
+        description: "Ano destino para register-capex-items"
+        required: false
 
 concurrency:
   group: zeev-capex-sync-${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
@@ -97,6 +103,8 @@ jobs:
           ZEEV_EXTRA_TICKET_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.extra_ticket_ids || '' }}
           ZEEV_TARGET_OBRA: ${{ github.event_name == 'workflow_dispatch' && inputs.target_obra || '' }}
           ZEEV_TARGET_ESCOPO: ${{ github.event_name == 'workflow_dispatch' && inputs.target_escopo || 'obra' }}
+          ZEEV_TARGET_UNIDADE: ${{ github.event_name == 'workflow_dispatch' && inputs.target_unidade || '' }}
+          ZEEV_TARGET_ANO: ${{ github.event_name == 'workflow_dispatch' && inputs.target_ano || '' }}
           ZEEV_AI_SUMMARY_ENABLED: "1"
           ZEEV_BACKFILL_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '2' }}
           ZEEV_STATUS_REFRESH_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '150' }}
