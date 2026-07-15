@@ -115,8 +115,8 @@ jobs:
           ZEEV_BACKFILL_FILE_LIMIT: "3"
           ZEEV_EXTRA_DOCUMENT_FIELDS: ${{ secrets.ZEEV_EXTRA_DOCUMENT_FIELDS }}
           ZEEV_FILE_DOWNLOAD_URL_TEMPLATE: ${{ secrets.ZEEV_FILE_DOWNLOAD_URL_TEMPLATE }}
-          ZEEV_REGISTER_BATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'register-capex-items' && '6' || '1' }}
-          ZEEV_REGISTER_FILE_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'register-capex-items' && '0' || '2' }}
+          ZEEV_REGISTER_BATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'register-capex-items' && '6' || github.event_name == 'workflow_dispatch' && inputs.mode == 'register-obra-payments' && '3' || '1' }}
+          ZEEV_REGISTER_FILE_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'register-capex-items' && '0' || github.event_name == 'workflow_dispatch' && inputs.mode == 'register-obra-payments' && '0' || '2' }}
           ZEEV_REGISTER_PAUSE_SECONDS: "1"
           ZEEV_SUMMARY_ALLOW_GEMINI_GROQ: "0"
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
