@@ -7,7 +7,7 @@ const CORS = {
 type AnyRecord = Record<string, any>
 
 const DEFAULT_FLOW_IDS = [299, 275, 263, 102, 300]
-const FINANCE_FLOW_IDS = new Set([299, 275, 263])
+const FINANCE_FLOW_IDS = new Set([299, 275, 263, 110])
 const CAPEX_FIELDS = ['investimentoCAPEX', 'cAPEX', 'CAPEX', 'capex']
 const FINANCE_DESCRIPTION_FIELDS = [
   'informacoesReferentesASolicitacao',
@@ -2921,10 +2921,21 @@ async function loadGenericTicketFromZeev(row: AnyRecord) {
   if (!id) return row
   let base: AnyRecord = row?.raw_instance && typeof row.raw_instance === 'object' ? { ...row.raw_instance } : {}
   try {
-    const flowForLookup = Number(row?.flow_id || row?.flowId || row?.raw_instance?.flow?.id || row?.rawInstance?.flow?.id || 0) || 0
+    let flowForLookup = Number(row?.flow_id || row?.flowId || row?.raw_instance?.flow?.id || row?.rawInstance?.flow?.id || 0) || 0
+    if (!flowForLookup) {
+      try {
+        const probe = await zeevInstance(id, 0, [])
+        if (probe && typeof probe === 'object') {
+          base = { ...base, ...probe }
+          flowForLookup = Number(probe?.flow?.id || probe?.flowId || 0) || 0
+        }
+      } catch (probeError) {
+        console.warn('loadGenericTicketFromZeev probe:', probeError instanceof Error ? probeError.message : String(probeError))
+      }
+    }
     const fields = flowForLookup ? await enrichFieldsForFlow(flowForLookup) : [...new Set([
-      ...PURCHASE_ENRICH_FIELDS,
       ...FINANCE_ENRICH_FIELDS,
+      ...PURCHASE_ENRICH_FIELDS,
       ...parseListEnv([env('ZEEV_EXTRA_DOCUMENT_FIELDS'), REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS].filter(Boolean).join(',')),
     ])]
     const enriched = await collectInstanceFields(id, flowForLookup, fields)
