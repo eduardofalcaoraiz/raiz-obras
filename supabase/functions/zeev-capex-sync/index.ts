@@ -3819,6 +3819,14 @@ async function forcePendingTickets(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const reason = String(input.reason || input.motivo || 'Erro da solicitante: ticket deve ser tratado como CAPEX.').trim()
   if (!ticketIds.length) throw new Error('Nenhum TR informado para colocar em Registros pendentes.')
+  const providedTickets = new Map<string, AnyRecord>()
+  if (Array.isArray(input.tickets)) {
+    for (const ticket of input.tickets) {
+      const key = ticketDigits(ticket?.zeev_instance_id || ticket?.id || ticket?.raw_instance?.id || ticket?.rawInstance?.id)
+      if (key) providedTickets.set(key, ticket)
+    }
+  }
+  const directZeevRead = input.directZeevRead === true || input.direct_zeev_read === true
 
   const existingPending = await loadTicketsByIds(ticketIds)
   const existingCapexRows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id&or=(referencia.in.(${ticketIds.join(',')}),ticket_raiz_instance_id.in.(${ticketIds.join(',')}))`)
@@ -3840,8 +3848,14 @@ async function forcePendingTickets(input: AnyRecord = {}) {
         out.skipped.push({ tr: id, reason: 'ja_registrado_em_capex_ou_pagamentos', ids: registered.get(key)?.map((row) => row.id) || [] })
         continue
       }
-      let ticket = existingPending.get(id) || { zeev_instance_id: id }
-      ticket = await loadGenericTicketFromZeev(ticket)
+      let ticket = providedTickets.get(key) || existingPending.get(id) || { zeev_instance_id: id }
+      if (!providedTickets.has(key)) {
+        const hasStored = ticketHasStoredZeevData(ticket) || Boolean(ticket?.ticket_link)
+        if (directZeevRead && !hasStored) {
+          throw new Error('Ticket nao veio enriquecido do GitHub/Zeev; inclusao sem link foi bloqueada para evitar placeholder.')
+        }
+        ticket = await loadGenericTicketFromZeev(ticket)
+      }
       const payload = forcedPendingPayloadFromTicket({ ...ticket, zeev_instance_id: Number(ticket?.zeev_instance_id || id) }, reason)
       if (!payload.zeev_instance_id) throw new Error('Ticket sem ID valido apos leitura do Zeev.')
       const savedRows = await upsertTickets([payload])
