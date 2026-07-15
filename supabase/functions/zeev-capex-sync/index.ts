@@ -3839,6 +3839,57 @@ async function forcePendingTickets(input: AnyRecord = {}) {
   return out
 }
 
+function zeevProbeSummary(label: string, row: AnyRecord, flow = 0, error = '') {
+  const fields = Array.isArray(row?.formFields) ? row.formFields : []
+  const tasks = Array.isArray(row?.instanceTasks) ? row.instanceTasks : []
+  return {
+    label,
+    flow,
+    ok: Boolean(row && typeof row === 'object' && Object.keys(row).length),
+    error,
+    id: row?.id || row?.instanceId || null,
+    requestName: row?.requestName || '',
+    hasReportLink: Boolean(row?.reportLink || row?.reportUrl),
+    reportLinkPreview: row?.reportLink ? String(row.reportLink).slice(0, 80) : '',
+    flowId: row?.flow?.id || row?.flowId || null,
+    flowName: row?.flow?.name || row?.flowName || '',
+    requester: row?.requester?.name || '',
+    requesterEmail: row?.requester?.email || '',
+    fields: fields.length,
+    tasks: tasks.length,
+    keys: row && typeof row === 'object' ? Object.keys(row).slice(0, 24) : [],
+  }
+}
+
+async function probeZeevTicket(input: AnyRecord = {}) {
+  const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+  const ticketId = ticketIds[0]
+  if (!ticketId) throw new Error('Informe um TR para diagnosticar.')
+  const out: AnyRecord = { ok: true, mode: 'probe-zeev-ticket', tr: ticketId, probes: [] }
+  try {
+    const direct = await zeevInstance(ticketId, 0, [])
+    out.probes.push(zeevProbeSummary('GET /api/2/instances sem campos', direct))
+  } catch (error) {
+    out.probes.push(zeevProbeSummary('GET /api/2/instances sem campos', {}, 0, error instanceof Error ? error.message : String(error)))
+  }
+  try {
+    const directCapex = await zeevInstance(ticketId, 0, ['CAPEX', 'cAPEX', 'investimentoCAPEX'])
+    out.probes.push(zeevProbeSummary('GET /api/2/instances campos CAPEX', directCapex))
+  } catch (error) {
+    out.probes.push(zeevProbeSummary('GET /api/2/instances campos CAPEX', {}, 0, error instanceof Error ? error.message : String(error)))
+  }
+  for (const flow of knownZeevFlowIds(input.flowId || input.flow_id || 0)) {
+    try {
+      const row = await zeevInstanceReport(ticketId, flow, [])
+      out.probes.push(zeevProbeSummary('POST /api/2/instances/report sem campos', row, flow))
+      if (Number(row?.id) === Number(ticketId) && (row?.reportLink || row?.flow || row?.flowId)) break
+    } catch (error) {
+      out.probes.push(zeevProbeSummary('POST /api/2/instances/report sem campos', {}, flow, error instanceof Error ? error.message : String(error)))
+    }
+  }
+  return out
+}
+
 async function registerObraPayments(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const obraName = String(input.obraName || input.targetObra || input.target_obra || input.obra || '').trim()
@@ -4021,6 +4072,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'force-pending-ticket') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await forcePendingTickets(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'probe-zeev-ticket') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await probeZeevTicket(input || {})
       return json(out)
     }
     if (input?.mode === 'dispatch') {
