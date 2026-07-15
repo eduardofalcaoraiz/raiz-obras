@@ -32,7 +32,7 @@ def parse_flow_ids_env(value):
 
 
 FLOW_IDS = parse_flow_ids_env(os.environ.get("ZEEV_FLOW_IDS", "299,275,263,102,300"))
-FINANCE_FLOW_IDS = {299, 275, 263}
+FINANCE_FLOW_IDS = {299, 275, 263, 110}
 PURCHASE_FLOW_IDS = {102, 300}
 BUSINESS_TIMEZONE = os.environ.get("ZEEV_BUSINESS_TIMEZONE", "America/Sao_Paulo")
 
@@ -126,6 +126,7 @@ DEFAULT_CAPEX_FIELDS = {
     299: ["investimentoCAPEX", "É um investimento (CAPEX)?", "E um investimento (CAPEX)?", "CAPEX"],
     275: ["investimentoCAPEX", "É um investimento (CAPEX)?", "E um investimento (CAPEX)?", "CAPEX"],
     263: ["investimentoCAPEX", "É um investimento (CAPEX)?", "E um investimento (CAPEX)?", "CAPEX"],
+    110: ["investimentoCAPEX", "É um investimento (CAPEX)?", "E um investimento (CAPEX)?", "CAPEX"],
     102: ["cAPEX", "CAPEX", "Investimento CAPEX"],
     300: ["cAPEX", "CAPEX", "Investimento CAPEX"],
 }
