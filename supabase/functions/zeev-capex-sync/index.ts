@@ -22,6 +22,11 @@ const FINANCE_DESCRIPTION_FIELDS = [
   'informacao',
   'Informacoes referentes a solicitacao',
   'Informacao referente a solicitacao',
+  'Informa\u00e7\u00f5es referentes \u00e0 solicita\u00e7\u00e3o',
+  'Informa\u00e7\u00f5es referentes a solicita\u00e7\u00e3o',
+  'Informacoes referentes \u00e0 solicita\u00e7\u00e3o',
+  'Informa\u00e7\u00f5es',
+  'Informações',
 ]
 const PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
   'descricaoMensagemZeev',
@@ -30,6 +35,12 @@ const PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
   'descricaoServicoSolicitado',
   'descricaoServicoCompra',
   'descricao do servico',
+  'Descri\u00e7\u00e3o',
+  'Descricao',
+  'Desc do Servi\u00e7o',
+  'Desc do Servico',
+  'Descri\u00e7\u00e3o do Servi\u00e7o',
+  'Descricao do Servico',
 ]
 const PURCHASE_JUSTIFICATION_FIELDS = [
   'JUSTIFICATIVA DO PEDIDO',
@@ -67,6 +78,9 @@ const PURCHASE_ITEM_DESCRIPTION_FIELDS = [
   'listaParaCotacao',
   'lista de itens para cotacao',
   'lista para cotacao',
+  'Lista para cota\u00e7\u00e3o',
+  'Item / Medicamento',
+  'Item',
 ]
 const EXTRA_FIELDS = [
   'valorTotalDoPagamento',
@@ -119,6 +133,7 @@ const EXTRA_FIELDS = [
 const VALUE_TOTAL_FIELDS = [
   'valorTotalDoPagamento',
   'Valor total do pagamento',
+  'Valor total do pagamento *',
   'valorTotalPagamento',
   'valor total pagamento',
   'valorFinal',
@@ -179,6 +194,11 @@ const VALUE_TOTAL_FIELDS = [
   'total do pagamento',
   'totalAPagar',
   'total a pagar',
+  'Total dos itens',
+  'Total dos itens *',
+  'Total das parcelas',
+  'Total das parcelas *',
+  'Total do pag.',
   'valorParcela',
   'valor da parcela',
 ]
@@ -204,6 +224,26 @@ const ITEM_DESC_FIELDS = [
   ...PURCHASE_ITEM_DESCRIPTION_FIELDS,
 ]
 const ITEM_QTY_FIELDS = ['quantidade', 'quantidadeSolicitada', 'quantidade solicitada', 'qtd', 'qtde']
+const FISCAL_NUMBER_FIELDS = ['numeroNF', 'numeroNotaFiscal', 'n\u00famero', 'numero', 'N\u00famero', 'Numero']
+const ISSUE_DATE_FIELDS = ['dataEmissao', 'data de emissao', 'data de emiss\u00e3o', 'Data de emiss\u00e3o', 'Data de emiss\u00e3o *']
+const DESTINATION_UNIT_FIELDS = [
+  'Unidade / Filial',
+  'Unidade / Filial *',
+  'Unidade / Filial de destino',
+  'Unidade / Filial de destino *',
+  'Filial/unidade de destino',
+  'Filial/unidade de destino *',
+  'Filial Solic.',
+  'Filial Dest.',
+]
+const COMPANY_FIELDS = [
+  'Coligada',
+  'Coligada *',
+  'Coligada de destino',
+  'Coligada de destino *',
+  'Col. Solic.',
+  'Col. Dest.',
+]
 const ITEM_UNIT_MEASURE_FIELDS = ['unidadeMedida', 'unidade medida', 'unidade', 'un']
 const ITEM_UNIT_FIELDS = ['precoUnitario', 'preço unitário', 'preco unitario', 'valorUnitario', 'valor unitario', 'valor un']
 const ITEM_TOTAL_FIELDS = ['valorTotalItem', 'valor total item', 'valor total do item', 'precoTotal', 'preço total', 'valorProduto', 'valor do produto', 'valorServico', 'valor do serviço']
@@ -359,9 +399,12 @@ const PURCHASE_ENRICH_FIELDS = [
   'numeroNotaFiscal',
   'valorNotaFiscal',
   'chaveAcesso',
+  'Informe a chave de acesso',
   ...DOCUMENT_FIELDS,
   ...PURCHASE_SERVICE_DESCRIPTION_FIELDS,
   ...PURCHASE_ITEM_DESCRIPTION_FIELDS,
+  ...DESTINATION_UNIT_FIELDS,
+  ...COMPANY_FIELDS,
 ]
 
 const FINANCE_ENRICH_FIELDS = [
@@ -379,24 +422,38 @@ const FINANCE_ENRICH_FIELDS = [
   'previsaoPagamento',
   'dataVencimento',
   'dataDeVencimento',
+  'Data de vencimento',
+  'Data de vencimento *',
+  'Data de vencimento extra\u00edda',
+  ...ISSUE_DATE_FIELDS,
   'formaPagamento',
   'formaDePagamento',
+  'Forma de pagamento',
+  'Forma de pagamento *',
+  'Condi\u00e7\u00e3o de pagamento',
+  'Condi\u00e7\u00e3o de pagamento *',
   'condicaoPagamento',
   'favorecido',
   'beneficiario',
   'fornecedor',
+  'Fornecedor',
+  'Fornecedor *',
   'nomeFornecedor',
   'razaoSocial',
   'cnpj',
   'cnpjFornecedor',
   'centroDeCusto',
   'centroCusto',
+  'Centro de Custo',
+  'Centro de Custo *',
   'unidade',
   'unidadeEscolar',
   'escola',
   'filial',
   'marca',
   'descricao',
+  'Descri\u00e7\u00e3o da Nota Fiscal',
+  'Descri\u00e7\u00e3o da Nota Fiscal *',
   'descricaoSolicitacao',
   'solicitacao',
   'pedido',
@@ -415,10 +472,14 @@ const FINANCE_ENRICH_FIELDS = [
   'notaFiscal',
   'numeroNF',
   'numeroNotaFiscal',
+  ...FISCAL_NUMBER_FIELDS,
   'valorNotaFiscal',
   'chaveAcesso',
+  'Informe a chave de acesso',
   ...DOCUMENT_FIELDS,
   ...FINANCE_DESCRIPTION_FIELDS,
+  ...DESTINATION_UNIT_FIELDS,
+  ...COMPANY_FIELDS,
 ]
 
 function json(body: unknown, status = 200) {
