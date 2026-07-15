@@ -2767,8 +2767,20 @@ async function loadGenericTicketFromZeev(row: AnyRecord) {
   if (!id) return row
   let base: AnyRecord = row?.raw_instance && typeof row.raw_instance === 'object' ? { ...row.raw_instance } : {}
   try {
-    const detail = await zeevInstance(id, Number(row?.flow_id || row?.flowId || 0) || 0, [])
+    const flowForLookup = Number(row?.flow_id || row?.flowId || row?.raw_instance?.flow?.id || row?.rawInstance?.flow?.id || 0) || 0
+    const fields = flowForLookup ? await enrichFieldsForFlow(flowForLookup) : [...new Set([
+      ...PURCHASE_ENRICH_FIELDS,
+      ...FINANCE_ENRICH_FIELDS,
+      ...parseListEnv([env('ZEEV_EXTRA_DOCUMENT_FIELDS'), REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS].filter(Boolean).join(',')),
+    ])]
+    const enriched = await collectInstanceFields(id, flowForLookup, fields)
+    const detail = enriched.last || {}
     base = { ...base, ...(detail || {}) }
+    base.formFields = mergeFields(
+      Array.isArray(base.formFields) ? base.formFields : Array.isArray(row.raw_fields) ? row.raw_fields : Array.isArray(row.rawFields) ? row.rawFields : [],
+      enriched.fields,
+    )
+    if (enriched.errors.length) base.__zeev_load_errors = enriched.errors
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.warn('loadGenericTicketFromZeev:', message)
