@@ -1834,6 +1834,31 @@ async function zeevInstanceReport(instanceId: number, flow: number, fields: stri
   return rows.find((row: AnyRecord) => Number(row?.id) === Number(instanceId)) || rows[0] || {}
 }
 
+function knownZeevFlowIds(...values: unknown[]) {
+  const ids = [
+    ...DEFAULT_FLOW_IDS,
+    ...Array.from(FINANCE_FLOW_IDS),
+    ...parseListEnv(env('ZEEV_FLOW_IDS')).map((value) => Number(value)),
+    ...values.map((value) => Number(value)),
+  ].filter((value) => Number.isFinite(value) && value > 0)
+  return [...new Set(ids)]
+}
+
+async function findZeevInstanceAcrossFlows(instanceId: number, preferredFlow = 0) {
+  const errors: AnyRecord[] = []
+  for (const flow of knownZeevFlowIds(preferredFlow)) {
+    try {
+      const row = await zeevInstanceReport(instanceId, flow, [])
+      if (Number(row?.id) === Number(instanceId) || row?.reportLink || row?.flow || row?.flowId) {
+        return { row, flow, errors }
+      }
+    } catch (error) {
+      errors.push({ flow, error: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300) })
+    }
+  }
+  return { row: null, flow: 0, errors }
+}
+
 async function zeevMessages(instanceId: number) {
   if (!zeevToken()) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
@@ -2933,6 +2958,15 @@ async function loadGenericTicketFromZeev(row: AnyRecord) {
         console.warn('loadGenericTicketFromZeev probe:', probeError instanceof Error ? probeError.message : String(probeError))
       }
     }
+    if (!flowForLookup || !base.reportLink) {
+      const found = await findZeevInstanceAcrossFlows(id, flowForLookup)
+      if (found.row && typeof found.row === 'object') {
+        base = { ...base, ...found.row }
+        flowForLookup = Number(found.row?.flow?.id || found.row?.flowId || found.flow || flowForLookup || 0) || 0
+      } else if (found.errors.length) {
+        base.__zeev_flow_lookup_errors = found.errors
+      }
+    }
     const fields = flowForLookup ? await enrichFieldsForFlow(flowForLookup) : [...new Set([
       ...FINANCE_ENRICH_FIELDS,
       ...PURCHASE_ENRICH_FIELDS,
@@ -3012,13 +3046,35 @@ function genericZeevTicket(enriched: AnyRecord, fallback: AnyRecord = {}) {
   const itens = extractItems(fields)
   const pagamento = extractPagamento(fmap)
   const valor = pickTicketValue(fmap, itens, financeiro)
+  const desc = ticketDescription(fmap, itens, financeiro, compra)
   return {
     zeev_instance_id: Number(enriched?.id || fallback?.zeev_instance_id || fallback?.ticket_raiz || fallback?.ticket_raiz_instance_id || 0) || null,
+    zeev_uid: enriched?.uid || fallback.zeev_uid || null,
     flow_id: flowId(enriched) || fallback.flow_id || null,
     flow_name: flowName(enriched) || fallback.flow_name || '',
     flow_version: flowVersion(enriched) || fallback.flow_version || null,
     request_name: enriched?.requestName || fallback.request_name || null,
-    ticket_link: enriched?.reportLink || fallback.ticket_link || fallback.ticket_raiz_url || null,
+    ticket_link: enriched?.reportLink || enriched?.reportUrl || fallback.ticket_link || fallback.ticket_raiz_url || null,
+    confirmation_code: enriched?.confirmationCode || fallback.confirmation_code || null,
+    start_date_time: iso(enriched?.startDateTime || fallback.start_date_time),
+    end_date_time: iso(enriched?.endDateTime || fallback.end_date_time),
+    last_finished_task_date_time: iso(enriched?.lastFinishedTaskDateTime || fallback.last_finished_task_date_time),
+    active: enriched?.active === undefined ? fallback.active ?? null : Boolean(enriched.active),
+    flow_result: enriched?.flowResult || fallback.flow_result || '',
+    requester_name: enriched?.requester?.name || fallback.requester_name || '',
+    requester_email: enriched?.requester?.email || fallback.requester_email || '',
+    requester_username: enriched?.requester?.username || fallback.requester_username || '',
+    requester_team: enriched?.requester?.team?.name || fallback.requester_team || '',
+    etapa_atual: taskName(currentTask(tasks)),
+    valor: valor || fallback.valor || null,
+    valor_final: fallback.valor_final || null,
+    valor_status: valor ? 'estimado' : 'nao_encontrado',
+    unidade: firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto'])) || fallback.unidade || null,
+    marca: firstField(fmap, ['marca']) || fallback.marca || null,
+    pedido: desc || fallback.pedido || null,
+    categoria_capex: firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra']) || fallback.categoria_capex || null,
+    fonte: fallback.fonte || 'UNIDADE',
+    setor: financeiro ? 'FINANCEIRO' : 'COMPRAS',
     raw_fields: fields,
     raw_instance: enriched || fallback,
     raw_tasks: tasks,
