@@ -571,7 +571,7 @@ async function zeevJsonRequest(url: string, init: RequestInit = {}, options: { n
     if (!res.ok) {
       if (res.status === 401) BAD_ZEEV_TOKENS.add(token)
       errors.push(`HTTP ${res.status}: ${text.slice(0, 220)}`)
-      if ([401, 403].includes(res.status)) continue
+      if ([401, 403].includes(res.status) || res.status >= 500) continue
       throw new Error(`Zeev API ${res.status}: ${text.slice(0, 500)}`)
     }
 
@@ -608,7 +608,7 @@ async function zeevTextRequest(url: string, init: RequestInit = {}): Promise<{ r
     if (res.ok) return { res, text }
     if (res.status === 401) BAD_ZEEV_TOKENS.add(token)
     errors.push(`HTTP ${res.status}: ${text.slice(0, 220)}`)
-    if (![401, 403].includes(res.status)) break
+    if (![401, 403].includes(res.status) && res.status < 500) break
   }
   throw new Error(`Zeev API sem resposta autorizada: ${errors.join(' | ')}`)
 }
@@ -626,7 +626,7 @@ async function zeevBinaryRequest(url: string, init: RequestInit = {}): Promise<R
     const text = await res.text()
     if (res.status === 401) BAD_ZEEV_TOKENS.add(token)
     errors.push(`HTTP ${res.status}: ${text.slice(0, 220)}`)
-    if (![401, 403].includes(res.status)) break
+    if (![401, 403].includes(res.status) && res.status < 500) break
   }
   throw new Error(`Zeev arquivo sem resposta autorizada: ${errors.join(' | ')}`)
 }
