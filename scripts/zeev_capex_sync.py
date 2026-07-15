@@ -2244,8 +2244,8 @@ def register_capex_items():
         or ""
     )
     ano = os.environ.get("ZEEV_TARGET_ANO") or os.environ.get("ZEEV_CAPEX_ANO") or ""
-    batch_size = max(1, min(int(os.environ.get("ZEEV_REGISTER_BATCH", "1")), 4))
-    file_limit = max(0, min(int(os.environ.get("ZEEV_REGISTER_FILE_LIMIT", "2")), 4))
+    batch_size = max(1, min(int(os.environ.get("ZEEV_REGISTER_BATCH", "6")), 10))
+    file_limit = max(0, min(int(os.environ.get("ZEEV_REGISTER_FILE_LIMIT", "0")), 4))
     out = {
         "ok": True,
         "mode": "register-capex-items",
