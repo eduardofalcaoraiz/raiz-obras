@@ -510,11 +510,24 @@ function tokenListInput(value: unknown) {
   return parseListEnv(value)
 }
 
+function tokenVariants(token: string) {
+  const variants = [token]
+  try {
+    const decoded = decodeURIComponent(token)
+    if (decoded && decoded !== token) variants.push(decoded)
+  } catch (_) {
+    // Some Zeev tokens arrive already decoded; keep the original in that case.
+  }
+  return variants
+}
+
 function zeevTokens() {
   const tokens: string[] = []
   for (const raw of [REQUEST_ZEEV_TOKEN, env('ZEEV_TOKEN'), REQUEST_ZEEV_EXTRA_TOKENS, env('ZEEV_EXTRA_TOKENS')]) {
     for (const token of tokenListInput(raw)) {
-      if (token && !tokens.includes(token)) tokens.push(token)
+      for (const variant of tokenVariants(token)) {
+        if (variant && !tokens.includes(variant)) tokens.push(variant)
+      }
     }
   }
   return tokens
