@@ -77,6 +77,7 @@ jobs:
       - name: Sync Zeev CAPEX
         env:
           ZEEV_TOKEN: ${{ secrets.ZEEV_TOKEN }}
+          ZEEV_EXTRA_TOKENS: ${{ secrets.ZEEV_EXTRA_TOKENS }}
           ZEEV_SYNC_SECRET: ${{ secrets.ZEEV_SYNC_SECRET }}
           ZEEV_BASE_URL: https://raizeducacao.zeev.it
           SUPABASE_URL: https://hjccxfznojjosvanwztv.supabase.co
