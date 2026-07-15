@@ -3820,8 +3820,18 @@ async function forcePendingTickets(input: AnyRecord = {}) {
       if (!payload.zeev_instance_id) throw new Error('Ticket sem ID valido apos leitura do Zeev.')
       const savedRows = await upsertTickets([payload])
       const saved = savedRows?.[0] || payload
-      if (existingPending.has(id)) out.updated.push({ tr: id, row_id: saved.id || null, status: saved.status || 'pendente' })
-      else out.inserted.push({ tr: id, row_id: saved.id || null, status: saved.status || 'pendente' })
+      const summary = {
+        tr: id,
+        row_id: saved.id || null,
+        status: saved.status || 'pendente',
+        ticket_link_present: Boolean(saved.ticket_link || payload.ticket_link),
+        pedido_present: Boolean(saved.pedido || payload.pedido),
+        valor: saved.valor ?? payload.valor ?? null,
+        flow: saved.flow_name || payload.flow_name || '',
+        solicitante: saved.requester_name || payload.requester_name || '',
+      }
+      if (existingPending.has(id)) out.updated.push(summary)
+      else out.inserted.push(summary)
     } catch (error) {
       out.errors.push({ tr: id, error: error instanceof Error ? error.message : String(error) })
     }
