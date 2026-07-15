@@ -3447,6 +3447,208 @@ function findTargetObra(obras: AnyRecord[], name: string) {
   return null
 }
 
+function findTargetCapexUnit(unidades: AnyRecord[], name: string) {
+  const key = normKey(name)
+  if (!key) return null
+  const exact = unidades.filter((unit) => normKey(unit?.nome) === key)
+  if (exact.length === 1) return exact[0]
+  if (exact.length > 1) throw new Error(`Mais de uma unidade encontrada com o nome "${name}".`)
+  const partial = unidades.filter((unit) => {
+    const n = normKey(unit?.nome)
+    return n && (n.includes(key) || key.includes(n))
+  })
+  if (partial.length === 1) return partial[0]
+  if (partial.length > 1) throw new Error(`Unidade "${name}" ambigua: ${partial.map((unit) => unit.nome).join(', ')}.`)
+  return null
+}
+
+const CAPEX_CATEGORY_RULES_EDGE: [string, string[]][] = [
+  ['capex_mobiliario', ['cadeira', 'mesa', 'armario', 'estante', 'bancada', 'sofa', 'marcenaria', 'movel', 'mobiliario', 'locker']],
+  ['capex_ti', ['computador', 'notebook', 'monitor', 'impressora', 'tablet', 'switch', 'roteador', 'wifi', 'rede logica', 'projetor', 'tv', 'audio', 'nobreak', 'software']],
+  ['capex_material_manutencao', ['chapa', 'parafuso', 'bucha', 'cola', 'silicone', 'cimento', 'areia', 'madeira', 'tubo', 'material de manutencao', 'ferragem', 'ferramenta', 'calha']],
+  ['capex_servicos', ['mao de obra', 'servico', 'servicos', 'laudo', 'vistoria', 'projeto', 'levantamento', 'frete', 'transporte', 'locacao', 'manutencao', 'retirada', 'montagem']],
+  ['capex_pintura', ['pintura', 'tinta', 'grafiato', 'revestimento', 'piso', 'porcelanato', 'ceramica', 'azulejo', 'forro', 'drywall', 'gesso']],
+  ['capex_obras_civis', ['obra', 'reforma', 'construcao', 'demolicao', 'alvenaria', 'concreto', 'estrutura', 'cobertura', 'telhado', 'escada', 'rampa', 'fachada', 'ampliacao']],
+  ['capex_hidraulica', ['hidraulica', 'vazamento', 'infiltracao', 'caixa d agua', 'bomba d agua', 'ralo', 'esgoto', 'vaso sanitario', 'torneira', 'pia', 'banheiro', 'bebedouro']],
+  ['capex_climatizacao', ['ar condicionado', 'split', 'climatizacao', 'ventilador', 'exaustao', 'duto', 'evaporadora', 'condensadora']],
+  ['capex_eletrica', ['eletrica', 'eletrico', 'iluminacao', 'luminaria', 'lampada', 'led', 'tomada', 'disjuntor', 'quadro eletrico', 'eletroduto', 'energia']],
+  ['capex_seguranca', ['cftv', 'camera', 'alarme', 'controle de acesso', 'catraca', 'fechadura', 'interfone', 'grade', 'portao', 'concertina', 'extintor', 'incendio']],
+  ['capex_comunicacao', ['comunicacao visual', 'sinalizacao', 'placa', 'adesivo', 'letreiro', 'totem', 'banner', 'lona', 'plotagem', 'logo']],
+  ['capex_playground', ['playground', 'parquinho', 'brinquedo', 'grama', 'jardim', 'quadra', 'rede de protecao', 'tatame', 'area externa', 'patio']],
+  ['capex_cozinha', ['cozinha', 'copa', 'geladeira', 'freezer', 'microondas', 'fogao', 'forno', 'refeitorio', 'coifa']],
+  ['capex_pedagogico', ['biblioteca', 'livro', 'laboratorio', 'microscopio', 'brinquedoteca', 'material pedagogico', 'lousa', 'quadro branco', 'instrumento musical']],
+  ['capex_ambientes', ['recepcao', 'auditorio', 'area de convivencia', 'sala de aula', 'secretaria', 'almoxarifado', 'hall', 'novo acesso']],
+]
+
+function capexNormTextEdge(value: unknown) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function capexTextHasEdge(text: string, term: string) {
+  return ` ${text} `.includes(` ${capexNormTextEdge(term)} `)
+}
+
+function capexCategoryFromTicket(ticket: AnyRecord) {
+  const direct = String(ticket?.categoria_capex || ticketFirstField(ticket, ['categoria_capex', 'categoriaCapex']) || '').trim()
+  if (direct.startsWith('capex_')) return direct
+  const desc = capexNormTextEdge([
+    ticket?.pedido,
+    ticketDescriptionForPayment(ticket),
+    direct,
+    JSON.stringify(ticket?.itens_json || []),
+    JSON.stringify(ticket?.campos_extraidos || {}),
+  ].filter(Boolean).join(' '))
+  const meta = capexNormTextEdge([ticket?.setor, ticket?.fonte, flowName(ticket), ticket?.flow_name].filter(Boolean).join(' '))
+  const hits: { id: string; score: number; idx: number }[] = []
+  CAPEX_CATEGORY_RULES_EDGE.forEach(([id, terms], idx) => {
+    const score = terms.reduce((total, term) => total + (capexTextHasEdge(desc, term) ? 1 : 0), 0)
+    if (score) hits.push({ id, score, idx })
+  })
+  if (!hits.length) {
+    if (capexTextHasEdge(meta, 'ti')) return 'capex_ti'
+    if (capexTextHasEdge(meta, 'manutencao')) return 'capex_material_manutencao'
+    return 'capex_outros'
+  }
+  hits.sort((a, b) => b.score - a.score || a.idx - b.idx)
+  return hits[0]?.id || 'capex_outros'
+}
+
+function capexStatusFromTicket(ticket: AnyRecord) {
+  const raw = String(ticket?.situacao_sugerida || '').trim()
+  if (['Resolvido', 'Em Andamento', 'Cancelado'].includes(raw)) return { situacao: raw, realizado: raw === 'Resolvido' }
+  const tasks = Array.isArray(ticket?.raw_tasks) ? ticket.raw_tasks : Array.isArray(ticket?.raw_instance?.instanceTasks) ? ticket.raw_instance.instanceTasks : []
+  const status = suggestedCapexStatus(ticket?.raw_instance || ticket, valueIsFinalForPurchase(ticket?.raw_instance || ticket, tasks))
+  return status
+}
+
+function capexPayloadFromTicket(ticket: AnyRecord, unit: AnyRecord, ano: number) {
+  const ticketId = Number(ticket?.zeev_instance_id || 0)
+  const pedido = ticketDescriptionForPayment(ticket) || `Ticket Raiz ${ticketId}`
+  const value = ticketValueForPayment(ticket)
+  const status = capexStatusFromTicket(ticket)
+  const dados = ticketDataPatch(ticket, {})
+  dados.solicitante = {
+    nome: ticket?.requester_name || ticket?.raw_instance?.requester?.name || '',
+    email: ticket?.requester_email || ticket?.raw_instance?.requester?.email || '',
+    equipe: ticket?.requester_team || ticket?.raw_instance?.requester?.team?.name || '',
+  }
+  return {
+    ano,
+    fonte: '',
+    unidade: unit.nome,
+    unidades_json: [],
+    marca: unit.marca || '',
+    pedido,
+    referencia: String(ticketId || ''),
+    setor: ticket?.setor || (isFinanceiro(ticket) ? 'FINANCEIRO' : 'COMPRAS'),
+    categoria_capex: capexCategoryFromTicket(ticket),
+    situacao: status.situacao,
+    orcamento: value || 0,
+    aprovado: true,
+    realizado: Boolean(status.realizado),
+    observacoes: '',
+    ticket_raiz_url: ticket?.ticket_link || '',
+    ticket_raiz_instance_id: ticketId || null,
+    origem: 'ZEEV',
+    ticket_raiz_dados: dados,
+    docs_json: normalizeStoredDocs(ticket),
+  }
+}
+
+async function registerCapexItems(input: AnyRecord = {}) {
+  const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+  const unidadeName = String(input.unidadeName || input.targetUnidade || input.target_unidade || input.unidade || input.escola || input.school || '').trim()
+  const ano = Number(input.ano || input.targetAno || input.target_ano || input.year || new Date().getFullYear()) || new Date().getFullYear()
+  const fileLimit = Math.max(0, Math.min(Number(input.fileLimit || input.file_limit || 2), 6))
+  if (!ticketIds.length) throw new Error('Nenhum TR informado para registrar no CAPEX.')
+  if (!unidadeName) throw new Error('Informe a unidade destino para registrar no CAPEX.')
+
+  const unidades = await restAll('/unidades?select=id,nome,marca')
+  const unit = findTargetCapexUnit(unidades, unidadeName)
+  if (!unit) throw new Error(`Unidade destino nao encontrada: ${unidadeName}`)
+
+  const existingCapexRows = await rest(`/capex_itens?select=id,ano,unidade,referencia,ticket_raiz_instance_id&or=(referencia.in.(${ticketIds.join(',')}),ticket_raiz_instance_id.in.(${ticketIds.join(',')}))`)
+  const existingPaymentRows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz&ticket_raiz=in.(${ticketIds.join(',')})`)
+  const existingCapex = new Map<string, AnyRecord[]>()
+  for (const row of existingCapexRows || []) {
+    const key = ticketDigits(row.ticket_raiz_instance_id || row.referencia)
+    if (!key) continue
+    const rows = existingCapex.get(key) || []
+    rows.push(row)
+    existingCapex.set(key, rows)
+  }
+  const existingPayments = new Map<string, AnyRecord[]>()
+  for (const row of existingPaymentRows || []) {
+    const key = ticketDigits(row.ticket_raiz)
+    if (!key) continue
+    const rows = existingPayments.get(key) || []
+    rows.push(row)
+    existingPayments.set(key, rows)
+  }
+
+  const dbTickets = await loadTicketsByIds(ticketIds)
+  const out: AnyRecord = { ok: true, mode: 'register-capex-items', ano, unidade: { id: unit.id, nome: unit.nome, marca: unit.marca }, requested: ticketIds, inserted: [], skipped: [], errors: [], docsAttached: 0 }
+  for (const id of ticketIds) {
+    try {
+      const key = ticketDigits(id)
+      const capexRows = existingCapex.get(key) || []
+      const paymentRows = existingPayments.get(key) || []
+      if (capexRows.length) {
+        out.skipped.push({ tr: id, reason: 'ja_existe_em_capex', ids: capexRows.map((row) => row.id) })
+        continue
+      }
+      if (paymentRows.length) {
+        out.skipped.push({ tr: id, reason: 'ja_existe_em_pagamentos', ids: paymentRows.map((row) => row.id) })
+        continue
+      }
+
+      let ticket = dbTickets.get(id) || { zeev_instance_id: id }
+      ticket = await loadGenericTicketFromZeev(ticket)
+      const ticketId = Number(ticket?.zeev_instance_id || id)
+      if (!ticketId) {
+        out.skipped.push({ tr: id, reason: 'ticket_nao_encontrado' })
+        continue
+      }
+      const payload = capexPayloadFromTicket({ ...ticket, zeev_instance_id: ticketId }, unit, ano)
+      if (!payload.pedido || payload.pedido === `Ticket Raiz ${ticketId}`) out.errors.push({ tr: ticketId, warning: 'descricao_nao_encontrada_no_zeev' })
+      if (!payload.orcamento) out.errors.push({ tr: ticketId, warning: 'valor_nao_encontrado_no_zeev' })
+      const savedRows = await rest('/capex_itens', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify([payload]) })
+      const saved = Array.isArray(savedRows) ? savedRows[0] : savedRows
+      if (!saved?.id) throw new Error('Supabase nao retornou o item CAPEX salvo.')
+
+      let attach: AnyRecord = { docs: saved.docs_json || [], attached: 0 }
+      if (fileLimit > 0) {
+        try {
+          attach = await attachDocsForTarget('capex', saved, { ...ticket, zeev_instance_id: ticketId }, fileLimit)
+        } catch (error) {
+          out.errors.push({ tr: ticketId, step: 'anexos', error: error instanceof Error ? error.message : String(error) })
+        }
+      }
+      const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
+      if (JSON.stringify(attach.docs || []) !== JSON.stringify(saved.docs_json || [])) patch.docs_json = attach.docs || []
+      await rest(`/capex_itens?id=eq.${Number(saved.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) })
+      out.docsAttached += Number(attach.attached || 0)
+
+      await rest(`/capex_zeev_solicitacoes?zeev_instance_id=eq.${ticketId}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          status: 'aprovado',
+          capex_item_id: Number(saved.id),
+          aprovado_em: new Date().toISOString(),
+          aprovado_por: 'capex_lote',
+        }),
+      })
+
+      out.inserted.push({ tr: ticketId, capex_item_id: Number(saved.id), valor: payload.orcamento, situacao: payload.situacao, categoria_capex: payload.categoria_capex, docsAttached: Number(attach.attached || 0) })
+      existingCapex.set(key, [saved])
+    } catch (error) {
+      out.errors.push({ tr: id, error: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  return out
+}
+
 async function registerObraPayments(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const obraName = String(input.obraName || input.targetObra || input.target_obra || input.obra || '').trim()
@@ -3604,6 +3806,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'register-obra-payments') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await registerObraPayments(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'register-capex-items') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await registerCapexItems(input || {})
       return json(out)
     }
     if (input?.mode === 'dispatch') {
