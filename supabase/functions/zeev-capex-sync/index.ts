@@ -3662,6 +3662,117 @@ async function registerCapexItems(input: AnyRecord = {}) {
   return out
 }
 
+function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
+  const raw = ticket?.raw_instance && typeof ticket.raw_instance === 'object' ? ticket.raw_instance : ticket
+  const fields = Array.isArray(ticket?.raw_fields) ? ticket.raw_fields : Array.isArray(raw?.formFields) ? raw.formFields : []
+  const tasks = Array.isArray(ticket?.raw_tasks) ? ticket.raw_tasks : Array.isArray(raw?.instanceTasks) ? raw.instanceTasks : []
+  const fmap = fieldMap(fields)
+  const compra = isCompra(raw || ticket)
+  const financeiro = isFinanceiro(raw || ticket)
+  const itens = Array.isArray(ticket?.itens_json) && ticket.itens_json.length ? ticket.itens_json : extractItems(fields)
+  const valor = Number(ticket?.valor_final || ticket?.valor || ticket?.pagamento_json?.valor_total || 0) || pickTicketValue(fmap, itens, financeiro)
+  const desc = cleanSummaryText(ticket?.pedido || '')
+    || cleanSummaryText(ticketDescription(fmap, itens, financeiro, compra))
+    || cleanSummaryText(ticketDescriptionForPayment(ticket))
+    || String(ticket?.request_name || raw?.requestName || `Ticket Raiz ${ticket?.zeev_instance_id || raw?.id || ''}`).trim()
+  const conferir = valueIsFinalForPurchase(raw || ticket, tasks)
+  const status = suggestedCapexStatus(raw || ticket, conferir)
+  const campos = {
+    ...fieldsObject(fields),
+    _capex_forcado: true,
+    _capex_forcado_motivo: reason || 'Inclusao manual solicitada pelo usuario.',
+    _capex_forcado_em: new Date().toISOString(),
+  }
+  return {
+    zeev_instance_id: Number(ticket?.zeev_instance_id || raw?.id || 0),
+    zeev_uid: ticket?.zeev_uid || raw?.uid || null,
+    flow_id: flowId(raw || ticket),
+    flow_name: flowName(raw || ticket) || ticket?.flow_name || '',
+    flow_version: flowVersion(raw || ticket) || ticket?.flow_version || null,
+    request_name: ticket?.request_name || raw?.requestName || null,
+    ticket_link: ticket?.ticket_link || raw?.reportLink || null,
+    confirmation_code: ticket?.confirmation_code || raw?.confirmationCode || null,
+    start_date_time: iso(ticket?.start_date_time || raw?.startDateTime),
+    end_date_time: iso(ticket?.end_date_time || raw?.endDateTime),
+    last_finished_task_date_time: iso(ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime),
+    active: ticket?.active === undefined ? (raw?.active === undefined ? null : Boolean(raw.active)) : Boolean(ticket.active),
+    flow_result: ticket?.flow_result || raw?.flowResult || '',
+    capex_field_name: 'manual_codex',
+    capex_field_value: 'Sim - inclusao manual',
+    requester_name: ticket?.requester_name || raw?.requester?.name || '',
+    requester_email: ticket?.requester_email || raw?.requester?.email || '',
+    requester_username: ticket?.requester_username || raw?.requester?.username || '',
+    requester_team: ticket?.requester_team || raw?.requester?.team?.name || '',
+    etapa_atual: ticket?.etapa_atual || taskName(currentTask(tasks)),
+    passou_conferir_entrega: Boolean(ticket?.passou_conferir_entrega || conferir),
+    pronto_valor_final: Boolean(ticket?.pronto_valor_final || (compra && conferir)),
+    valor: valor || null,
+    valor_final: ticket?.valor_final || (valor && (!compra || conferir || financeiro) ? valor : null),
+    valor_status: ticket?.valor_status || (valor ? ((compra && !conferir && !financeiro) ? 'em_aprovacao' : 'final') : 'nao_encontrado'),
+    unidade: ticket?.unidade || firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto'])) || null,
+    marca: ticket?.marca || firstField(fmap, ['marca']) || null,
+    pedido: desc || null,
+    categoria_capex: ticket?.categoria_capex || firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra']) || null,
+    fonte: 'UNIDADE',
+    setor: ticket?.setor || (financeiro ? 'FINANCEIRO' : 'COMPRAS'),
+    situacao_sugerida: ticket?.situacao_sugerida || status.situacao,
+    realizado_sugerido: ticket?.realizado_sugerido ?? status.realizado,
+    raw_fields: fields,
+    raw_instance: raw || ticket,
+    raw_tasks: tasks,
+    itens_json: itens,
+    pagamento_json: ticket?.pagamento_json || { ...extractPagamento(fmap), valor_total: valor || null },
+    campos_extraidos: campos,
+    enrichment_errors: [
+      ...(Array.isArray(ticket?.enrichment_errors) ? ticket.enrichment_errors : []),
+      { field: 'CAPEX', warning: reason || 'Ticket incluído manualmente na fila mesmo sem CAPEX marcado como Sim.' },
+    ],
+    status: 'pendente',
+    capex_item_id: null,
+    last_seen_at: new Date().toISOString(),
+  }
+}
+
+async function forcePendingTickets(input: AnyRecord = {}) {
+  const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+  const reason = String(input.reason || input.motivo || 'Erro da solicitante: ticket deve ser tratado como CAPEX.').trim()
+  if (!ticketIds.length) throw new Error('Nenhum TR informado para colocar em Registros pendentes.')
+
+  const existingPending = await loadTicketsByIds(ticketIds)
+  const existingCapexRows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id&or=(referencia.in.(${ticketIds.join(',')}),ticket_raiz_instance_id.in.(${ticketIds.join(',')}))`)
+  const existingPaymentRows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz&ticket_raiz=in.(${ticketIds.join(',')})`)
+  const registered = new Map<string, AnyRecord[]>()
+  for (const row of [...(existingCapexRows || []), ...(existingPaymentRows || [])]) {
+    const key = ticketDigits(row.ticket_raiz_instance_id || row.referencia || row.ticket_raiz)
+    if (!key) continue
+    const rows = registered.get(key) || []
+    rows.push(row)
+    registered.set(key, rows)
+  }
+
+  const out: AnyRecord = { ok: true, mode: 'force-pending-ticket', requested: ticketIds, inserted: [], updated: [], skipped: [], errors: [] }
+  for (const id of ticketIds) {
+    try {
+      const key = ticketDigits(id)
+      if (registered.has(key)) {
+        out.skipped.push({ tr: id, reason: 'ja_registrado_em_capex_ou_pagamentos', ids: registered.get(key)?.map((row) => row.id) || [] })
+        continue
+      }
+      let ticket = existingPending.get(id) || { zeev_instance_id: id }
+      ticket = await loadGenericTicketFromZeev(ticket)
+      const payload = forcedPendingPayloadFromTicket({ ...ticket, zeev_instance_id: Number(ticket?.zeev_instance_id || id) }, reason)
+      if (!payload.zeev_instance_id) throw new Error('Ticket sem ID valido apos leitura do Zeev.')
+      const savedRows = await upsertTickets([payload])
+      const saved = savedRows?.[0] || payload
+      if (existingPending.has(id)) out.updated.push({ tr: id, row_id: saved.id || null, status: saved.status || 'pendente' })
+      else out.inserted.push({ tr: id, row_id: saved.id || null, status: saved.status || 'pendente' })
+    } catch (error) {
+      out.errors.push({ tr: id, error: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  return out
+}
+
 async function registerObraPayments(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const obraName = String(input.obraName || input.targetObra || input.target_obra || input.obra || '').trim()
@@ -3839,6 +3950,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'register-capex-items') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await registerCapexItems(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'force-pending-ticket') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await forcePendingTickets(input || {})
       return json(out)
     }
     if (input?.mode === 'dispatch') {
