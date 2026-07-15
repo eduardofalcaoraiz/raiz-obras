@@ -1395,6 +1395,81 @@ def build_ticket(row):
     }
 
 
+def generic_ticket_from_instance(row, reason=""):
+    fields = row.get("formFields") or []
+    tasks = row.get("instanceTasks") or []
+    flow = row.get("flow") or {}
+    flow_id = int(flow.get("id") or row.get("flowId") or 0)
+    financeiro = is_finance_row(row)
+    compra = is_purchase_row(row)
+    itens = extract_items(fields)
+    valor = pick_ticket_value(fields, itens, financeiro=financeiro)
+    result_kind = ticket_result_kind(row)
+    ready = delivery_ready(row)
+    valor_final = valor if valor and result_kind not in ("cancelado", "rejeitado") and (ready or financeiro) else None
+    pedido = ticket_description(fields, itens, financeiro=financeiro, compra=compra) or row.get("requestName") or f"Ticket Raiz {row.get('id') or ''}"
+    atual = current_task(tasks)
+    situacao, realizado = suggested_capex_status(row, ready)
+    campos_extraidos = fields_object(fields)
+    campos_extraidos["_capex_forcado"] = True
+    campos_extraidos["_capex_forcado_motivo"] = reason or "Inclusao manual solicitada pelo usuario."
+    resumo_card, resumo_source = card_summary_cascade(pedido, items=itens, compra=compra)
+    if resumo_card:
+        campos_extraidos["_resumo_card"] = resumo_card
+        campos_extraidos["_resumo_card_source"] = resumo_source
+        campos_extraidos["_pedido_completo_chars"] = len(clean_summary_text(pedido))
+    return {
+        "zeev_instance_id": int(row.get("id") or 0),
+        "zeev_uid": row.get("uid"),
+        "flow_id": flow_id or None,
+        "flow_name": flow.get("name") or row.get("flowName") or row.get("requestName"),
+        "flow_version": flow.get("version") or row.get("flowVersion"),
+        "request_name": row.get("requestName"),
+        "ticket_link": row.get("reportLink") or row.get("reportUrl"),
+        "confirmation_code": row.get("confirmationCode"),
+        "start_date_time": row.get("startDateTime"),
+        "end_date_time": row.get("endDateTime"),
+        "last_finished_task_date_time": row.get("lastFinishedTaskDateTime"),
+        "active": row.get("active"),
+        "flow_result": row.get("flowResult") or "",
+        "capex_field_name": "manual_codex",
+        "capex_field_value": "Sim - inclusao manual",
+        "requester_name": ((row.get("requester") or {}).get("name")) or "",
+        "requester_email": ((row.get("requester") or {}).get("email")) or "",
+        "requester_username": ((row.get("requester") or {}).get("username")) or "",
+        "requester_team": (((row.get("requester") or {}).get("team") or {}).get("name")) or "",
+        "etapa_atual": task_label(atual),
+        "passou_conferir_entrega": bool(ready),
+        "pronto_valor_final": bool(compra and ready),
+        "valor": valor or None,
+        "valor_final": valor_final,
+        "valor_status": "final" if valor_final else ("em_aprovacao" if compra and valor else ("estimado" if valor else "nao_encontrado")),
+        "unidade": field_value(fields, ["unidadeEscolar", "unidade", "escola", "filial", "localEntrega"]) or clean_unit(field_value(fields, ["centroDeCusto", "centroCusto"])) or None,
+        "marca": field_value(fields, ["marca"]) or None,
+        "pedido": pedido or None,
+        "categoria_capex": field_value(fields, ["categoriaCompra", "categoria", "tipoCompra"]) or None,
+        "fonte": "UNIDADE",
+        "setor": "FINANCEIRO" if financeiro else "COMPRAS",
+        "situacao_sugerida": situacao,
+        "realizado_sugerido": realizado,
+        "raw_fields": fields,
+        "raw_instance": row,
+        "raw_tasks": tasks,
+        "itens_json": itens,
+        "pagamento_json": {
+            "forma": field_value_by_priority(fields, ["formaDePagamento", "formaPagamento", "condicaoPagamento"]) or None,
+            "data_pagamento": field_value(fields, ["dataPagamento"]) or None,
+            "previsao_pagamento": field_value_by_priority(fields, ["previsaoPagamento", "dataDeVencimento", "dataVencimento"]) or None,
+            "data_entrega": field_value(fields, ["dataEntrega", "prazoEntrega"]) or None,
+            "nota_fiscal": field_value(fields, ["notaFiscal", "numeroNF", "numeroNotaFiscal"]) or None,
+            "chave_acesso": field_value(fields, ["chaveAcesso"]) or None,
+            "valor_total": valor or None,
+        },
+        "campos_extraidos": campos_extraidos,
+        "enrichment_errors": list(row.get("__enrichmentErrors") or []),
+    }
+
+
 def sync(start, end, flows, max_pages, page_size):
     tickets = {}
     for flow_id in flows:
@@ -1967,7 +2042,7 @@ def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest
     return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
 
 
-def sync_ids(instance_ids):
+def sync_ids(instance_ids, allow_non_capex=False, reason=""):
     tickets = {}
     for instance_id in parse_ticket_ids(instance_ids):
         try:
@@ -1976,6 +2051,8 @@ def sync_ids(instance_ids):
             row.setdefault("id", instance_id)
             enriched = enrich_instance(row)
             ticket = build_ticket(enriched)
+            if not ticket and allow_non_capex:
+                ticket = generic_ticket_from_instance(enriched, reason=reason)
             if ticket:
                 tickets[ticket["zeev_instance_id"]] = ticket
         except Exception as exc:
@@ -2325,10 +2402,16 @@ def register_capex_items():
 def force_pending_ticket():
     ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     reason = os.environ.get("ZEEV_FORCE_PENDING_REASON") or "Erro da solicitante: ticket deve ser tratado como CAPEX."
+    tickets = sync_ids(ids, allow_non_capex=True, reason=reason)
+    fetched = {int(t.get("zeev_instance_id") or 0) for t in tickets if t.get("zeev_instance_id")}
+    missing = [ticket_id for ticket_id in ids if ticket_id not in fetched]
     payload = {
         "mode": "force-pending-ticket",
         "ticketIds": ",".join(str(x) for x in ids),
         "reason": reason,
+        "tickets": tickets,
+        "directZeevRead": True,
+        "directReadMissingIds": missing,
     }
     if ZEEV_TOKEN:
         payload["zeevToken"] = ZEEV_TOKEN
