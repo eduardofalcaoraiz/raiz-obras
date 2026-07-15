@@ -2235,6 +2235,93 @@ def register_obra_payments():
     return out
 
 
+def register_capex_items():
+    ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
+    unidade = (
+        os.environ.get("ZEEV_TARGET_UNIDADE")
+        or os.environ.get("ZEEV_TARGET_ESCOLA")
+        or os.environ.get("ZEEV_CAPEX_UNIDADE")
+        or ""
+    )
+    ano = os.environ.get("ZEEV_TARGET_ANO") or os.environ.get("ZEEV_CAPEX_ANO") or ""
+    batch_size = max(1, min(int(os.environ.get("ZEEV_REGISTER_BATCH", "1")), 4))
+    file_limit = max(0, min(int(os.environ.get("ZEEV_REGISTER_FILE_LIMIT", "2")), 4))
+    out = {
+        "ok": True,
+        "mode": "register-capex-items",
+        "requested": ids,
+        "targetUnidade": unidade,
+        "targetAno": ano,
+        "batchSize": batch_size,
+        "inserted": [],
+        "skipped": [],
+        "errors": [],
+        "docsAttached": 0,
+        "calls": 0,
+    }
+
+    def call_chunk(chunk, current_file_limit):
+        payload = {
+            "mode": "register-capex-items",
+            "ticketIds": ",".join(str(x) for x in chunk),
+            "unidadeName": unidade,
+            "ano": ano,
+            "fileLimit": current_file_limit,
+        }
+        if ZEEV_TOKEN:
+            payload["zeevToken"] = ZEEV_TOKEN
+        add_document_options(payload)
+        return request_json(
+            "POST",
+            f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+            headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+            payload=payload,
+            timeout=240,
+            retries=0,
+        )
+
+    def merge_result(result):
+        out["calls"] += 1
+        for key in ("inserted", "skipped", "errors"):
+            if isinstance(result.get(key), list):
+                out[key].extend(result.get(key))
+        out["docsAttached"] += int(result.get("docsAttached", 0) or 0)
+        if result.get("unidade"):
+            out["unidade"] = result.get("unidade")
+        if result.get("ano"):
+            out["ano"] = result.get("ano")
+
+    def run_chunk(chunk, current_file_limit=None):
+        if current_file_limit is None:
+            current_file_limit = file_limit
+        try:
+            merge_result(call_chunk(chunk, current_file_limit))
+        except Exception as exc:
+            msg = str(exc)
+            if ("WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg) and len(chunk) > 1:
+                mid = max(1, len(chunk) // 2)
+                run_chunk(chunk[:mid], current_file_limit)
+                run_chunk(chunk[mid:], current_file_limit)
+                return
+            if ("WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg) and current_file_limit > 0:
+                out["errors"].append({"tr": chunk[0] if chunk else None, "fileLimit": current_file_limit, "recoverable": True, "retrying": True, "error": msg[:700]})
+                run_chunk(chunk, max(0, current_file_limit // 2))
+                return
+            if "WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg:
+                out["ok"] = False
+                out["errors"].append({"tr": chunk[0] if chunk else None, "fileLimit": current_file_limit, "recoverable": False, "error": msg[:700]})
+                return
+            raise
+
+    for i in range(0, len(ids), batch_size):
+        run_chunk(ids[i:i + batch_size])
+        time.sleep(float(os.environ.get("ZEEV_REGISTER_PAUSE_SECONDS", "1")))
+
+    if len(out["errors"]) > 80:
+        out["errors"] = out["errors"][:80]
+    return out
+
+
 def refresh_payment_statuses():
     ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
     target_ids = parse_ticket_ids(ticket_ids)
@@ -2351,6 +2438,10 @@ def main():
         return
     if mode in {"register-obra-payments", "register-obra", "obra-payments"}:
         result = register_obra_payments()
+        print(json.dumps(result, ensure_ascii=False))
+        return
+    if mode in {"register-capex-items", "register-capex", "capex-items"}:
+        result = register_capex_items()
         print(json.dumps(result, ensure_ascii=False))
         return
     if mode in {"refresh-payment-statuses", "refresh-payments", "payment-statuses"}:
