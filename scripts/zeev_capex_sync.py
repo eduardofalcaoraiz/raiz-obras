@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 ZEEV_BASE_URL = os.environ.get("ZEEV_BASE_URL", "https://raizeducacao.zeev.it").rstrip("/")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://hjccxfznojjosvanwztv.supabase.co").rstrip("/")
 ZEEV_TOKEN = os.environ.get("ZEEV_TOKEN", "")
+ZEEV_EXTRA_TOKENS = os.environ.get("ZEEV_EXTRA_TOKENS", "")
 ZEEV_SYNC_SECRET = os.environ.get("ZEEV_SYNC_SECRET", "")
 
 
@@ -298,6 +299,55 @@ def env_list(value):
     return [x.strip() for x in re.split(r"[\n,;|]+", str(value or "")) if x.strip()]
 
 
+BAD_ZEEV_TOKENS = set()
+
+
+def zeev_tokens():
+    out = []
+    for raw in (ZEEV_TOKEN, ZEEV_EXTRA_TOKENS, os.environ.get("ZEEV_EXTRA_TOKENS", "")):
+        for token in env_list(raw):
+            if token and token not in out:
+                out.append(token)
+    return out
+
+
+def has_zeev_token():
+    return bool(zeev_tokens())
+
+
+def form_fields_present(data):
+    if isinstance(data, dict):
+        return bool(data.get("formFields"))
+    if isinstance(data, list):
+        return any(isinstance(row, dict) and bool(row.get("formFields")) for row in data)
+    return False
+
+
+def zeev_fields_requested(url, payload):
+    if "formFieldNames" in str(url):
+        return True
+    if isinstance(payload, dict):
+        fields = payload.get("formFieldNames")
+        return fields is not None and fields != []
+    return False
+
+
+def merge_zeev_rows_by_id(rows):
+    merged = {}
+    anon = 0
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        key = str(row.get("id") or row.get("instanceId") or f"row-{anon}")
+        anon += 1
+        if key not in merged:
+            merged[key] = row
+            continue
+        prev = merged[key]
+        merged[key] = {**prev, **row, "formFields": merge_zeev_fields(prev.get("formFields") or [], row.get("formFields") or [])}
+    return list(merged.values())
+
+
 def parse_money(value):
     if isinstance(value, (int, float)):
         return float(value)
@@ -322,23 +372,56 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
         "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
         **(headers or {}),
     }
+    is_zeev = str(url).startswith(ZEEV_BASE_URL) and str(merged.get("Authorization") or "").lower().startswith("bearer ")
+    requested_fields = is_zeev and zeev_fields_requested(url, payload)
+    merge_token_rows = is_zeev and requested_fields and str(url).rstrip("/").endswith("/api/2/instances/report")
+    token_candidates = [t for t in zeev_tokens() if t and t not in BAD_ZEEV_TOKENS] if is_zeev else [None]
+    if is_zeev and not token_candidates:
+        raise RuntimeError("ZEEV_TOKEN e obrigatorio.")
+
     last_error = None
     attempts = max(1, int(retries) if str(retries).strip() else 1)
-    for attempt in range(attempts):
-        req = urllib.request.Request(url, data=body, method=method, headers=merged)
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                raw = resp.read().decode("utf-8", errors="replace")
-                return json.loads(raw) if raw else {}
-        except urllib.error.HTTPError as exc:
-            text = exc.read().decode("utf-8", errors="replace")
-            last_error = RuntimeError(f"{method} {url} -> HTTP {exc.code}: {text}")
-            if exc.code not in (429, 500, 502, 503, 504, 546):
-                raise last_error
-        except Exception as exc:
-            last_error = exc
-        if attempt < attempts - 1:
-            time.sleep(2 + attempt * 3)
+    collected_rows = []
+    fallback_data = None
+    fallback_set = False
+    for token_index, token in enumerate(token_candidates):
+        current_headers = dict(merged)
+        if token:
+            current_headers["Authorization"] = f"Bearer {token}"
+        for attempt in range(attempts):
+            req = urllib.request.Request(url, data=body, method=method, headers=current_headers)
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    raw = resp.read().decode("utf-8", errors="replace")
+                    data = json.loads(raw) if raw else {}
+                    if merge_token_rows:
+                        collected_rows.extend(data if isinstance(data, list) else [data])
+                        last_error = None
+                        break
+                    if requested_fields and not form_fields_present(data) and token_index < len(token_candidates) - 1:
+                        if not fallback_set:
+                            fallback_data = data
+                            fallback_set = True
+                        last_error = None
+                        break
+                    return data
+            except urllib.error.HTTPError as exc:
+                text = exc.read().decode("utf-8", errors="replace")
+                last_error = RuntimeError(f"{method} {url} -> HTTP {exc.code}: {text}")
+                if is_zeev and exc.code == 401 and token:
+                    BAD_ZEEV_TOKENS.add(token)
+                if is_zeev and exc.code in (401, 403):
+                    break
+                if exc.code not in (429, 500, 502, 503, 504, 546):
+                    raise last_error
+            except Exception as exc:
+                last_error = exc
+            if attempt < attempts - 1:
+                time.sleep(2 + attempt * 3)
+    if merge_token_rows and collected_rows:
+        return merge_zeev_rows_by_id(collected_rows)
+    if fallback_set:
+        return fallback_data
     if isinstance(last_error, BaseException):
         raise last_error
     raise RuntimeError(f"{method} {url} falhou sem resposta detalhada.")
@@ -653,7 +736,7 @@ def report_fields_from_html(raw_html):
 
 def fetch_report_link_fields(report_link):
     link = str(report_link or "").strip()
-    if not link or not ZEEV_TOKEN:
+    if not link or not has_zeev_token():
         return [], {}
     url = link if link.startswith("http") else f"{ZEEV_BASE_URL.rstrip('/')}/{'/' if not link.startswith('/') else ''}{link}"
     status, ctype, text = fetch_text_for_source(url)
@@ -1332,7 +1415,7 @@ def sync(start, end, flows, max_pages, page_size):
 
 
 def read_test():
-    if not ZEEV_TOKEN:
+    if not has_zeev_token():
         raise SystemExit("ZEEV_TOKEN e obrigatorio.")
     start = os.environ.get("ZEEV_SYNC_START") or "2026-01-01T00:00:00-03:00"
     end = os.environ.get("ZEEV_SYNC_END") or datetime.now(business_tz()).isoformat(timespec="seconds")
@@ -1434,22 +1517,31 @@ def doc_value_meta(value):
 def http_probe(url, method="GET", payload=None):
     timeout = max(5, min(int(os.environ.get("ZEEV_INSPECT_HTTP_TIMEOUT_SECONDS", "15")), 45))
     body = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    headers = {
-        "Authorization": f"Bearer {ZEEV_TOKEN}",
+    base_headers = {
         "Accept": "application/json,text/html,*/*",
         "Content-Type": "application/json",
         "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
     }
-    req = urllib.request.Request(url, data=body, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as res:
-            raw = res.read()
-            status = res.status
-            ctype = res.headers.get("Content-Type", "")
-    except urllib.error.HTTPError as exc:
-        raw = exc.read()
-        status = exc.code
-        ctype = exc.headers.get("Content-Type", "")
+    raw = b""
+    status = 0
+    ctype = ""
+    for token in zeev_tokens() or [""]:
+        headers = dict(base_headers)
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as res:
+                raw = res.read()
+                status = res.status
+                ctype = res.headers.get("Content-Type", "")
+                break
+        except urllib.error.HTTPError as exc:
+            raw = exc.read()
+            status = exc.code
+            ctype = exc.headers.get("Content-Type", "")
+            if status not in (401, 403):
+                break
     text = raw.decode("utf-8", errors="replace")
     urls = re.findall(r"https?://[^\s\"'<>),;]+", text)
     hrefs = re.findall(r"""(?i)(?:href|src)=["']([^"']+)["']""", text)
@@ -1522,19 +1614,26 @@ def source_matches(label, url, text, limit=12):
 
 def fetch_text_for_source(url):
     timeout = max(5, min(int(os.environ.get("ZEEV_INSPECT_HTTP_TIMEOUT_SECONDS", "15")), 45))
-    headers = {
-        "Authorization": f"Bearer {ZEEV_TOKEN}",
+    base_headers = {
         "Accept": "text/html,application/javascript,text/javascript,application/json,*/*",
         "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
     }
-    req = urllib.request.Request(url, headers=headers, method="GET")
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as res:
-            raw = res.read()
-            return res.status, res.headers.get("Content-Type", ""), raw.decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as exc:
-        raw = exc.read()
-        return exc.code, exc.headers.get("Content-Type", ""), raw.decode("utf-8", errors="replace")
+    last = (0, "", "")
+    for token in zeev_tokens() or [""]:
+        headers = dict(base_headers)
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as res:
+                raw = res.read()
+                return res.status, res.headers.get("Content-Type", ""), raw.decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as exc:
+            raw = exc.read()
+            last = (exc.code, exc.headers.get("Content-Type", ""), raw.decode("utf-8", errors="replace"))
+            if exc.code not in (401, 403):
+                return last
+    return last
 
 
 def inspect_report_source(report_link, instance_id):
@@ -1606,7 +1705,7 @@ def inspect_report_source(report_link, instance_id):
 
 
 def inspect_docs():
-    if not ZEEV_TOKEN:
+    if not has_zeev_token():
         raise SystemExit("ZEEV_TOKEN e obrigatorio.")
     ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     if not ids:
@@ -1884,6 +1983,9 @@ def sync_ids(instance_ids):
 
 
 def add_document_options(payload):
+    extra_tokens = os.environ.get("ZEEV_EXTRA_TOKENS", "").strip() or ZEEV_EXTRA_TOKENS.strip()
+    if extra_tokens:
+        payload["zeevExtraTokens"] = extra_tokens
     extra_fields = os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "").strip()
     if extra_fields:
         payload["extraDocumentFields"] = extra_fields
@@ -2248,7 +2350,7 @@ def main():
         result = refresh_payment_statuses()
         print(json.dumps(result, ensure_ascii=False))
         return
-    if not ZEEV_TOKEN:
+    if not has_zeev_token():
         raise SystemExit("ZEEV_TOKEN e obrigatorio.")
     if mode in {"backfill-docs", "docs-backfill", "backfill"}:
         result = backfill_docs()
