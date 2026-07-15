@@ -57,6 +57,11 @@ FINANCE_DESCRIPTION_FIELDS = [
     "informacao",
     "Informacoes referentes a solicitacao",
     "Informacao referente a solicitacao",
+    "Informa\u00e7\u00f5es referentes \u00e0 solicita\u00e7\u00e3o",
+    "Informa\u00e7\u00f5es referentes a solicita\u00e7\u00e3o",
+    "Informacoes referentes \u00e0 solicita\u00e7\u00e3o",
+    "Informa\u00e7\u00f5es",
+    "Informações",
 ]
 
 PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
@@ -66,6 +71,12 @@ PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
     "descricaoServicoSolicitado",
     "descricaoServicoCompra",
     "descricao do servico",
+    "Descri\u00e7\u00e3o",
+    "Descricao",
+    "Desc do Servi\u00e7o",
+    "Desc do Servico",
+    "Descri\u00e7\u00e3o do Servi\u00e7o",
+    "Descricao do Servico",
 ]
 
 PURCHASE_JUSTIFICATION_FIELDS = [
@@ -105,6 +116,9 @@ PURCHASE_ITEM_DESCRIPTION_FIELDS = [
     "listaParaCotacao",
     "lista de itens para cotacao",
     "lista para cotacao",
+    "Lista para cota\u00e7\u00e3o",
+    "Item / Medicamento",
+    "Item",
 ]
 
 DEFAULT_CAPEX_FIELDS = {
@@ -124,7 +138,7 @@ CAPEX_FIELD_CANDIDATES = [
 ]
 
 VALUE_TOTAL_FIELDS = [
-    "valorTotalDoPagamento", "valor total do pagamento", "Valor total do pagamento",
+    "valorTotalDoPagamento", "valor total do pagamento", "Valor total do pagamento", "Valor total do pagamento *",
     "valorTotalPagamento", "valor total pagamento",
     "valorFinal", "valor final", "valor final da compra", "valor final do pedido",
     "valorTotal", "valor total", "valor total da compra", "valor total do pedido",
@@ -142,6 +156,7 @@ VALUE_TOTAL_FIELDS = [
     "valor do documento", "valorLancamento", "valor lancamento", "valor do lançamento",
     "valorBruto", "valor bruto", "valorLiquido", "valor liquido",
     "totalPagamento", "total do pagamento", "totalAPagar", "total a pagar",
+    "Total dos itens", "Total dos itens *", "Total das parcelas", "Total das parcelas *", "Total do pag.",
     "valorParcela", "valor da parcela",
 ]
 
@@ -167,6 +182,17 @@ ITEM_DESC_FIELDS = [
 
 ITEM_QTY_FIELDS = ["quantidade", "quantidade solicitada", "quantidadeSolicitada", "qtd", "qtde"]
 ITEM_UNIT_MEASURE_FIELDS = ["unidadeMedida", "unidade medida", "unidade", "un"]
+FISCAL_NUMBER_FIELDS = ["numeroNF", "numeroNotaFiscal", "n\u00famero", "numero", "N\u00famero", "Numero"]
+ISSUE_DATE_FIELDS = ["dataEmissao", "data de emissao", "data de emiss\u00e3o", "Data de emiss\u00e3o", "Data de emiss\u00e3o *"]
+DESTINATION_UNIT_FIELDS = [
+    "Unidade / Filial", "Unidade / Filial *", "Unidade / Filial de destino",
+    "Unidade / Filial de destino *", "Filial/unidade de destino",
+    "Filial/unidade de destino *", "Filial Solic.", "Filial Dest.",
+]
+COMPANY_FIELDS = [
+    "Coligada", "Coligada *", "Coligada de destino", "Coligada de destino *",
+    "Col. Solic.", "Col. Dest.",
+]
 
 DOCUMENT_FIELDS = [
     "anexo", "anexos", "arquivo", "arquivos", "Arquivo", "Arquivos",
@@ -198,21 +224,27 @@ PURCHASE_FIELDS = [
     "dataEntrega", "prazoEntrega", "unidade", "unidadeEscolar", "escola", "filial", "marca",
     "localEntrega", "solicitante", "setor", "departamento", "categoria", "categoriaCompra",
     "tipoCompra", "numeroTR", "ticket", "tr", "notaFiscal", "numeroNF", "numeroNotaFiscal",
-    "valorNotaFiscal", "chaveAcesso", *DOCUMENT_FIELDS,
+    "valorNotaFiscal", "chaveAcesso", "Informe a chave de acesso", *DOCUMENT_FIELDS,
     *PURCHASE_SERVICE_DESCRIPTION_FIELDS, *PURCHASE_ITEM_DESCRIPTION_FIELDS,
+    *DESTINATION_UNIT_FIELDS, *COMPANY_FIELDS,
 ]
 
 FINANCE_FIELDS = [
     "investimentoCAPEX", "valorTotalDoPagamento", "valorTotalPagamento", "valor", "valorTotal", "valorSolicitado", "valorPagamento",
     "valorAPagar", "valorAprovado", "precoUnitario", "dataPagamento", "previsaoPagamento", "dataVencimento", "dataDeVencimento",
-    "formaPagamento", "formaDePagamento", "condicaoPagamento", "favorecido", "beneficiario", "fornecedor",
+    "Data de vencimento", "Data de vencimento *", "Data de vencimento extra\u00edda", *ISSUE_DATE_FIELDS,
+    "formaPagamento", "formaDePagamento", "Forma de pagamento", "Forma de pagamento *",
+    "Condi\u00e7\u00e3o de pagamento", "Condi\u00e7\u00e3o de pagamento *",
+    "condicaoPagamento", "favorecido", "beneficiario", "fornecedor", "Fornecedor", "Fornecedor *",
     "nomeFornecedor", "razaoSocial", "cnpj", "cnpjFornecedor", "centroDeCusto", "centroCusto",
-    "unidade", "unidadeEscolar", "escola", "filial", "marca", "descricao",
+    "Centro de Custo", "Centro de Custo *", "unidade", "unidadeEscolar", "escola", "filial", "marca", "descricao",
+    "Descri\u00e7\u00e3o da Nota Fiscal", "Descri\u00e7\u00e3o da Nota Fiscal *",
     "descricaoSolicitacao", "solicitacao", "pedido", "objeto", "resumo", "justificativa",
     "observacao", "observacoes", "categoria", "categoriaFinanceira", "setor", "departamento",
-    "numeroTR", "ticket", "tr", "notaFiscal", "numeroNF", "numeroNotaFiscal",
-    "valorNotaFiscal", "chaveAcesso", *DOCUMENT_FIELDS,
+    "numeroTR", "ticket", "tr", "notaFiscal", "numeroNF", "numeroNotaFiscal", *FISCAL_NUMBER_FIELDS,
+    "valorNotaFiscal", "chaveAcesso", "Informe a chave de acesso", *DOCUMENT_FIELDS,
     *FINANCE_DESCRIPTION_FIELDS,
+    *DESTINATION_UNIT_FIELDS, *COMPANY_FIELDS,
 ]
 
 
