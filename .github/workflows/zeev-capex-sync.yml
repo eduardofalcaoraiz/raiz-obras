@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "incremental, retro, deep-incremental, deep-retro, read-test, inspect-docs, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket ou refresh-payment-statuses"
+        description: "incremental, retro, deep-incremental, deep-retro, read-test, inspect-docs, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket ou refresh-payment-statuses"
         required: true
         default: "deep-incremental"
       start:
