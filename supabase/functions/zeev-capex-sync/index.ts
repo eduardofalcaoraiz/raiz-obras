@@ -2235,9 +2235,28 @@ async function runIngest(input: AnyRecord) {
   const existing = await getExisting(normalized.map((t: AnyRecord) => Number(t.zeev_instance_id)))
   const saved = await upsertTickets(normalized)
   const reconcile = await reconcileRegisteredTickets(normalized)
+  const directDocTicketIds = normalized
+    .filter((ticket: AnyRecord) => hasEmbeddedDownloadedDocs(ticket))
+    .map((ticket: AnyRecord) => Number(ticket.zeev_instance_id))
+    .filter(Boolean)
   const newCount = normalized.filter((t: AnyRecord) => !existing.has(Number(t.zeev_instance_id))).length
   const email = input.notify === true ? await notifyNewTickets(normalized, existing) : { notified: [], failed: [] }
-  const backfill = finalIngest && ingestBackfillLimit ? await runBackfillDocs({ limit: ingestBackfillLimit, fileLimit: 2, refresh: false, includePayments: true, includeCapex: true }) : null
+  const directDocBackfill = finalIngest && directDocTicketIds.length
+    ? await runBackfillDocs({
+      ticketIds: directDocTicketIds.join(','),
+      limit: Math.min(Math.max(directDocTicketIds.length * 3, ingestBackfillLimit || 1), 60),
+      fileLimit: Math.max(1, Math.min(Number(input.directDocFileLimit || input.fileLimit || env('ZEEV_BACKFILL_FILE_LIMIT', '3')), 8)),
+      refresh: false,
+      includePending: true,
+      includePayments: true,
+      includeCapex: true,
+    })
+    : null
+  const scheduledBackfill = finalIngest && ingestBackfillLimit ? await runBackfillDocs({ limit: ingestBackfillLimit, fileLimit: 2, refresh: false, includePayments: true, includeCapex: true }) : null
+  const backfill = directDocBackfill && scheduledBackfill
+    ? { directDocs: directDocBackfill, scheduled: scheduledBackfill }
+    : directDocBackfill || scheduledBackfill
+  const directDocCleanup = directDocTicketIds.length ? await clearEmbeddedDownloadedDocs(directDocTicketIds) : null
   await saveState('zeev-capex', {
     running: !finalIngest,
     last_success_at: finalIngest ? new Date().toISOString() : undefined,
@@ -2256,6 +2275,7 @@ async function runIngest(input: AnyRecord) {
     matchedPayments: reconcile.paymentMatched,
     linkedPayments: reconcile.paymentLinked,
     backfill,
+    directDocCleanup,
     notified: email.notified.length,
     emailFailures: email.failed,
     emailWarning: emailWarningText(email, input.notify === true),
@@ -2553,8 +2573,59 @@ function pushZeevDocText(out: AnyRecord[], label: string, value: unknown, source
   for (const url of urls) pushZeevDoc(out, proofLabel || 'documento-fiscal.pdf', url.replace(/[),.;]+$/, ''), '', source)
 }
 
+function embeddedDocArray(ticket: AnyRecord) {
+  const raw = ticket?.raw_instance || ticket?.rawInstance || {}
+  const candidates = [
+    ticket?.__downloaded_docs,
+    ticket?.downloaded_docs,
+    ticket?.zeev_downloaded_docs,
+    raw?.__downloaded_docs,
+    raw?.downloadedDocs,
+    raw?.zeevDownloadedDocs,
+    raw?.directDownloadedDocs,
+  ]
+  for (const value of candidates) {
+    if (Array.isArray(value) && value.length) return value
+  }
+  return []
+}
+
+function hasEmbeddedDownloadedDocs(ticket: AnyRecord) {
+  return embeddedDocArray(ticket).some((doc: AnyRecord) => doc?.base64Content || doc?.url || doc?.fileId)
+}
+
+function stripEmbeddedDownloadedDocs(raw: AnyRecord) {
+  if (!raw || typeof raw !== 'object') return raw
+  const next = { ...raw }
+  for (const key of ['__downloaded_docs', 'downloadedDocs', 'zeevDownloadedDocs', 'directDownloadedDocs']) {
+    if (key in next) delete next[key]
+  }
+  return next
+}
+
+async function clearEmbeddedDownloadedDocs(ticketIds: number[]) {
+  const ids = [...new Set(ticketIds.map((id) => Number(id)).filter(Boolean))]
+  if (!ids.length) return { checked: 0, cleaned: 0 }
+  const rows = await rest(`/capex_zeev_solicitacoes?select=id,zeev_instance_id,raw_instance&zeev_instance_id=in.(${ids.join(',')})&limit=${ids.length}`)
+  let cleaned = 0
+  for (const row of rows || []) {
+    const raw = row?.raw_instance
+    if (!raw || typeof raw !== 'object' || !hasEmbeddedDownloadedDocs({ raw_instance: raw })) continue
+    await rest(`/capex_zeev_solicitacoes?id=eq.${Number(row.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ raw_instance: stripEmbeddedDownloadedDocs(raw) }),
+    })
+    cleaned++
+  }
+  return { checked: (rows || []).length, cleaned }
+}
+
 function zeevDocsFromTicket(ticket: AnyRecord) {
   const docs: AnyRecord[] = []
+  for (const doc of embeddedDocArray(ticket)) {
+    pushZeevDocValue(docs, doc?.name || 'documento-fiscal.pdf', doc, doc?.source || 'github-direct')
+  }
   const rows = Array.isArray(ticket?.raw_fields) ? ticket.raw_fields : Array.isArray(ticket?.rawFields) ? ticket.rawFields : []
   for (const f of rows || []) {
     if (!f || typeof f !== 'object') continue
@@ -2594,7 +2665,7 @@ function zeevDocsFromTicket(ticket: AnyRecord) {
   }
   const instance = ticket?.raw_instance || ticket?.rawInstance || {}
   if (instance && typeof instance === 'object') {
-    for (const key of ['files', 'attachments', 'documents', 'docs', 'instanceFiles', 'requestFiles', 'formFields', 'instanceTasks']) {
+    for (const key of ['__downloaded_docs', 'downloadedDocs', 'zeevDownloadedDocs', 'directDownloadedDocs', 'files', 'attachments', 'documents', 'docs', 'instanceFiles', 'requestFiles', 'formFields', 'instanceTasks']) {
       if (Array.isArray(instance[key]) && objectFileHints({ [key]: instance[key] })) {
         pushZeevDocValue(docs, key, instance[key], `raw_instance.${key}`)
       }
@@ -3232,11 +3303,12 @@ function docsCandidateScore(row: AnyRecord) {
 }
 
 async function runBackfillDocs(input: AnyRecord = {}) {
-  const limit = Math.max(1, Math.min(Number(input.limit || 4), 10))
+  const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+  const limitMax = targetTicketIds.length ? 80 : 10
+  const limit = Math.max(1, Math.min(Number(input.limit || 4), limitMax))
   const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || 3), 8))
   const refresh = input.refresh !== false
   const staleHours = Math.max(1, Math.min(Number(input.staleHours || 8), 168))
-  const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const targetSet = new Set(targetTicketIds.map((id) => String(id)))
   const includePending = input.includePending !== false
   const includePayments = input.includePayments !== false
@@ -3347,6 +3419,54 @@ async function runBackfillDocs(input: AnyRecord = {}) {
 
   if (out.errors.length > 25) out.errors = out.errors.slice(0, 25)
   return out
+}
+
+async function runDocRescueCandidates(input: AnyRecord = {}) {
+  const explicitIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+  const limit = Math.max(1, Math.min(Number(input.limit || input.backfillLimit || input.backfill_limit || 40), 160))
+  const staleHours = Math.max(1, Math.min(Number(input.staleHours || input.stale_hours || 8), 720))
+  const includePending = input.includePending !== false
+  const includePayments = input.includePayments !== false
+  const includeCapex = input.includeCapex !== false
+  const ids = new Set<string>()
+  const sources: Record<string, number> = { pending: 0, payments: 0, capex: 0 }
+  const add = (value: unknown, source: keyof typeof sources) => {
+    const key = ticketDigits(value)
+    if (!key || ids.size >= limit) return
+    ids.add(key)
+    sources[source]++
+  }
+  if (explicitIds.length) {
+    for (const id of explicitIds) add(id, 'pending')
+    return { ok: true, mode: 'doc-rescue-candidates', explicit: true, ticketIds: [...ids].map(Number), sources }
+  }
+  if (includePending && ids.size < limit) {
+    const rows = await rest(`/capex_zeev_solicitacoes?select=id,zeev_instance_id,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst&limit=${Math.max(40, limit * 3)}`)
+    for (const row of rows || []) {
+      if (ids.size >= limit) break
+      if (normalizeStoredDocs(row).length && !docsCheckIsStale(row, staleHours)) continue
+      add(row.zeev_instance_id, 'pending')
+    }
+  }
+  if (includePayments && ids.size < limit) {
+    const rows = await rest(`/pagamentos?select=id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at&ticket_raiz=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst,id.asc&limit=${Math.max(60, limit * 4)}`)
+    for (const row of rows || []) {
+      if (ids.size >= limit) break
+      if (normalizeStoredDocs(row).length && !docsCheckIsStale(row, staleHours)) continue
+      add(row.ticket_raiz, 'payments')
+    }
+  }
+  if (includeCapex && ids.size < limit) {
+    const rows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at&order=zeev_docs_checked_at.asc.nullsfirst,id.asc&limit=${Math.max(60, limit * 4)}`)
+    for (const row of rows || []) {
+      if (ids.size >= limit) break
+      const tr = row.ticket_raiz_instance_id || row.referencia
+      if (!ticketDigits(tr)) continue
+      if (normalizeStoredDocs(row).length && !docsCheckIsStale(row, staleHours)) continue
+      add(tr, 'capex')
+    }
+  }
+  return { ok: true, mode: 'doc-rescue-candidates', ticketIds: [...ids].map(Number), sources, limit, staleHours }
 }
 
 function paymentIsOverdue(row: AnyRecord) {
@@ -4092,6 +4212,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'backfill-docs') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await runBackfillDocs(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'doc-rescue-candidates') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await runDocRescueCandidates(input || {})
       return json(out)
     }
     if (input?.mode === 'refresh-payment-statuses') {
