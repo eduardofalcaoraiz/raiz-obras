@@ -392,6 +392,7 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
         if token:
             current_headers["Authorization"] = f"Bearer {token}"
         for attempt in range(attempts):
+            retry_delay = None
             req = urllib.request.Request(url, data=body, method=method, headers=current_headers)
             try:
                 with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -415,12 +416,14 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
                     BAD_ZEEV_TOKENS.add(token)
                 if is_zeev and exc.code in (401, 403):
                     break
-                if exc.code not in (429, 500, 502, 503, 504, 546):
+                if exc.code in (520, 522, 524):
+                    retry_delay = 60
+                if exc.code not in (429, 500, 502, 503, 504, 520, 522, 524, 546):
                     raise last_error
             except Exception as exc:
                 last_error = exc
             if attempt < attempts - 1:
-                time.sleep(2 + attempt * 3)
+                time.sleep(retry_delay or (2 + attempt * 3))
     if merge_token_rows and collected_rows:
         return merge_zeev_rows_by_id(collected_rows)
     if fallback_set:
@@ -428,6 +431,15 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
     if isinstance(last_error, BaseException):
         raise last_error
     raise RuntimeError(f"{method} {url} falhou sem resposta detalhada.")
+
+
+def is_transient_http_error(message):
+    text = str(message or "")
+    return any(token in text for token in [
+        "HTTP 429", "HTTP 500", "HTTP 502", "HTTP 503", "HTTP 504",
+        "HTTP 520", "HTTP 522", "HTTP 524", "HTTP 546",
+        "unknown_origin_error", "Cloudflare", "WORKER_RESOURCE_LIMIT",
+    ])
 
 
 def capex_fields(flow_id=None):
@@ -2693,7 +2705,18 @@ def rescue_docs_loop():
         if time.time() - started > max_seconds:
             out["timeLimitReached"] = True
             break
-        result = rescue_docs()
+        try:
+            result = rescue_docs()
+        except Exception as exc:
+            msg = str(exc)
+            out["errors"].append({"round": round_idx + 1, "transient": is_transient_http_error(msg), "error": msg[:700]})
+            if is_transient_http_error(msg) and time.time() - started < max_seconds:
+                out.setdefault("transientRetries", 0)
+                out["transientRetries"] += 1
+                time.sleep(float(os.environ.get("ZEEV_DOC_RESCUE_TRANSIENT_PAUSE_SECONDS", "60")))
+                continue
+            out["ok"] = False
+            break
         out["rounds"] += 1
         out["processed"] += int(result.get("processed", 0) or 0)
         out["ingested"] += int(result.get("ingested", 0) or 0)
