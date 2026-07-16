@@ -255,6 +255,9 @@ const DOCUMENT_FIELDS = [
   'arquivos',
   'Arquivo',
   'Arquivos',
+  'anexarNotaFiscal',
+  'anexarBoletoAVista',
+  'anexarBoletoParcelado',
   'arquivoNF',
   'arquivo NF',
   'arquivoNf',
@@ -349,6 +352,7 @@ const PURCHASE_ENRICH_FIELDS = [
   'qtd',
   'unidadeMedida',
   'valorTotalDoPagamento',
+  'valorTotalDoPagamento01',
   'valorTotalPagamento',
   'valor',
   'valorTotal',
@@ -370,7 +374,10 @@ const PURCHASE_ENRICH_FIELDS = [
   'fornecedor',
   'nomeFornecedor',
   'razaoSocial',
+  'cgc',
   'cnpjFornecedor',
+  'cnpjCpfDoFornecedor',
+  'cnpjDoFornecedor',
   'fornecedorEscolhido',
   'condicaoPagamento',
   'formaPagamento',
@@ -396,9 +403,12 @@ const PURCHASE_ENRICH_FIELDS = [
   'tr',
   'notaFiscal',
   'numeroNF',
+  'numeroDaNF',
+  'serieDaNF',
   'numeroNotaFiscal',
   'valorNotaFiscal',
   'chaveAcesso',
+  'chaveDeAcesso',
   'Informe a chave de acesso',
   ...DOCUMENT_FIELDS,
   ...PURCHASE_SERVICE_DESCRIPTION_FIELDS,
@@ -410,6 +420,7 @@ const PURCHASE_ENRICH_FIELDS = [
 const FINANCE_ENRICH_FIELDS = [
   'investimentoCAPEX',
   'valorTotalDoPagamento',
+  'valorTotalDoPagamento01',
   'valorTotalPagamento',
   'valor',
   'valorTotal',
@@ -441,8 +452,10 @@ const FINANCE_ENRICH_FIELDS = [
   'nomeFornecedor',
   'razaoSocial',
   'cnpj',
+  'cgc',
   'cnpjFornecedor',
   'centroDeCusto',
+  'codigoDoCentroDeCusto',
   'centroCusto',
   'Centro de Custo',
   'Centro de Custo *',
@@ -471,10 +484,13 @@ const FINANCE_ENRICH_FIELDS = [
   'tr',
   'notaFiscal',
   'numeroNF',
+  'numeroDaNF',
+  'serieDaNF',
   'numeroNotaFiscal',
   ...FISCAL_NUMBER_FIELDS,
   'valorNotaFiscal',
   'chaveAcesso',
+  'chaveDeAcesso',
   'Informe a chave de acesso',
   ...DOCUMENT_FIELDS,
   ...FINANCE_DESCRIPTION_FIELDS,
@@ -857,9 +873,25 @@ function parseListEnv(value: unknown) {
     .filter(Boolean)
 }
 
-function looksLikeDocumentDesignField(field: AnyRecord) {
+function looksLikeRelevantDesignField(field: AnyRecord) {
   const hay = normKey([field?.name, field?.label, field?.typeName, field?.validationName, field?.groupName].filter(Boolean).join(' '))
-  return /(notafiscal|nfse|nfe|nfs|danfe|xml|pdf|arquivo|anexo|documento|fatura|boleto|comprovante|recibo|pix|file|upload|visualizador)/.test(hay)
+  return /(capex|notafiscal|nfse|nfe|nfs|danfe|xml|pdf|arquivo|anexo|documento|fatura|boleto|comprovante|recibo|pix|file|upload|visualizador|valor|pagamento|parcela|fornecedor|favorecido|beneficiario|razaosocial|cnpj|cpf|cgc|chavedeacesso|numerodanf|numeronf|serie|dataemissao|vencimento|previsao|centrodecusto|codigodocentrodecusto|coligada|unidade|filial|solicitante|email|informacoes|justificativa|descricao|servico|item|produto|material|quantidade|frete)/.test(hay)
+}
+
+function walkJsonObjects(value: unknown): AnyRecord[] {
+  const out: AnyRecord[] = []
+  const visit = (item: unknown) => {
+    if (Array.isArray(item)) {
+      for (const nested of item) visit(nested)
+      return
+    }
+    if (!item || typeof item !== 'object') return
+    const obj = item as AnyRecord
+    out.push(obj)
+    for (const nested of Object.values(obj)) visit(nested)
+  }
+  visit(value)
+  return out
 }
 
 const FLOW_DESIGN_FIELD_CACHE = new Map<number, string[]>()
@@ -879,10 +911,9 @@ async function zeewFlowDesignDocumentFields(flow: number) {
         'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
       },
     })
-    const rows = Array.isArray(data) ? data : Array.isArray(data?.fields) ? data.fields : []
-    const fields = rows
-      .filter((field: AnyRecord) => looksLikeDocumentDesignField(field))
-      .flatMap((field: AnyRecord) => [field?.name, field?.label])
+    const fields = walkJsonObjects(data)
+      .filter((field: AnyRecord) => looksLikeRelevantDesignField(field))
+      .flatMap((field: AnyRecord) => field?.name ? [field?.name, field?.label] : [field?.label])
       .map((value: unknown) => String(value || '').trim())
       .filter(Boolean)
     const unique = [...new Set(fields)]
