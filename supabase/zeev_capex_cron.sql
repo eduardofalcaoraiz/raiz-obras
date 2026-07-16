@@ -11,6 +11,7 @@ declare
 begin
   foreach job in array array[
     'zeev-capex-sync-every-5-min',
+    'zeev-capex-sync-every-10-min',
     'zeev-capex-sync-5min',
     'zeev-capex-sync-flow-299',
     'zeev-capex-sync-flow-275',
@@ -29,8 +30,8 @@ end
 $$;
 
 select cron.schedule(
-  'zeev-capex-sync-every-5-min',
-  '*/5 * * * *',
+  'zeev-capex-sync-every-10-min',
+  '*/10 * * * *',
   $cron$
     select net.http_post(
       url := 'https://hjccxfznojjosvanwztv.supabase.co/functions/v1/zeev-capex-sync',
@@ -42,14 +43,14 @@ select cron.schedule(
       body := jsonb_build_object(
         'mode', 'dispatch',
         'target', 'github',
-        'workflowMode', 'deep-incremental',
+        'workflowMode', 'incremental',
         'businessTimezone', 'America/Sao_Paulo',
-        'flowIds', '299,275,102,300',
-        'maxPages', 12,
+        'flowIds', '299,275,263,102,300',
+        'maxPages', 4,
         'recordsPerPage', 30,
-        'lockTtlMinutes', 75,
+        'lockTtlMinutes', 25,
         'refreshKnownTickets', true,
-        'refreshLimit', 25,
+        'refreshLimit', 18,
         'notify', true,
         'source', 'supabase-pg-cron'
       ),
@@ -73,8 +74,8 @@ select cron.schedule(
         'mode', 'dispatch',
         'target', 'github',
         'workflowMode', 'deep-incremental',
-        'flowIds', '299,275,102,300',
-        'maxPages', 30,
+        'flowIds', '299,275,263,102,300',
+        'maxPages', 16,
         'lockTtlMinutes', 90,
         'refreshKnownTickets', true,
         'refreshLimit', 40,
