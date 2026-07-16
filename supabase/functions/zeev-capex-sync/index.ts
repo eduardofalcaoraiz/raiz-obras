@@ -2323,8 +2323,14 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
     if (!extraTicketIds && syncMode !== 'retro' && input.refreshKnownTickets !== false) {
       extraTicketIds = (await knownTicketRefreshIds(input.refreshLimit || input.backfillLimit || env('ZEEV_GITHUB_REFRESH_LIMIT', '40'), parseFlowIds(flowIds))).join(',')
     }
+    const normalizedMode = normKey(syncMode)
+    const workflowMode = normalizedMode === 'incremental'
+      ? 'incremental'
+      : syncMode === 'retro'
+        ? 'retro'
+        : (syncMode === 'deep-retro' ? 'deep-retro' : 'deep-incremental')
     const workflowInputs: Record<string, string> = {
-      mode: syncMode === 'retro' ? 'retro' : (syncMode === 'deep-retro' ? 'deep-retro' : 'deep-incremental'),
+      mode: workflowMode,
       start: requestedStart,
       end: requestedEnd,
       flow_ids: flowIds,
@@ -2382,8 +2388,13 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
   if (!secret) throw new Error('ZEEV_SYNC_SECRET ausente nos secrets da Supabase.')
   const url = env('ZEEV_BRIDGE_URL', 'https://raiz-obras.vercel.app/api/zeev_capex_sync')
   const syncMode = String(input.workflowMode || input.syncMode || input.mode || 'deep-incremental')
+  const normalizedMode = normKey(syncMode)
   const body = {
-    mode: syncMode === 'retro' ? 'retro' : (syncMode === 'deep-retro' ? 'deep-retro' : 'deep-incremental'),
+    mode: normalizedMode === 'incremental'
+      ? 'incremental'
+      : syncMode === 'retro'
+        ? 'retro'
+        : (syncMode === 'deep-retro' ? 'deep-retro' : 'deep-incremental'),
     start: input.start || '',
     end: input.end || '',
     flowIds: input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','),
