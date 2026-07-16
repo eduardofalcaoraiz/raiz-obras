@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "incremental, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket ou refresh-payment-statuses"
+        description: "incremental, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket ou refresh-payment-statuses"
         required: true
         default: "deep-incremental"
       start:
@@ -70,8 +70,8 @@ on:
         required: false
 
 concurrency:
-  group: zeev-capex-sync-${{ github.event_name == 'schedule' && github.event.schedule == '7,37 * * * *' && 'rescue-docs' || github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || inputs.mode == 'incremental' }}
+  group: zeev-capex-sync-${{ github.event_name == 'workflow_dispatch' && format('manual-{0}', inputs.mode) || github.event.schedule == '7,37 * * * *' && 'scheduled-rescue-docs' || 'scheduled-incremental' }}
+  cancel-in-progress: ${{ (github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental') || (github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *') }}
 
 jobs:
   sync:
@@ -121,6 +121,8 @@ jobs:
           ZEEV_DIRECT_DOC_RESCUE_ENABLED: "1"
           ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT: "2"
           ZEEV_DIRECT_DOC_RESCUE_MAX_BYTES: "5500000"
+          ZEEV_DOC_RESCUE_LOOP_SECONDS: "3000"
+          ZEEV_DOC_RESCUE_LOOP_ROUNDS: "40"
           ZEEV_EXTRA_DOCUMENT_FIELDS: ${{ secrets.ZEEV_EXTRA_DOCUMENT_FIELDS }}
           ZEEV_FILE_DOWNLOAD_URL_TEMPLATE: ${{ secrets.ZEEV_FILE_DOWNLOAD_URL_TEMPLATE }}
           ZEEV_REGISTER_BATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'register-capex-items' && '6' || github.event_name == 'workflow_dispatch' && inputs.mode == 'register-obra-payments' && '3' || '1' }}
