@@ -2239,12 +2239,15 @@ async function runIngest(input: AnyRecord) {
     .filter((ticket: AnyRecord) => hasEmbeddedDownloadedDocs(ticket))
     .map((ticket: AnyRecord) => Number(ticket.zeev_instance_id))
     .filter(Boolean)
+  const docCheckTicketIds = normalized
+    .map((ticket: AnyRecord) => Number(ticket.zeev_instance_id))
+    .filter(Boolean)
   const newCount = normalized.filter((t: AnyRecord) => !existing.has(Number(t.zeev_instance_id))).length
   const email = input.notify === true ? await notifyNewTickets(normalized, existing) : { notified: [], failed: [] }
-  const directDocBackfill = finalIngest && directDocTicketIds.length
+  const directDocBackfill = finalIngest && docCheckTicketIds.length
     ? await runBackfillDocs({
-      ticketIds: directDocTicketIds.join(','),
-      limit: Math.min(Math.max(directDocTicketIds.length * 3, ingestBackfillLimit || 1), 60),
+      ticketIds: docCheckTicketIds.join(','),
+      limit: Math.min(Math.max(docCheckTicketIds.length, ingestBackfillLimit || 1), 80),
       fileLimit: Math.max(1, Math.min(Number(input.directDocFileLimit || input.fileLimit || env('ZEEV_BACKFILL_FILE_LIMIT', '3')), 8)),
       refresh: false,
       includePending: true,
@@ -3311,8 +3314,8 @@ function hasStoredFiscalDoc(row: AnyRecord) {
 }
 
 function shouldRescueDocs(row: AnyRecord, staleHours: number, target: 'payment' | 'pending' | 'capex' | 'generic' = 'generic') {
-  if (target === 'payment' && !hasStoredFiscalDoc(row)) return true
-  if (!normalizeStoredDocs(row).length) return true
+  if (target === 'payment' && !hasStoredFiscalDoc(row)) return docsCheckIsStale(row, staleHours)
+  if (!normalizeStoredDocs(row).length) return docsCheckIsStale(row, staleHours)
   return docsCheckIsStale(row, staleHours)
 }
 
@@ -3461,7 +3464,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
   }
 
   if (includePayments && ids.size < limit) {
-    const rows = await rest(`/pagamentos?select=id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst,id.asc&limit=${Math.max(80, limit * 6)}`)
+    const rows = await restAll('/pagamentos?select=id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst,id.asc')
     for (const row of rows || []) {
       if (ids.size >= limit) break
       if (hasStoredFiscalDoc(row) && !docsCheckIsStale(row, staleHours)) continue
@@ -3470,7 +3473,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
   }
 
   if (includePending && ids.size < limit) {
-    const rows = await rest(`/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst&limit=${Math.max(80, limit * 6)}`)
+    const rows = await restAll('/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst')
     for (const row of rows || []) {
       if (ids.size >= limit) break
       if (!isFinancialZeevRow(row)) continue
@@ -3479,7 +3482,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     }
   }
   if (includeCapex && ids.size < limit) {
-    const rows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at&order=zeev_docs_checked_at.asc.nullsfirst,id.asc&limit=${Math.max(60, limit * 4)}`)
+    const rows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at&order=zeev_docs_checked_at.asc.nullsfirst,id.asc')
     for (const row of rows || []) {
       if (ids.size >= limit) break
       const tr = row.ticket_raiz_instance_id || row.referencia
@@ -3489,7 +3492,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     }
   }
   if (includePayments && ids.size < limit) {
-    const rows = await rest(`/pagamentos?select=id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst,id.asc&limit=${Math.max(60, limit * 4)}`)
+    const rows = await restAll('/pagamentos?select=id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst,id.asc')
     for (const row of rows || []) {
       if (ids.size >= limit) break
       if (!shouldRescueDocs(row, staleHours, 'payment')) continue
@@ -3497,7 +3500,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     }
   }
   if (includePending && ids.size < limit) {
-    const rows = await rest(`/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst&limit=${Math.max(60, limit * 4)}`)
+    const rows = await restAll('/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst')
     for (const row of rows || []) {
       if (ids.size >= limit) break
       if (!shouldRescueDocs(row, staleHours, 'pending')) continue
@@ -3505,6 +3508,76 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     }
   }
   return { ok: true, mode: 'doc-rescue-candidates', ticketIds: [...ids].map(Number), sources, limit, staleHours }
+}
+
+async function runDocRescueAudit(input: AnyRecord = {}) {
+  const staleHours = Math.max(1, Math.min(Number(input.staleHours || input.stale_hours || 8), 720))
+  const sampleLimit = Math.max(10, Math.min(Number(input.sampleLimit || input.sample_limit || 80), 300))
+  const payments = await restAll('/pagamentos?select=id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=id.asc')
+  const pending = await restAll('/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=id.asc')
+  const capex = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at&order=id.asc')
+
+  const all = new Set<string>()
+  const paymentIds = new Set<string>()
+  const pendingIds = new Set<string>()
+  const financialPendingIds = new Set<string>()
+  const capexIds = new Set<string>()
+  const withAnyDocs = new Set<string>()
+  const withFiscalDocs = new Set<string>()
+  const neverChecked = new Set<string>()
+  const checkedFresh = new Set<string>()
+  const rescueQueue = new Set<string>()
+  const paymentFiscalQueue = new Set<string>()
+  const addAll = (value: unknown) => {
+    const key = ticketDigits(value)
+    if (key) all.add(key)
+    return key
+  }
+  const markDocState = (key: string, row: AnyRecord) => {
+    if (!key) return
+    if (normalizeStoredDocs(row).length || row?.nf_doc_path || row?.comp_doc_path) withAnyDocs.add(key)
+    if (hasStoredFiscalDoc(row)) withFiscalDocs.add(key)
+    if (!row?.zeev_docs_checked_at) neverChecked.add(key)
+    else if (!docsCheckIsStale(row, staleHours)) checkedFresh.add(key)
+  }
+
+  for (const row of payments || []) {
+    const key = addAll(row.ticket_raiz)
+    if (!key) continue
+    paymentIds.add(key)
+    markDocState(key, row)
+    if (shouldRescueDocs(row, staleHours, 'payment')) {
+      rescueQueue.add(key)
+      if (!hasStoredFiscalDoc(row)) paymentFiscalQueue.add(key)
+    }
+  }
+  for (const row of pending || []) {
+    const key = addAll(row.zeev_instance_id)
+    if (!key) continue
+    pendingIds.add(key)
+    if (isFinancialZeevRow(row)) financialPendingIds.add(key)
+    markDocState(key, row)
+    if (shouldRescueDocs(row, staleHours, 'pending')) rescueQueue.add(key)
+  }
+  for (const row of capex || []) {
+    const key = addAll(row.ticket_raiz_instance_id || row.referencia)
+    if (!key) continue
+    capexIds.add(key)
+    markDocState(key, row)
+    if (shouldRescueDocs(row, staleHours, 'capex')) rescueQueue.add(key)
+  }
+
+  return {
+    ok: true,
+    mode: 'doc-rescue-audit',
+    staleHours,
+    rows: { payments: payments.length, pending: pending.length, capex: capex.length },
+    uniqueTickets: all.size,
+    uniqueBySource: { payments: paymentIds.size, pending: pendingIds.size, financialPending: financialPendingIds.size, capex: capexIds.size },
+    docs: { withAnyDocs: withAnyDocs.size, withFiscalDocs: withFiscalDocs.size, withoutAnyDocs: Math.max(0, all.size - withAnyDocs.size), withoutFiscalDocs: Math.max(0, all.size - withFiscalDocs.size) },
+    checked: { neverChecked: neverChecked.size, fresh: checkedFresh.size, staleOrMissing: rescueQueue.size },
+    queue: { total: rescueQueue.size, paymentFiscal: paymentFiscalQueue.size, sample: [...rescueQueue].slice(0, sampleLimit).map(Number) },
+  }
 }
 
 function paymentIsOverdue(row: AnyRecord) {
@@ -4255,6 +4328,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'doc-rescue-candidates') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await runDocRescueCandidates(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'doc-rescue-audit') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await runDocRescueAudit(input || {})
       return json(out)
     }
     if (input?.mode === 'refresh-payment-statuses') {
