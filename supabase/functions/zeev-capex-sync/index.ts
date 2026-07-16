@@ -3451,7 +3451,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
   const sources: Record<string, number> = { paymentFiscal: 0, financialPending: 0, payments: 0, capex: 0, pending: 0 }
   const add = (value: unknown, source: keyof typeof sources) => {
     const key = ticketDigits(value)
-    if (!key || ids.size >= limit) return
+    if (!key || ids.has(key) || ids.size >= limit) return
     ids.add(key)
     sources[source]++
   }
