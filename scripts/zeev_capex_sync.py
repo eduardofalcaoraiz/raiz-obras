@@ -385,6 +385,7 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
     last_error = None
     attempts = max(1, int(retries) if str(retries).strip() else 1)
     collected_rows = []
+    collected_rows_success = False
     fallback_data = None
     fallback_set = False
     for token_index, token in enumerate(token_candidates):
@@ -399,6 +400,7 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
                     raw = resp.read().decode("utf-8", errors="replace")
                     data = json.loads(raw) if raw else {}
                     if merge_token_rows:
+                        collected_rows_success = True
                         collected_rows.extend(data if isinstance(data, list) else [data])
                         last_error = None
                         break
@@ -424,7 +426,7 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
                 last_error = exc
             if attempt < attempts - 1:
                 time.sleep(retry_delay or (2 + attempt * 3))
-    if merge_token_rows and collected_rows:
+    if merge_token_rows and (collected_rows_success or collected_rows):
         return merge_zeev_rows_by_id(collected_rows)
     if fallback_set:
         return fallback_data
