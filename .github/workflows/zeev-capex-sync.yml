@@ -96,10 +96,10 @@ jobs:
           ZEEV_SYNC_MODE: ${{ github.event_name == 'schedule' && github.event.schedule == '7,37 * * * *' && 'rescue-docs' || github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
           ZEEV_SYNC_START: ${{ github.event_name == 'workflow_dispatch' && inputs.start || '' }}
           ZEEV_SYNC_END: ${{ github.event_name == 'workflow_dispatch' && inputs.end || '' }}
-          ZEEV_MAX_PAGES: ${{ github.event_name == 'workflow_dispatch' && inputs.max_pages || '16' }}
+          ZEEV_MAX_PAGES: ${{ github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *' && '4' || github.event_name == 'workflow_dispatch' && inputs.max_pages || '16' }}
           ZEEV_START_PAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.start_page || '1' }}
           ZEEV_RECORDS_PER_PAGE: "30"
-          ZEEV_DEEP_SCAN: "1"
+          ZEEV_DEEP_SCAN: ${{ github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *' && '0' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '0' || '1' }}
           ZEEV_ENRICH_CONCURRENCY: "4"
           ZEEV_SYNC_OVERLAP_HOURS: "72"
           ZEEV_NOTIFY: ${{ github.event_name == 'workflow_dispatch' && inputs.notify || 'false' }}
