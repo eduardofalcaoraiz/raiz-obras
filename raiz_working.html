@@ -14198,6 +14198,21 @@ function getDocUrl(bucket,storagePath){
   return SUPA_URL+'/storage/v1/object/public/'+bucket+'/'+encodedPath;
 }
 
+async function resolveStorageUrl(bucket,storagePath){
+  if(!storagePath)return null;
+  const safeBucket=bucket||'pagamentos';
+  try{
+    if(db&&db.storage&&db.storage.from){
+      const res=await db.storage.from(safeBucket).createSignedUrl(storagePath,60*60);
+      if(!res.error&&res.data&&res.data.signedUrl)return res.data.signedUrl;
+      if(res.error)console.warn('[Storage signed URL]',safeBucket,storagePath,res.error);
+    }
+  }catch(e){
+    console.warn('[Storage signed URL]',safeBucket,storagePath,e);
+  }
+  return getDocUrl(safeBucket,storagePath);
+}
+
 function inferType(path){
 
   if(/\.(jpg|jpeg|png|gif|webp)$/i.test(path))return'image/jpeg';
@@ -14430,12 +14445,14 @@ async function viewFile(d){
 
   if(d.storagePath){
     const bucket=d.bucket||'pagamentos';
-    url=getDocUrl(bucket,d.storagePath);
+    url=await resolveStorageUrl(bucket,d.storagePath);
   }
 
   if(!url&&d.dataUrl)url=d.dataUrl; // fallback: arquivo em memória (sessão atual)
 
   if(!url&&d._signedUrl)url=d._signedUrl;
+
+  if(!url)url=d.url||d.openUrl||d.downloadUrl||d.href||d.link||d.fileUrl||d.contentUrl||null;
 
 
 
