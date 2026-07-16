@@ -200,6 +200,7 @@ COMPANY_FIELDS = [
 
 DOCUMENT_FIELDS = [
     "anexo", "anexos", "arquivo", "arquivos", "Arquivo", "Arquivos",
+    "anexarNotaFiscal", "anexarBoletoAVista", "anexarBoletoParcelado",
     "arquivoNF", "arquivo NF", "arquivoNf", "arquivoNFS", "arquivoNFSe", "arquivoNFe",
     "notaFiscal", "NotaFiscal", "nota fiscal", "notaFiscalArquivo", "notaFiscalServico",
     "notaFiscalServicos", "notaFiscalDeServico", "notaFiscalDeServicos", "notaFiscalPagamento",
@@ -220,33 +221,33 @@ PURCHASE_FIELDS = [
     "descricaoCompra", "descricaoProduto", "descricaoServico", "detalhamento", "justificativa",
     *PURCHASE_JUSTIFICATION_FIELDS,
     "observacao", "observacoes", "quantidade", "quantidadeSolicitada", "qtd", "unidadeMedida",
-    "valorTotalDoPagamento", "valorTotalPagamento", "valor", "valorTotal", "valorFinal", "valorCompra", "valorDaCompra", "valorSolicitado",
+    "valorTotalDoPagamento", "valorTotalDoPagamento01", "valorTotalPagamento", "valor", "valorTotal", "valorFinal", "valorCompra", "valorDaCompra", "valorSolicitado",
     "valorPedido", "valorAprovado", "valorOrcado", "valorEstimado", "orcamento", "preco",
     "precoUnitario", "precoTotal", "precoFinal", "valorUnitario", "valorTotalItem",
-    "fornecedor", "nomeFornecedor", "razaoSocial", "cnpjFornecedor", "fornecedorEscolhido",
+    "fornecedor", "nomeFornecedor", "razaoSocial", "cgc", "cnpjFornecedor", "cnpjCpfDoFornecedor", "cnpjDoFornecedor", "fornecedorEscolhido",
     "condicaoPagamento", "formaPagamento", "formaDePagamento", "dataPagamento", "previsaoPagamento",
     "dataEntrega", "prazoEntrega", "unidade", "unidadeEscolar", "escola", "filial", "marca",
     "localEntrega", "solicitante", "setor", "departamento", "categoria", "categoriaCompra",
     "tipoCompra", "numeroTR", "ticket", "tr", "notaFiscal", "numeroNF", "numeroNotaFiscal",
-    "valorNotaFiscal", "chaveAcesso", "Informe a chave de acesso", *DOCUMENT_FIELDS,
+    "valorNotaFiscal", "numeroDaNF", "serieDaNF", "chaveAcesso", "chaveDeAcesso", "Informe a chave de acesso", *DOCUMENT_FIELDS,
     *PURCHASE_SERVICE_DESCRIPTION_FIELDS, *PURCHASE_ITEM_DESCRIPTION_FIELDS,
     *DESTINATION_UNIT_FIELDS, *COMPANY_FIELDS,
 ]
 
 FINANCE_FIELDS = [
-    "investimentoCAPEX", "valorTotalDoPagamento", "valorTotalPagamento", "valor", "valorTotal", "valorSolicitado", "valorPagamento",
+    "investimentoCAPEX", "valorTotalDoPagamento", "valorTotalDoPagamento01", "valorTotalPagamento", "valor", "valorTotal", "valorSolicitado", "valorPagamento",
     "valorAPagar", "valorAprovado", "precoUnitario", "dataPagamento", "previsaoPagamento", "dataVencimento", "dataDeVencimento",
     "Data de vencimento", "Data de vencimento *", "Data de vencimento extra\u00edda", *ISSUE_DATE_FIELDS,
     "formaPagamento", "formaDePagamento", "Forma de pagamento", "Forma de pagamento *",
     "Condi\u00e7\u00e3o de pagamento", "Condi\u00e7\u00e3o de pagamento *",
     "condicaoPagamento", "favorecido", "beneficiario", "fornecedor", "Fornecedor", "Fornecedor *",
-    "nomeFornecedor", "razaoSocial", "cnpj", "cnpjFornecedor", "centroDeCusto", "centroCusto",
+    "nomeFornecedor", "razaoSocial", "cnpj", "cgc", "cnpjFornecedor", "centroDeCusto", "codigoDoCentroDeCusto", "centroCusto",
     "Centro de Custo", "Centro de Custo *", "unidade", "unidadeEscolar", "escola", "filial", "marca", "descricao",
     "Descri\u00e7\u00e3o da Nota Fiscal", "Descri\u00e7\u00e3o da Nota Fiscal *",
     "descricaoSolicitacao", "solicitacao", "pedido", "objeto", "resumo", "justificativa",
     "observacao", "observacoes", "categoria", "categoriaFinanceira", "setor", "departamento",
-    "numeroTR", "ticket", "tr", "notaFiscal", "numeroNF", "numeroNotaFiscal", *FISCAL_NUMBER_FIELDS,
-    "valorNotaFiscal", "chaveAcesso", "Informe a chave de acesso", *DOCUMENT_FIELDS,
+    "numeroTR", "ticket", "tr", "notaFiscal", "numeroNF", "numeroDaNF", "serieDaNF", "numeroNotaFiscal", *FISCAL_NUMBER_FIELDS,
+    "valorNotaFiscal", "chaveAcesso", "chaveDeAcesso", "Informe a chave de acesso", *DOCUMENT_FIELDS,
     *FINANCE_DESCRIPTION_FIELDS,
     *DESTINATION_UNIT_FIELDS, *COMPANY_FIELDS,
 ]
@@ -433,6 +434,71 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
     if isinstance(last_error, BaseException):
         raise last_error
     raise RuntimeError(f"{method} {url} falhou sem resposta detalhada.")
+
+
+FLOW_DESIGN_RELEVANT_CACHE = {}
+
+
+def looks_like_relevant_design_field(field):
+    hay = " ".join(
+        str(field.get(k) or "")
+        for k in ("name", "label", "title", "caption", "typeName", "validationName", "groupName")
+    )
+    key = norm_key(hay)
+    if not key:
+        return False
+    return bool(re.search(
+        r"(capex|documento|document|arquivo|anexo|nota|notafiscal|nfse|nfe|danfe|xml|pdf|"
+        r"boleto|comprovante|recibo|fatura|download|file|upload|valor|pagamento|parcela|"
+        r"fornecedor|favorecido|beneficiario|razaosocial|cnpj|cpf|cgc|chavedeacesso|"
+        r"numerodanf|numeronf|serie|dataemissao|vencimento|previsao|centrodecusto|"
+        r"codigodocentrodecusto|coligada|unidade|filial|solicitante|email|informacoes|"
+        r"justificativa|descricao|servico|item|produto|material|quantidade|frete)",
+        key,
+    ))
+
+
+def walk_json_objects(value):
+    if isinstance(value, dict):
+        yield value
+        for nested in value.values():
+            yield from walk_json_objects(nested)
+    elif isinstance(value, list):
+        for item in value:
+            yield from walk_json_objects(item)
+
+
+def flow_design_relevant_fields(flow_id):
+    flow = int(flow_id or 0)
+    if not flow or not has_zeev_token():
+        return []
+    if flow in FLOW_DESIGN_RELEVANT_CACHE:
+        return FLOW_DESIGN_RELEVANT_CACHE[flow]
+    try:
+        data = request_json(
+            "GET",
+            f"{ZEEV_BASE_URL}/api/2/flows/{flow}/design/form",
+            headers={"Authorization": f"Bearer {ZEEV_TOKEN}"},
+            timeout=120,
+            retries=2,
+        )
+        names = []
+        for obj in walk_json_objects(data):
+            if not isinstance(obj, dict) or not looks_like_relevant_design_field(obj):
+                continue
+            name = str(obj.get("name") or "").strip()
+            label = str(obj.get("label") or "").strip()
+            if name:
+                names.append(name)
+            # Labels are kept only as fallback; technical names are the primary filters.
+            if label and not name:
+                names.append(label)
+        result = unique_fields(names)
+    except Exception as exc:
+        print(json.dumps({"flowDesignError": flow, "error": str(exc)[:300]}, ensure_ascii=False), file=sys.stderr)
+        result = []
+    FLOW_DESIGN_RELEVANT_CACHE[flow] = result
+    return result
 
 
 def is_transient_http_error(message):
@@ -809,6 +875,7 @@ def enrich_instance(row):
     fields = unique_fields(
         capex_fields(flow_id),
         FINANCE_FIELDS if financeiro else PURCHASE_FIELDS,
+        flow_design_relevant_fields(flow_id),
         env_list(os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "")),
         VALUE_TOTAL_FIELDS,
         ITEM_DESC_FIELDS,
