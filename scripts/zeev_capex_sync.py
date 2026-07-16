@@ -2591,6 +2591,21 @@ def doc_rescue_candidates(limit=None):
     )
 
 
+def doc_rescue_audit():
+    payload = {
+        "mode": "doc-rescue-audit",
+        "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", os.environ.get("ZEEV_DOC_RESCUE_STALE_HOURS", "8"))),
+        "sampleLimit": int(os.environ.get("ZEEV_DOC_RESCUE_AUDIT_SAMPLE", "120")),
+    }
+    return request_json(
+        "POST",
+        f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+        headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+        payload=payload,
+        timeout=240,
+    )
+
+
 def rescue_docs():
     requested_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     if requested_ids:
@@ -2655,6 +2670,56 @@ def rescue_docs():
     if len(out["errors"]) > 25:
         out["errors"] = out["errors"][:25]
     out["completed"] = out["processed"] >= len(ids)
+    return out
+
+
+def rescue_docs_loop():
+    started = time.time()
+    max_seconds = max(60, min(int(os.environ.get("ZEEV_DOC_RESCUE_LOOP_SECONDS", "3000")), 3300))
+    max_rounds = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_LOOP_ROUNDS", "20")), 80))
+    out = {
+        "ok": True,
+        "mode": "rescue-docs-loop",
+        "maxSeconds": max_seconds,
+        "rounds": 0,
+        "processed": 0,
+        "ingested": 0,
+        "downloadedDocs": 0,
+        "filesAttached": 0,
+        "errors": [],
+        "roundResults": [],
+    }
+    for round_idx in range(max_rounds):
+        if time.time() - started > max_seconds:
+            out["timeLimitReached"] = True
+            break
+        result = rescue_docs()
+        out["rounds"] += 1
+        out["processed"] += int(result.get("processed", 0) or 0)
+        out["ingested"] += int(result.get("ingested", 0) or 0)
+        out["downloadedDocs"] += int(result.get("downloadedDocs", 0) or 0)
+        out["filesAttached"] += int(result.get("filesAttached", 0) or 0)
+        if result.get("errors"):
+            out["errors"].extend(result.get("errors", [])[:10])
+        out["roundResults"].append({
+            "round": round_idx + 1,
+            "candidates": int(result.get("candidates", 0) or 0),
+            "processed": int(result.get("processed", 0) or 0),
+            "downloadedDocs": int(result.get("downloadedDocs", 0) or 0),
+            "filesAttached": int(result.get("filesAttached", 0) or 0),
+            "completed": bool(result.get("completed")),
+        })
+        if int(result.get("candidates", 0) or 0) <= 0 or int(result.get("processed", 0) or 0) <= 0:
+            out["completed"] = True
+            break
+        if not result.get("ok", True):
+            out["ok"] = False
+            break
+        time.sleep(float(os.environ.get("ZEEV_DOC_RESCUE_LOOP_PAUSE_SECONDS", "2")))
+    if len(out["errors"]) > 30:
+        out["errors"] = out["errors"][:30]
+    out["elapsedSeconds"] = round(time.time() - started, 1)
+    out["completed"] = out.get("completed", False)
     return out
 
 
@@ -3019,8 +3084,16 @@ def main():
         result = refresh_payment_statuses()
         print(json.dumps(result, ensure_ascii=False))
         return
+    if mode in {"doc-rescue-audit", "rescue-docs-audit", "audit-docs", "auditar-docs"}:
+        result = doc_rescue_audit()
+        print(json.dumps(result, ensure_ascii=False))
+        return
     if not has_zeev_token():
         raise SystemExit("ZEEV_TOKEN e obrigatorio.")
+    if mode in {"rescue-docs-loop", "doc-rescue-loop", "resgate-docs-loop"}:
+        result = rescue_docs_loop()
+        print(json.dumps(result, ensure_ascii=False))
+        return
     if mode in {"rescue-docs", "doc-rescue", "direct-doc-rescue", "resgate-docs"}:
         result = rescue_docs()
         print(json.dumps(result, ensure_ascii=False))
