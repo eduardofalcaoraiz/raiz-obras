@@ -1,5 +1,7 @@
 import json
+import base64
 import html as html_lib
+import mimetypes
 import os
 import re
 import sys
@@ -1483,6 +1485,7 @@ def sync(start, end, flows, max_pages, page_size):
                 enriched = enrich_instance(row)
                 ticket = build_ticket(enriched)
                 if ticket:
+                    ticket = attach_rescued_docs(ticket, enriched)
                     tickets[ticket["zeev_instance_id"]] = ticket
             if len(rows) < page_size:
                 break
@@ -1780,6 +1783,353 @@ def inspect_report_source(report_link, instance_id):
     return out
 
 
+def direct_doc_rescue_enabled():
+    return os.environ.get("ZEEV_DIRECT_DOC_RESCUE_ENABLED", "1").lower() not in {"0", "false", "no", "nao"}
+
+
+def direct_doc_rescue_file_limit():
+    return max(0, min(int(os.environ.get("ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT", os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "2")) or "2"), 8))
+
+
+def direct_doc_rescue_max_bytes():
+    return max(64_000, min(int(os.environ.get("ZEEV_DIRECT_DOC_RESCUE_MAX_BYTES", "5500000") or "5500000"), 18_000_000))
+
+
+def doc_like_text(value):
+    return bool(re.search(r"(?i)(nota|nfse|nfe|danfe|xml|pdf|arquivo|anexo|documento|document|doc|fatura|recibo|boleto|comprovante|download|file|attachment)", str(value or "")))
+
+
+def safe_doc_name(name, content_type=""):
+    clean = re.sub(r"[^A-Za-z0-9._ -]+", "_", str(name or "").strip()).strip(" ._")
+    if not clean:
+        clean = "documento-fiscal"
+    if not re.search(r"\.[A-Za-z0-9]{2,8}$", clean):
+        ext = mimetypes.guess_extension(str(content_type or "").split(";")[0].strip()) or ""
+        if not ext and "xml" in str(content_type).lower():
+            ext = ".xml"
+        if not ext and "pdf" in str(content_type).lower():
+            ext = ".pdf"
+        clean += ext or ".pdf"
+    return clean[:140]
+
+
+def content_disposition_filename(headers):
+    cd = ""
+    try:
+        cd = headers.get("Content-Disposition", "") or headers.get("content-disposition", "")
+    except Exception:
+        cd = ""
+    match = re.search(r"filename\*=UTF-8''([^;]+)", cd, re.I)
+    if match:
+        return urllib.parse.unquote(match.group(1)).strip('"')
+    match = re.search(r'filename="?([^";]+)"?', cd, re.I)
+    return urllib.parse.unquote(match.group(1)).strip('"') if match else ""
+
+
+def normalize_doc_url(url):
+    raw = str(url or "").strip().strip("'\"<>")
+    raw = re.sub(r"[),.;]+$", "", raw)
+    if not raw:
+        return ""
+    if raw.startswith("//"):
+        raw = "https:" + raw
+    if raw.startswith("/"):
+        raw = ZEEV_BASE_URL + raw
+    if not re.match(r"^https?://", raw, re.I):
+        return ""
+    drive = re.search(r"drive\.google\.com/file/d/([^/]+)", raw)
+    if drive:
+        return f"https://drive.google.com/uc?export=download&id={drive.group(1)}"
+    parsed = urllib.parse.urlparse(raw)
+    qs = urllib.parse.parse_qs(parsed.query)
+    if parsed.netloc.endswith("drive.google.com") and parsed.path == "/open" and qs.get("id"):
+        return f"https://drive.google.com/uc?export=download&id={qs['id'][0]}"
+    return raw
+
+
+def doc_kind(name="", url="", source=""):
+    hay = norm(" ".join([str(name or ""), str(url or ""), str(source or "")]))
+    if any(x in hay for x in ["comprovante", "recibo", "pix", "pagamento", "pago", "liquidado"]):
+        return "COMPROVANTE"
+    return "NF"
+
+
+def push_doc_candidate(out, name="", url="", file_id="", base64_content="", content_type="", source=""):
+    url = normalize_doc_url(url)
+    file_id = str(file_id or "").strip()
+    base64_content = str(base64_content or "").strip()
+    if not (url or file_id or base64_content):
+        return
+    clean_name = safe_doc_name(name or "documento-fiscal.pdf", content_type)
+    key = "|".join([url, file_id, base64_content[:48], clean_name, str(source or "")])
+    if any(d.get("key") == key for d in out):
+        return
+    out.append({
+        "key": key,
+        "name": clean_name,
+        "url": url,
+        "fileId": file_id,
+        "base64Content": base64_content,
+        "type": str(content_type or ""),
+        "source": str(source or ""),
+        "kind": doc_kind(clean_name, url, source),
+    })
+
+
+def collect_doc_candidates_from_value(out, label, value, source, depth=0):
+    if value is None or depth > 5:
+        return
+    if isinstance(value, list):
+        for item in value:
+            collect_doc_candidates_from_value(out, label, item, source, depth + 1)
+        return
+    if isinstance(value, dict):
+        name = value.get("name") or value.get("fileName") or value.get("filename") or value.get("originalName") or value.get("displayName") or value.get("title") or label
+        content_type = value.get("type") or value.get("mimeType") or value.get("contentType") or ""
+        url = value.get("url") or value.get("openUrl") or value.get("downloadUrl") or value.get("href") or value.get("link") or value.get("fileUrl") or value.get("signedUrl") or value.get("contentUrl") or ""
+        file_id = value.get("fileId") or value.get("fileID") or value.get("file_id") or value.get("arquivoId") or value.get("documentId") or value.get("attachmentId") or ""
+        if not file_id and doc_like_text(" ".join([str(label), str(name), str(source)])):
+            file_id = value.get("id") if re.match(r"^[A-Za-z0-9._-]{3,180}$", str(value.get("id") or "")) else ""
+        base64_content = value.get("base64Content") or value.get("base64") or value.get("contentBase64") or value.get("fileBase64") or value.get("bytesBase64") or ""
+        push_doc_candidate(out, name=name, url=url, file_id=file_id, base64_content=base64_content, content_type=content_type, source=source)
+        for key, nested in value.items():
+            if doc_like_text(key):
+                collect_doc_candidates_from_value(out, name or key, nested, source, depth + 1)
+        return
+    text = str(value or "").strip()
+    if not text:
+        return
+    for url in re.findall(r"https?://[^\s\"'<>),;]+", text):
+        if doc_like_text(" ".join([label, url, source])):
+            push_doc_candidate(out, name=label or "documento-fiscal.pdf", url=url, source=source)
+    if re.match(r"^data:[^;]+;base64,", text, re.I) or (len(text) > 120 and re.match(r"^[A-Za-z0-9+/=\s]+$", text)):
+        push_doc_candidate(out, name=label or "documento-fiscal.pdf", base64_content=text, source=source)
+
+
+def zeev_file_id_urls(file_id):
+    if not file_id:
+        return []
+    quoted = urllib.parse.quote(str(file_id), safe="")
+    urls = []
+    template = os.environ.get("ZEEV_FILE_DOWNLOAD_URL_TEMPLATE", "").strip()
+    if template:
+        urls.append(template.replace("{fileId}", quoted).replace("{id}", quoted))
+    for path in [
+        f"/api/2/files/{quoted}",
+        f"/api/2/files/{quoted}/download",
+        f"/api/2/files/download/{quoted}",
+        f"/api/2/files/instance-task/{quoted}",
+        f"/api/2/files/instance-task/{quoted}/download",
+    ]:
+        urls.append(f"{ZEEV_BASE_URL}{path}")
+    return urls
+
+
+def fetch_binary_for_rescue(url):
+    clean = normalize_doc_url(url)
+    if not clean:
+        raise RuntimeError("URL vazia ou invalida.")
+    max_bytes = direct_doc_rescue_max_bytes()
+    parsed = urllib.parse.urlparse(clean)
+    zeev_host = urllib.parse.urlparse(ZEEV_BASE_URL).netloc
+    token_list = zeev_tokens() if parsed.netloc == zeev_host or parsed.netloc.endswith(".zeev.it") else [""]
+    last_error = None
+    for token in token_list or [""]:
+        headers = {
+            "Accept": "application/pdf,application/xml,text/xml,image/*,application/octet-stream,application/json,text/html,*/*",
+            "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
+        }
+        if token and (parsed.netloc == zeev_host or parsed.netloc.endswith(".zeev.it")):
+            headers["Authorization"] = f"Bearer {token}"
+        req = urllib.request.Request(clean, headers=headers, method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=max(10, min(int(os.environ.get("ZEEV_DIRECT_DOC_TIMEOUT_SECONDS", "35")), 90))) as res:
+                length = int(res.headers.get("Content-Length") or "0")
+                if length and length > max_bytes:
+                    raise RuntimeError(f"arquivo maior que limite direto ({length} bytes)")
+                raw = res.read(max_bytes + 1)
+                if len(raw) > max_bytes:
+                    raise RuntimeError(f"arquivo maior que limite direto ({len(raw)} bytes)")
+                return {
+                    "url": clean,
+                    "status": res.status,
+                    "headers": res.headers,
+                    "contentType": res.headers.get("Content-Type", ""),
+                    "name": content_disposition_filename(res.headers),
+                    "body": raw,
+                }
+        except urllib.error.HTTPError as exc:
+            body = exc.read(500).decode("utf-8", errors="replace")
+            last_error = RuntimeError(f"HTTP {exc.code}: {redact_debug_text(body)[:220]}")
+            if exc.code not in (401, 403):
+                break
+        except Exception as exc:
+            last_error = exc
+    raise last_error or RuntimeError("falha sem detalhe ao baixar arquivo")
+
+
+def downloaded_doc_from_response(candidate, response, depth=0):
+    body = response["body"]
+    ctype = str(response.get("contentType") or candidate.get("type") or "").lower()
+    text_head = body[:300].decode("utf-8", errors="ignore").strip()
+    if ("json" in ctype or text_head.startswith(("{", "["))) and depth < 2:
+        try:
+            nested = []
+            collect_doc_candidates_from_value(nested, candidate.get("name") or "documento-fiscal.pdf", json.loads(body.decode("utf-8", errors="replace")), "download-json", 0)
+            for item in nested:
+                found = download_doc_candidate(item, depth + 1)
+                if found:
+                    return found
+        except Exception:
+            pass
+    if ("html" in ctype or text_head.lower().startswith("<!doctype") or text_head.lower().startswith("<html")) and depth < 2:
+        html = body.decode("utf-8", errors="replace")
+        nested = []
+        for link in re.findall(r"""(?i)(?:href|src)=["']([^"']+)["']""", html) + re.findall(r"https?://[^\s\"'<>),;]+", html):
+            if doc_like_text(link):
+                push_doc_candidate(nested, candidate.get("name") or "documento-fiscal.pdf", urllib.parse.urljoin(response["url"], link), source="download-html")
+        for item in nested[:6]:
+            found = download_doc_candidate(item, depth + 1)
+            if found:
+                return found
+        raise RuntimeError("download retornou HTML sem arquivo direto")
+    if len(body) < 80:
+        raise RuntimeError("conteudo muito pequeno para arquivo")
+    final_type = response.get("contentType") or candidate.get("type") or "application/octet-stream"
+    final_name = safe_doc_name(response.get("name") or candidate.get("name") or "documento-fiscal.pdf", final_type)
+    return {
+        "name": final_name,
+        "type": final_type,
+        "base64Content": base64.b64encode(body).decode("ascii"),
+        "source": candidate.get("source") or "github-direct",
+        "url": candidate.get("url") or response.get("url") or "",
+        "kind": candidate.get("kind") or doc_kind(final_name, candidate.get("url"), candidate.get("source")),
+        "size": len(body),
+    }
+
+
+def download_doc_candidate(candidate, depth=0):
+    if candidate.get("base64Content"):
+        raw = str(candidate.get("base64Content") or "")
+        approx = int(len(raw) * 0.75)
+        if approx > direct_doc_rescue_max_bytes():
+            raise RuntimeError(f"base64 maior que limite direto ({approx} bytes)")
+        return {
+            "name": safe_doc_name(candidate.get("name"), candidate.get("type")),
+            "type": candidate.get("type") or "application/octet-stream",
+            "base64Content": raw,
+            "source": candidate.get("source") or "github-direct",
+            "url": candidate.get("url") or "",
+            "kind": candidate.get("kind") or doc_kind(candidate.get("name"), candidate.get("url"), candidate.get("source")),
+            "size": approx,
+        }
+    urls = []
+    if candidate.get("url"):
+        urls.append(candidate.get("url"))
+    if candidate.get("fileId"):
+        urls.extend(zeev_file_id_urls(candidate.get("fileId")))
+    errors = []
+    for url in urls:
+        try:
+            response = fetch_binary_for_rescue(url)
+            return downloaded_doc_from_response(candidate, response, depth)
+        except Exception as exc:
+            errors.append(str(exc)[:260])
+    if errors:
+        raise RuntimeError(" | ".join(errors)[:700])
+    return None
+
+
+def rescue_documents_for_row(row):
+    if not direct_doc_rescue_enabled() or direct_doc_rescue_file_limit() <= 0:
+        return [], {"enabled": False}
+    instance_id = int(row.get("id") or 0)
+    candidates = []
+    for field in row.get("formFields") or []:
+        label = field_display_name(field)
+        if doc_like_text(label) or doc_like_text(field):
+            collect_doc_candidates_from_value(candidates, label or "documento-fiscal.pdf", field, label or "raw_fields", 0)
+            collect_doc_candidates_from_value(candidates, label or "documento-fiscal.pdf", field.get("value"), label or "raw_fields", 0)
+    try:
+        messages = row.get("__messages") if isinstance(row.get("__messages"), list) else instance_messages(instance_id)
+        if messages:
+            row["__messages"] = messages
+        for msg in messages or []:
+            collect_doc_candidates_from_value(candidates, "comentario Zeev", msg, "messages", 0)
+            collect_doc_candidates_from_value(candidates, "comentario Zeev", msg.get("body") or msg.get("text") or msg.get("message") or msg.get("comment"), "messages", 0)
+    except Exception:
+        pass
+    report_link = str(row.get("reportLink") or row.get("reportUrl") or "").strip()
+    if report_link:
+        try:
+            root = report_link if report_link.startswith("http") else f"{ZEEV_BASE_URL}{report_link}"
+            _, _, html = fetch_text_for_source(root)
+            for link in re.findall(r"""(?i)(?:href|src)=["']([^"']+)["']""", html) + re.findall(r"https?://[^\s\"'<>),;]+", html):
+                if doc_like_text(link):
+                    push_doc_candidate(candidates, "documento-fiscal.pdf", urllib.parse.urljoin(root, link), source="reportLink")
+        except Exception:
+            pass
+    base = ZEEV_BASE_URL
+    probe_urls = [
+        f"{base}/api/2/instances/{instance_id}/files",
+        f"{base}/api/2/instances/{instance_id}/attachments",
+        f"{base}/api/2/instances/{instance_id}/documents",
+        f"{base}/api/2/files/instance/{instance_id}",
+        f"{base}/api/2/attachments/instance/{instance_id}",
+        f"{base}/api/2/documents/instance/{instance_id}",
+        f"{base}/api/2/instances/{instance_id}/form-fields/Documento",
+    ]
+    for url in probe_urls:
+        try:
+            status, ctype, text = fetch_text_for_source(url)
+            if 200 <= status < 300 and ("json" in ctype.lower() or text.strip().startswith(("{", "["))):
+                collect_doc_candidates_from_value(candidates, "documento-fiscal.pdf", json.loads(text), urllib.parse.urlparse(url).path, 0)
+        except Exception:
+            continue
+    downloaded = []
+    skipped = []
+    for candidate in candidates:
+        if len(downloaded) >= direct_doc_rescue_file_limit():
+            break
+        try:
+            doc = download_doc_candidate(candidate)
+            if doc and not any(d.get("base64Content") == doc.get("base64Content") for d in downloaded):
+                downloaded.append(doc)
+        except Exception as exc:
+            if len(skipped) < 10:
+                skipped.append({
+                    "name": candidate.get("name") or "",
+                    "source": candidate.get("source") or "",
+                    "hasUrl": bool(candidate.get("url")),
+                    "hasFileId": bool(candidate.get("fileId")),
+                    "reason": str(exc)[:240],
+                })
+    debug = {
+        "enabled": True,
+        "candidates": len(candidates),
+        "downloaded": len(downloaded),
+        "skipped": skipped,
+    }
+    return downloaded, debug
+
+
+def attach_rescued_docs(ticket, row):
+    if not ticket or not isinstance(ticket, dict):
+        return ticket
+    docs, debug = rescue_documents_for_row(row)
+    raw = ticket.get("raw_instance") if isinstance(ticket.get("raw_instance"), dict) else row
+    if docs:
+        raw["__downloaded_docs"] = docs
+    raw["__doc_rescue"] = debug
+    ticket["raw_instance"] = raw
+    campos = ticket.get("campos_extraidos") if isinstance(ticket.get("campos_extraidos"), dict) else {}
+    campos["_zeev_doc_rescue"] = {k: v for k, v in debug.items() if k != "skipped"}
+    if debug.get("skipped"):
+        campos["_zeev_doc_rescue_skipped"] = debug.get("skipped")[:5]
+    ticket["campos_extraidos"] = campos
+    return ticket
+
+
 def inspect_docs():
     if not has_zeev_token():
         raise SystemExit("ZEEV_TOKEN e obrigatorio.")
@@ -1985,7 +2335,8 @@ def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest
             flow_id = int((enriched.get("flow") or {}).get("id") or enriched.get("flowId") or 0)
             if not is_target_flow_row(enriched) and not has_capex(enriched.get("formFields") or [], flow_id):
                 return None
-            return build_ticket(enriched)
+            ticket = build_ticket(enriched)
+            return attach_rescued_docs(ticket, enriched) if ticket else None
 
         def record_ticket(ticket):
             if not ticket:
@@ -2054,6 +2405,7 @@ def sync_ids(instance_ids, allow_non_capex=False, reason=""):
             if not ticket and allow_non_capex:
                 ticket = generic_ticket_from_instance(enriched, reason=reason)
             if ticket:
+                ticket = attach_rescued_docs(ticket, enriched)
                 tickets[ticket["zeev_instance_id"]] = ticket
         except Exception as exc:
             print(json.dumps({"ticketId": instance_id, "error": str(exc)[:500]}, ensure_ascii=False), file=sys.stderr)
@@ -2215,6 +2567,94 @@ def backfill_docs():
     if len(out["errors"]) > 25:
         out["errors"] = out["errors"][:25]
     out["completed"] = out.get("completed", False) or out["processed"] >= total_limit
+    return out
+
+
+def doc_rescue_candidates(limit=None):
+    payload = {
+        "mode": "doc-rescue-candidates",
+        "limit": max(1, min(int(limit or os.environ.get("ZEEV_DOC_RESCUE_LIMIT", os.environ.get("ZEEV_BACKFILL_LIMIT", "24"))), 80)),
+        "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", os.environ.get("ZEEV_DOC_RESCUE_STALE_HOURS", "8"))),
+        "includePending": os.environ.get("ZEEV_DOC_RESCUE_PENDING", "true").lower() != "false",
+        "includePayments": os.environ.get("ZEEV_DOC_RESCUE_PAYMENTS", "true").lower() != "false",
+        "includeCapex": os.environ.get("ZEEV_DOC_RESCUE_CAPEX", "true").lower() != "false",
+    }
+    ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
+    if ticket_ids:
+        payload["ticketIds"] = ticket_ids
+    return request_json(
+        "POST",
+        f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+        headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+        payload=payload,
+        timeout=120,
+    )
+
+
+def rescue_docs():
+    requested_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
+    if requested_ids:
+        candidate_result = {
+            "ok": True,
+            "explicit": True,
+            "ticketIds": requested_ids,
+            "sources": [{"id": ticket_id, "source": "manual"} for ticket_id in requested_ids],
+        }
+        ids = requested_ids
+    else:
+        candidate_result = doc_rescue_candidates()
+        ids = parse_ticket_ids(candidate_result.get("ticketIds", []))
+    limit = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_BATCH", os.environ.get("ZEEV_BACKFILL_BATCH", "4"))), 12))
+    out = {
+        "ok": True,
+        "mode": "rescue-docs",
+        "candidates": len(ids),
+        "candidateResult": candidate_result,
+        "processed": 0,
+        "ingested": 0,
+        "downloadedDocs": 0,
+        "filesAttached": 0,
+        "batches": [],
+        "errors": [],
+    }
+    for start in range(0, len(ids), limit):
+        chunk = ids[start:start + limit]
+        try:
+            tickets = sync_ids(chunk, allow_non_capex=True, reason="Resgate automatico de documentos Zeev")
+            downloaded = 0
+            for ticket in tickets:
+                raw = ticket.get("raw_instance") if isinstance(ticket, dict) else {}
+                docs = raw.get("__downloaded_docs") if isinstance(raw, dict) else []
+                if isinstance(docs, list):
+                    downloaded += len(docs)
+            result = ingest(tickets, notify=False)
+            attached = 0
+            backfill = result.get("backfill") if isinstance(result, dict) else {}
+            direct_docs = backfill.get("directDocs") if isinstance(backfill, dict) and isinstance(backfill.get("directDocs"), dict) else backfill
+            if isinstance(direct_docs, dict):
+                attached = int(direct_docs.get("filesAttached", 0) or 0)
+            out["processed"] += len(chunk)
+            out["ingested"] += len(tickets)
+            out["downloadedDocs"] += downloaded
+            out["filesAttached"] += attached
+            out["batches"].append({
+                "ticketIds": chunk,
+                "tickets": len(tickets),
+                "downloadedDocs": downloaded,
+                "filesAttached": attached,
+            })
+        except Exception as exc:
+            msg = str(exc)
+            out["errors"].append({"ticketIds": chunk, "error": msg[:700]})
+            if "WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg:
+                out["ok"] = out["processed"] > 0
+                out["partial"] = out["processed"] > 0
+                break
+            raise
+        time.sleep(float(os.environ.get("ZEEV_DOC_RESCUE_PAUSE_SECONDS", "1")))
+    if len(out["errors"]) > 25:
+        out["errors"] = out["errors"][:25]
+    out["completed"] = out["processed"] >= len(ids)
     return out
 
 
@@ -2581,6 +3021,10 @@ def main():
         return
     if not has_zeev_token():
         raise SystemExit("ZEEV_TOKEN e obrigatorio.")
+    if mode in {"rescue-docs", "doc-rescue", "direct-doc-rescue", "resgate-docs"}:
+        result = rescue_docs()
+        print(json.dumps(result, ensure_ascii=False))
+        return
     if mode in {"backfill-docs", "docs-backfill", "backfill"}:
         result = backfill_docs()
         print(json.dumps(result, ensure_ascii=False))
