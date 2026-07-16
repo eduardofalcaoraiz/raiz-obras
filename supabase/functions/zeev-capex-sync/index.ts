@@ -3302,6 +3302,25 @@ function docsCandidateScore(row: AnyRecord) {
   return (docs ? 1000 : 0) + (checked || 0) / 1000000000000 + paidMissing
 }
 
+function hasStoredFiscalDoc(row: AnyRecord) {
+  if (String(row?.nf_doc_path || '').trim()) return true
+  return normalizeStoredDocs(row).some((doc: AnyRecord) => {
+    const kind = String(doc?.kind || '').toUpperCase()
+    return kind !== 'COMPROVANTE' && Boolean(doc?.storagePath || doc?.path || doc?.url)
+  })
+}
+
+function shouldRescueDocs(row: AnyRecord, staleHours: number, target: 'payment' | 'pending' | 'capex' | 'generic' = 'generic') {
+  if (target === 'payment' && !hasStoredFiscalDoc(row)) return true
+  if (!normalizeStoredDocs(row).length) return true
+  return docsCheckIsStale(row, staleHours)
+}
+
+function isFinancialZeevRow(row: AnyRecord) {
+  const text = normKey([row?.flow_name, row?.request_name, row?.flowName, row?.requestName].filter(Boolean).join(' '))
+  return text.includes('financeir') || Number(row?.flow_id || row?.flowId || 0) === 263
+}
+
 async function runBackfillDocs(input: AnyRecord = {}) {
   const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const limitMax = targetTicketIds.length ? 80 : 10
@@ -3429,7 +3448,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
   const includePayments = input.includePayments !== false
   const includeCapex = input.includeCapex !== false
   const ids = new Set<string>()
-  const sources: Record<string, number> = { pending: 0, payments: 0, capex: 0 }
+  const sources: Record<string, number> = { paymentFiscal: 0, financialPending: 0, payments: 0, capex: 0, pending: 0 }
   const add = (value: unknown, source: keyof typeof sources) => {
     const key = ticketDigits(value)
     if (!key || ids.size >= limit) return
@@ -3440,20 +3459,23 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     for (const id of explicitIds) add(id, 'pending')
     return { ok: true, mode: 'doc-rescue-candidates', explicit: true, ticketIds: [...ids].map(Number), sources }
   }
-  if (includePending && ids.size < limit) {
-    const rows = await rest(`/capex_zeev_solicitacoes?select=id,zeev_instance_id,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst&limit=${Math.max(40, limit * 3)}`)
+
+  if (includePayments && ids.size < limit) {
+    const rows = await rest(`/pagamentos?select=id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst,id.asc&limit=${Math.max(80, limit * 6)}`)
     for (const row of rows || []) {
       if (ids.size >= limit) break
-      if (normalizeStoredDocs(row).length && !docsCheckIsStale(row, staleHours)) continue
-      add(row.zeev_instance_id, 'pending')
+      if (hasStoredFiscalDoc(row) && !docsCheckIsStale(row, staleHours)) continue
+      add(row.ticket_raiz, 'paymentFiscal')
     }
   }
-  if (includePayments && ids.size < limit) {
-    const rows = await rest(`/pagamentos?select=id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at&ticket_raiz=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst,id.asc&limit=${Math.max(60, limit * 4)}`)
+
+  if (includePending && ids.size < limit) {
+    const rows = await rest(`/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst&limit=${Math.max(80, limit * 6)}`)
     for (const row of rows || []) {
       if (ids.size >= limit) break
-      if (normalizeStoredDocs(row).length && !docsCheckIsStale(row, staleHours)) continue
-      add(row.ticket_raiz, 'payments')
+      if (!isFinancialZeevRow(row)) continue
+      if (!shouldRescueDocs(row, staleHours, 'pending')) continue
+      add(row.zeev_instance_id, 'financialPending')
     }
   }
   if (includeCapex && ids.size < limit) {
@@ -3462,8 +3484,24 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
       if (ids.size >= limit) break
       const tr = row.ticket_raiz_instance_id || row.referencia
       if (!ticketDigits(tr)) continue
-      if (normalizeStoredDocs(row).length && !docsCheckIsStale(row, staleHours)) continue
+      if (!shouldRescueDocs(row, staleHours, 'capex')) continue
       add(tr, 'capex')
+    }
+  }
+  if (includePayments && ids.size < limit) {
+    const rows = await rest(`/pagamentos?select=id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst,id.asc&limit=${Math.max(60, limit * 4)}`)
+    for (const row of rows || []) {
+      if (ids.size >= limit) break
+      if (!shouldRescueDocs(row, staleHours, 'payment')) continue
+      add(row.ticket_raiz, 'payments')
+    }
+  }
+  if (includePending && ids.size < limit) {
+    const rows = await rest(`/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=zeev_docs_checked_at.asc.nullsfirst&limit=${Math.max(60, limit * 4)}`)
+    for (const row of rows || []) {
+      if (ids.size >= limit) break
+      if (!shouldRescueDocs(row, staleHours, 'pending')) continue
+      add(row.zeev_instance_id, 'pending')
     }
   }
   return { ok: true, mode: 'doc-rescue-candidates', ticketIds: [...ids].map(Number), sources, limit, staleHours }
