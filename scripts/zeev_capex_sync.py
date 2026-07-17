@@ -20,6 +20,7 @@ ZEEV_TOKEN = os.environ.get("ZEEV_TOKEN", "")
 ZEEV_EXTRA_TOKENS = os.environ.get("ZEEV_EXTRA_TOKENS", "")
 ZEEV_SYNC_SECRET = os.environ.get("ZEEV_SYNC_SECRET", "")
 AUTOMATION_PAUSED = os.environ.get("ZEEV_AUTOMATION_PAUSED", "").strip().lower() in {"1", "true", "sim", "yes", "on"}
+TOTAL_SCAN_LOCK = os.environ.get("ZEEV_TOTAL_SCAN_LOCK", "").strip().lower() in {"1", "true", "sim", "yes", "on"}
 
 
 def parse_flow_ids_env(value):
@@ -557,6 +558,28 @@ def supabase_healthcheck(timeout=12):
 def maybe_skip_for_supabase_health(mode):
     if AUTOMATION_PAUSED and supabase_automation_mode(mode):
         return {"ok": True, "mode": mode, "skipped": True, "reason": "ZEEV_AUTOMATION_PAUSED"}
+    key = norm_key(mode)
+    total_scan_allowed = {"rescuedocs", "rescuedocsloop", "docrescueloop", "backfilldocs", "docsbackfill", "backfill", "docrescueaudit", "rescuedocsaudit", "auditdocs"}
+    if TOTAL_SCAN_LOCK and supabase_automation_mode(mode) and key not in total_scan_allowed:
+        try:
+            payload = {
+                "mode": "doc-rescue-audit",
+                "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", os.environ.get("ZEEV_DOC_RESCUE_STALE_HOURS", "8"))),
+                "sampleLimit": 1,
+            }
+            audit = request_json(
+                "POST",
+                f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+                headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+                payload=payload,
+                timeout=120,
+                retries=2,
+            )
+            queue_total = int(((audit or {}).get("queue") or {}).get("total") or 0)
+            if queue_total > 0:
+                return {"ok": True, "mode": mode, "skipped": True, "reason": "varredura_total_controlada_em_andamento", "queueTotal": queue_total}
+        except Exception as exc:
+            return {"ok": True, "mode": mode, "skipped": True, "reason": "auditoria_da_varredura_total_indisponivel", "error": str(exc)[:500]}
     if os.environ.get("ZEEV_SKIP_SUPABASE_PREFLIGHT", "").strip().lower() in {"1", "true", "sim", "yes"}:
         return None
     if not supabase_automation_mode(mode):
