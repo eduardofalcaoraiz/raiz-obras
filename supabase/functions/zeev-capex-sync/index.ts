@@ -2813,12 +2813,35 @@ function dateOnly(value: unknown) {
 }
 
 function fiscalDocKind(doc: AnyRecord) {
-  const hay = norm([doc.name, doc.source, doc.type].filter(Boolean).join(' '))
+  const raw = [doc.name, doc.source, doc.type, doc.kind, doc.url, doc.storagePath].filter(Boolean).join(' ')
+  const hay = norm(raw)
   if (hay.includes('comprovante') || hay.includes('recibo') || hay.includes('pix')) return 'COMPROVANTE'
   if (hay.includes('boleto')) return 'BOLETO'
   if (hay.includes('fatura')) return 'FATURA'
+  if (/\d{44}/.test(raw)) return 'NF'
   if (hay.includes('xml') || hay.includes('danfe') || hay.includes('nota') || hay.includes('nf')) return 'NF'
   return 'DOCUMENTO'
+}
+
+function isInvoiceDocKind(kind: unknown) {
+  return String(kind || '').toUpperCase() === 'NF'
+}
+
+function isChargeDocKind(kind: unknown) {
+  return ['BOLETO', 'FATURA'].includes(String(kind || '').toUpperCase())
+}
+
+function isProofDocKind(kind: unknown) {
+  return String(kind || '').toUpperCase() === 'COMPROVANTE'
+}
+
+function financialDocPriority(doc: AnyRecord) {
+  const kind = fiscalDocKind(doc)
+  if (isInvoiceDocKind(kind)) return 0
+  if (isChargeDocKind(kind)) return 1
+  if (String(kind).toUpperCase() === 'DOCUMENTO') return 2
+  if (isProofDocKind(kind)) return 4
+  return 3
 }
 
 function pushZeevDoc(out: AnyRecord[], name: unknown, url: unknown, type = '', source = '') {
@@ -3614,15 +3637,20 @@ async function loadPaymentTicketForRefresh(row: AnyRecord, storedTicket: AnyReco
 
 async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row: AnyRecord, ticket: AnyRecord, limitFiles: number) {
   const stored = normalizeStoredDocs(row)
-  const docs = zeevDocsFromTicket(ticket).filter((doc) => doc.url || doc.base64Content || doc.fileId)
+  const docs = zeevDocsFromTicket(ticket)
+    .filter((doc) => doc.url || doc.base64Content || doc.fileId)
+    .sort((a: AnyRecord, b: AnyRecord) => financialDocPriority(a) - financialDocPriority(b))
   let attached = 0
   let nfPath = row.nf_doc_path || ''
   let compPath = row.comp_doc_path || ''
   const skipped: AnyRecord[] = []
   const newDocs: AnyRecord[] = []
-  const candidateLimit = Math.max(limitFiles, Math.min(Number(env('ZEEV_DOC_CANDIDATE_ATTEMPT_LIMIT', '8')) || 8, 30))
+  const hasInvoiceCandidate = docs.some((doc: AnyRecord) => isInvoiceDocKind(fiscalDocKind(doc)))
+  const hasChargeCandidate = docs.some((doc: AnyRecord) => isChargeDocKind(fiscalDocKind(doc)))
+  const effectiveLimit = Math.min(8, Math.max(limitFiles, hasInvoiceCandidate && hasChargeCandidate ? 2 : limitFiles))
+  const candidateLimit = Math.max(effectiveLimit, Math.min(Number(env('ZEEV_DOC_CANDIDATE_ATTEMPT_LIMIT', '8')) || 8, 30))
   for (const doc of docs.slice(0, candidateLimit)) {
-    if (attached >= limitFiles) break
+    if (attached >= effectiveLimit) break
     const docKind = fiscalDocKind(doc)
     const docNameKey = `${docKind}|${normKey(doc.name)}|${normKey(doc.source)}`
     const sameZeevFileAlreadyStored = stored.some((existing) => {
@@ -3661,8 +3689,8 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
     const item = { name: file.name, storagePath: path, type: file.type, bucket: 'pagamentos', kind, origin: 'ZEEV', source: doc.source || '', url: doc.url || '', ticketRaiz: ticketId, attachedAt: new Date().toISOString() }
     stored.push(item)
     newDocs.push(item)
-    if (!nfPath && kind !== 'COMPROVANTE') nfPath = path
-    if (!compPath && kind === 'COMPROVANTE') compPath = path
+    if (!nfPath && isInvoiceDocKind(kind)) nfPath = path
+    if (!compPath && isProofDocKind(kind)) compPath = path
     attached++
   }
   return { docs: stored, attached, nfPath, compPath, skipped, newDocs }
@@ -3673,20 +3701,25 @@ function recordAttachedDocs(out: AnyRecord, target: string, row: AnyRecord, tick
   if (!Array.isArray(out.attachedTickets)) out.attachedTickets = []
   if (out.attachedTickets.length >= 80) return
   const ticketId = ticketDigits(ticket?.zeev_instance_id || row?.ticket_raiz || row?.ticket_raiz_instance_id || row?.referencia || '')
-  const fiscalDocs = (Array.isArray(attach.newDocs) ? attach.newDocs : [])
-    .filter((doc: AnyRecord) => String(doc?.kind || '').toUpperCase() !== 'COMPROVANTE')
+  const attachments = (Array.isArray(attach.newDocs) ? attach.newDocs : [])
+    .filter((doc: AnyRecord) => !isProofDocKind(doc?.kind))
     .map((doc: AnyRecord) => ({
       name: doc?.name || '',
       kind: doc?.kind || '',
       storagePath: doc?.storagePath || '',
       attachedAt: doc?.attachedAt || '',
     }))
-  if (!fiscalDocs.length) return
+  const invoiceDocs = attachments.filter((doc: AnyRecord) => isInvoiceDocKind(doc.kind))
+  const chargeDocs = attachments.filter((doc: AnyRecord) => isChargeDocKind(doc.kind))
+  if (!attachments.length) return
   out.attachedTickets.push({
     tr: ticketId ? Number(ticketId) : null,
     target,
     rowId: row?.id || null,
-    fiscalDocs,
+    attachments,
+    invoiceDocs,
+    chargeDocs,
+    fiscalDocs: invoiceDocs,
   })
 }
 
@@ -3706,8 +3739,15 @@ function docsCandidateScore(row: AnyRecord) {
 function hasStoredFiscalDoc(row: AnyRecord) {
   if (String(row?.nf_doc_path || '').trim()) return true
   return normalizeStoredDocs(row).some((doc: AnyRecord) => {
-    const kind = String(doc?.kind || '').toUpperCase()
-    return kind !== 'COMPROVANTE' && Boolean(doc?.storagePath || doc?.path || doc?.url)
+    const kind = fiscalDocKind(doc)
+    return isInvoiceDocKind(kind) && Boolean(doc?.storagePath || doc?.path || doc?.url)
+  })
+}
+
+function hasStoredChargeDoc(row: AnyRecord) {
+  return normalizeStoredDocs(row).some((doc: AnyRecord) => {
+    const kind = fiscalDocKind(doc)
+    return isChargeDocKind(kind) && Boolean(doc?.storagePath || doc?.path || doc?.url)
   })
 }
 
@@ -3931,6 +3971,7 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
   const capexIds = new Set<string>()
   const withAnyDocs = new Set<string>()
   const withFiscalDocs = new Set<string>()
+  const withChargeDocs = new Set<string>()
   const neverChecked = new Set<string>()
   const checkedFresh = new Set<string>()
   const rescueQueue = new Set<string>()
@@ -3944,6 +3985,7 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
     if (!key) return
     if (normalizeStoredDocs(row).length || row?.nf_doc_path || row?.comp_doc_path) withAnyDocs.add(key)
     if (hasStoredFiscalDoc(row)) withFiscalDocs.add(key)
+    if (hasStoredChargeDoc(row)) withChargeDocs.add(key)
     if (!row?.zeev_docs_checked_at) neverChecked.add(key)
     else if (!docsCheckIsStale(row, staleHours)) checkedFresh.add(key)
   }
@@ -3951,7 +3993,7 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
     if (!key || recentAttached.length >= 120) return
     const recentDocMap = new Map<string, AnyRecord>()
     for (const doc of normalizeStoredDocs(row)) {
-      if (String(doc?.kind || '').toUpperCase() === 'COMPROVANTE') continue
+      if (isProofDocKind(doc?.kind)) continue
       const pathTs = String(doc?.storagePath || doc?.path || '').match(/\/(?:nf|documento|boleto|fatura)_(\d{12,})_/i)
       const ts = new Date(String(doc?.attachedAt || '')).getTime() || Number(pathTs?.[1] || 0)
       if (!ts || Number.isNaN(ts) || ts < recentSince) continue
@@ -3961,14 +4003,14 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
       const current = recentDocMap.get(keyName)
       const item = {
         name,
-        kind: doc?.kind || '',
+        kind: fiscalDocKind(doc),
         storagePath: doc?.storagePath || doc?.path || '',
         attachedAt: doc?.attachedAt || (ts ? new Date(ts).toISOString() : ''),
         _ts: ts,
       }
       if (!current || Number(item._ts || 0) > Number(current._ts || 0)) recentDocMap.set(keyName, item)
     }
-    const fiscalDocs = [...recentDocMap.values()]
+    const attachments = [...recentDocMap.values()]
       .sort((a, b) => Number(b._ts || 0) - Number(a._ts || 0))
       .slice(0, 12)
       .map((doc: AnyRecord) => ({
@@ -3977,11 +4019,13 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
         storagePath: doc.storagePath || '',
         attachedAt: doc.attachedAt || '',
       }))
-    if (!fiscalDocs.length) return
-    const seenKey = `${target}|${row?.id}|${key}|${fiscalDocs.map((doc) => `${doc.storagePath}|${doc.attachedAt}`).join(',')}`
+    if (!attachments.length) return
+    const invoiceDocs = attachments.filter((doc: AnyRecord) => isInvoiceDocKind(doc.kind))
+    const chargeDocs = attachments.filter((doc: AnyRecord) => isChargeDocKind(doc.kind))
+    const seenKey = `${target}|${row?.id}|${key}|${attachments.map((doc) => `${doc.storagePath}|${doc.attachedAt}`).join(',')}`
     if (recentSeen.has(seenKey)) return
     recentSeen.add(seenKey)
-    recentAttached.push({ tr: Number(key), target, rowId: row?.id || null, fiscalDocs })
+    recentAttached.push({ tr: Number(key), target, rowId: row?.id || null, attachments, invoiceDocs, chargeDocs, fiscalDocs: invoiceDocs })
   }
 
   for (const row of payments || []) {
@@ -4020,7 +4064,7 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
     rows: { payments: payments.length, pending: pending.length, capex: capex.length },
     uniqueTickets: all.size,
     uniqueBySource: { payments: paymentIds.size, pending: pendingIds.size, financialPending: financialPendingIds.size, capex: capexIds.size },
-    docs: { withAnyDocs: withAnyDocs.size, withFiscalDocs: withFiscalDocs.size, withoutAnyDocs: Math.max(0, all.size - withAnyDocs.size), withoutFiscalDocs: Math.max(0, all.size - withFiscalDocs.size) },
+    docs: { withAnyDocs: withAnyDocs.size, withFiscalDocs: withFiscalDocs.size, withChargeDocs: withChargeDocs.size, withoutAnyDocs: Math.max(0, all.size - withAnyDocs.size), withoutFiscalDocs: Math.max(0, all.size - withFiscalDocs.size) },
     checked: { neverChecked: neverChecked.size, fresh: checkedFresh.size, staleOrMissing: rescueQueue.size },
     queue: { total: rescueQueue.size, paymentFiscal: paymentFiscalQueue.size, sample: [...rescueQueue].slice(0, sampleLimit).map(Number) },
     recentAttached: { hours: recentHours, total: recentAttached.length, tickets: recentAttached.slice(0, sampleLimit) },
@@ -4137,18 +4181,20 @@ function defaultPagadorForObra(obra: AnyRecord) {
 function fiscalTypeForTicket(ticket: AnyRecord, storedDocs: AnyRecord[]) {
   const candidates = [...storedDocs, ...zeevDocsFromTicket(ticket)]
   const text = normKey(candidates.map((doc) => [doc?.name, doc?.source, doc?.type, doc?.kind].filter(Boolean).join(' ')).join(' '))
+  if (/\d{44}/.test(candidates.map((doc) => [doc?.name, doc?.source, doc?.url, doc?.storagePath].filter(Boolean).join(' ')).join(' '))) return 'NF-e'
+  if (text.includes('nfe') || text.includes('danfe') || text.includes('xml')) return 'NF-e'
+  if (text.includes('nfse') || text.includes('nfs e') || text.includes('nota') || text.includes('nf')) return 'NFS-e'
   if (text.includes('boleto')) return 'Boleto'
   if (text.includes('fatura')) return 'Fatura'
   if (text.includes('recibo')) return 'Recibo'
-  if (text.includes('nfe') || text.includes('danfe') || text.includes('xml')) return 'NF-e'
-  if (candidates.length) return 'NFS-e'
+  if (candidates.length) return 'Documento'
   return 'Sem nota'
 }
 
 function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: string) {
   const storedDocs = normalizeStoredDocs(ticket)
-  const fiscalDocs = storedDocs.filter((doc) => String(doc?.kind || '').toUpperCase() !== 'COMPROVANTE')
-  const comprovantes = storedDocs.filter((doc) => String(doc?.kind || '').toUpperCase() === 'COMPROVANTE')
+  const invoiceDocs = storedDocs.filter((doc) => isInvoiceDocKind(fiscalDocKind(doc)))
+  const comprovantes = storedDocs.filter((doc) => isProofDocKind(fiscalDocKind(doc)))
   const nfTipo = fiscalTypeForTicket(ticket, storedDocs)
   const nfNum = ticket?.pagamento_json?.nota_fiscal
     || ticketFirstField(ticket, ['notaFiscal', 'numeroNF', 'numeroNotaFiscal', 'numero da nota fiscal', 'nf', 'fatura', 'boleto'])
@@ -4171,7 +4217,7 @@ function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: st
     venc: venc || paidDate || '',
     nf_tipo: nfTipo,
     comp: '',
-    nf_doc_path: fiscalDocs[0]?.storagePath || '',
+    nf_doc_path: invoiceDocs[0]?.storagePath || '',
     comp_doc_path: comprovantes[0]?.storagePath || '',
     docs_json: storedDocs,
     emissao: '',

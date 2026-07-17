@@ -1949,7 +1949,7 @@ def direct_doc_rescue_enabled():
 
 
 def direct_doc_rescue_file_limit():
-    return max(0, min(int(os.environ.get("ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT", os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "2")) or "2"), 8))
+    return max(0, min(int(os.environ.get("ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT", os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "3")) or "3"), 8))
 
 
 def direct_doc_rescue_max_bytes():
@@ -2012,6 +2012,12 @@ def doc_kind(name="", url="", source=""):
     hay = norm(" ".join([str(name or ""), str(url or ""), str(source or "")]))
     if any(x in hay for x in ["comprovante", "recibo", "pix", "pagamento", "pago", "liquidado"]):
         return "COMPROVANTE"
+    if "boleto" in hay:
+        return "BOLETO"
+    if "fatura" in hay:
+        return "FATURA"
+    if re.search(r"\d{44}", " ".join([str(name or ""), str(url or ""), str(source or "")])):
+        return "NF"
     return "NF"
 
 
