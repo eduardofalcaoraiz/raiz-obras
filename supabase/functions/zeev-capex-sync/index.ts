@@ -1575,7 +1575,7 @@ async function buildTicket(row: AnyRecord) {
 async function rest(path: string, init: RequestInit = {}, options: { retries?: number; timeoutMs?: number } = {}) {
   const url = `${env('SUPABASE_URL').replace(/\/$/, '')}/rest/v1${path}`
   const key = env('SUPABASE_SERVICE_ROLE_KEY')
-  const retries = Math.max(0, Math.min(Number(options.retries ?? env('ZEEV_SUPABASE_REST_RETRIES', '2')), 5))
+  const retries = Math.max(0, Math.min(Number(options.retries ?? env('ZEEV_SUPABASE_REST_RETRIES', '5')), 8))
   const timeoutMs = Math.max(3000, Math.min(Number(options.timeoutMs ?? env('ZEEV_SUPABASE_REST_TIMEOUT_MS', '18000')), 60000))
   let lastError = ''
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -1602,7 +1602,7 @@ async function rest(path: string, init: RequestInit = {}, options: { retries?: n
     } finally {
       clearTimeout(timer)
     }
-    await sleep(Math.min(1200 * (attempt + 1), 5000))
+    await sleep(Math.min(2500 * (attempt + 1), 15000))
   }
   throw new Error(lastError || 'Supabase REST falhou sem resposta detalhada.')
 }
