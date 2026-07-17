@@ -3625,6 +3625,12 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
     if (attached >= limitFiles) break
     const docKind = fiscalDocKind(doc)
     const docNameKey = `${docKind}|${normKey(doc.name)}|${normKey(doc.source)}`
+    const sameZeevFileAlreadyStored = stored.some((existing) => {
+      const sameName = normKey(existing?.name) && normKey(existing?.name) === normKey(doc.name)
+      const ze = String(existing?.origin || '').toUpperCase() === 'ZEEV' || String(existing?.storagePath || '').includes('zeev_tr_') || String(existing?.storagePath || '').includes('zeev_pendente/')
+      return sameName && ze && Boolean(existing?.storagePath || existing?.path || existing?.url)
+    })
+    if (sameZeevFileAlreadyStored) continue
     if (stored.some((existing) => String(existing.url || '') && String(existing.url) === String(doc.url))) continue
     if (!doc.url && stored.some((existing) => `${existing.kind || ''}|${normKey(existing.name)}|${normKey(existing.source)}` === docNameKey)) continue
     let file: { body: ArrayBuffer; name: string; type: string } | null = null
@@ -3943,22 +3949,33 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
   }
   const collectRecentAttached = (key: string, target: string, row: AnyRecord) => {
     if (!key || recentAttached.length >= 120) return
-    const fiscalDocs = normalizeStoredDocs(row)
-      .filter((doc: AnyRecord) => String(doc?.kind || '').toUpperCase() !== 'COMPROVANTE')
-      .filter((doc: AnyRecord) => {
-        const pathTs = String(doc?.storagePath || doc?.path || '').match(/\/(?:nf|documento|boleto|fatura)_(\d{12,})_/i)
-        const ts = new Date(String(doc?.attachedAt || '')).getTime() || Number(pathTs?.[1] || 0)
-        return ts && !Number.isNaN(ts) && ts >= recentSince
-      })
-      .map((doc: AnyRecord) => ({
-        name: doc?.name || '',
+    const recentDocMap = new Map<string, AnyRecord>()
+    for (const doc of normalizeStoredDocs(row)) {
+      if (String(doc?.kind || '').toUpperCase() === 'COMPROVANTE') continue
+      const pathTs = String(doc?.storagePath || doc?.path || '').match(/\/(?:nf|documento|boleto|fatura)_(\d{12,})_/i)
+      const ts = new Date(String(doc?.attachedAt || '')).getTime() || Number(pathTs?.[1] || 0)
+      if (!ts || Number.isNaN(ts) || ts < recentSince) continue
+      const name = String(doc?.name || '').trim()
+      const keyName = normKey(name || doc?.storagePath || doc?.path || '')
+      if (!keyName) continue
+      const current = recentDocMap.get(keyName)
+      const item = {
+        name,
         kind: doc?.kind || '',
         storagePath: doc?.storagePath || doc?.path || '',
-        attachedAt: doc?.attachedAt || (() => {
-          const match = String(doc?.storagePath || doc?.path || '').match(/\/(?:nf|documento|boleto|fatura)_(\d{12,})_/i)
-          const ts = Number(match?.[1] || 0)
-          return ts ? new Date(ts).toISOString() : ''
-        })(),
+        attachedAt: doc?.attachedAt || (ts ? new Date(ts).toISOString() : ''),
+        _ts: ts,
+      }
+      if (!current || Number(item._ts || 0) > Number(current._ts || 0)) recentDocMap.set(keyName, item)
+    }
+    const fiscalDocs = [...recentDocMap.values()]
+      .sort((a, b) => Number(b._ts || 0) - Number(a._ts || 0))
+      .slice(0, 12)
+      .map((doc: AnyRecord) => ({
+        name: doc.name || '',
+        kind: doc.kind || '',
+        storagePath: doc.storagePath || '',
+        attachedAt: doc.attachedAt || '',
       }))
     if (!fiscalDocs.length) return
     const seenKey = `${target}|${row?.id}|${key}|${fiscalDocs.map((doc) => `${doc.storagePath}|${doc.attachedAt}`).join(',')}`
