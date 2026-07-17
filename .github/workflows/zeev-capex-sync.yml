@@ -5,7 +5,7 @@ run-name: Zeev CAPEX ${{ github.event_name == 'workflow_dispatch' && inputs.mode
 on:
   schedule:
     - cron: "*/30 * * * *"
-    - cron: "17 */2 * * *"
+    - cron: "17 * * * *"
     - cron: "43 * * * *"
   workflow_dispatch:
     inputs:
@@ -95,7 +95,7 @@ jobs:
           SUPABASE_URL: https://hjccxfznojjosvanwztv.supabase.co
           ZEEV_BUSINESS_TIMEZONE: America/Sao_Paulo
           ZEEV_FLOW_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.flow_ids || '299,275,263,102,300' }}
-          ZEEV_SYNC_MODE: ${{ github.event_name == 'schedule' && github.event.schedule == '17 */2 * * *' && 'rescue-docs-loop' || github.event_name == 'schedule' && github.event.schedule == '43 * * * *' && 'refresh-payment-statuses' || github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
+          ZEEV_SYNC_MODE: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && 'rescue-docs-loop' || github.event_name == 'schedule' && github.event.schedule == '43 * * * *' && 'refresh-payment-statuses' || github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
           ZEEV_SYNC_START: ${{ github.event_name == 'workflow_dispatch' && inputs.start || '' }}
           ZEEV_SYNC_END: ${{ github.event_name == 'workflow_dispatch' && inputs.end || '' }}
           ZEEV_MAX_PAGES: ${{ github.event_name == 'schedule' && github.event.schedule == '*/30 * * * *' && '2' || github.event_name == 'workflow_dispatch' && inputs.max_pages || '8' }}
@@ -115,21 +115,25 @@ jobs:
           ZEEV_TARGET_ANO: ${{ github.event_name == 'workflow_dispatch' && inputs.target_ano || '' }}
           ZEEV_FORCE_PENDING_REASON: ${{ github.event_name == 'workflow_dispatch' && inputs.force_reason || '' }}
           ZEEV_AI_SUMMARY_ENABLED: "1"
-          ZEEV_BACKFILL_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '17 */2 * * *' && '4' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '1' }}
+          ZEEV_BACKFILL_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && '12' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '1' }}
           ZEEV_STATUS_REFRESH_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '43 * * * *' && '40' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '40' }}
           ZEEV_STATUS_REFRESH_BATCH: ${{ github.event_name == 'schedule' && github.event.schedule == '43 * * * *' && '4' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '4' }}
           ZEEV_STATUS_ONLY_OVERDUE: ${{ github.event_name == 'schedule' && github.event.schedule == '43 * * * *' && 'false' || 'true' }}
           ZEEV_STATUS_REFRESH_PAUSE_SECONDS: "1"
-          ZEEV_BACKFILL_BATCH: ${{ github.event_name == 'schedule' && github.event.schedule == '17 */2 * * *' && '1' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
+          ZEEV_BACKFILL_BATCH: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && '2' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
           ZEEV_BACKFILL_STALE_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '8' }}
-          ZEEV_BACKFILL_FILE_LIMIT: "1"
+          ZEEV_BACKFILL_FILE_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && '2' || '1' }}
           ZEEV_INGEST_BACKFILL_LIMIT: "0"
           ZEEV_DIRECT_DOC_RESCUE_ENABLED: "1"
           ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT: "2"
           ZEEV_DIRECT_DOC_RESCUE_MAX_BYTES: "5500000"
-          ZEEV_DOC_RESCUE_LOOP_SECONDS: "720"
-          ZEEV_DOC_RESCUE_LOOP_ROUNDS: "6"
-          ZEEV_DOC_RESCUE_MAX_TRANSIENT_RETRIES: "3"
+          ZEEV_DOC_RESCUE_LOOP_SECONDS: "1800"
+          ZEEV_DOC_RESCUE_LOOP_ROUNDS: "10"
+          ZEEV_DOC_RESCUE_MAX_TRANSIENT_RETRIES: "5"
+          ZEEV_DIRECT_DOC_TIMEOUT_SECONDS: "12"
+          ZEEV_FILE_URL_ATTEMPT_LIMIT: "4"
+          ZEEV_FILE_TOKEN_ATTEMPT_LIMIT: "2"
+          ZEEV_DOC_CANDIDATE_ATTEMPT_LIMIT: "8"
           ZEEV_EXTRA_DOCUMENT_FIELDS: ${{ secrets.ZEEV_EXTRA_DOCUMENT_FIELDS }}
           ZEEV_FILE_DOWNLOAD_URL_TEMPLATE: ${{ secrets.ZEEV_FILE_DOWNLOAD_URL_TEMPLATE }}
           ZEEV_REGISTER_BATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'register-capex-items' && '6' || github.event_name == 'workflow_dispatch' && inputs.mode == 'register-obra-payments' && '3' || '1' }}
