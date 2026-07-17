@@ -714,17 +714,18 @@ async function zeevTextRequest(url: string, init: RequestInit = {}): Promise<{ r
   throw new Error(`Zeev API sem resposta autorizada: ${errors.join(' | ')}`)
 }
 
-async function zeevBinaryRequest(url: string, init: RequestInit = {}): Promise<Response> {
+async function zeevBinaryRequest(url: string, init: RequestInit = {}, options: { timeoutMs?: number; maxTokens?: number } = {}): Promise<Response> {
   const tokens = zeevTokens().filter((token) => token && !BAD_ZEEV_TOKENS.has(token))
   if (!tokens.length) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const errors: string[] = []
-  for (const token of tokens) {
+  const maxTokens = Math.max(1, Math.min(Number(options.maxTokens || tokens.length) || tokens.length, tokens.length))
+  for (const token of tokens.slice(0, maxTokens)) {
     const headers = new Headers(init.headers || {})
     headers.set('Authorization', `Bearer ${token}`)
     if (!headers.has('Accept')) headers.set('Accept', '*/*')
     let res: Response
     try {
-      res = await zeevFetchWithTimeout(url, { ...init, headers })
+      res = await zeevFetchWithTimeout(url, { ...init, headers }, options.timeoutMs)
     } catch (error) {
       errors.push(`timeout/fetch: ${error instanceof Error ? error.message : String(error)}`.slice(0, 260))
       continue
@@ -3156,6 +3157,9 @@ async function downloadZeevDocFromUrl(doc: AnyRecord, url: string, depth = 0): P
       Accept: '*/*',
       'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
     },
+  }, {
+    timeoutMs: Math.max(4000, Math.min(Number(env('ZEEV_FILE_DOWNLOAD_TIMEOUT_MS', '8000')) || 8000, 30000)),
+    maxTokens: Math.max(1, Math.min(Number(env('ZEEV_FILE_TOKEN_ATTEMPT_LIMIT', '2')) || 2, 6)),
   })
   const type = res.headers.get('content-type') || doc.type || 'application/octet-stream'
   if (depth < 2 && /application\/json|text\/json/i.test(type)) {
@@ -3182,7 +3186,8 @@ async function downloadZeevDoc(doc: AnyRecord, depth = 0): Promise<{ body: Array
   const urls = fileDownloadUrls(doc)
   if (!urls.length) return null
   const errors: string[] = []
-  for (const url of urls) {
+  const urlAttemptLimit = Math.max(1, Math.min(Number(env('ZEEV_FILE_URL_ATTEMPT_LIMIT', '4')) || 4, urls.length, 12))
+  for (const url of urls.slice(0, urlAttemptLimit)) {
     try {
       const file = await downloadZeevDocFromUrl(doc, url, depth)
       if (file) return file
@@ -3614,7 +3619,8 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
   let nfPath = row.nf_doc_path || ''
   let compPath = row.comp_doc_path || ''
   const skipped: AnyRecord[] = []
-  for (const doc of docs) {
+  const candidateLimit = Math.max(limitFiles, Math.min(Number(env('ZEEV_DOC_CANDIDATE_ATTEMPT_LIMIT', '8')) || 8, 30))
+  for (const doc of docs.slice(0, candidateLimit)) {
     if (attached >= limitFiles) break
     const docKind = fiscalDocKind(doc)
     const docNameKey = `${docKind}|${normKey(doc.name)}|${normKey(doc.source)}`
@@ -3713,7 +3719,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
     for (const row of candidates) {
       try {
         let ticket = row
-        if (refresh) ticket = await refreshTicketFromZeev(ticket)
+        if (refresh) ticket = await loadWebhookTicketFromZeev(ticket)
         const current = ticket?.zeev_instance_id && ticket.zeev_instance_id !== row.zeev_instance_id ? ticket : { ...row, ...(ticket || {}) }
         const attach = await attachDocsForTarget('pending', row, current, fileLimit)
         if (targetSet.size && !attach.attached) addDocDebug(out, 'pending', row, current, attach)
@@ -3744,7 +3750,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
       try {
         const ticketId = Number(ticketDigits(row.ticket_raiz))
         let ticket = ticketMap.get(ticketId) || { zeev_instance_id: ticketId, ticket_raiz: ticketId }
-        if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadGenericTicketFromZeev(ticket)
+        if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadWebhookTicketFromZeev(ticket)
         const attach = await attachDocsForTarget('payment', row, ticket, fileLimit)
         if (targetSet.size && !attach.attached) addDocDebug(out, 'payment', row, ticket, attach)
         const paidDate = paymentDateFromTicket(ticket)
@@ -3780,7 +3786,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
       try {
         const ticketId = Number(ticketDigits(row.ticket_raiz_instance_id || row.referencia))
         let ticket = ticketMap.get(ticketId) || ticketFromCapexDados(row)
-        if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadGenericTicketFromZeev(ticket)
+        if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadWebhookTicketFromZeev({ ...ticket, zeev_instance_id: ticketId })
         const attach = await attachDocsForTarget('capex', row, ticket, fileLimit)
         if (targetSet.size && !attach.attached) addDocDebug(out, 'capex', row, ticket, attach)
         const paidDate = paymentDateFromTicket(ticket)
