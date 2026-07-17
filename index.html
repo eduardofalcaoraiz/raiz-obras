@@ -7649,7 +7649,7 @@ async function syncZeevCapexNow(){
     const res=await fetch(SUPA_URL+'/functions/v1/zeev-capex-sync',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+(session?.access_token||SUPA_ANON)},
-      body:JSON.stringify({mode:'dispatch',target:'github',workflowMode:'deep-incremental',maxPages:'16',lockTtlMinutes:75,refreshLimit:40,notify:true})
+      body:JSON.stringify({mode:'dispatch',target:'github',workflowMode:'incremental',maxPages:'2',lockTtlMinutes:25,refreshLimit:12,notify:true})
     });
     const out=await res.json().catch(()=>({}));
     if(!res.ok||out.ok===false)throw new Error(out.error||('HTTP '+res.status));
