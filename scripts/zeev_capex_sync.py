@@ -2064,8 +2064,9 @@ def fetch_binary_for_rescue(url):
     parsed = urllib.parse.urlparse(clean)
     zeev_host = urllib.parse.urlparse(ZEEV_BASE_URL).netloc
     token_list = zeev_tokens() if parsed.netloc == zeev_host or parsed.netloc.endswith(".zeev.it") else [""]
+    token_limit = max(1, min(int(os.environ.get("ZEEV_FILE_TOKEN_ATTEMPT_LIMIT", "2") or "2"), len(token_list or [""])))
     last_error = None
-    for token in token_list or [""]:
+    for token in (token_list or [""])[:token_limit]:
         headers = {
             "Accept": "application/pdf,application/xml,text/xml,image/*,application/octet-stream,application/json,text/html,*/*",
             "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
@@ -2074,7 +2075,7 @@ def fetch_binary_for_rescue(url):
             headers["Authorization"] = f"Bearer {token}"
         req = urllib.request.Request(clean, headers=headers, method="GET")
         try:
-            with urllib.request.urlopen(req, timeout=max(10, min(int(os.environ.get("ZEEV_DIRECT_DOC_TIMEOUT_SECONDS", "35")), 90))) as res:
+            with urllib.request.urlopen(req, timeout=max(5, min(int(os.environ.get("ZEEV_DIRECT_DOC_TIMEOUT_SECONDS", "12")), 60))) as res:
                 length = int(res.headers.get("Content-Length") or "0")
                 if length and length > max_bytes:
                     raise RuntimeError(f"arquivo maior que limite direto ({length} bytes)")
@@ -2160,7 +2161,8 @@ def download_doc_candidate(candidate, depth=0):
     if candidate.get("fileId"):
         urls.extend(zeev_file_id_urls(candidate.get("fileId")))
     errors = []
-    for url in urls:
+    url_limit = max(1, min(int(os.environ.get("ZEEV_FILE_URL_ATTEMPT_LIMIT", "4") or "4"), len(urls), 12))
+    for url in urls[:url_limit]:
         try:
             response = fetch_binary_for_rescue(url)
             return downloaded_doc_from_response(candidate, response, depth)
@@ -2220,6 +2222,9 @@ def rescue_documents_for_row(row):
     downloaded = []
     skipped = []
     for candidate in candidates:
+        candidate_limit = max(direct_doc_rescue_file_limit(), min(int(os.environ.get("ZEEV_DOC_CANDIDATE_ATTEMPT_LIMIT", "8") or "8"), 30))
+        if len(skipped) + len(downloaded) >= candidate_limit:
+            break
         if len(downloaded) >= direct_doc_rescue_file_limit():
             break
         try:
