@@ -19,6 +19,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://hjccxfznojjosvanwztv.supa
 ZEEV_TOKEN = os.environ.get("ZEEV_TOKEN", "")
 ZEEV_EXTRA_TOKENS = os.environ.get("ZEEV_EXTRA_TOKENS", "")
 ZEEV_SYNC_SECRET = os.environ.get("ZEEV_SYNC_SECRET", "")
+AUTOMATION_PAUSED = os.environ.get("ZEEV_AUTOMATION_PAUSED", "").strip().lower() in {"1", "true", "sim", "yes", "on"}
 
 
 def parse_flow_ids_env(value):
@@ -507,7 +508,56 @@ def is_transient_http_error(message):
         "HTTP 429", "HTTP 500", "HTTP 502", "HTTP 503", "HTTP 504",
         "HTTP 520", "HTTP 522", "HTTP 524", "HTTP 546",
         "unknown_origin_error", "Cloudflare", "WORKER_RESOURCE_LIMIT",
+        "PGRST002", "schema cache", "Connection timed out", "Web server is down",
     ])
+
+
+def supabase_automation_mode(mode):
+    key = norm_key(mode)
+    return key in {
+        "incremental", "deepincremental", "retro", "deepretro", "deep",
+        "rescuedocs", "rescuedocsloop", "docrescueloop", "backfilldocs",
+        "docsbackfill", "backfill", "refreshpaymentstatuses", "refreshpayments",
+        "paymentstatuses", "docrescueaudit", "rescuedocsaudit", "auditdocs",
+    }
+
+
+def supabase_healthcheck(timeout=12):
+    if not ZEEV_SYNC_SECRET:
+        return {"ok": False, "reason": "ZEEV_SYNC_SECRET ausente"}
+    url = f"{SUPABASE_URL}/functions/v1/zeev-capex-sync"
+    body = json.dumps({"mode": "health"}, ensure_ascii=False).encode("utf-8")
+    headers = {
+        "Authorization": f"Bearer {ZEEV_SYNC_SECRET}",
+        "x-cron-secret": ZEEV_SYNC_SECRET,
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "RaizObraViva/healthcheck",
+    }
+    try:
+        req = urllib.request.Request(url, data=body, method="POST", headers=headers)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            data = json.loads(raw) if raw else {}
+            return {"ok": bool(data.get("ok")), "status": int(resp.status), **({} if isinstance(data, list) else data)}
+    except urllib.error.HTTPError as exc:
+        text = exc.read().decode("utf-8", errors="replace")
+        return {"ok": False, "status": exc.code, "error": text[:500], "transient": is_transient_http_error(f"HTTP {exc.code}: {text}")}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:500], "transient": is_transient_http_error(str(exc))}
+
+
+def maybe_skip_for_supabase_health(mode):
+    if AUTOMATION_PAUSED and supabase_automation_mode(mode):
+        return {"ok": True, "mode": mode, "skipped": True, "reason": "ZEEV_AUTOMATION_PAUSED"}
+    if os.environ.get("ZEEV_SKIP_SUPABASE_PREFLIGHT", "").strip().lower() in {"1", "true", "sim", "yes"}:
+        return None
+    if not supabase_automation_mode(mode):
+        return None
+    health = supabase_healthcheck()
+    if health.get("ok"):
+        return None
+    return {"ok": True, "mode": mode, "skipped": True, "reason": "supabase_rest_unhealthy", "health": health}
 
 
 def capex_fields(flow_id=None):
@@ -2506,15 +2556,17 @@ def add_document_options(payload):
     return payload
 
 
-def ingest(tickets, notify=False, partial=False):
+def ingest(tickets, notify=False, partial=False, backfill_limit=None):
     payload = {"mode": "ingest", "tickets": tickets, "notify": notify}
     if ZEEV_TOKEN:
         payload["zeevToken"] = ZEEV_TOKEN
     add_document_options(payload)
-    backfill_limit = os.environ.get("ZEEV_INGEST_BACKFILL_LIMIT") or os.environ.get("ZEEV_BACKFILL_LIMIT")
-    if backfill_limit and not partial:
+    configured_backfill_limit = backfill_limit
+    if configured_backfill_limit is None:
+        configured_backfill_limit = os.environ.get("ZEEV_INGEST_BACKFILL_LIMIT") or os.environ.get("ZEEV_BACKFILL_LIMIT")
+    if configured_backfill_limit is not None and configured_backfill_limit != "" and not partial:
         try:
-            payload["backfillLimit"] = max(0, int(backfill_limit))
+            payload["backfillLimit"] = max(0, int(configured_backfill_limit))
         except ValueError:
             pass
     if partial:
@@ -2723,7 +2775,7 @@ def rescue_docs():
                 docs = raw.get("__downloaded_docs") if isinstance(raw, dict) else []
                 if isinstance(docs, list):
                     downloaded += len(docs)
-            result = ingest(tickets, notify=False)
+            result = ingest(tickets, notify=False, backfill_limit=0)
             attached = 0
             backfill = result.get("backfill") if isinstance(result, dict) else {}
             direct_docs = backfill.get("directDocs") if isinstance(backfill, dict) and isinstance(backfill.get("directDocs"), dict) else backfill
@@ -2756,8 +2808,9 @@ def rescue_docs():
 
 def rescue_docs_loop():
     started = time.time()
-    max_seconds = max(60, min(int(os.environ.get("ZEEV_DOC_RESCUE_LOOP_SECONDS", "3000")), 3300))
+    max_seconds = max(60, min(int(os.environ.get("ZEEV_DOC_RESCUE_LOOP_SECONDS", "900")), 3300))
     max_rounds = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_LOOP_ROUNDS", "20")), 80))
+    max_transient_retries = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_MAX_TRANSIENT_RETRIES", "3")), 12))
     out = {
         "ok": True,
         "mode": "rescue-docs-loop",
@@ -2782,7 +2835,13 @@ def rescue_docs_loop():
             if is_transient_http_error(msg) and time.time() - started < max_seconds:
                 out.setdefault("transientRetries", 0)
                 out["transientRetries"] += 1
-                time.sleep(float(os.environ.get("ZEEV_DOC_RESCUE_TRANSIENT_PAUSE_SECONDS", "60")))
+                if out["transientRetries"] >= max_transient_retries:
+                    out["ok"] = True
+                    out["partial"] = out["processed"] > 0
+                    out["paused"] = True
+                    out["pauseReason"] = "erro_transitorio_supabase_ou_zeev"
+                    break
+                time.sleep(float(os.environ.get("ZEEV_DOC_RESCUE_TRANSIENT_PAUSE_SECONDS", "45")))
                 continue
             out["ok"] = False
             break
@@ -3152,6 +3211,10 @@ def main():
     mode = os.environ.get("ZEEV_SYNC_MODE", "incremental")
     if not ZEEV_SYNC_SECRET:
         raise SystemExit("ZEEV_SYNC_SECRET e obrigatorio.")
+    health_skip = maybe_skip_for_supabase_health(mode)
+    if health_skip:
+        print(json.dumps(health_skip, ensure_ascii=False))
+        return
     if mode in {"reconcile-registered", "reconcile", "dedupe-registered"}:
         result = reconcile_registered()
         print(json.dumps(result, ensure_ascii=False))
@@ -3233,6 +3296,16 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
+        mode = os.environ.get("ZEEV_SYNC_MODE", "incremental")
+        if supabase_automation_mode(mode) and is_transient_http_error(str(exc)):
+            print(json.dumps({
+                "ok": True,
+                "mode": mode,
+                "skipped": True,
+                "reason": "erro_transitorio_sem_reportar_falha",
+                "error": str(exc)[:700],
+            }, ensure_ascii=False))
+            sys.exit(0)
         try:
             report_sync_error(exc)
         except Exception as report_exc:
