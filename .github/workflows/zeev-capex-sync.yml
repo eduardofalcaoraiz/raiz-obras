@@ -11,7 +11,7 @@ on:
       mode:
         description: "incremental, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket ou refresh-payment-statuses"
         required: true
-        default: "deep-incremental"
+        default: "incremental"
       start:
         description: "Inicio ISO para retro"
         required: false
@@ -25,7 +25,7 @@ on:
       max_pages:
         description: "Paginas da varredura"
         required: false
-        default: "12"
+        default: "2"
       start_page:
         description: "Pagina inicial da varredura profunda"
         required: false
@@ -33,7 +33,7 @@ on:
       notify:
         description: "Enviar email quando encontrar novos tickets"
         required: false
-        default: "true"
+        default: "false"
       ticket_ids:
         description: "IDs especificos do Ticket Raiz separados por virgula"
         required: false
@@ -43,7 +43,7 @@ on:
       backfill_limit:
         description: "Quantidade de registros para reparar anexos/status em backfill-docs"
         required: false
-        default: "20"
+        default: "2"
       backfill_batch:
         description: "Tamanho dos micro-lotes do backfill-docs"
         required: false
@@ -100,7 +100,7 @@ jobs:
           ZEEV_MAX_PAGES: ${{ github.event_name == 'schedule' && github.event.schedule == '*/30 * * * *' && '2' || github.event_name == 'workflow_dispatch' && inputs.max_pages || '8' }}
           ZEEV_START_PAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.start_page || '1' }}
           ZEEV_RECORDS_PER_PAGE: "30"
-          ZEEV_DEEP_SCAN: ${{ github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *' && '0' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '0' || '1' }}
+          ZEEV_DEEP_SCAN: ${{ github.event_name == 'schedule' && github.event.schedule == '*/30 * * * *' && '0' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '0' || '1' }}
           ZEEV_ENRICH_CONCURRENCY: "4"
           ZEEV_SYNC_OVERLAP_HOURS: "72"
           ZEEV_NOTIFY: ${{ github.event_name == 'workflow_dispatch' && inputs.notify || 'false' }}
