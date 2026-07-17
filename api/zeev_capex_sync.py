@@ -44,6 +44,47 @@ def _as_bool(value: Any, default: bool = False) -> bool:
     return str(value).strip().lower() in {"1", "true", "sim", "yes", "y"}
 
 
+def _first(payload: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = payload.get(key)
+        if value not in (None, ""):
+            return value
+    return ""
+
+
+def _extract_ticket_ids(payload: dict[str, Any]) -> Any:
+    direct = _first(
+        payload,
+        "ticketIds", "ticket_ids", "instanceIds", "instance_ids",
+        "instanceId", "instance_id", "processInstanceId", "process_instance_id",
+        "flowInstanceId", "flow_instance_id", "requestId", "request_id",
+        "ticketId", "ticket_id", "tr", "TR",
+    )
+    if direct:
+        return direct
+
+    found: list[str] = []
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, nested in value.items():
+                normalized = str(key).replace("-", "_").lower()
+                if normalized in {
+                    "ticketid", "ticket_id", "instanceid", "instance_id",
+                    "processinstanceid", "process_instance_id", "flowinstanceid",
+                    "flow_instance_id", "requestid", "request_id", "tr",
+                } and str(nested).strip().isdigit():
+                    found.append(str(nested).strip())
+                else:
+                    walk(nested)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(payload)
+    return ",".join(dict.fromkeys(found))
+
+
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:
         _json(self, 200, {"ok": True})
@@ -55,10 +96,14 @@ class handler(BaseHTTPRequestHandler):
         self._run()
 
     def _run(self) -> None:
+        payload = {**_query(self), **_read_json(self)}
         expected = os.environ.get("CRON_SECRET") or os.environ.get("ZEEV_SYNC_SECRET") or ""
         auth = self.headers.get("authorization") or ""
-        sent_secret = self.headers.get("x-cron-secret") or ""
-        zeev_token = self.headers.get("x-zeev-token") or os.environ.get("ZEEV_TOKEN") or ""
+        sent_secret = (
+            self.headers.get("x-cron-secret")
+            or str(payload.get("x-cron-secret") or payload.get("cronSecret") or payload.get("cron_secret") or payload.get("syncSecret") or payload.get("sync_secret") or "")
+        )
+        zeev_token = self.headers.get("x-zeev-token") or str(payload.get("zeevToken") or payload.get("zeev_token") or "") or os.environ.get("ZEEV_TOKEN") or ""
         zeev_extra_tokens = self.headers.get("x-zeev-extra-tokens") or payload.get("zeevExtraTokens") or payload.get("zeev_extra_tokens") or os.environ.get("ZEEV_EXTRA_TOKENS") or ""
 
         if expected:
@@ -75,7 +120,6 @@ class handler(BaseHTTPRequestHandler):
             _json(self, 500, {"ok": False, "error": "Segredo de sincronizacao ausente."})
             return
 
-        payload = {**_query(self), **_read_json(self)}
         mode = str(payload.get("mode") or payload.get("workflowMode") or payload.get("syncMode") or "incremental")
         secure_function_only_modes = {"reconcile-registered", "reconcile", "dedupe-registered", "register-obra-payments", "register-obra", "obra-payments", "refresh-payment-statuses", "refresh-payments", "payment-statuses"}
         if mode not in secure_function_only_modes and not zeev_token:
@@ -134,7 +178,7 @@ class handler(BaseHTTPRequestHandler):
             os.environ["ZEEV_SYNC_END"] = str(payload["end"])
         else:
             os.environ.pop("ZEEV_SYNC_END", None)
-        ticket_ids = payload.get("ticketIds") or payload.get("ticket_ids") or payload.get("instanceIds") or payload.get("instance_ids") or ""
+        ticket_ids = _extract_ticket_ids(payload)
         if isinstance(ticket_ids, (list, tuple)):
             os.environ["ZEEV_TICKET_IDS"] = ",".join(str(x) for x in ticket_ids)
         elif ticket_ids:
