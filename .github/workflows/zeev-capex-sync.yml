@@ -101,6 +101,8 @@ jobs:
           ZEEV_START_PAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.start_page || '1' }}
           ZEEV_RECORDS_PER_PAGE: "30"
           ZEEV_DEEP_SCAN: ${{ github.event_name == 'schedule' && github.event.schedule == '*/30 * * * *' && '0' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '0' || '1' }}
+          ZEEV_INCREMENTAL_MAX_PAGES_CAP: "2"
+          ZEEV_INCREMENTAL_EXTRA_TICKET_CAP: "5"
           ZEEV_ENRICH_CONCURRENCY: "4"
           ZEEV_SYNC_OVERLAP_HOURS: "72"
           ZEEV_NOTIFY: ${{ github.event_name == 'workflow_dispatch' && inputs.notify || 'false' }}
