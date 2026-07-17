@@ -2249,22 +2249,52 @@ async function enrichRow(row: AnyRecord) {
   }
 }
 
-async function sendEmail(ticket: AnyRecord) {
-  const to = env('ZEEV_NOTIFY_EMAIL', 'eduardo.falcao@raizeducacao.com.br')
+function htmlEscape(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function formatBrDateTime(value: unknown) {
+  const raw = String(value || '').trim()
+  if (!raw) return 'Nao informado'
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return raw
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: env('ZEEV_BUSINESS_TIMEZONE', 'America/Sao_Paulo'),
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(date)
+  } catch (_) {
+    return date.toISOString()
+  }
+}
+
+function formatBrMoney(value: unknown) {
+  const n = Number(value || 0)
+  try {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number.isFinite(n) ? n : 0)
+  } catch (_) {
+    return `R$ ${(Number.isFinite(n) ? n : 0).toFixed(2)}`
+  }
+}
+
+function notifyRecipients(value = env('ZEEV_NOTIFY_EMAIL', 'eduardo.falcao@raizeducacao.com.br')) {
+  return String(value || '')
+    .split(/[;,]+/)
+    .map((email) => email.trim())
+    .filter(Boolean)
+}
+
+async function sendHtmlEmail(subject: string, html: string, toValue?: string) {
+  const recipients = notifyRecipients(toValue)
+  if (!recipients.length) return { sent: false, reason: 'ZEEV_NOTIFY_EMAIL ausente' }
   const resend = env('RESEND_API_KEY')
   const from = env('ZEEV_EMAIL_FROM', 'Raiz ObraViva <onboarding@resend.dev>')
-  const subject = `Novo Ticket Raiz CAPEX #${ticket.zeev_instance_id}`
-  const link = ticket.ticket_link || ''
-  const html = `
-    <div style="font-family:Arial,sans-serif;color:#173C34;line-height:1.5">
-      <h2 style="margin:0 0 12px">Novo Ticket Raiz marcado como CAPEX</h2>
-      <p><b>Ticket:</b> ${ticket.zeev_instance_id}</p>
-      <p><b>Fluxo:</b> ${ticket.flow_name || ticket.request_name || ''}</p>
-      <p><b>Solicitante:</b> ${ticket.requester_name || ''}</p>
-      <p><b>Etapa atual:</b> ${ticket.etapa_atual || 'Nao informada'}</p>
-      ${link ? `<p><a href="${link}">Abrir Ticket Raiz</a></p>` : ''}
-      <p>O ticket ja esta aguardando analise na fila de CAPEX da Raiz ObraViva.</p>
-    </div>`
   if (resend) {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -2272,7 +2302,7 @@ async function sendEmail(ticket: AnyRecord) {
         Authorization: `Bearer ${resend}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from, to, subject, html }),
+      body: JSON.stringify({ from, to: recipients.length === 1 ? recipients[0] : recipients, subject, html }),
     })
     if (!res.ok) return { sent: false, reason: `Resend: ${await res.text()}` }
     return { sent: true, provider: 'resend' }
@@ -2292,7 +2322,7 @@ async function sendEmail(ticket: AnyRecord) {
       },
       body: JSON.stringify({
         sender: { name: senderName, email: senderEmail },
-        to: [{ email: to }],
+        to: recipients.map((email) => ({ email })),
         subject,
         htmlContent: html,
       }),
@@ -2302,6 +2332,22 @@ async function sendEmail(ticket: AnyRecord) {
   }
 
   return { sent: false, reason: 'RESEND_API_KEY ou BREVO_API_KEY ausente' }
+}
+
+async function sendEmail(ticket: AnyRecord) {
+  const subject = `Novo Ticket Raiz CAPEX #${ticket.zeev_instance_id}`
+  const link = String(ticket.ticket_link || '')
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#173C34;line-height:1.5">
+      <h2 style="margin:0 0 12px">Novo Ticket Raiz marcado como CAPEX</h2>
+      <p><b>Ticket:</b> ${htmlEscape(ticket.zeev_instance_id)}</p>
+      <p><b>Fluxo:</b> ${htmlEscape(ticket.flow_name || ticket.request_name || '')}</p>
+      <p><b>Solicitante:</b> ${htmlEscape(ticket.requester_name || '')}</p>
+      <p><b>Etapa atual:</b> ${htmlEscape(ticket.etapa_atual || 'Nao informada')}</p>
+      ${link ? `<p><a href="${htmlEscape(link)}">Abrir Ticket Raiz</a></p>` : ''}
+      <p>O ticket ja esta aguardando analise na fila de CAPEX da Raiz ObraViva.</p>
+    </div>`
+  return await sendHtmlEmail(subject, html)
 }
 
 async function notifyNewTickets(tickets: AnyRecord[], existing: Map<number, AnyRecord>) {
@@ -3768,6 +3814,209 @@ function shouldRescueDocs(row: AnyRecord, staleHours: number, target: 'payment' 
   return docsCheckIsStale(row, staleHours)
 }
 
+function stableHash(value: string) {
+  let h = 2166136261
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return (h >>> 0).toString(16).padStart(8, '0')
+}
+
+function obraDoneEmailEnabled() {
+  const value = String(env('ZEEV_OBRA_DONE_EMAIL', 'true') || '').trim().toLowerCase()
+  return !['0', 'false', 'nao', 'no', 'off', 'desligado'].includes(value)
+}
+
+function docKindsForRow(row: AnyRecord) {
+  const docs = normalizeStoredDocs(row)
+  const kinds = docs.map((doc: AnyRecord) => fiscalDocKind(doc))
+  return {
+    docs,
+    hasAny: Boolean(docs.length || row?.nf_doc_path || row?.comp_doc_path),
+    hasFiscal: hasStoredFiscalDoc(row),
+    hasCharge: kinds.some((kind) => isChargeDocKind(kind)),
+    hasProof: kinds.some((kind) => isProofDocKind(kind)),
+  }
+}
+
+async function loadObraInfoMap(obraIds: number[]) {
+  const unique = uniqueNumbers(obraIds).filter((id) => id > 0)
+  const map = new Map<number, AnyRecord>()
+  for (let i = 0; i < unique.length; i += 80) {
+    const chunk = unique.slice(i, i + 80)
+    const rows = await rest(`/obras?select=id,nome,marca,unidades_obra&id=in.(${chunk.join(',')})`)
+    for (const row of rows || []) map.set(Number(row.id), row)
+  }
+  return map
+}
+
+async function summarizeObraDocScan(obraId: number, staleHours: number, obraInfo: AnyRecord | null = null) {
+  const rowsRaw = await restAll(`/pagamentos?select=id,obra_id,ticket_raiz,ben,v,ref,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,zeev_docs_checked_at&obra_id=eq.${Number(obraId)}&ticket_raiz=not.is.null&order=id.asc`)
+  const rows = (rowsRaw || []).filter((row: AnyRecord) => ticketDigits(row.ticket_raiz))
+  if (!rows.length) return null
+  const uniqueTrs = new Set<string>()
+  let totalValue = 0
+  let withAnyRows = 0
+  let withFiscalRows = 0
+  let withChargeRows = 0
+  let withProofRows = 0
+  let checkedRows = 0
+  let latestCheckedAt = ''
+  const staleRows: AnyRecord[] = []
+  const missingFiscalRows: AnyRecord[] = []
+  const docFingerprints: string[] = []
+  for (const row of rows) {
+    const tr = ticketDigits(row.ticket_raiz)
+    if (tr) uniqueTrs.add(tr)
+    totalValue += Number(row.v || 0) || 0
+    const state = docKindsForRow(row)
+    if (state.hasAny) withAnyRows++
+    if (state.hasFiscal) withFiscalRows++
+    if (state.hasCharge) withChargeRows++
+    if (state.hasProof) withProofRows++
+    if (row.zeev_docs_checked_at && !docsCheckIsStale(row, staleHours)) checkedRows++
+    if (row.zeev_docs_checked_at && (!latestCheckedAt || String(row.zeev_docs_checked_at) > latestCheckedAt)) latestCheckedAt = String(row.zeev_docs_checked_at)
+    if (docsCheckIsStale(row, staleHours)) staleRows.push(row)
+    if (!state.hasFiscal) missingFiscalRows.push(row)
+    const docKey = state.docs
+      .map((doc: AnyRecord) => `${fiscalDocKind(doc)}:${storedDocKey(doc)}`)
+      .sort()
+      .join(',')
+    docFingerprints.push(`${row.id}:${tr}:${state.hasFiscal ? 1 : 0}:${state.hasCharge ? 1 : 0}:${docKey}`)
+  }
+  const maxPaymentId = Math.max(...rows.map((row: AnyRecord) => Number(row.id || 0)))
+  const docHash = stableHash(docFingerprints.join('|'))
+  const signature = `obra-doc-v2:${obraId}:${rows.length}:${uniqueTrs.size}:${withFiscalRows}:${withChargeRows}:${withProofRows}:${missingFiscalRows.length}:${maxPaymentId}:${stableHash(String(Math.round(totalValue * 100)))}:${docHash}`
+  return {
+    obraId: Number(obraId),
+    obra: obraInfo || null,
+    complete: staleRows.length === 0,
+    staleRows: staleRows.length,
+    checkedRows,
+    totalRows: rows.length,
+    uniqueTickets: uniqueTrs.size,
+    totalValue,
+    withAnyRows,
+    withFiscalRows,
+    withChargeRows,
+    withProofRows,
+    missingFiscalRows: missingFiscalRows.length,
+    latestCheckedAt,
+    signature,
+    missingFiscalSample: missingFiscalRows
+      .sort((a: AnyRecord, b: AnyRecord) => Number(ticketDigits(a.ticket_raiz)) - Number(ticketDigits(b.ticket_raiz)) || Number(a.id) - Number(b.id))
+      .slice(0, 20)
+      .map((row: AnyRecord) => ({
+        tr: Number(ticketDigits(row.ticket_raiz)),
+        beneficiario: row.ben || '',
+        valor: Number(row.v || 0) || 0,
+        status: row.st || '',
+      })),
+  }
+}
+
+async function sendObraDocScanEmail(summary: AnyRecord) {
+  const obra = summary.obra || {}
+  const nome = String(obra.nome || `Obra ${summary.obraId}`)
+  const marca = String(obra.marca || '').trim()
+  const missingRows = Array.isArray(summary.missingFiscalSample) ? summary.missingFiscalSample : []
+  const missingHtml = missingRows.length
+    ? `<div style="margin-top:16px">
+        <p style="margin:0 0 8px"><b>TRs ainda sem NF/DANFE/XML anexado</b> <span style="color:#6b6257">(primeiros ${missingRows.length})</span></p>
+        <table style="border-collapse:collapse;width:100%;font-size:13px">
+          <thead>
+            <tr>
+              <th align="left" style="border-bottom:1px solid #e6d8c5;padding:6px">TR</th>
+              <th align="left" style="border-bottom:1px solid #e6d8c5;padding:6px">Beneficiario</th>
+              <th align="right" style="border-bottom:1px solid #e6d8c5;padding:6px">Valor</th>
+              <th align="left" style="border-bottom:1px solid #e6d8c5;padding:6px">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${missingRows.map((row: AnyRecord) => `
+              <tr>
+                <td style="border-bottom:1px solid #f3eadf;padding:6px">${htmlEscape(row.tr || '')}</td>
+                <td style="border-bottom:1px solid #f3eadf;padding:6px">${htmlEscape(row.beneficiario || 'Nao informado')}</td>
+                <td align="right" style="border-bottom:1px solid #f3eadf;padding:6px">${htmlEscape(formatBrMoney(row.valor || 0))}</td>
+                <td style="border-bottom:1px solid #f3eadf;padding:6px">${htmlEscape(row.status || 'Nao informado')}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`
+    : '<p style="margin:16px 0 0;color:#28704f"><b>Todos os pagamentos checados desta obra ja possuem NF/DANFE/XML anexado.</b></p>'
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#173C34;line-height:1.5;background:#fffaf3;padding:20px;border-radius:12px">
+      <p style="margin:0 0 6px;color:#a35a00;text-transform:uppercase;letter-spacing:.04em;font-size:12px"><b>Varredura Zeev concluida por obra</b></p>
+      <h2 style="margin:0 0 4px">${htmlEscape(nome)}</h2>
+      ${marca ? `<p style="margin:0 0 16px;color:#5c6b62"><b>Marca:</b> ${htmlEscape(marca)}</p>` : ''}
+      <table style="border-collapse:separate;border-spacing:0 8px;width:100%;font-size:14px">
+        <tbody>
+          <tr>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Lancamentos com TR</b><br>${htmlEscape(summary.totalRows)}</td>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>TRs unicos</b><br>${htmlEscape(summary.uniqueTickets)}</td>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Valor auditado</b><br>${htmlEscape(formatBrMoney(summary.totalValue))}</td>
+          </tr>
+          <tr>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Com NF/DANFE/XML</b><br>${htmlEscape(summary.withFiscalRows)}</td>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Com boleto/fatura</b><br>${htmlEscape(summary.withChargeRows)}</td>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Com comprovante</b><br>${htmlEscape(summary.withProofRows)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin:10px 0 0"><b>Ultima checagem:</b> ${htmlEscape(formatBrDateTime(summary.latestCheckedAt))}</p>
+      <p style="margin:4px 0 0"><b>Resultado:</b> todos os pagamentos com TR desta obra foram checados pela varredura controlada. ${summary.missingFiscalRows ? `${htmlEscape(summary.missingFiscalRows)} lancamento(s) continuam sem documento fiscal localizado no Zeev.` : 'Nao ha documento fiscal faltante nos lancamentos checados.'}</p>
+      ${missingHtml}
+    </div>`
+  return await sendHtmlEmail(`Raiz ObraViva - varredura concluida: ${nome}`, html)
+}
+
+async function notifyCompletedObraDocScans(obraIds: number[], staleHours: number) {
+  if (!obraDoneEmailEnabled()) return []
+  const unique = uniqueNumbers(obraIds).filter((id) => id > 0)
+  if (!unique.length) return []
+  const obraMap = await loadObraInfoMap(unique)
+  const sent: AnyRecord[] = []
+  for (const obraId of unique) {
+    const summary = await summarizeObraDocScan(obraId, staleHours, obraMap.get(obraId) || null)
+    if (!summary || !summary.complete) {
+      sent.push({ obraId, sent: false, skipped: true, reason: 'obra_ainda_tem_registros_pendentes_de_checagem', staleRows: summary?.staleRows ?? null })
+      continue
+    }
+    const stateId = `zeev-obra-docs-${obraId}`
+    const state = await getState(stateId)
+    if (String(state?.last_error || '') === summary.signature) {
+      sent.push({ obraId, sent: false, skipped: true, reason: 'relatorio_ja_enviado_para_esta_assinatura' })
+      continue
+    }
+    const result = await sendObraDocScanEmail(summary)
+    if (result.sent) {
+      await saveState(stateId, {
+        running: false,
+        last_success_at: new Date().toISOString(),
+        last_error: summary.signature,
+        last_run_found: summary.totalRows,
+        last_run_new: summary.withFiscalRows,
+        last_run_updated: summary.withChargeRows,
+      })
+      sent.push({
+        obraId,
+        obra: summary.obra?.nome || `Obra ${obraId}`,
+        sent: true,
+        provider: result.provider,
+        totalRows: summary.totalRows,
+        uniqueTickets: summary.uniqueTickets,
+        withFiscalRows: summary.withFiscalRows,
+        withChargeRows: summary.withChargeRows,
+        missingFiscalRows: summary.missingFiscalRows,
+      })
+    } else {
+      sent.push({ obraId, obra: summary.obra?.nome || `Obra ${obraId}`, sent: false, reason: result.reason || 'falha_no_envio' })
+    }
+  }
+  return sent
+}
+
 function isFinancialZeevRow(row: AnyRecord) {
   const text = normKey([row?.flow_name, row?.request_name, row?.flowName, row?.requestName].filter(Boolean).join(' '))
   return text.includes('financeir') || Number(row?.flow_id || row?.flowId || 0) === 263
@@ -3787,6 +4036,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   const includeCapex = input.includeCapex !== false
   const scanStrategy = targetTicketIds.length ? 'trs-explicitos-com-fanout' : 'obras-primeiro-capex-registrado-depois-registros-pendentes'
   const out: AnyRecord = { ok: true, mode: 'backfill-docs', scanStrategy, targetTicketIds, scannedPending: 0, scannedPayments: 0, scannedCapex: 0, updatedPending: 0, updatedPayments: 0, updatedCapex: 0, filesAttached: 0, paidUpdated: 0, attachedTickets: [], errors: [] }
+  const touchedObraIds = new Set<number>()
   let budget = limit
 
   if (includePending && budget > 0 && targetTicketIds.length) {
@@ -3831,6 +4081,8 @@ async function runBackfillDocs(input: AnyRecord = {}) {
     const ticketMap = await loadTicketsByIds(candidates.map((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz))))
     for (const row of candidates) {
       try {
+        const obraId = Number(row.obra_id || 0)
+        if (obraId > 0) touchedObraIds.add(obraId)
         const ticketId = Number(ticketDigits(row.ticket_raiz))
         let ticket = ticketMap.get(ticketId) || { zeev_instance_id: ticketId, ticket_raiz: ticketId }
         if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadWebhookTicketFromZeev(ticket)
@@ -3924,6 +4176,13 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   }
 
   if (out.errors.length > 25) out.errors = out.errors.slice(0, 25)
+  if (touchedObraIds.size) {
+    try {
+      out.obraDoneEmails = await notifyCompletedObraDocScans([...touchedObraIds], staleHours)
+    } catch (error) {
+      out.errors.push({ target: 'obra-done-email', error: error instanceof Error ? error.message : String(error) })
+    }
+  }
   return out
 }
 

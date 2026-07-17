@@ -2670,6 +2670,7 @@ def backfill_docs():
         "updatedCapex": 0,
         "filesAttached": 0,
         "paidUpdated": 0,
+        "obraDoneEmails": [],
         "batches": [],
         "errors": [],
     }
@@ -2716,6 +2717,8 @@ def backfill_docs():
             out[key] += int(result.get(key, 0) or 0)
         if result.get("errors"):
             out["errors"].extend(result.get("errors")[:10])
+        if result.get("obraDoneEmails"):
+            out["obraDoneEmails"].extend(result.get("obraDoneEmails")[:20])
         if result.get("debugDocs"):
             out.setdefault("debugDocs", [])
             out["debugDocs"].extend(result.get("debugDocs")[:12])
@@ -2727,6 +2730,7 @@ def backfill_docs():
             "scanned": scanned,
             "updated": int(result.get("updatedPending", 0) or 0) + int(result.get("updatedPayments", 0) or 0) + int(result.get("updatedCapex", 0) or 0),
             "filesAttached": int(result.get("filesAttached", 0) or 0),
+            "obraDoneEmails": len(result.get("obraDoneEmails") or []),
         })
         if scanned <= 0:
             out["completed"] = True
@@ -2740,6 +2744,8 @@ def backfill_docs():
 
     if len(out["errors"]) > 25:
         out["errors"] = out["errors"][:25]
+    if len(out["obraDoneEmails"]) > 80:
+        out["obraDoneEmails"] = out["obraDoneEmails"][:80]
     out["completed"] = out.get("completed", False) or out["processed"] >= total_limit
     return out
 
@@ -2803,6 +2809,7 @@ def rescue_docs():
         "ingested": 0,
         "downloadedDocs": 0,
         "filesAttached": 0,
+        "obraDoneEmails": [],
         "batches": [],
         "errors": [],
     }
@@ -2822,6 +2829,8 @@ def rescue_docs():
             direct_docs = backfill.get("directDocs") if isinstance(backfill, dict) and isinstance(backfill.get("directDocs"), dict) else backfill
             if isinstance(direct_docs, dict):
                 attached = int(direct_docs.get("filesAttached", 0) or 0)
+                if direct_docs.get("obraDoneEmails"):
+                    out["obraDoneEmails"].extend(direct_docs.get("obraDoneEmails")[:20])
             out["processed"] += len(chunk)
             out["ingested"] += len(tickets)
             out["downloadedDocs"] += downloaded
@@ -2831,6 +2840,7 @@ def rescue_docs():
                 "tickets": len(tickets),
                 "downloadedDocs": downloaded,
                 "filesAttached": attached,
+                "obraDoneEmails": len(direct_docs.get("obraDoneEmails") or []) if isinstance(direct_docs, dict) else 0,
             })
         except Exception as exc:
             msg = str(exc)
@@ -2843,6 +2853,8 @@ def rescue_docs():
         time.sleep(float(os.environ.get("ZEEV_DOC_RESCUE_PAUSE_SECONDS", "1")))
     if len(out["errors"]) > 25:
         out["errors"] = out["errors"][:25]
+    if len(out["obraDoneEmails"]) > 80:
+        out["obraDoneEmails"] = out["obraDoneEmails"][:80]
     out["completed"] = out["processed"] >= len(ids)
     return out
 
@@ -2861,6 +2873,7 @@ def rescue_docs_loop():
         "ingested": 0,
         "downloadedDocs": 0,
         "filesAttached": 0,
+        "obraDoneEmails": [],
         "errors": [],
         "roundResults": [],
     }
@@ -2891,6 +2904,8 @@ def rescue_docs_loop():
         out["ingested"] += int(result.get("ingested", 0) or 0)
         out["downloadedDocs"] += int(result.get("downloadedDocs", 0) or 0)
         out["filesAttached"] += int(result.get("filesAttached", 0) or 0)
+        if result.get("obraDoneEmails"):
+            out["obraDoneEmails"].extend(result.get("obraDoneEmails")[:20])
         if result.get("errors"):
             out["errors"].extend(result.get("errors", [])[:10])
         out["roundResults"].append({
@@ -2899,6 +2914,7 @@ def rescue_docs_loop():
             "processed": int(result.get("processed", 0) or 0),
             "downloadedDocs": int(result.get("downloadedDocs", 0) or 0),
             "filesAttached": int(result.get("filesAttached", 0) or 0),
+            "obraDoneEmails": len(result.get("obraDoneEmails") or []),
             "completed": bool(result.get("completed")),
         })
         if int(result.get("candidates", 0) or 0) <= 0 or int(result.get("processed", 0) or 0) <= 0:
@@ -2910,6 +2926,8 @@ def rescue_docs_loop():
         time.sleep(float(os.environ.get("ZEEV_DOC_RESCUE_LOOP_PAUSE_SECONDS", "2")))
     if len(out["errors"]) > 30:
         out["errors"] = out["errors"][:30]
+    if len(out["obraDoneEmails"]) > 120:
+        out["obraDoneEmails"] = out["obraDoneEmails"][:120]
     out["elapsedSeconds"] = round(time.time() - started, 1)
     out["completed"] = out.get("completed", False)
     return out
