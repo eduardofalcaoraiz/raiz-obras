@@ -627,7 +627,21 @@ function mergeZeevRows(rows: AnyRecord[]) {
   return [...map.values()]
 }
 
-async function zeevJsonRequest(url: string, init: RequestInit = {}, options: { needsFormFields?: boolean; mergeRows?: boolean } = {}): Promise<any> {
+function zeevRequestTimeoutMs(value?: unknown) {
+  return Math.max(5000, Math.min(Number(value || env('ZEEV_API_TIMEOUT_MS', '12000')) || 12000, 60000))
+}
+
+async function zeevFetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs?: number) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), zeevRequestTimeoutMs(timeoutMs))
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function zeevJsonRequest(url: string, init: RequestInit = {}, options: { needsFormFields?: boolean; mergeRows?: boolean; timeoutMs?: number } = {}): Promise<any> {
   const tokens = zeevTokens().filter((token) => token && !BAD_ZEEV_TOKENS.has(token))
   if (!tokens.length) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const errors: string[] = []
@@ -641,7 +655,13 @@ async function zeevJsonRequest(url: string, init: RequestInit = {}, options: { n
     if (!headers.has('Accept')) headers.set('Accept', 'application/json')
     if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
 
-    const res = await fetch(url, { ...init, headers })
+    let res: Response
+    try {
+      res = await zeevFetchWithTimeout(url, { ...init, headers }, options.timeoutMs)
+    } catch (error) {
+      errors.push(`timeout/fetch: ${error instanceof Error ? error.message : String(error)}`.slice(0, 260))
+      continue
+    }
     const text = await res.text()
     if (!res.ok) {
       if (res.status === 401) BAD_ZEEV_TOKENS.add(token)
@@ -678,7 +698,13 @@ async function zeevTextRequest(url: string, init: RequestInit = {}): Promise<{ r
     const headers = new Headers(init.headers || {})
     headers.set('Authorization', `Bearer ${token}`)
     if (!headers.has('Accept')) headers.set('Accept', '*/*')
-    const res = await fetch(url, { ...init, headers })
+    let res: Response
+    try {
+      res = await zeevFetchWithTimeout(url, { ...init, headers })
+    } catch (error) {
+      errors.push(`timeout/fetch: ${error instanceof Error ? error.message : String(error)}`.slice(0, 260))
+      continue
+    }
     const text = await res.text()
     if (res.ok) return { res, text }
     if (res.status === 401) BAD_ZEEV_TOKENS.add(token)
@@ -696,7 +722,13 @@ async function zeevBinaryRequest(url: string, init: RequestInit = {}): Promise<R
     const headers = new Headers(init.headers || {})
     headers.set('Authorization', `Bearer ${token}`)
     if (!headers.has('Accept')) headers.set('Accept', '*/*')
-    const res = await fetch(url, { ...init, headers })
+    let res: Response
+    try {
+      res = await zeevFetchWithTimeout(url, { ...init, headers })
+    } catch (error) {
+      errors.push(`timeout/fetch: ${error instanceof Error ? error.message : String(error)}`.slice(0, 260))
+      continue
+    }
     if (res.ok) return res
     const text = await res.text()
     if (res.status === 401) BAD_ZEEV_TOKENS.add(token)
@@ -1387,10 +1419,11 @@ async function summarizeWithHuggingFace(text: string) {
   return summary ? trimCardSummary(summary, 300) : ''
 }
 
-async function cardSummaryCascade(text: string, items: AnyRecord[], compra: boolean) {
+async function cardSummaryCascade(text: string, items: AnyRecord[], compra: boolean, options: { skipAi?: boolean } = {}) {
   const clean = cleanSummaryText(text)
   if (!clean) return { text: '', source: '' }
   const deterministic = deterministicCardSummary(clean, items, compra)
+  if (options.skipAi) return { text: deterministic, source: 'texto-completo' }
   for (const [source, fn] of [
     ['cloudflare', summarizeWithCloudflare],
     ['mistral', summarizeWithMistral],
@@ -1477,7 +1510,7 @@ async function buildTicket(row: AnyRecord) {
   const categoria = firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra'])
   const pagamento = extractPagamento(fmap)
   const campos = fieldsObject(fields)
-  const resumo = await cardSummaryCascade(desc || '', itens, compra)
+  const resumo = await cardSummaryCascade(desc || '', itens, compra, { skipAi: Boolean(row.__skipSummaryAi) })
   if (resumo.text) {
     campos._resumo_card = resumo.text
     campos._resumo_card_source = resumo.source
@@ -1711,6 +1744,83 @@ async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
     })
     paymentLinked++
   }
+  return { capexLinked, paymentMatched, paymentLinked }
+}
+
+async function reconcileRegisteredTicketsTargeted(tickets: AnyRecord[]) {
+  if (!tickets.length) return { capexLinked: 0, paymentMatched: 0, paymentLinked: 0 }
+  const byTicket = new Map<string, AnyRecord>()
+  for (const ticket of tickets || []) {
+    const key = ticketDigits(ticket?.zeev_instance_id)
+    if (key) byTicket.set(key, ticket)
+  }
+  const ids = [...byTicket.keys()]
+  if (!ids.length) return { capexLinked: 0, paymentMatched: 0, paymentLinked: 0 }
+
+  const capexRows: AnyRecord[] = []
+  for (let i = 0; i < ids.length; i += 80) {
+    const chunk = ids.slice(i, i + 80).join(',')
+    const rows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados&or=(ticket_raiz_instance_id.in.(${chunk}),referencia.in.(${chunk}))`)
+    capexRows.push(...(rows || []))
+  }
+
+  let capexLinked = 0
+  const capexMatchedKeys = new Set<string>()
+  for (const row of capexRows || []) {
+    const key = ticketDigits(row.ticket_raiz_instance_id || row.referencia)
+    const ticket = byTicket.get(key)
+    if (!ticket) continue
+    capexLinked++
+    capexMatchedKeys.add(key)
+    await rest(`/capex_itens?id=eq.${Number(row.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        ticket_raiz_url: ticket.ticket_link || null,
+        ticket_raiz_instance_id: Number(ticket.zeev_instance_id),
+        origem: 'ZEEV',
+        ticket_raiz_dados: ticketDataPatch(ticket, row.ticket_raiz_dados || {}),
+      }),
+    })
+    await rest(`/capex_zeev_solicitacoes?zeev_instance_id=eq.${Number(ticket.zeev_instance_id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        status: 'aprovado',
+        capex_item_id: Number(row.id),
+        aprovado_em: new Date().toISOString(),
+      }),
+    })
+  }
+
+  const paymentRows: AnyRecord[] = []
+  for (let i = 0; i < ids.length; i += 120) {
+    const chunk = ids.slice(i, i + 120).join(',')
+    const rows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz&ticket_raiz=in.(${chunk})`)
+    paymentRows.push(...(rows || []))
+  }
+
+  let paymentMatched = 0
+  let paymentLinked = 0
+  for (const row of paymentRows || []) {
+    const key = ticketDigits(row.ticket_raiz)
+    if (capexMatchedKeys.has(key)) continue
+    const ticket = byTicket.get(key)
+    if (!key || !ticket) continue
+    paymentMatched++
+    await rest(`/capex_zeev_solicitacoes?zeev_instance_id=eq.${Number(ticket.zeev_instance_id)}&status=eq.pendente`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        status: 'aprovado',
+        capex_item_id: null,
+        aprovado_em: new Date().toISOString(),
+        aprovado_por: 'pagamento_obra_auto',
+      }),
+    })
+    paymentLinked++
+  }
+
   return { capexLinked, paymentMatched, paymentLinked }
 }
 
@@ -2351,25 +2461,36 @@ async function runWebhookTicketSync(input: AnyRecord) {
   const errors: AnyRecord[] = []
   for (const id of ids) {
     try {
-      const ticket = await loadGenericTicketFromZeev({ zeev_instance_id: id, id })
+      const ticket = await loadWebhookTicketFromZeev({ ...(input || {}), zeev_instance_id: id, id })
       if (ticket?.capex_field_name || ticket?.capex_field_value) updatedTickets.push(ticket)
       else ignored.push({ tr: id, reason: 'CAPEX nao identificado como Sim no Zeev' })
     } catch (error) {
       errors.push({ tr: id, error: error instanceof Error ? error.message : String(error) })
     }
   }
-  const reconcile = updatedTickets.length ? await reconcileRegisteredTickets(updatedTickets) : { capexLinked: 0, paymentMatched: 0, paymentLinked: 0 }
+  const unique = new Map<number, AnyRecord>()
+  for (const ticket of updatedTickets) unique.set(Number(ticket.zeev_instance_id), ticket)
+  const tickets = [...unique.values()]
+  const existing = tickets.length ? await getExisting(tickets.map((ticket) => Number(ticket.zeev_instance_id))) : new Map<number, AnyRecord>()
+  const saved = tickets.length ? await upsertTickets(tickets) : []
+  const newCount = tickets.filter((ticket) => !existing.has(Number(ticket.zeev_instance_id))).length
+  const reconcile = tickets.length ? await reconcileRegisteredTicketsTargeted(tickets) : { capexLinked: 0, paymentMatched: 0, paymentLinked: 0 }
+  const email = tickets.length ? await notifyNewTickets(tickets, existing) : { notified: [], failed: [] }
   return {
     ok: errors.length === 0,
     mode: 'webhook-ticket',
     requested,
     processed: ids.length,
-    updated: updatedTickets.length,
+    saved: saved.length,
+    new: newCount,
+    updated: Math.max(0, saved.length - newCount),
     ignored,
     errors,
     linkedRegistered: reconcile.capexLinked,
     matchedPayments: reconcile.paymentMatched,
     linkedPayments: reconcile.paymentLinked,
+    notified: email.notified.length,
+    emailFailures: email.failed,
   }
 }
 
@@ -3287,6 +3408,48 @@ async function loadGenericTicketFromZeev(row: AnyRecord) {
     return built
   }
   return genericZeevTicket(enriched, row)
+}
+
+function leanFieldsForFlow(flow: number) {
+  const base = FINANCE_FLOW_IDS.has(flow) ? FINANCE_ENRICH_FIELDS : PURCHASE_ENRICH_FIELDS
+  const docs = parseListEnv([env('ZEEV_EXTRA_DOCUMENT_FIELDS'), REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS].filter(Boolean).join(','))
+  return [...new Set([...capexFieldsForFlow(flow), ...base, ...docs])]
+}
+
+async function loadWebhookTicketFromZeev(row: AnyRecord) {
+  const id = Number(row?.zeev_instance_id || row?.ticket_raiz || row?.ticket_raiz_instance_id || row?.referencia || row?.id || 0)
+  if (!id) return row
+  let base: AnyRecord = row?.raw_instance && typeof row.raw_instance === 'object' ? { ...row.raw_instance } : {}
+  let flowForLookup = Number(row?.flow_id || row?.flowId || row?.flow?.id || row?.raw_instance?.flow?.id || row?.rawInstance?.flow?.id || 0) || 0
+  try {
+    const firstFields = flowForLookup ? leanFieldsForFlow(flowForLookup) : []
+    const probe = await zeevInstance(id, flowForLookup, firstFields)
+    if (probe && typeof probe === 'object') {
+      base = { ...base, ...probe }
+      flowForLookup = Number(probe?.flow?.id || probe?.flowId || flowForLookup || 0) || 0
+    }
+    if (flowForLookup && !hasFormFields(base)) {
+      const enriched = await collectInstanceFields(id, flowForLookup, leanFieldsForFlow(flowForLookup), 10)
+      base = { ...base, ...(enriched.last || {}) }
+      base.formFields = mergeFields(Array.isArray(base.formFields) ? base.formFields : [], enriched.fields)
+      if (enriched.errors.length) base.__zeev_load_errors = enriched.errors
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn('loadWebhookTicketFromZeev:', message)
+    base.__zeev_load_error = message
+  }
+  base.id = base.id || id
+  base.flow = base.flow || { id: row.flow_id || row.flowId || base.flow?.id || null, name: row.flow_name || row.flowName || row.request_name || base.flow?.name || '', version: row.flow_version || row.flowVersion || base.flow?.version || null }
+  base.flowId = base.flowId || row.flow_id || row.flowId || base.flow?.id || null
+  base.flowName = base.flowName || row.flow_name || row.flowName || base.flow?.name || ''
+  base.requestName = base.requestName || row.request_name || row.requestName || ''
+  base.formFields = Array.isArray(base.formFields) ? base.formFields : Array.isArray(row.raw_fields) ? row.raw_fields : Array.isArray(row.rawFields) ? row.rawFields : []
+  base.instanceTasks = Array.isArray(base.instanceTasks) ? base.instanceTasks : Array.isArray(row.raw_tasks) ? row.raw_tasks : Array.isArray(row.rawTasks) ? row.rawTasks : []
+  base.__skipSummaryAi = true
+  const built = await buildTicket(base)
+  if (built) return built
+  return genericZeevTicket(base, row)
 }
 
 async function loadPaymentTicketFromZeev(row: AnyRecord) {
