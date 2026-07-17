@@ -72,7 +72,7 @@ on:
 
 concurrency:
   group: zeev-capex-sync-${{ github.event_name == 'workflow_dispatch' && format('manual-{0}', inputs.mode) || 'scheduled' }}
-  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' }}
+  cancel-in-progress: false
 
 jobs:
   sync:
