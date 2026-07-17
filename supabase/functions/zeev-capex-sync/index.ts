@@ -2598,9 +2598,15 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
   const repo = env('GITHUB_REPO', 'eduardofalcaoraiz/raiz-obras')
   const workflow = env('GITHUB_ZEEV_WORKFLOW', 'zeev-capex-sync.yml')
   const ref = env('GITHUB_REF', 'main')
-  const syncMode = String(input.workflowMode || input.syncMode || 'deep-incremental')
+  const syncMode = String(input.workflowMode || input.syncMode || 'incremental')
   const flowIds = String(input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','))
-  const requestedMaxPages = positiveNumber(input.maxPages || input.max_pages || (syncMode === 'retro' || syncMode === 'deep-retro' ? '999' : '16'), 16)
+  const normalizedSyncMode = normKey(syncMode)
+  const defaultMaxPages = syncMode === 'retro' || syncMode === 'deep-retro'
+    ? '999'
+    : normalizedSyncMode === 'incremental'
+      ? '2'
+      : '8'
+  const requestedMaxPages = positiveNumber(input.maxPages || input.max_pages || defaultMaxPages, Number(defaultMaxPages))
   const lockTtlMinutes = positiveNumber(input.lockTtlMinutes || input.lock_ttl_minutes || env('ZEEV_GITHUB_LOCK_TTL_MINUTES') || (requestedMaxPages > 2 ? '75' : '25'), requestedMaxPages > 2 ? 75 : 25)
   const requestedStart = String(input.start || '')
   const requestedEnd = String(input.end || '')
@@ -2621,7 +2627,7 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
     if (!extraTicketIds && syncMode !== 'retro' && input.refreshKnownTickets !== false) {
       extraTicketIds = (await knownTicketRefreshIds(input.refreshLimit || input.backfillLimit || env('ZEEV_GITHUB_REFRESH_LIMIT', '40'), parseFlowIds(flowIds))).join(',')
     }
-    const normalizedMode = normKey(syncMode)
+    const normalizedMode = normalizedSyncMode
     const workflowMode = normalizedMode === 'incremental'
       ? 'incremental'
       : syncMode === 'retro'
@@ -2685,8 +2691,13 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
   if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   if (!secret) throw new Error('ZEEV_SYNC_SECRET ausente nos secrets da Supabase.')
   const url = env('ZEEV_BRIDGE_URL', 'https://raiz-obras.vercel.app/api/zeev_capex_sync')
-  const syncMode = String(input.workflowMode || input.syncMode || input.mode || 'deep-incremental')
+  const syncMode = String(input.workflowMode || input.syncMode || input.mode || 'incremental')
   const normalizedMode = normKey(syncMode)
+  const defaultMaxPages = syncMode === 'retro' || syncMode === 'deep-retro'
+    ? '999'
+    : normalizedMode === 'incremental'
+      ? '2'
+      : '8'
   const body = {
     mode: normalizedMode === 'incremental'
       ? 'incremental'
@@ -2696,7 +2707,7 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
     start: input.start || '',
     end: input.end || '',
     flowIds: input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','),
-    maxPages: input.maxPages || input.max_pages || (syncMode === 'retro' || syncMode === 'deep-retro' ? '999' : '16'),
+    maxPages: input.maxPages || input.max_pages || defaultMaxPages,
     recordsPerPage: input.recordsPerPage || input.records_per_page || env('ZEEV_RECORDS_PER_PAGE', '30'),
     ticketIds: input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '',
     extraTicketIds: input.extraTicketIds || input.extra_ticket_ids || '',
