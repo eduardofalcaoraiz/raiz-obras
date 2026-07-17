@@ -378,6 +378,7 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
         **(headers or {}),
     }
     is_zeev = str(url).startswith(ZEEV_BASE_URL) and str(merged.get("Authorization") or "").lower().startswith("bearer ")
+    is_supabase = str(url).startswith(SUPABASE_URL)
     requested_fields = is_zeev and zeev_fields_requested(url, payload)
     merge_token_rows = is_zeev and requested_fields and str(url).rstrip("/").endswith("/api/2/instances/report")
     token_candidates = [t for t in zeev_tokens() if t and t not in BAD_ZEEV_TOKENS] if is_zeev else [None]
@@ -386,6 +387,8 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
 
     last_error = None
     attempts = max(1, int(retries) if str(retries).strip() else 1)
+    if is_supabase:
+        attempts = max(attempts, max(3, min(int(os.environ.get("ZEEV_SUPABASE_CALL_RETRIES", "6") or "6"), 10)))
     collected_rows = []
     collected_rows_success = False
     fallback_data = None
@@ -422,10 +425,14 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
                     break
                 if exc.code in (520, 522, 524):
                     retry_delay = 60
+                if is_supabase and is_transient_http_error(f"HTTP {exc.code}: {text}"):
+                    retry_delay = min(20 + attempt * 10, 75)
                 if exc.code not in (429, 500, 502, 503, 504, 520, 522, 524, 546):
                     raise last_error
             except Exception as exc:
                 last_error = exc
+                if is_supabase and is_transient_http_error(str(exc)):
+                    retry_delay = min(20 + attempt * 10, 75)
             if attempt < attempts - 1:
                 time.sleep(retry_delay or (2 + attempt * 3))
     if merge_token_rows and (collected_rows_success or collected_rows):
