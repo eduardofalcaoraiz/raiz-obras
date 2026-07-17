@@ -3276,6 +3276,16 @@ def main():
     notify = os.environ.get("ZEEV_NOTIFY", "false").lower() == "true"
     ticket_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS", ""))
     extra_ticket_ids = parse_ticket_ids(os.environ.get("ZEEV_EXTRA_TICKET_IDS", ""))
+    if mode == "incremental" and not deep_mode:
+        max_pages = min(max_pages, int(os.environ.get("ZEEV_INCREMENTAL_MAX_PAGES_CAP", "2") or "2"))
+        extra_limit = max(0, int(os.environ.get("ZEEV_INCREMENTAL_EXTRA_TICKET_CAP", "5") or "5"))
+        if extra_limit and len(extra_ticket_ids) > extra_limit:
+            print(json.dumps({
+                "progress": "extra-ticket-cap",
+                "requested": len(extra_ticket_ids),
+                "used": extra_limit,
+            }, ensure_ascii=False))
+            extra_ticket_ids = extra_ticket_ids[:extra_limit]
     if ticket_ids:
         tickets = sync_ids(ticket_ids)
     else:
