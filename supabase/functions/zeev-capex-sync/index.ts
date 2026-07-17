@@ -1,6 +1,6 @@
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-zeev-token, x-zeev-extra-tokens, x-zeev-extra-document-fields, x-zeev-file-download-url-template',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-webhook-secret, x-zeev-token, x-zeev-extra-tokens, x-zeev-extra-document-fields, x-zeev-file-download-url-template',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
@@ -532,6 +532,8 @@ function automationModeCanPause(mode: unknown) {
     'docrescuecandidates',
     'docrescueaudit',
     'refreshpaymentstatuses',
+    'webhook',
+    'webhookticket',
     'health',
   ].includes(key)
 }
@@ -705,11 +707,21 @@ async function zeevBinaryRequest(url: string, init: RequestInit = {}): Promise<R
 }
 
 function secretAuthorized(req: Request) {
-  const configuredSecrets = [env('ZEEV_SYNC_SECRET'), env('ZEEV_DB_CRON_SECRET')].filter(Boolean)
+  const configuredSecrets = [env('ZEEV_SYNC_SECRET'), env('ZEEV_DB_CRON_SECRET'), env('ZEEV_WEBHOOK_SECRET')].filter(Boolean)
   if (!configuredSecrets.length) return false
-  const got = req.headers.get('x-cron-secret') || ''
+  const url = new URL(req.url)
+  const got = req.headers.get('x-cron-secret') || req.headers.get('x-webhook-secret') || ''
   const auth = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
-  return configuredSecrets.includes(got) || configuredSecrets.includes(auth)
+  const querySecret =
+    url.searchParams.get('x-cron-secret') ||
+    url.searchParams.get('cron_secret') ||
+    url.searchParams.get('cronSecret') ||
+    url.searchParams.get('sync_secret') ||
+    url.searchParams.get('syncSecret') ||
+    url.searchParams.get('webhook_secret') ||
+    url.searchParams.get('webhookSecret') ||
+    ''
+  return configuredSecrets.includes(got) || configuredSecrets.includes(auth) || configuredSecrets.includes(querySecret)
 }
 
 function bearerToken(req: Request) {
@@ -1829,6 +1841,37 @@ function parseTicketIdList(value: unknown) {
     .filter(Boolean))]
 }
 
+function ticketIdsFromEventInput(input: AnyRecord) {
+  const directValues = [
+    input.ticketIds, input.ticket_ids, input.instanceIds, input.instance_ids,
+    input.instanceId, input.instance_id, input.processInstanceId, input.process_instance_id,
+    input.flowInstanceId, input.flow_instance_id, input.ticketId, input.ticket_id,
+    input.requestId, input.request_id, input.tr, input.TR,
+  ]
+  const found: number[] = []
+  for (const value of directValues) found.push(...parseTicketIdList(value))
+  const keys = new Set([
+    'ticketid', 'ticket_id', 'instanceid', 'instance_id',
+    'processinstanceid', 'process_instance_id',
+    'flowinstanceid', 'flow_instance_id',
+    'requestid', 'request_id', 'tr',
+  ])
+  const walk = (value: unknown) => {
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item)
+      return
+    }
+    if (!value || typeof value !== 'object') return
+    for (const [key, nested] of Object.entries(value as AnyRecord)) {
+      const normalized = normKey(key)
+      if (keys.has(normalized)) found.push(...parseTicketIdList(nested))
+      else walk(nested)
+    }
+  }
+  walk(input)
+  return uniqueNumbers(found)
+}
+
 function uniqueNumbers(values: unknown[]) {
   const out: number[] = []
   const seen = new Set<number>()
@@ -2295,6 +2338,38 @@ async function runSync(input: AnyRecord) {
     errors.push(msg)
     await saveState(stateId, { running: false, last_error: msg })
     throw error
+  }
+}
+
+async function runWebhookTicketSync(input: AnyRecord) {
+  const requested = ticketIdsFromEventInput(input)
+  const limit = Math.max(1, Math.min(Number(input.limit || input.maxTickets || input.max_tickets || 6), 12))
+  const ids = requested.slice(0, limit)
+  if (!ids.length) throw new Error('Webhook recebido sem numero de TR/instanceId.')
+  const updatedTickets: AnyRecord[] = []
+  const ignored: AnyRecord[] = []
+  const errors: AnyRecord[] = []
+  for (const id of ids) {
+    try {
+      const ticket = await loadGenericTicketFromZeev({ zeev_instance_id: id, id })
+      if (ticket?.capex_field_name || ticket?.capex_field_value) updatedTickets.push(ticket)
+      else ignored.push({ tr: id, reason: 'CAPEX nao identificado como Sim no Zeev' })
+    } catch (error) {
+      errors.push({ tr: id, error: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  const reconcile = updatedTickets.length ? await reconcileRegisteredTickets(updatedTickets) : { capexLinked: 0, paymentMatched: 0, paymentLinked: 0 }
+  return {
+    ok: errors.length === 0,
+    mode: 'webhook-ticket',
+    requested,
+    processed: ids.length,
+    updated: updatedTickets.length,
+    ignored,
+    errors,
+    linkedRegistered: reconcile.capexLinked,
+    matchedPayments: reconcile.paymentMatched,
+    linkedPayments: reconcile.paymentLinked,
   }
 }
 
@@ -4419,7 +4494,8 @@ Deno.serve(async (req) => {
     REQUEST_ZEEV_EXTRA_TOKENS = requestListInput(input?.zeevExtraTokens || input?.zeev_extra_tokens || input?.extraZeevTokens || input?.extra_zeev_tokens || req.headers.get('x-zeev-extra-tokens'))
     REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS = requestListInput(input?.extraDocumentFields || input?.extra_document_fields || req.headers.get('x-zeev-extra-document-fields'))
     REQUEST_ZEEV_FILE_DOWNLOAD_URL_TEMPLATE = String(input?.fileDownloadUrlTemplate || input?.file_download_url_template || req.headers.get('x-zeev-file-download-url-template') || '').trim()
-    const mode = String(input?.mode || '').trim()
+    let mode = String(input?.mode || '').trim()
+    if (!mode && ticketIdsFromEventInput(input || {}).length) mode = 'webhook-ticket'
     if (mode === 'health') {
       if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
       return json(await runHealth(input || {}))
@@ -4465,6 +4541,20 @@ Deno.serve(async (req) => {
     if (input?.mode === 'refresh-payment-statuses') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await runRefreshPaymentStatuses(input || {})
+      return json(out)
+    }
+    if (mode === 'webhook-ticket' || mode === 'webhook') {
+      if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
+      const requested = ticketIdsFromEventInput(input || {})
+      if (!requested.length) return json({ ok: false, mode, error: 'Webhook recebido sem numero de TR/instanceId.' }, 400)
+      const shouldWait = input?.wait === true || input?.sync === true
+      const payload = { ...(input || {}), mode, ticketIds: requested.join(',') }
+      const waitUntil = (globalThis as AnyRecord).EdgeRuntime?.waitUntil
+      if (!shouldWait && typeof waitUntil === 'function') {
+        waitUntil(runWebhookTicketSync(payload).catch((error: unknown) => console.error('webhook-ticket:', error instanceof Error ? error.message : String(error))))
+        return json({ ok: true, mode: 'webhook-ticket', accepted: true, async: true, requested }, 202)
+      }
+      const out = await runWebhookTicketSync(payload)
       return json(out)
     }
     if (input?.mode === 'register-obra-payments') {
