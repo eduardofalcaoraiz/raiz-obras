@@ -509,6 +509,37 @@ function env(name: string, fallback = '') {
   return Deno.env.get(name) || fallback
 }
 
+function envFlag(name: string, fallback = '') {
+  return ['1', 'true', 'sim', 'yes', 'on'].includes(String(env(name, fallback) || '').trim().toLowerCase())
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isTransientSupabaseError(status: number, text = '') {
+  return [429, 500, 502, 503, 504, 520, 521, 522, 524, 546].includes(Number(status))
+    || /PGRST002|schema cache|Connection timed out|Web server is down|WORKER_RESOURCE_LIMIT/i.test(String(text || ''))
+}
+
+function automationModeCanPause(mode: unknown) {
+  const key = normKey(mode)
+  return [
+    'dispatch',
+    'ingest',
+    'syncerror',
+    'backfilldocs',
+    'docrescuecandidates',
+    'docrescueaudit',
+    'refreshpaymentstatuses',
+    'health',
+  ].includes(key)
+}
+
+function automationPaused(mode: unknown) {
+  return envFlag('ZEEV_AUTOMATION_PAUSED') && automationModeCanPause(mode)
+}
+
 let REQUEST_ZEEV_TOKEN = ''
 let REQUEST_ZEEV_EXTRA_TOKENS = ''
 let REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS = ''
@@ -1495,21 +1526,39 @@ async function buildTicket(row: AnyRecord) {
   }
 }
 
-async function rest(path: string, init: RequestInit = {}) {
+async function rest(path: string, init: RequestInit = {}, options: { retries?: number; timeoutMs?: number } = {}) {
   const url = `${env('SUPABASE_URL').replace(/\/$/, '')}/rest/v1${path}`
   const key = env('SUPABASE_SERVICE_ROLE_KEY')
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-      ...(init.headers || {}),
-    },
-  })
-  const text = await res.text()
-  if (!res.ok) throw new Error(`Supabase REST ${res.status}: ${text}`)
-  return text ? JSON.parse(text) : null
+  const retries = Math.max(0, Math.min(Number(options.retries ?? env('ZEEV_SUPABASE_REST_RETRIES', '2')), 5))
+  const timeoutMs = Math.max(3000, Math.min(Number(options.timeoutMs ?? env('ZEEV_SUPABASE_REST_TIMEOUT_MS', '18000')), 60000))
+  let lastError = ''
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res = await fetch(url, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          ...(init.headers || {}),
+        },
+      })
+      const text = await res.text()
+      if (res.ok) return text ? JSON.parse(text) : null
+      lastError = `Supabase REST ${res.status}: ${text}`
+      if (!isTransientSupabaseError(res.status, text) || attempt >= retries) throw new Error(lastError)
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error)
+      if (!isTransientSupabaseError(0, lastError) || attempt >= retries) throw new Error(lastError)
+    } finally {
+      clearTimeout(timer)
+    }
+    await sleep(Math.min(1200 * (attempt + 1), 5000))
+  }
+  throw new Error(lastError || 'Supabase REST falhou sem resposta detalhada.')
 }
 
 async function restAll(path: string, pageSize = 1000) {
@@ -1524,6 +1573,27 @@ async function restAll(path: string, pageSize = 1000) {
     from += pageSize
   }
   return rows
+}
+
+async function runHealth(input: AnyRecord = {}) {
+  const started = Date.now()
+  if (envFlag('ZEEV_AUTOMATION_PAUSED') && input.ignorePause !== true) {
+    return { ok: true, mode: 'health', paused: true, reason: 'ZEEV_AUTOMATION_PAUSED' }
+  }
+  try {
+    await rest('/zeev_sync_state?select=id&limit=1', {}, { retries: 0, timeoutMs: 6000 })
+    return { ok: true, mode: 'health', rest: 'ok', elapsedMs: Date.now() - started }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    return {
+      ok: false,
+      mode: 'health',
+      rest: 'unhealthy',
+      transient: isTransientSupabaseError(0, msg),
+      error: msg.slice(0, 700),
+      elapsedMs: Date.now() - started,
+    }
+  }
 }
 
 async function getExisting(ids: number[]) {
@@ -2280,6 +2350,7 @@ async function runIngest(input: AnyRecord) {
       ticketIds: docCheckTicketIds.join(','),
       limit: Math.min(Math.max(docCheckTicketIds.length, ingestBackfillLimit || 1), 80),
       fileLimit: Math.max(1, Math.min(Number(input.directDocFileLimit || input.fileLimit || env('ZEEV_BACKFILL_FILE_LIMIT', '3')), 8)),
+      fanoutTargets: input.fanoutTargets === true || input.fanout_targets === true,
       refresh: false,
       includePending: true,
       includePayments: true,
@@ -3374,6 +3445,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   const refresh = input.refresh !== false
   const staleHours = Math.max(1, Math.min(Number(input.staleHours || 8), 168))
   const targetSet = new Set(targetTicketIds.map((id) => String(id)))
+  const fanoutTargets = input.fanoutTargets === true || input.fanout_targets === true
   const includePending = input.includePending !== false
   const includePayments = input.includePayments !== false
   const includeCapex = input.includeCapex !== false
@@ -3407,7 +3479,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         out.errors.push({ target: 'pending', id: row.id, tr: row.zeev_instance_id, error: error instanceof Error ? error.message : String(error) })
       }
     }
-    if (!targetSet.size) budget -= candidates.length
+    if (!targetSet.size || !fanoutTargets) budget -= candidates.length
   }
 
   if (includePayments && budget > 0) {
@@ -3443,7 +3515,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         out.errors.push({ target: 'payment', id: row.id, tr: row.ticket_raiz, error: error instanceof Error ? error.message : String(error) })
       }
     }
-    if (!targetSet.size) budget -= candidates.length
+    if (!targetSet.size || !fanoutTargets) budget -= candidates.length
   }
 
   if (includeCapex && budget > 0) {
@@ -3479,6 +3551,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         out.errors.push({ target: 'capex', id: row.id, tr: row.ticket_raiz_instance_id || row.referencia, error: error instanceof Error ? error.message : String(error) })
       }
     }
+    if (!targetSet.size || !fanoutTargets) budget -= candidates.length
   }
 
   if (out.errors.length > 25) out.errors = out.errors.slice(0, 25)
@@ -4346,6 +4419,18 @@ Deno.serve(async (req) => {
     REQUEST_ZEEV_EXTRA_TOKENS = requestListInput(input?.zeevExtraTokens || input?.zeev_extra_tokens || input?.extraZeevTokens || input?.extra_zeev_tokens || req.headers.get('x-zeev-extra-tokens'))
     REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS = requestListInput(input?.extraDocumentFields || input?.extra_document_fields || req.headers.get('x-zeev-extra-document-fields'))
     REQUEST_ZEEV_FILE_DOWNLOAD_URL_TEMPLATE = String(input?.fileDownloadUrlTemplate || input?.file_download_url_template || req.headers.get('x-zeev-file-download-url-template') || '').trim()
+    const mode = String(input?.mode || '').trim()
+    if (mode === 'health') {
+      if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
+      return json(await runHealth(input || {}))
+    }
+    if (automationPaused(mode) && secretAuthorized(req)) {
+      return json({ ok: true, mode, skipped: true, reason: 'ZEEV_AUTOMATION_PAUSED' })
+    }
+    if (secretAuthorized(req) && automationModeCanPause(mode)) {
+      const health = await runHealth({ ignorePause: true })
+      if (!health.ok) return json({ ok: true, mode, skipped: true, reason: 'supabase_rest_unhealthy', health })
+    }
     if (input?.mode === 'ingest') {
       if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
       if (!env('ZEEV_SYNC_SECRET')) return json({ ok: false, error: 'ZEEV_SYNC_SECRET nao configurado.' }, 500)
