@@ -90,7 +90,7 @@ jobs:
           ZEEV_TOKEN: ${{ secrets.ZEEV_TOKEN }}
           ZEEV_EXTRA_TOKENS: ${{ secrets.ZEEV_EXTRA_TOKENS }}
           ZEEV_SYNC_SECRET: ${{ secrets.ZEEV_SYNC_SECRET }}
-          ZEEV_AUTOMATION_PAUSED: ${{ secrets.ZEEV_AUTOMATION_PAUSED }}
+          ZEEV_AUTOMATION_PAUSED: ${{ github.event_name == 'schedule' && (vars.ZEEV_AUTOMATION_PAUSED || secrets.ZEEV_AUTOMATION_PAUSED) || 'false' }}
           ZEEV_BASE_URL: https://raizeducacao.zeev.it
           SUPABASE_URL: https://hjccxfznojjosvanwztv.supabase.co
           ZEEV_BUSINESS_TIMEZONE: America/Sao_Paulo
