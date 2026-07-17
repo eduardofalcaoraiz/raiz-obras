@@ -1,6 +1,7 @@
--- Online scheduler for Ticket Raiz CAPEX sync.
--- The plaintext secret must live only in Supabase Edge Function secrets
--- as ZEEV_DB_CRON_SECRET and in Supabase Vault as zeev_db_cron_secret.
+-- Pausa segura do scheduler interno do Supabase para o Ticket Raiz CAPEX.
+-- A orquestracao principal deve ficar no GitHub Actions, com health-check,
+-- circuit breaker e concorrencia unica. Este arquivo remove jobs antigos
+-- e nao recria novos para evitar agendamentos sobrepostos.
 
 create extension if not exists pg_cron with schema extensions;
 create extension if not exists pg_net with schema extensions;
@@ -29,60 +30,4 @@ begin
 end
 $$;
 
-select cron.schedule(
-  'zeev-capex-sync-every-10-min',
-  '*/10 * * * *',
-  $cron$
-    select net.http_post(
-      url := 'https://hjccxfznojjosvanwztv.supabase.co/functions/v1/zeev-capex-sync',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'zeev_db_cron_secret'),
-        'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'zeev_db_cron_secret')
-      ),
-      body := jsonb_build_object(
-        'mode', 'dispatch',
-        'target', 'github',
-        'workflowMode', 'incremental',
-        'businessTimezone', 'America/Sao_Paulo',
-        'flowIds', '299,275,263,102,300',
-        'maxPages', 4,
-        'recordsPerPage', 30,
-        'lockTtlMinutes', 25,
-        'refreshKnownTickets', true,
-        'refreshLimit', 18,
-        'notify', true,
-        'source', 'supabase-pg-cron'
-      ),
-      timeout_milliseconds := 180000
-    );
-  $cron$
-);
-
-select cron.schedule(
-  'zeev-capex-sync-github-catchup-hourly',
-  '34 * * * *',
-  $cron$
-    select net.http_post(
-      url := 'https://hjccxfznojjosvanwztv.supabase.co/functions/v1/zeev-capex-sync',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'zeev_db_cron_secret'),
-        'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'zeev_db_cron_secret')
-      ),
-      body := jsonb_build_object(
-        'mode', 'dispatch',
-        'target', 'github',
-        'workflowMode', 'deep-incremental',
-        'flowIds', '299,275,263,102,300',
-        'maxPages', 16,
-        'lockTtlMinutes', 90,
-        'refreshKnownTickets', true,
-        'refreshLimit', 40,
-        'notify', true,
-        'source', 'supabase-pg-cron-catchup'
-      ),
-      timeout_milliseconds := 60000
-    );
-  $cron$
-);
+select 'zeev-capex pg_cron jobs pausados; reativar somente apos validacao da fila online' as status;
