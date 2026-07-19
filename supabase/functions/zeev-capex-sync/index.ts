@@ -4170,6 +4170,31 @@ function attachmentRowsHtml(rows: AnyRecord[]) {
   </div>`
 }
 
+function checkedWithoutFiscalRowsHtml(rows: AnyRecord[]) {
+  if (!rows.length) return ''
+  const limited = rows.slice(0, 40)
+  return `<div style="margin-top:16px">
+    <p style="margin:0 0 8px"><b>Checados sem documento fiscal no Zeev</b>${rows.length > limited.length ? ` <span style="color:#6b6257">(primeiros ${limited.length} de ${rows.length})</span>` : ''}</p>
+    <table style="border-collapse:collapse;width:100%;font-size:12px">
+      <thead>
+        <tr>
+          <th align="left" style="border-bottom:1px solid #e6d8c5;padding:6px">TR</th>
+          <th align="left" style="border-bottom:1px solid #e6d8c5;padding:6px">Alvo</th>
+          <th align="left" style="border-bottom:1px solid #e6d8c5;padding:6px">Horario da checagem</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${limited.map((row: AnyRecord) => `
+          <tr>
+            <td style="border-bottom:1px solid #f3eadf;padding:6px">${htmlEscape(row.tr || '')}</td>
+            <td style="border-bottom:1px solid #f3eadf;padding:6px">${htmlEscape(row.target || '')}</td>
+            <td style="border-bottom:1px solid #f3eadf;padding:6px">${htmlEscape(formatBrDateTime(row.checkedAt))}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`
+}
+
 async function runRescueBlockReport(input: AnyRecord = {}) {
   if (!rescueBlockReportEnabled()) return { ok: true, mode: 'rescue-docs-block-report', skipped: true, reason: 'ZEEV_RESCUE_BLOCK_EMAIL desativado' }
   const result = input.result || input.summary || {}
@@ -4191,6 +4216,8 @@ async function runRescueBlockReport(input: AnyRecord = {}) {
   const processed = Number(result.processed || 0)
   const filesAttached = Number(result.filesAttached || 0)
   const downloadedDocs = Number(result.downloadedDocs || 0)
+  const checkedWithoutFiscal = Number(result.checkedWithoutFiscal || 0)
+  const checkedWithoutFiscalTickets = Array.isArray(result.checkedWithoutFiscalTickets) ? result.checkedWithoutFiscalTickets : []
   const rounds = Number(result.rounds || 0)
   const queueTotal = Number(audit?.queue?.total || 0)
   const subject = `Raiz ObraViva - bloco Zeev finalizado: fila ${queueTotal}`
@@ -4210,14 +4237,16 @@ async function runRescueBlockReport(input: AnyRecord = {}) {
           <tr>
             <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Rodadas</b><br>${htmlEscape(rounds)}</td>
             <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Fila restante</b><br>${htmlEscape(queueTotal)}</td>
-            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Pagamentos sem doc fiscal</b><br>${htmlEscape(audit?.queue?.paymentFiscal || 0)}</td>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Checados sem doc fiscal</b><br>${htmlEscape(checkedWithoutFiscal)}</td>
           </tr>
         </tbody>
       </table>
+      <p style="margin:10px 0 0"><b>Ainda sem NF fiscal na fila:</b> ${htmlEscape(audit?.queue?.paymentFiscal || 0)} pagamentos. Eles voltarao a ser consultados nas proximas varreduras quando o prazo de rechecagem vencer ou o Zeev atualizar.</p>
       <p style="margin:10px 0 0"><b>Acumulado:</b> ${htmlEscape(audit?.docs?.withAnyDocs || 0)} tickets com algum documento, ${htmlEscape(audit?.docs?.withFiscalDocs || 0)} com NF/DANFE/XML e ${htmlEscape(audit?.docs?.withChargeDocs || 0)} com boleto/fatura.</p>
       <p style="margin:4px 0 0"><b>Origem da lista de anexos:</b> ${attachmentSource === 'bloco' ? 'resultado direto deste bloco' : 'janela recente da auditoria, pois o bloco nao trouxe lista detalhada'}.</p>
       ${errors.length ? `<p style="margin:10px 0;color:#a33"><b>Alertas/erros no bloco:</b> ${htmlEscape(JSON.stringify(errors.slice(0, 5)).slice(0, 1200))}</p>` : ''}
       ${attachmentRowsHtml(attachments)}
+      ${checkedWithoutFiscalRowsHtml(checkedWithoutFiscalTickets)}
     </div>`
   const email = await sendHtmlEmail(subject, html)
   if (email.sent) {
