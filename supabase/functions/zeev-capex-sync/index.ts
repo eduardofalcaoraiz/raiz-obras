@@ -1680,6 +1680,41 @@ function ticketDigits(value: unknown) {
   return ''
 }
 
+function docTicketRefs(value: unknown, options: AnyRecord = {}) {
+  const raw = String(value || '').trim()
+  if (!raw) return []
+  const strict = options.strict === true
+  const refs: string[] = []
+  const add = (candidate: unknown) => {
+    const id = String(candidate || '').replace(/\D+/g, '')
+    if (!/^\d{1,7}$/.test(id) || Number(id) <= 0 || refs.includes(id)) return
+    refs.push(id)
+  }
+  if (/^\d{1,7}$/.test(raw)) add(raw)
+  const explicit = /\b(?:TR|TICKET(?:\s+RAIZ)?|TICKET\s+DE\s+COMPRAS|SOLICITA(?:C|Ç)[AÃ]O(?:\s+DE\s+COMPRAS)?)\s*[:#-]?\s*(\d{1,7})\b/gi
+  let match: RegExpExecArray | null
+  while ((match = explicit.exec(raw))) add(match[1])
+  if (!strict) {
+    for (const part of raw.split(/[^\d]+/g)) add(part)
+  }
+  return refs
+}
+
+function paymentTicketRefs(row: AnyRecord) {
+  return docTicketRefs(row?.ticket_raiz)
+}
+
+function capexTicketRefs(row: AnyRecord) {
+  const direct = docTicketRefs(row?.ticket_raiz_instance_id)
+  if (direct.length) return direct
+  return docTicketRefs(row?.referencia, { strict: true })
+}
+
+function matchedTicketRef(refs: string[], targetSet: Set<string>) {
+  if (targetSet.size) return refs.find((ref) => targetSet.has(ref)) || refs[0] || ''
+  return refs[0] || ''
+}
+
 function ticketDataPatch(ticket: AnyRecord, previous: AnyRecord = {}) {
   const oldDados = previous && typeof previous === 'object' ? previous : {}
   return {
@@ -4355,19 +4390,22 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   }
 
   if (includePayments && budget > 0) {
-    const paymentFilter = targetTicketIds.length ? `ticket_raiz=in.(${targetTicketIds.join(',')})` : 'ticket_raiz=not.is.null'
-    const rows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&${paymentFilter}&order=obra_id.asc.nullslast,id.asc&limit=${Math.max(40, limit * 12)}`)
+    const paymentBase = '/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&ticket_raiz=not.is.null&order=obra_id.asc.nullslast,id.asc'
+    const rows = targetTicketIds.length ? await restAll(paymentBase) : await rest(`${paymentBase}&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
-      .filter((row: AnyRecord) => ticketDigits(row.ticket_raiz) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz))) && (targetSet.size || docsNeedRescue(row, staleHours, checkedBefore)))
+      .filter((row: AnyRecord) => {
+        const refs = paymentTicketRefs(row)
+        return refs.length && (!targetSet.size || refs.some((ref) => targetSet.has(ref))) && (targetSet.size || docsNeedRescue(row, staleHours, checkedBefore))
+      })
       .sort(comparePaymentDocCandidates)
       .slice(0, budget)
     out.scannedPayments = candidates.length
-    const ticketMap = await loadTicketsByIds(candidates.map((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz))))
+    const ticketMap = await loadTicketsByIds(candidates.map((row: AnyRecord) => Number(matchedTicketRef(paymentTicketRefs(row), targetSet))))
     for (const row of candidates) {
       try {
         const obraId = Number(row.obra_id || 0)
         if (obraId > 0) touchedObraIds.add(obraId)
-        const ticketId = Number(ticketDigits(row.ticket_raiz))
+        const ticketId = Number(matchedTicketRef(paymentTicketRefs(row), targetSet))
         let ticket = ticketMap.get(ticketId) || { zeev_instance_id: ticketId, ticket_raiz: ticketId }
         if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadWebhookTicketFromZeev(ticket)
         const attach = await attachDocsForTarget('payment', row, ticket, fileLimit)
@@ -4395,17 +4433,20 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   }
 
   if (includeCapex && budget > 0) {
-    const capexFilter = targetTicketIds.length ? `&or=(ticket_raiz_instance_id.in.(${targetTicketIds.join(',')}),referencia.in.(${targetTicketIds.join(',')}))` : ''
-    const rows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at${capexFilter}&order=id.asc&limit=${Math.max(40, limit * 12)}`)
+    const capexBase = '/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at&order=id.asc'
+    const rows = targetTicketIds.length ? await restAll(capexBase) : await rest(`${capexBase}&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
-      .filter((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz_instance_id || row.referencia)) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz_instance_id || row.referencia))) && (targetSet.size || docsNeedRescue(row, staleHours, checkedBefore)))
+      .filter((row: AnyRecord) => {
+        const refs = capexTicketRefs(row)
+        return refs.length && (!targetSet.size || refs.some((ref) => targetSet.has(ref))) && (targetSet.size || docsNeedRescue(row, staleHours, checkedBefore))
+      })
       .sort((a: AnyRecord, b: AnyRecord) => docsCandidateScore(a) - docsCandidateScore(b) || Number(a.id) - Number(b.id))
       .slice(0, budget)
     out.scannedCapex = candidates.length
-    const ticketMap = await loadTicketsByIds(candidates.map((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz_instance_id || row.referencia))))
+    const ticketMap = await loadTicketsByIds(candidates.map((row: AnyRecord) => Number(matchedTicketRef(capexTicketRefs(row), targetSet))))
     for (const row of candidates) {
       try {
-        const ticketId = Number(ticketDigits(row.ticket_raiz_instance_id || row.referencia))
+        const ticketId = Number(matchedTicketRef(capexTicketRefs(row), targetSet))
         let ticket = ticketMap.get(ticketId) || ticketFromCapexDados(row)
         if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadWebhookTicketFromZeev({ ...ticket, zeev_instance_id: ticketId })
         const attach = await attachDocsForTarget('capex', row, ticket, fileLimit)
@@ -4484,10 +4525,13 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
   const ids = new Set<string>()
   const sources: Record<string, number> = { paymentFiscal: 0, payments: 0, capex: 0, financialPending: 0, pending: 0 }
   const add = (value: unknown, source: keyof typeof sources) => {
-    const key = ticketDigits(value)
-    if (!key || ids.has(key) || ids.size >= limit) return
+    const key = String(value || '').replace(/\D+/g, '')
+    if (!/^\d{1,7}$/.test(key) || Number(key) <= 0 || ids.has(key) || ids.size >= limit) return
     ids.add(key)
     sources[source]++
+  }
+  const addRefs = (refs: string[], source: keyof typeof sources) => {
+    for (const ref of refs) add(ref, source)
   }
   if (explicitIds.length) {
     for (const id of explicitIds) add(id, 'pending')
@@ -4499,7 +4543,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     for (const row of (rows || []).sort(comparePaymentDocCandidates)) {
       if (ids.size >= limit) break
       if (!docsNeedRescue(row, staleHours, checkedBefore)) continue
-      add(row.ticket_raiz, 'paymentFiscal')
+      addRefs(paymentTicketRefs(row), 'paymentFiscal')
     }
   }
 
@@ -4507,18 +4551,20 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     const rows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at&order=zeev_docs_checked_at.asc.nullsfirst,id.asc')
     for (const row of rows || []) {
       if (ids.size >= limit) break
-      const tr = row.ticket_raiz_instance_id || row.referencia
-      if (!ticketDigits(tr)) continue
+      const refs = capexTicketRefs(row)
+      if (!refs.length) continue
       if (!shouldRescueDocs(row, staleHours, 'capex', checkedBefore)) continue
-      add(tr, 'capex')
+      addRefs(refs, 'capex')
     }
   }
   if (includePayments && ids.size < limit) {
     const rows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=obra_id.asc.nullslast,id.asc')
     for (const row of (rows || []).sort(comparePaymentDocCandidates)) {
       if (ids.size >= limit) break
+      const refs = paymentTicketRefs(row)
+      if (!refs.length) continue
       if (!shouldRescueDocs(row, staleHours, 'payment', checkedBefore)) continue
-      add(row.ticket_raiz, 'payments')
+      addRefs(refs, 'payments')
     }
   }
   if (includePending && ids.size < limit) {
@@ -4618,14 +4664,17 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
   }
 
   for (const row of payments || []) {
-    const key = addAll(row.ticket_raiz)
-    if (!key) continue
-    paymentIds.add(key)
-    markDocState(key, row)
-    collectRecentAttached(key, 'payment', row)
-    if (shouldRescueDocs(row, staleHours, 'payment', checkedBefore)) {
-      rescueQueue.add(key)
-      if (!hasStoredFiscalDoc(row)) paymentFiscalQueue.add(key)
+    const keys = paymentTicketRefs(row)
+    if (!keys.length) continue
+    for (const key of keys) {
+      addAll(key)
+      paymentIds.add(key)
+      markDocState(key, row)
+      collectRecentAttached(key, 'payment', row)
+      if (shouldRescueDocs(row, staleHours, 'payment', checkedBefore)) {
+        rescueQueue.add(key)
+        if (!hasStoredFiscalDoc(row)) paymentFiscalQueue.add(key)
+      }
     }
   }
   for (const row of pending || []) {
@@ -4638,12 +4687,15 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
     if (shouldRescueDocs(row, staleHours, 'pending', checkedBefore)) rescueQueue.add(key)
   }
   for (const row of capex || []) {
-    const key = addAll(row.ticket_raiz_instance_id || row.referencia)
-    if (!key) continue
-    capexIds.add(key)
-    markDocState(key, row)
-    collectRecentAttached(key, 'capex', row)
-    if (shouldRescueDocs(row, staleHours, 'capex', checkedBefore)) rescueQueue.add(key)
+    const keys = capexTicketRefs(row)
+    if (!keys.length) continue
+    for (const key of keys) {
+      addAll(key)
+      capexIds.add(key)
+      markDocState(key, row)
+      collectRecentAttached(key, 'capex', row)
+      if (shouldRescueDocs(row, staleHours, 'capex', checkedBefore)) rescueQueue.add(key)
+    }
   }
 
   return {
