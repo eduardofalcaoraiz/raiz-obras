@@ -1670,7 +1670,14 @@ async function upsertTickets(tickets: AnyRecord[]) {
 }
 
 function ticketDigits(value: unknown) {
-  return String(value || '').replace(/\D/g, '')
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (/^\d{1,7}$/.test(raw)) return raw
+  const groups = raw.match(/\d+/g) || []
+  for (const group of groups) {
+    if (group.length >= 1 && group.length <= 7 && Number(group) > 0) return group
+  }
+  return ''
 }
 
 function ticketDataPatch(ticket: AnyRecord, previous: AnyRecord = {}) {
