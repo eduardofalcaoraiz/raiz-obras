@@ -2614,11 +2614,13 @@ def add_document_options(payload):
     return payload
 
 
-def ingest(tickets, notify=False, partial=False, backfill_limit=None):
+def ingest(tickets, notify=False, partial=False, backfill_limit=None, fanout_targets=None):
     payload = {"mode": "ingest", "tickets": tickets, "notify": notify}
     if ZEEV_TOKEN:
         payload["zeevToken"] = ZEEV_TOKEN
     add_document_options(payload)
+    if fanout_targets is not None:
+        payload["fanoutTargets"] = bool(fanout_targets)
     configured_backfill_limit = backfill_limit
     if configured_backfill_limit is None:
         configured_backfill_limit = os.environ.get("ZEEV_INGEST_BACKFILL_LIMIT") or os.environ.get("ZEEV_BACKFILL_LIMIT")
@@ -2866,7 +2868,7 @@ def rescue_docs():
                 docs = raw.get("__downloaded_docs") if isinstance(raw, dict) else []
                 if isinstance(docs, list):
                     downloaded += len(docs)
-            result = ingest(tickets, notify=False, backfill_limit=0)
+            result = ingest(tickets, notify=False, backfill_limit=0, fanout_targets=True)
             attached = 0
             backfill = result.get("backfill") if isinstance(result, dict) else {}
             direct_docs = backfill.get("directDocs") if isinstance(backfill, dict) and isinstance(backfill.get("directDocs"), dict) else backfill
