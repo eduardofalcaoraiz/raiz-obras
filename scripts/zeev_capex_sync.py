@@ -2566,8 +2566,10 @@ def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest
 
 
 def sync_ids(instance_ids, allow_non_capex=False, reason=""):
+    ids = parse_ticket_ids(instance_ids)
     tickets = {}
-    for instance_id in parse_ticket_ids(instance_ids):
+
+    def load_one(instance_id):
         try:
             base, _ = instance_fields(instance_id, [])
             row = base if isinstance(base, dict) and base else {"id": instance_id}
@@ -2578,9 +2580,24 @@ def sync_ids(instance_ids, allow_non_capex=False, reason=""):
                 ticket = generic_ticket_from_instance(enriched, reason=reason)
             if ticket:
                 ticket = attach_rescued_docs(ticket, enriched)
-                tickets[ticket["zeev_instance_id"]] = ticket
+                return ticket
         except Exception as exc:
             print(json.dumps({"ticketId": instance_id, "error": str(exc)[:500]}, ensure_ascii=False), file=sys.stderr)
+        return None
+
+    concurrency = max(1, min(int(os.environ.get("ZEEV_SYNC_IDS_CONCURRENCY", "6") or "6"), 10))
+    if concurrency <= 1 or len(ids) <= 1:
+        for instance_id in ids:
+            ticket = load_one(instance_id)
+            if ticket:
+                tickets[ticket["zeev_instance_id"]] = ticket
+    else:
+        with ThreadPoolExecutor(max_workers=min(concurrency, len(ids))) as executor:
+            futures = {executor.submit(load_one, instance_id): instance_id for instance_id in ids}
+            for future in as_completed(futures):
+                ticket = future.result()
+                if ticket:
+                    tickets[ticket["zeev_instance_id"]] = ticket
     return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
 
 
