@@ -4105,7 +4105,8 @@ function paymentNfNumber(p){
 
 function paymentNfFileNumber(p){
   const tipo=p?.nfTipo||'NF-e';
-  const name=String(p?.nfDoc?.name||p?.nfDoc?.storagePath||'');
+  const fiscalDoc=(p?.nfDoc)||paymentFiscalDocs(p)[0]||null;
+  const name=String(fiscalDoc?.name||fiscalDoc?.storagePath||'');
   const key=(name.match(/\d{44}/)||[])[0];
   return key?cleanImpDocNumber(key,tipo):'';
 }
@@ -6946,6 +6947,62 @@ function normalizePaymentDocs(p){
   return rows;
 }
 
+function paymentDocNorm(doc){
+  return capexZeevNormField([doc?.kind,doc?.name,doc?.source,doc?.type,doc?.storagePath].filter(Boolean).join(' '));
+}
+
+function paymentIsFiscalDoc(doc){
+  const n=paymentDocNorm(doc);
+  if(/boleto|fatura|comprovante|recibo|pix/.test(n))return false;
+  return /nf|nfe|nfse|nota|danfe|xml|documento/.test(n);
+}
+
+function paymentIsProofDoc(doc){
+  return /comprovante|recibo|pix/.test(paymentDocNorm(doc));
+}
+
+function paymentIsChargeDoc(doc){
+  return /boleto|fatura/.test(paymentDocNorm(doc));
+}
+
+function paymentFiscalDocs(p){
+  return paymentAllDocs(p).filter(paymentIsFiscalDoc);
+}
+
+function paymentProofDocs(p){
+  return paymentAllDocs(p).filter(paymentIsProofDoc);
+}
+
+function paymentChargeDocs(p){
+  return paymentAllDocs(p).filter(paymentIsChargeDoc);
+}
+
+function hydratePaymentDocs(p){
+  if(!p)return p;
+  p.docs=normalizePaymentDocs(p);
+  if(!p.nfDoc){
+    const nf=p.docs.find(paymentIsFiscalDoc);
+    if(nf)p.nfDoc={...nf,kind:nf.kind||'NF',bucket:nf.bucket||'pagamentos'};
+  }
+  if(!p.compDoc){
+    const comp=p.docs.find(paymentIsProofDoc);
+    if(comp)p.compDoc={...comp,kind:comp.kind||'COMPROVANTE',bucket:comp.bucket||'pagamentos'};
+  }
+  return p;
+}
+
+function paymentDocsLabel(p){
+  const docs=paymentAllDocs(p);
+  const fiscal=docs.filter(paymentIsFiscalDoc).length;
+  const charge=docs.filter(paymentIsChargeDoc).length;
+  const proof=docs.filter(paymentIsProofDoc).length;
+  const parts=[];
+  if(fiscal)parts.push(fiscal+' NF');
+  if(charge)parts.push(charge+' boleto/fatura');
+  if(proof)parts.push(proof+' comprovante');
+  return parts.length?parts.join(' + '):(docs.length?(docs.length+' arquivo'+(docs.length!==1?'s':'')):'');
+}
+
 function addPaymentDoc(p,doc,kind){
   if(!p||!doc)return false;
   p.docs=normalizePaymentDocs(p);
@@ -6966,8 +7023,9 @@ function paymentDocsCount(p){
 
 function capexZeevDocKind(doc){
   const n=capexZeevNormField([doc?.name,doc?.source,doc?.type].filter(Boolean).join(' '));
-  if(/comprovante|recibo|boleto|pix/.test(n))return'COMPROVANTE';
+  if(/boleto/.test(n))return'BOLETO';
   if(/fatura/.test(n))return'FATURA';
+  if(/comprovante|recibo|pix/.test(n))return'COMPROVANTE';
   return'NF';
 }
 
@@ -11052,12 +11110,12 @@ function drillPag(escopo){pagEscopo=escopo;pagExpanded=new Set();pagMes="";pagBu
 function backPag(){pagEscopo=null;pagExpanded=new Set();pagMes="";pagFornecedor="";pagPagante="";pagNfTipo="";pagContrato="";renderPag();}
 function togglePagRow(i){pagExpanded.has(i)?pagExpanded.delete(i):pagExpanded.add(i);renderPag();}
 
-function docCell(o,i,p){let nf;if(p.nfDoc){const nm=p.nfDoc.name.length>16?p.nfDoc.name.slice(0,14)+"…":p.nfDoc.name;nf=`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${nm} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:10.5px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${p.nota?("NF "+p.nota):(p.nfTipo||"NF")}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
+function docCell(o,i,p){hydratePaymentDocs(p);let nf;if(p.nfDoc){const nm=(p.nfDoc.name||p.nfDoc.storagePath||'NF').length>16?(p.nfDoc.name||p.nfDoc.storagePath||'NF').slice(0,14)+"…":(p.nfDoc.name||p.nfDoc.storagePath||'NF');nf=`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${nm} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:10.5px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${p.nota?("NF "+p.nota):(p.nfTipo||"NF")}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
 
   const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">comprovante ↓</button>`:`<button class="linkbtn" onclick="anexarComp(${o.id},${i})">anexar</button>`;
 
   const docsN=paymentDocsCount(p);
-  const docs=docsN?`<span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Docs</b> <button class="linkbtn" onclick="openPaymentDocsModal(${o.id},${i})">${docsN} arquivo${docsN!==1?'s':''}</button></span>`:'';
+  const docs=docsN?`<span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Docs</b> <button class="linkbtn" onclick="openPaymentDocsModal(${o.id},${i})">${paymentDocsLabel(p)||docsN+' arquivo'+(docsN!==1?'s':'')}</button></span>`:'';
   return `<div style="display:flex;flex-direction:column;gap:3px;font-size:11.5px;min-width:155px"><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">NF</b> ${nf}</span><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Pgto</b> ${comp}</span>${docs}</div>`;}
 
 function openPaymentDocsModal(oid,i){
@@ -11747,6 +11805,7 @@ function renderPag(){const o=cur;
 
   // Row expansível
   const expandableRow=({p,i})=>{
+    hydratePaymentDocs(p);
     const atr=isAtraso(p);
     const exp=pagExpanded.has(i);
     const stColor=atr?'var(--danger)':p.st==='PAGO'?'var(--ok)':'var(--warn)';
@@ -11754,6 +11813,9 @@ function renderPag(){const o=cur;
     const cVinc=p.contratoSeq?o.contratos.find(c=>c.seq===p.contratoSeq):null;
     const tc=getTipoCusto(p);
     const markBtn=(p.st==='PENDENTE'||atr)?`<button onclick="event.stopPropagation();marcarPagoLista(${o.id},${i})" class="btn btn-sm" style="background:var(--ok-bg);color:var(--ok);border-color:var(--ok);font-size:12px">✓ Marcar pago</button>`:'';
+
+    const docsN=paymentDocsCount(p);
+    const docsLabel=paymentDocsLabel(p);
 
     const detalhes=exp?`
       <div style="padding:14px 20px 16px 36px;background:var(--surface-2);border-top:1px solid var(--line)">
@@ -11770,7 +11832,7 @@ function renderPag(){const o=cur;
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)">
           ${p.nfDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">📄 Ver NF</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarNF(${o.id},${i})">📎 Anexar NF</button>`}
           ${p.compDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾 Ver comprovante</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarComp(${o.id},${i})">🧾 Anexar comprovante</button>`}
-          ${paymentDocsCount(p)?`<button class="btn btn-sm" onclick="event.stopPropagation();openPaymentDocsModal(${o.id},${i})">Arquivos (${paymentDocsCount(p)})</button>`:''}
+          ${docsN?`<button class="btn btn-sm" onclick="event.stopPropagation();openPaymentDocsModal(${o.id},${i})">Arquivos (${docsLabel||docsN})</button>`:''}
           ${markBtn}
           <div style="margin-left:auto;display:flex;gap:8px">
             <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openPagModal(${i})">✎ Editar</button>
@@ -11813,6 +11875,9 @@ function renderPag(){const o=cur;
     var _btnComp=p.compDoc
       ?('<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].compDoc)" style="'+_bs+'color:var(--ok);background:var(--ok)10;border-color:var(--ok)40">&#129534; Comp</button>')
       :('<button onclick="event.stopPropagation();anexarComp('+o.id+','+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#128462; Comp</button>');
+    var _btnDocs=docsN
+      ?('<button onclick="event.stopPropagation();openPaymentDocsModal('+o.id+','+i+')" style="'+_bs+'color:var(--brand-text);background:var(--brand-cur-light);border-color:var(--brand-cur)55">&#128194; '+(docsLabel||docsN+' arq.')+'</button>')
+      :'';
     var _btnEdit='<button onclick="event.stopPropagation();openPagModal('+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#9998; Editar</button>';
     var _btnDel='<button onclick="event.stopPropagation();deletePagment('+o.id+','+i+')" style="'+_bs+'color:var(--danger);background:var(--danger)08;border-color:var(--danger)30">&#128465; Excluir</button>';
     // ── Montar chips do bloco esquerdo ───────────────────────────────────────
@@ -11842,7 +11907,7 @@ function renderPag(){const o=cur;
           :'<div style="background:#FFF8E1;color:#E65100;border:1px solid #FFE082;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap">&#9203; Desde '+(p.emissao?fmtD(p.emissao):'—')+'</div>'))
       +'<span style="font-weight:800;font-size:17px;font-family:Geist,sans-serif;white-space:nowrap;color:'+stColor+'">'+fmt(p.v)+'</span>'
       +'</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end">'+_btnComp+_btnEdit+_btnDel+'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end">'+_btnDocs+_btnComp+_btnEdit+_btnDel+'</div>'
       +'</div>'
       +'</div>'
       +'</div>';
@@ -14735,6 +14800,8 @@ async function persist(obraId){
 
     for(const o of ts){
 
+      (o.pag||[]).forEach(hydratePaymentDocs);
+
       await db.from('pagamentos').delete().eq('obra_id',o.id);
 
       if(o.pag.length)await db.from('pagamentos').insert(o.pag.map(p=>({obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:cleanImpDocNumber(p.nfNum||'',p.nfTipo||''),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',docs_json:paymentAllDocs(p),emissao:p.emissao||'',paga_em:p.pagaEm||'',escopo_fin:p.escopoFin||'obra',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null,construtora_seq:p.construtora_seq||null,ticket_raiz:p.ticketRaiz||''})));
@@ -14827,6 +14894,7 @@ async function loadFromDB(){
       contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||'',aditivos:Array.isArray(c.aditivos)?c.aditivos:[],pct_investimento:c.pct_investimento!==null?+c.pct_investimento:100,valor_investimento:c.valor_investimento!==null&&c.valor_investimento!==undefined?+c.valor_investimento:null}))
 
     }));
+    obras.forEach(o=>(o.pag||[]).forEach(hydratePaymentDocs));
     obras.forEach(sincronizaPagoObra);
 
     nextObraId=obras.reduce((m,o)=>Math.max(m,o.id),0)+1;
