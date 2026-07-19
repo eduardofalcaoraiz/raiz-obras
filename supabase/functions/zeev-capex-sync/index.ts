@@ -2937,10 +2937,37 @@ function safeZeevFileUrl(value: unknown) {
   }
 }
 
+function looksLikeFileUrl(value: unknown) {
+  try {
+    const raw = String(value || '').trim()
+    if (!raw) return false
+    const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+    const url = new URL(raw, base)
+    const path = decodeURIComponent(url.pathname || '')
+    const full = url.toString()
+    if (isGoogleDriveUrl(full)) return true
+    if (/\/Storage\//i.test(path)) return true
+    if (/\/api\/2\/files(?:\/|$)/i.test(path)) return true
+    if (/\.(pdf|xml|png|jpe?g|webp|tiff?|xlsx?|docx?|zip)$/i.test(path)) return true
+    if (/(?:download|attachment|arquivo|anexo|file|documento)/i.test(path) && /(id|file|arquivo|anexo|attachment|document|doc|download)=/i.test(url.search)) return true
+    return false
+  } catch (_) {
+    return false
+  }
+}
+
+function shouldAcceptZeevDocUrl(url: string, label = '', source = '') {
+  if (isZeevNavigationUrl(url, label, source)) return false
+  if (looksLikeFileUrl(url)) return true
+  const sourceKey = normKey(source)
+  if (/(githubdirect|downloadeddocs|zeevdownloadeddocs|directdownloadeddocs)/.test(sourceKey)) return true
+  return false
+}
+
 function looksLikeDownloadPath(value: unknown) {
   const s = String(value || '').trim()
   if (!s) return false
-  if (/^https?:\/\//i.test(s)) return true
+  if (/^https?:\/\//i.test(s)) return looksLikeFileUrl(s)
   if (/^(?:\.\.\/|\.\/|\/)?Storage\//i.test(s)) return true
   if (/\/Storage\/[^?#]+/i.test(s)) return true
   if (/\/api\/2\/files\//i.test(s)) return true
@@ -3016,6 +3043,27 @@ function fiscalDocKind(doc: AnyRecord) {
   return 'DOCUMENTO'
 }
 
+function isAlwaysIgnoredZeevDocCandidate(doc: AnyRecord) {
+  const key = normKey([doc?.name, doc?.source].filter(Boolean).join(' '))
+  if (!key) return false
+  if (key.includes('codigodebarras')) return true
+  if (key.includes('codigodocentrodecusto')) return true
+  if (key.includes('rawinstanceformfieldsvalue')) return true
+  return false
+}
+
+function isIgnorableHtmlDownloadError(doc: AnyRecord, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '')
+  if (!/html em vez de arquivo/i.test(message)) return false
+  const key = normKey([doc?.name, doc?.source].filter(Boolean).join(' '))
+  if (key.includes('rawinstancedeep') && (key.includes('anexarboleto') || key.includes('boletoparcelado') || key.includes('boletoavista'))) return true
+  if (key.includes('rawinstancedeep') && key.includes('comprovantedopagamento')) return true
+  if (key.includes('rawinstanceformfieldsvalue')) return true
+  if (key.includes('codigodebarras')) return true
+  if (key.includes('codigodocentrodecusto')) return true
+  return false
+}
+
 function isInvoiceDocKind(kind: unknown) {
   return String(kind || '').toUpperCase() === 'NF'
 }
@@ -3073,16 +3121,28 @@ function countStoredDocsByKind(docs: AnyRecord[]) {
 
 function buildZeevDocAudit(target: string, row: AnyRecord, ticket: AnyRecord, docs: AnyRecord[], attach: AnyRecord) {
   const now = new Date()
-  const candidateCount = Number(attach?.candidateCount || 0)
+  const candidateCount = Number(attach?.effectiveCandidateCount ?? attach?.candidateCount ?? 0)
+  const rawCandidateCount = Number(attach?.rawCandidateCount ?? attach?.candidateCount ?? candidateCount)
   const skipped = Array.isArray(attach?.skipped) ? attach.skipped : []
+  const deduped = Array.isArray(attach?.deduped) ? attach.deduped : []
+  const ignored = Array.isArray(attach?.ignored) ? attach.ignored : []
   const unattempted = Number(attach?.unattemptedCandidateCount || 0)
   const storedCounts = countStoredDocsByKind(docs)
   const attached = Number(attach?.attached || 0)
   const hasAnyCandidate = candidateCount > 0
+  const hasInvoiceCandidate = Boolean(attach?.hasInvoiceCandidate)
+  const hasChargeCandidate = Boolean(attach?.hasChargeCandidate)
+  const hasProofCandidate = Boolean(attach?.hasProofCandidate)
+  const requiredKindsCovered = storedCounts.total > 0
+    && (!hasInvoiceCandidate || storedCounts.fiscal > 0)
+    && (!hasChargeCandidate || storedCounts.charge > 0)
+    && (!hasProofCandidate || storedCounts.proof > 0)
   const retryMinutes = Math.max(5, Math.min(Number(env('ZEEV_DOC_RETRY_MINUTES', '360')) || 360, 1440))
   let status = 'sem_documento_no_zeev'
-  if (hasAnyCandidate && skipped.length) status = 'bloqueado_download'
+  if (hasAnyCandidate && requiredKindsCovered && attached > 0) status = skipped.length ? 'concluido_com_alerta' : 'concluido'
+  else if (hasAnyCandidate && requiredKindsCovered && attached <= 0) status = skipped.length ? 'ja_anexado_com_alerta' : 'ja_anexado'
   else if (hasAnyCandidate && unattempted > 0) status = 'parcial_limite'
+  else if (hasAnyCandidate && skipped.length) status = 'bloqueado_download'
   else if (hasAnyCandidate && attached > 0) status = 'concluido'
   else if (hasAnyCandidate && storedCounts.total > 0) status = 'ja_anexado'
   else if (hasAnyCandidate) status = 'candidatos_sem_anexo'
@@ -3097,6 +3157,7 @@ function buildZeevDocAudit(target: string, row: AnyRecord, ticket: AnyRecord, do
     status,
     retryAfter: auditStatusNeedsAttention(status) ? new Date(now.getTime() + retryMinutes * 60 * 1000).toISOString() : '',
     candidateCount,
+    rawCandidateCount,
     attemptedCandidateCount: Number(attach?.attemptedCandidateCount || 0),
     unattemptedCandidateCount: unattempted,
     attachedCount: attached,
@@ -3104,11 +3165,16 @@ function buildZeevDocAudit(target: string, row: AnyRecord, ticket: AnyRecord, do
     storedFiscalCount: storedCounts.fiscal,
     storedChargeCount: storedCounts.charge,
     storedProofCount: storedCounts.proof,
-    hasInvoiceCandidate: Boolean(attach?.hasInvoiceCandidate),
-    hasChargeCandidate: Boolean(attach?.hasChargeCandidate),
-    hasProofCandidate: Boolean(attach?.hasProofCandidate),
+    hasInvoiceCandidate,
+    hasChargeCandidate,
+    hasProofCandidate,
+    requiredKindsCovered,
     skippedCount: skipped.length,
+    dedupedCount: deduped.length,
+    ignoredCount: ignored.length,
     skipped: skipped.slice(0, 8),
+    deduped: deduped.slice(0, 8),
+    ignored: ignored.slice(0, 8),
   }
 }
 
@@ -3125,7 +3191,7 @@ function pushZeevDoc(out: AnyRecord[], name: unknown, url: unknown, type = '', s
   const cleanUrl = safeZeevFileUrl(url)
   const cleanName = String(name || 'documento-fiscal.pdf').trim()
   if (!cleanUrl) return
-  if (isZeevNavigationUrl(cleanUrl, cleanName, source)) return
+  if (!shouldAcceptZeevDocUrl(cleanUrl, cleanName, source)) return
   const key = `${cleanUrl}|${source || cleanName}`
   if (out.some((d) => d.key === key)) return
   out.push({ key, name: cleanName || 'documento-fiscal.pdf', url: cleanUrl, type: String(type || ''), source: String(source || '') })
@@ -3607,6 +3673,60 @@ async function uploadPaymentStorage(path: string, file: { body: ArrayBuffer; typ
   return path
 }
 
+async function sha256Hex(body: ArrayBuffer) {
+  const digest = await crypto.subtle.digest('SHA-256', body)
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+function storedDocPath(doc: AnyRecord) {
+  return String(doc?.storagePath || doc?.path || '').trim()
+}
+
+async function downloadPaymentStorage(path: string) {
+  if (!path) return null
+  const base = env('SUPABASE_URL').replace(/\/$/, '')
+  const key = env('SUPABASE_SERVICE_ROLE_KEY')
+  const res = await fetch(`${base}/storage/v1/object/pagamentos/${encodeStoragePath(path)}`, {
+    method: 'GET',
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+    },
+  })
+  if (!res.ok) return null
+  return await res.arrayBuffer()
+}
+
+function sameStoredDocScope(doc: AnyRecord, kind: string, ticketId: string) {
+  const docKind = fiscalDocKind(doc)
+  if (docKind !== kind) return false
+  if (!ticketId) return true
+  const path = storedDocPath(doc)
+  const rawTicket = ticketDigits(doc?.ticketRaiz || doc?.ticket_raiz || doc?.ticket || '')
+  return rawTicket === ticketId || path.includes(`zeev_tr_${ticketId}/`) || path.includes(`zeev_tr_${ticketId}\\`)
+}
+
+async function storedDocMatchesDownloadedFile(stored: AnyRecord[], kind: string, ticketId: string, file: { body: ArrayBuffer; name: string; type: string }, fileHash: string, hashCache: Map<string, string>) {
+  for (const doc of stored) {
+    if (!sameStoredDocScope(doc, kind, ticketId)) continue
+    const storedHash = String(doc?.sha256 || doc?.hash || '').trim().toLowerCase()
+    if (storedHash && storedHash === fileHash) return true
+    const path = storedDocPath(doc)
+    if (!path) continue
+    let existingHash = hashCache.get(path)
+    if (!existingHash) {
+      const bytes = await downloadPaymentStorage(path)
+      if (!bytes) continue
+      existingHash = await sha256Hex(bytes)
+      hashCache.set(path, existingHash)
+      doc.sha256 = existingHash
+      doc.size = doc.size || bytes.byteLength
+    }
+    if (existingHash === fileHash) return true
+  }
+  return false
+}
+
 function paymentDateFromTicket(ticket: AnyRecord) {
   const pagamento = ticket?.pagamento_json || ticket?.pagamento || {}
   const fromJson = dateOnly(pagamento.data_pagamento || pagamento.dataPagamento)
@@ -4068,10 +4188,21 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
   let nfPath = row.nf_doc_path || ''
   let compPath = row.comp_doc_path || ''
   const skipped: AnyRecord[] = []
+  const deduped: AnyRecord[] = []
+  const ignored: AnyRecord[] = []
   const newDocs: AnyRecord[] = []
-  const hasInvoiceCandidate = docs.some((doc: AnyRecord) => isInvoiceDocKind(fiscalDocKind(doc)))
-  const hasChargeCandidate = docs.some((doc: AnyRecord) => isChargeDocKind(fiscalDocKind(doc)))
-  const hasProofCandidate = docs.some((doc: AnyRecord) => isProofDocKind(fiscalDocKind(doc)))
+  const storedHashCache = new Map<string, string>()
+  const ticketId = ticketDigits(ticket.zeev_instance_id || row.ticket_raiz || row.ticket_raiz_instance_id || row.referencia || '')
+  let effectiveCandidateCount = 0
+  let hasInvoiceCandidate = false
+  let hasChargeCandidate = false
+  let hasProofCandidate = false
+  const markCandidateKind = (kind: string) => {
+    effectiveCandidateCount++
+    if (isInvoiceDocKind(kind)) hasInvoiceCandidate = true
+    else if (isChargeDocKind(kind)) hasChargeCandidate = true
+    else if (isProofDocKind(kind)) hasProofCandidate = true
+  }
   const requestedLimit = Math.max(1, Number(limitFiles || 1))
   const attachAllDocs = !['0', 'false', 'nao', 'no', 'off'].includes(String(env('ZEEV_ATTACH_ALL_TICKET_DOCS', '1')).toLowerCase())
   const perTicketCap = Math.max(requestedLimit, Math.min(Number(env('ZEEV_DOC_ATTACH_PER_TICKET_LIMIT', '40')) || 40, 80))
@@ -4080,19 +4211,37 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
   for (const doc of docs.slice(0, candidateLimit)) {
     if (attached >= effectiveLimit) break
     const docKind = fiscalDocKind(doc)
+    if (isAlwaysIgnoredZeevDocCandidate(doc)) {
+      if (ignored.length < 8) ignored.push({ name: doc.name || '', source: doc.source || '', kind: docKind, reason: 'campo_de_formulario_sem_arquivo' })
+      continue
+    }
     const docNameKey = `${docKind}|${normKey(doc.name)}|${normKey(doc.source)}`
     const sameZeevFileAlreadyStored = stored.some((existing) => {
       const sameName = normKey(existing?.name) && normKey(existing?.name) === normKey(doc.name)
       const ze = String(existing?.origin || '').toUpperCase() === 'ZEEV' || String(existing?.storagePath || '').includes('zeev_tr_') || String(existing?.storagePath || '').includes('zeev_pendente/')
       return sameName && ze && Boolean(existing?.storagePath || existing?.path || existing?.url)
     })
-    if (sameZeevFileAlreadyStored) continue
-    if (stored.some((existing) => String(existing.url || '') && String(existing.url) === String(doc.url))) continue
-    if (!doc.url && stored.some((existing) => `${existing.kind || ''}|${normKey(existing.name)}|${normKey(existing.source)}` === docNameKey)) continue
+    if (sameZeevFileAlreadyStored) {
+      markCandidateKind(docKind)
+      continue
+    }
+    if (stored.some((existing) => String(existing.url || '') && String(existing.url) === String(doc.url))) {
+      markCandidateKind(docKind)
+      continue
+    }
+    if (!doc.url && stored.some((existing) => `${existing.kind || ''}|${normKey(existing.name)}|${normKey(existing.source)}` === docNameKey)) {
+      markCandidateKind(docKind)
+      continue
+    }
     let file: { body: ArrayBuffer; name: string; type: string } | null = null
     try {
       file = await downloadZeevDoc(doc)
     } catch (error) {
+      if (isIgnorableHtmlDownloadError(doc, error)) {
+        if (ignored.length < 8) ignored.push({ name: doc.name || '', source: doc.source || '', kind: docKind, reason: 'html_sem_arquivo_baixavel' })
+        continue
+      }
+      markCandidateKind(docKind)
       if (skipped.length < 8) {
         skipped.push({
           name: doc.name || '',
@@ -4106,7 +4255,19 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
     }
     if (!file) continue
     const kind = docKind
-    const ticketId = ticketDigits(ticket.zeev_instance_id || row.ticket_raiz || row.ticket_raiz_instance_id || row.referencia || '')
+    markCandidateKind(kind)
+    const fileHash = await sha256Hex(file.body)
+    if (await storedDocMatchesDownloadedFile(stored, kind, ticketId, file, fileHash, storedHashCache)) {
+      if (deduped.length < 8) {
+        deduped.push({
+          name: file.name || doc.name || '',
+          source: doc.source || '',
+          kind,
+          reason: 'arquivo_equivalente_ja_anexado',
+        })
+      }
+      continue
+    }
     const scope = target === 'payment'
       ? `obra_${row.obra_id || 'sem_obra'}/zeev_tr_${ticketId || 'sem_tr'}`
       : target === 'pending'
@@ -4114,7 +4275,7 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
         : `capex/zeev_tr_${ticketId || 'sem_tr'}`
     const path = `${scope}/${kind.toLowerCase()}_${Date.now()}_${attached + 1}_${file.name}`
     await uploadPaymentStorage(path, file)
-    const item = { name: file.name, storagePath: path, type: file.type, bucket: 'pagamentos', kind, origin: 'ZEEV', source: doc.source || '', url: doc.url || '', ticketRaiz: ticketId, attachedAt: new Date().toISOString() }
+    const item = { name: file.name, storagePath: path, type: file.type, bucket: 'pagamentos', kind, origin: 'ZEEV', source: doc.source || '', url: doc.url || '', ticketRaiz: ticketId, sha256: fileHash, size: file.body.byteLength, attachedAt: new Date().toISOString() }
     stored.push(item)
     newDocs.push(item)
     if (!nfPath && isInvoiceDocKind(kind)) nfPath = path
@@ -4124,6 +4285,10 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
   const audit = buildZeevDocAudit(target, row, ticket, stored, {
     attached,
     skipped,
+    deduped,
+    ignored,
+    effectiveCandidateCount,
+    rawCandidateCount: docs.length,
     candidateCount: docs.length,
     attemptedCandidateCount: Math.min(docs.length, candidateLimit),
     unattemptedCandidateCount: Math.max(0, docs.length - candidateLimit),
@@ -4131,7 +4296,7 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
     hasChargeCandidate,
     hasProofCandidate,
   })
-  return { docs: withLatestZeevDocAudit(stored, audit), audit, attached, nfPath, compPath, skipped, newDocs, candidateCount: docs.length, attemptedCandidateCount: Math.min(docs.length, candidateLimit), unattemptedCandidateCount: Math.max(0, docs.length - candidateLimit), reachedFileLimit: docs.length > candidateLimit || attached >= effectiveLimit }
+  return { docs: withLatestZeevDocAudit(stored, audit), audit, attached, nfPath, compPath, skipped, deduped, ignored, newDocs, candidateCount: effectiveCandidateCount, rawCandidateCount: docs.length, attemptedCandidateCount: Math.min(docs.length, candidateLimit), unattemptedCandidateCount: Math.max(0, docs.length - candidateLimit), reachedFileLimit: docs.length > candidateLimit || attached >= effectiveLimit }
 }
 
 function recordAttachedDocs(out: AnyRecord, target: string, row: AnyRecord, ticket: AnyRecord, attach: AnyRecord) {
@@ -5064,6 +5229,66 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
   }
 }
 
+function docRescueDetailRow(target: string, row: AnyRecord, tr: unknown) {
+  const docs = normalizeStoredDocs(row)
+  const audit = latestZeevDocAudit(row)
+  const counts = countStoredDocsByKind(docs)
+  return {
+    target,
+    id: row?.id || null,
+    tr: Number(ticketDigits(tr) || 0) || ticketDigits(tr),
+    checkedAt: row?.zeev_docs_checked_at || '',
+    docs: counts,
+    audit: audit ? {
+      status: audit.status || '',
+      checkedAt: audit.checkedAt || '',
+      candidateCount: audit.candidateCount || 0,
+      rawCandidateCount: audit.rawCandidateCount || audit.candidateCount || 0,
+      attemptedCandidateCount: audit.attemptedCandidateCount || 0,
+      unattemptedCandidateCount: audit.unattemptedCandidateCount || 0,
+      attachedCount: audit.attachedCount || 0,
+      storedDocCount: audit.storedDocCount || 0,
+      storedFiscalCount: audit.storedFiscalCount || 0,
+      storedChargeCount: audit.storedChargeCount || 0,
+      storedProofCount: audit.storedProofCount || 0,
+      skippedCount: audit.skippedCount || 0,
+      dedupedCount: audit.dedupedCount || 0,
+      ignoredCount: audit.ignoredCount || 0,
+      requiredKindsCovered: Boolean(audit.requiredKindsCovered),
+      skipped: Array.isArray(audit.skipped) ? audit.skipped.slice(0, 5) : [],
+      deduped: Array.isArray(audit.deduped) ? audit.deduped.slice(0, 5) : [],
+      ignored: Array.isArray(audit.ignored) ? audit.ignored.slice(0, 5) : [],
+    } : null,
+    files: docs.slice(0, 20).map((doc: AnyRecord) => ({
+      name: doc.name || '',
+      kind: fiscalDocKind(doc),
+      path: doc.storagePath || doc.path || '',
+      sha256: doc.sha256 || '',
+      attachedAt: doc.attachedAt || '',
+    })),
+  }
+}
+
+async function runDocRescueDetail(input: AnyRecord = {}) {
+  const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || input.ticketId || input.ticket_id || '')
+  if (!ticketIds.length) throw new Error('Informe ao menos um TR para detalhar auditoria.')
+  const idSet = new Set(ticketIds.map((id) => String(id)))
+  const out: AnyRecord = { ok: true, mode: 'doc-rescue-detail', ticketIds, rows: [] }
+  const pending = await rest(`/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=in.(${ticketIds.join(',')})&limit=${Math.max(20, ticketIds.length * 4)}`)
+  for (const row of pending || []) out.rows.push(docRescueDetailRow('pending', row, row.zeev_instance_id))
+  const payments = await restAll('/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=id.asc')
+  for (const row of payments || []) {
+    const refs = paymentTicketRefs(row)
+    if (refs.some((ref) => idSet.has(ref))) out.rows.push(docRescueDetailRow('payment', row, matchedTicketRef(refs, idSet) || refs[0]))
+  }
+  const capex = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at,situacao,realizado&order=id.asc')
+  for (const row of capex || []) {
+    const refs = capexTicketRefs(row)
+    if (refs.some((ref) => idSet.has(ref))) out.rows.push(docRescueDetailRow('capex', row, matchedTicketRef(refs, idSet) || refs[0]))
+  }
+  return out
+}
+
 function paymentIsOverdue(row: AnyRecord) {
   if (String(row?.st || '').toUpperCase() === 'PAGO') return false
   const venc = dateOnly(row?.venc)
@@ -5873,6 +6098,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'doc-rescue-audit') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await runDocRescueAudit(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'doc-rescue-detail') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await runDocRescueDetail(input || {})
       return json(out)
     }
     if (input?.mode === 'probe-zeev-doc-download') {
