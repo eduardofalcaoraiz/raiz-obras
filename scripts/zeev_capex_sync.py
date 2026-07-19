@@ -2772,7 +2772,7 @@ def backfill_docs():
 def doc_rescue_candidates(limit=None):
     payload = {
         "mode": "doc-rescue-candidates",
-        "limit": max(1, min(int(limit or os.environ.get("ZEEV_DOC_RESCUE_LIMIT", os.environ.get("ZEEV_BACKFILL_LIMIT", "24"))), 80)),
+        "limit": max(1, min(int(limit or os.environ.get("ZEEV_DOC_RESCUE_LIMIT", os.environ.get("ZEEV_BACKFILL_LIMIT", "24"))), 160)),
         "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", os.environ.get("ZEEV_DOC_RESCUE_STALE_HOURS", "8"))),
         "includePending": os.environ.get("ZEEV_DOC_RESCUE_PENDING", "true").lower() != "false",
         "includePayments": os.environ.get("ZEEV_DOC_RESCUE_PAYMENTS", "true").lower() != "false",
@@ -2844,7 +2844,7 @@ def rescue_docs():
     else:
         candidate_result = doc_rescue_candidates()
         ids = parse_ticket_ids(candidate_result.get("ticketIds", []))
-    limit = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_BATCH", os.environ.get("ZEEV_BACKFILL_BATCH", "4"))), 12))
+    limit = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_BATCH", os.environ.get("ZEEV_BACKFILL_BATCH", "4"))), 24))
     out = {
         "ok": True,
         "mode": "rescue-docs",
