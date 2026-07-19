@@ -2699,7 +2699,7 @@ def report_sync_error(error):
 
 def backfill_docs():
     total_limit = max(0, int(os.environ.get("ZEEV_BACKFILL_LIMIT", os.environ.get("ZEEV_MAX_PAGES", "30"))))
-    base_batch = max(1, min(int(os.environ.get("ZEEV_BACKFILL_BATCH", "2")), 8))
+    base_batch = max(1, min(int(os.environ.get("ZEEV_BACKFILL_BATCH", "1")), 4))
     base_file_limit = max(1, min(int(os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "12")), 40))
     shared = {
         "mode": "backfill-docs",
@@ -2716,7 +2716,7 @@ def backfill_docs():
     ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
     if ticket_ids:
         shared["ticketIds"] = ticket_ids
-        base_batch = min(max(total_limit, 1), 8)
+        base_batch = min(max(total_limit, 1), 4)
     out = {
         "ok": True,
         "mode": "backfill-docs",
@@ -2856,10 +2856,12 @@ def doc_rescue_fast_edge_enabled():
 
 
 def backfill_docs_for_ticket_ids(ticket_ids, file_limit=None):
+    parsed_ticket_ids = parse_ticket_ids(ticket_ids)
+    edge_limit = int(os.environ.get("ZEEV_DOC_RESCUE_EDGE_LIMIT", "6") or "6")
     payload = {
         "mode": "backfill-docs",
-        "ticketIds": ",".join(str(x) for x in parse_ticket_ids(ticket_ids)),
-        "limit": max(1, min(len(parse_ticket_ids(ticket_ids)) or 1, int(os.environ.get("ZEEV_DOC_RESCUE_EDGE_LIMIT", "80") or "80"))),
+        "ticketIds": ",".join(str(x) for x in parsed_ticket_ids),
+        "limit": max(1, min(len(parsed_ticket_ids) or 1, edge_limit, 12)),
         "fileLimit": int(file_limit or os.environ.get("ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT", os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "12"))),
         "refresh": True,
         "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", os.environ.get("ZEEV_DOC_RESCUE_STALE_HOURS", "720"))),
@@ -2922,7 +2924,7 @@ def rescue_docs():
     else:
         candidate_result = doc_rescue_candidates()
         ids = parse_ticket_ids(candidate_result.get("ticketIds", []))
-    limit = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_BATCH", os.environ.get("ZEEV_BACKFILL_BATCH", "4"))), 80))
+    limit = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_BATCH", os.environ.get("ZEEV_BACKFILL_BATCH", "1"))), 8))
     out = {
         "ok": True,
         "mode": "rescue-docs",
@@ -3005,9 +3007,9 @@ def rescue_docs():
 
 def rescue_docs_loop():
     started = time.time()
-    max_seconds = max(60, min(int(os.environ.get("ZEEV_DOC_RESCUE_LOOP_SECONDS", "900")), 3300))
-    max_rounds = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_LOOP_ROUNDS", "20")), 80))
-    max_transient_retries = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_MAX_TRANSIENT_RETRIES", "3")), 12))
+    max_seconds = max(60, min(int(os.environ.get("ZEEV_DOC_RESCUE_LOOP_SECONDS", "900")), 1200))
+    max_rounds = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_LOOP_ROUNDS", "6")), 20))
+    max_transient_retries = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_MAX_TRANSIENT_RETRIES", "2")), 6))
     out = {
         "ok": True,
         "mode": "rescue-docs-loop",
