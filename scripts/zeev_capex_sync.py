@@ -2786,6 +2786,32 @@ def doc_rescue_audit():
     )
 
 
+def rescue_block_report(result):
+    if os.environ.get("ZEEV_RESCUE_BLOCK_EMAIL", "true").strip().lower() in {"0", "false", "nao", "no", "off"}:
+        return {"ok": True, "skipped": True, "reason": "ZEEV_RESCUE_BLOCK_EMAIL desativado"}
+    payload = {
+        "mode": "rescue-docs-block-report",
+        "result": result,
+        "run": {
+            "id": os.environ.get("GITHUB_RUN_ID", ""),
+            "number": os.environ.get("GITHUB_RUN_NUMBER", ""),
+            "attempt": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
+            "sha": os.environ.get("GITHUB_SHA", ""),
+            "workflow": os.environ.get("GITHUB_WORKFLOW", ""),
+        },
+        "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", os.environ.get("ZEEV_DOC_RESCUE_STALE_HOURS", "8"))),
+        "recentHours": int(os.environ.get("ZEEV_RESCUE_BLOCK_RECENT_HOURS", "24")),
+    }
+    return request_json(
+        "POST",
+        f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+        headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+        payload=payload,
+        timeout=240,
+        retries=2,
+    )
+
+
 def rescue_docs():
     requested_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     if requested_ids:
@@ -2930,6 +2956,10 @@ def rescue_docs_loop():
         out["obraDoneEmails"] = out["obraDoneEmails"][:120]
     out["elapsedSeconds"] = round(time.time() - started, 1)
     out["completed"] = out.get("completed", False)
+    try:
+        out["blockEmail"] = rescue_block_report(out)
+    except Exception as exc:
+        out["blockEmail"] = {"ok": False, "error": str(exc)[:700]}
     return out
 
 

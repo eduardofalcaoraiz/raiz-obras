@@ -4017,6 +4017,159 @@ async function notifyCompletedObraDocScans(obraIds: number[], staleHours: number
   return sent
 }
 
+function flattenAttachedTickets(value: unknown) {
+  const rows: AnyRecord[] = []
+  const pushTicket = (ticket: AnyRecord) => {
+    if (!ticket || typeof ticket !== 'object') return
+    const docs = Array.isArray(ticket.attachments)
+      ? ticket.attachments
+      : Array.isArray(ticket.fiscalDocs)
+        ? ticket.fiscalDocs
+        : []
+    for (const doc of docs) {
+      if (!doc || typeof doc !== 'object') continue
+      rows.push({
+        tr: ticket.tr || ticket.ticket || ticket.ticketRaiz || ticket.zeev_instance_id || '',
+        target: ticket.target || ticket.alvo || '',
+        kind: doc.kind || doc.tipo || fiscalDocKind(doc),
+        name: doc.name || doc.nome || '',
+        attachedAt: doc.attachedAt || doc.anexadoEm || '',
+        storagePath: doc.storagePath || doc.path || '',
+      })
+    }
+  }
+  const walk = (item: unknown) => {
+    if (Array.isArray(item)) {
+      for (const nested of item) walk(nested)
+      return
+    }
+    if (!item || typeof item !== 'object') return
+    const obj = item as AnyRecord
+    if (Array.isArray(obj.attachedTickets)) for (const ticket of obj.attachedTickets) pushTicket(ticket)
+    if (Array.isArray(obj.recentAttached?.tickets)) for (const ticket of obj.recentAttached.tickets) pushTicket(ticket)
+    if (Array.isArray(obj.batches)) for (const batch of obj.batches) walk(batch)
+    if (Array.isArray(obj.roundResults)) for (const round of obj.roundResults) walk(round)
+    if (obj.directDocs) walk(obj.directDocs)
+    if (obj.scheduled) walk(obj.scheduled)
+    if (obj.backfill) walk(obj.backfill)
+  }
+  walk(value)
+  const seen = new Set<string>()
+  return rows.filter((row) => {
+    const key = String(row.storagePath || `${row.tr}|${row.target}|${row.kind}|${row.name}|${row.attachedAt}`)
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function rescueBlockReportEnabled() {
+  const value = String(env('ZEEV_RESCUE_BLOCK_EMAIL', 'true') || '').trim().toLowerCase()
+  return !['0', 'false', 'nao', 'no', 'off', 'desligado'].includes(value)
+}
+
+function attachmentRowsHtml(rows: AnyRecord[]) {
+  if (!rows.length) return '<p style="margin:14px 0 0;color:#6b6257">Nenhum arquivo novo anexado neste bloco.</p>'
+  const limited = rows.slice(0, 60)
+  return `<div style="margin-top:16px">
+    <p style="margin:0 0 8px"><b>Arquivos anexados neste bloco</b>${rows.length > limited.length ? ` <span style="color:#6b6257">(primeiros ${limited.length} de ${rows.length})</span>` : ''}</p>
+    <table style="border-collapse:collapse;width:100%;font-size:12px">
+      <thead>
+        <tr>
+          <th align="left" style="border-bottom:1px solid #e6d8c5;padding:6px">TR</th>
+          <th align="left" style="border-bottom:1px solid #e6d8c5;padding:6px">Alvo</th>
+          <th align="left" style="border-bottom:1px solid #e6d8c5;padding:6px">Tipo</th>
+          <th align="left" style="border-bottom:1px solid #e6d8c5;padding:6px">Arquivo</th>
+          <th align="left" style="border-bottom:1px solid #e6d8c5;padding:6px">Horario</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${limited.map((row: AnyRecord) => `
+          <tr>
+            <td style="border-bottom:1px solid #f3eadf;padding:6px">${htmlEscape(row.tr || '')}</td>
+            <td style="border-bottom:1px solid #f3eadf;padding:6px">${htmlEscape(row.target || '')}</td>
+            <td style="border-bottom:1px solid #f3eadf;padding:6px">${htmlEscape(row.kind || '')}</td>
+            <td style="border-bottom:1px solid #f3eadf;padding:6px">${htmlEscape(row.name || row.storagePath || '')}</td>
+            <td style="border-bottom:1px solid #f3eadf;padding:6px">${htmlEscape(formatBrDateTime(row.attachedAt))}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`
+}
+
+async function runRescueBlockReport(input: AnyRecord = {}) {
+  if (!rescueBlockReportEnabled()) return { ok: true, mode: 'rescue-docs-block-report', skipped: true, reason: 'ZEEV_RESCUE_BLOCK_EMAIL desativado' }
+  const result = input.result || input.summary || {}
+  const run = input.run || {}
+  const runId = String(input.runId || input.run_id || run.id || '').trim()
+  const runNumber = String(input.runNumber || input.run_number || run.number || '').trim()
+  const stateId = runId ? `zeev-rescue-block-email-${runId}` : `zeev-rescue-block-email-${stableHash(JSON.stringify({ result, at: input.finishedAt || input.finished_at || '' }).slice(0, 4000))}`
+  const state = await getState(stateId)
+  if (state?.last_success_at) return { ok: true, mode: 'rescue-docs-block-report', skipped: true, reason: 'relatorio_de_bloco_ja_enviado', stateId }
+  const staleHours = Math.max(1, Math.min(Number(input.staleHours || input.stale_hours || env('ZEEV_BACKFILL_STALE_HOURS', '8')), 720))
+  const audit = await runDocRescueAudit({ staleHours, recentHours: Number(input.recentHours || input.recent_hours || 24), sampleLimit: 60 })
+  let attachments = flattenAttachedTickets(result)
+  let attachmentSource = 'bloco'
+  if (!attachments.length) {
+    attachments = flattenAttachedTickets(audit.recentAttached || {})
+    attachmentSource = 'janela_recente_da_auditoria'
+  }
+  const errors = Array.isArray(result.errors) ? result.errors : []
+  const processed = Number(result.processed || 0)
+  const filesAttached = Number(result.filesAttached || 0)
+  const downloadedDocs = Number(result.downloadedDocs || 0)
+  const rounds = Number(result.rounds || 0)
+  const queueTotal = Number(audit?.queue?.total || 0)
+  const subject = `Raiz ObraViva - bloco Zeev finalizado: fila ${queueTotal}`
+  const runLink = runId ? `https://github.com/eduardofalcaoraiz/raiz-obras/actions/runs/${encodeURIComponent(runId)}` : ''
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#173C34;line-height:1.5;background:#fffaf3;padding:20px;border-radius:12px">
+      <p style="margin:0 0 6px;color:#a35a00;text-transform:uppercase;letter-spacing:.04em;font-size:12px"><b>Varredura total controlada Zeev</b></p>
+      <h2 style="margin:0 0 8px">Bloco online finalizado</h2>
+      ${runLink ? `<p style="margin:0 0 12px"><a href="${htmlEscape(runLink)}">Abrir GitHub Actions${runNumber ? ` #${htmlEscape(runNumber)}` : ''}</a></p>` : ''}
+      <table style="border-collapse:separate;border-spacing:0 8px;width:100%;font-size:14px">
+        <tbody>
+          <tr>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>TRs processados no bloco</b><br>${htmlEscape(processed)}</td>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Docs baixados do Zeev</b><br>${htmlEscape(downloadedDocs)}</td>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Arquivos anexados</b><br>${htmlEscape(filesAttached)}</td>
+          </tr>
+          <tr>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Rodadas</b><br>${htmlEscape(rounds)}</td>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Fila restante</b><br>${htmlEscape(queueTotal)}</td>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Pagamentos sem doc fiscal</b><br>${htmlEscape(audit?.queue?.paymentFiscal || 0)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin:10px 0 0"><b>Acumulado:</b> ${htmlEscape(audit?.docs?.withAnyDocs || 0)} tickets com algum documento, ${htmlEscape(audit?.docs?.withFiscalDocs || 0)} com NF/DANFE/XML e ${htmlEscape(audit?.docs?.withChargeDocs || 0)} com boleto/fatura.</p>
+      <p style="margin:4px 0 0"><b>Origem da lista de anexos:</b> ${attachmentSource === 'bloco' ? 'resultado direto deste bloco' : 'janela recente da auditoria, pois o bloco nao trouxe lista detalhada'}.</p>
+      ${errors.length ? `<p style="margin:10px 0;color:#a33"><b>Alertas/erros no bloco:</b> ${htmlEscape(JSON.stringify(errors.slice(0, 5)).slice(0, 1200))}</p>` : ''}
+      ${attachmentRowsHtml(attachments)}
+    </div>`
+  const email = await sendHtmlEmail(subject, html)
+  if (email.sent) {
+    await saveState(stateId, {
+      running: false,
+      last_success_at: new Date().toISOString(),
+      last_error: null,
+      last_run_found: processed,
+      last_run_new: filesAttached,
+      last_run_updated: queueTotal,
+    })
+  }
+  return {
+    ok: Boolean(email.sent),
+    mode: 'rescue-docs-block-report',
+    sent: Boolean(email.sent),
+    provider: email.provider || '',
+    reason: email.reason || '',
+    stateId,
+    queueTotal,
+    filesAttached,
+    attachmentsListed: attachments.length,
+  }
+}
+
 function isFinancialZeevRow(row: AnyRecord) {
   const text = normKey([row?.flow_name, row?.request_name, row?.flowName, row?.requestName].filter(Boolean).join(' '))
   return text.includes('financeir') || Number(row?.flow_id || row?.flowId || 0) === 263
@@ -5139,6 +5292,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'doc-rescue-audit') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await runDocRescueAudit(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'rescue-docs-block-report') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await runRescueBlockReport(input || {})
       return json(out)
     }
     if (input?.mode === 'refresh-payment-statuses') {
