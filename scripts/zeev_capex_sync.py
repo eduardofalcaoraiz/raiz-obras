@@ -603,7 +603,8 @@ def maybe_skip_for_supabase_health(mode):
     health = supabase_healthcheck()
     if health.get("ok"):
         return None
-    return {"ok": True, "mode": mode, "skipped": True, "reason": "supabase_rest_unhealthy", "health": health}
+    reason = "zeev_token_or_api_unhealthy" if isinstance(health.get("zeev"), dict) and not health.get("zeev", {}).get("ok") else "supabase_rest_unhealthy"
+    return {"ok": True, "mode": mode, "skipped": True, "reason": reason, "health": health}
 
 
 def capex_fields(flow_id=None):

@@ -2084,6 +2084,17 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
         <div class="tablewrap" id="admin-users"></div></div>
 
+      <div class="card" style="margin-top:20px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+          <div>
+            <h2 style="font-size:19px;margin-bottom:3px">Automacao Zeev</h2>
+            <div class="sub">Fila, anexos, excecoes e saude da varredura online de Tickets Raiz.</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="refreshAdminZeevAudit(false)">Atualizar auditoria</button>
+        </div>
+        <div id="admin-zeev-audit"><p class="empty">Carregando auditoria Zeev...</p></div>
+      </div>
+
       <!-- Gestão de categorias por módulo -->
 
       <div class="card" style="margin-top:20px">
@@ -6828,6 +6839,7 @@ function capexZeevStoredDocs(z){
   const out=[],seen=new Set();
   rows.forEach(d=>{
     if(!d)return;
+    if(isZeevAuditDocClient(d))return;
     const item={...d,bucket:d.bucket||'pagamentos',type:d.type||inferType(d.name||d.storagePath||'')};
     const key=paymentDocKey(item);
     if(!key||seen.has(key))return;
@@ -6931,11 +6943,17 @@ function paymentDocKey(d){
   return String(d.storagePath||d.url||((d.kind||'')+'|'+(d.name||''))).trim().toLowerCase();
 }
 
+function isZeevAuditDocClient(d){
+  const kind=String(d?.kind||'').toUpperCase();
+  return !!(d&&(d.system===true||d.__system===true||kind==='ZEEV_AUDIT'||kind==='AUDITORIA_ZEEV'));
+}
+
 function normalizePaymentDocs(p){
   if(!p)return[];
   const rows=[];
   const push=(doc,kind)=>{
     if(!doc)return;
+    if(isZeevAuditDocClient(doc))return;
     const item={...doc,kind:doc.kind||kind||'',bucket:doc.bucket||'pagamentos',type:doc.type||inferType(doc.name||doc.storagePath||'')};
     const key=paymentDocKey(item);
     if(!key||rows.some(x=>paymentDocKey(x)===key))return;
@@ -11143,6 +11161,7 @@ function capexItemDocs(it){
   const out=[],seen=new Set();
   rows.forEach(d=>{
     if(!d)return;
+    if(isZeevAuditDocClient(d))return;
     const item={...d,bucket:d.bucket||'pagamentos',type:d.type||inferType(d.name||d.storagePath||'')};
     const key=paymentDocKey(item);
     if(!key||seen.has(key))return;
@@ -18127,8 +18146,77 @@ async function renderAdmin(){
 
   document.getElementById('admin-users').innerHTML=`<table><thead><tr><th>Nome</th><th>E-mail</th><th>Função</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="5"><p class="empty">Nenhum usuário cadastrado ainda.</p></td></tr>'}</tbody></table>`;
 
+  refreshAdminZeevAudit(true);
+
   renderAdminCats();
 
+}
+
+function adminZeevFmtDate(v){
+  if(!v)return'--';
+  const d=new Date(v);
+  if(isNaN(d.getTime()))return String(v);
+  return d.toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
+}
+
+function adminZeevNum(v){return Number(v||0).toLocaleString('pt-BR');}
+
+function adminZeevSampleHtml(title,rows){
+  rows=Array.isArray(rows)?rows:[];
+  if(!rows.length)return'';
+  return `<div style="margin-top:10px"><div style="font-size:11px;text-transform:uppercase;font-weight:850;color:var(--muted);letter-spacing:.45px;margin-bottom:5px">${escHtml(title)}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${rows.slice(0,18).map(tr=>`<span class="badge b-neutral">TR ${escHtml(tr)}</span>`).join('')}</div></div>`;
+}
+
+function renderAdminZeevAuditBox(out){
+  const el=document.getElementById('admin-zeev-audit');
+  if(!el)return;
+  if(!out||out.ok===false){
+    el.innerHTML=`<div class="capex-zeev-empty" style="border-color:#C0392B;color:#7A1F18;background:#FFF7F4"><b>Falha ao carregar auditoria Zeev.</b><br>${escHtml(out?.error||'Tente atualizar novamente.')}</div>`;
+    return;
+  }
+  const docs=out.docs||{},queue=out.queue||{},audit=out.audit||{},checked=out.checked||{},recent=out.recentAttached||{};
+  const statusCounts=audit.statusCounts||{};
+  const statusLine=Object.keys(statusCounts).length
+    ? Object.entries(statusCounts).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))).map(([k,v])=>`${escHtml(k)}: <b>${adminZeevNum(v)}</b>`).join(' &nbsp;|&nbsp; ')
+    :'Sem auditoria gravada ainda';
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px">
+      <div class="mini"><div class="nm">Tickets monitorados</div><div class="v">${adminZeevNum(out.uniqueTickets)}</div></div>
+      <div class="mini"><div class="nm">Fila de rechecagem</div><div class="v">${adminZeevNum(queue.total)}</div></div>
+      <div class="mini"><div class="nm">Com NF/DANFE/XML</div><div class="v">${adminZeevNum(docs.withFiscalDocs)}</div></div>
+      <div class="mini"><div class="nm">Com boleto/fatura</div><div class="v">${adminZeevNum(docs.withChargeDocs)}</div></div>
+      <div class="mini"><div class="nm">Com comprovante</div><div class="v">${adminZeevNum(docs.withProofDocs)}</div></div>
+      <div class="mini"><div class="nm">Anexos recentes</div><div class="v">${adminZeevNum(recent.total)}</div></div>
+    </div>
+    <div style="border:1px solid var(--line);border-radius:12px;padding:11px;background:rgba(255,255,255,.55);font-size:12.5px;line-height:1.45">
+      <div><b>Status da auditoria:</b> ${statusLine}</div>
+      <div style="margin-top:5px"><b>Checagem:</b> ${adminZeevNum(checked.fresh)} frescos, ${adminZeevNum(checked.neverChecked)} nunca checados, ${adminZeevNum(checked.staleOrMissing)} na fila.</div>
+      <div style="margin-top:5px"><b>Atencao:</b> ${adminZeevNum(audit.blocked)} bloqueados, ${adminZeevNum(audit.partial)} parciais, ${adminZeevNum(audit.noDocsInZeev)} sem documento no Zeev.</div>
+    </div>
+    ${adminZeevSampleHtml('TRs bloqueados por download',audit.blockedSample)}
+    ${adminZeevSampleHtml('TRs parciais',audit.partialSample)}
+    ${adminZeevSampleHtml('Proxima fila',queue.sample)}
+    <div style="font-size:11.5px;color:var(--muted);margin-top:10px">Atualizado em ${adminZeevFmtDate(new Date())}. Esta leitura vem da Edge Function online, nao da maquina local.</div>`;
+}
+
+async function refreshAdminZeevAudit(silent){
+  const el=document.getElementById('admin-zeev-audit');
+  if(!el)return;
+  if(!silent)el.innerHTML='<p class="empty">Atualizando auditoria Zeev...</p>';
+  try{
+    const{data:{session}}=await db.auth.getSession();
+    if(!session?.access_token)throw new Error('Sessao expirada.');
+    const res=await fetch(SUPA_URL+'/functions/v1/zeev-capex-sync',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify({mode:'doc-rescue-audit',recentHours:24,sampleLimit:60,staleHours:720})
+    });
+    const out=await res.json().catch(()=>({}));
+    if(!res.ok||out.ok===false)throw new Error(out.error||('HTTP '+res.status));
+    renderAdminZeevAuditBox(out);
+  }catch(e){
+    renderAdminZeevAuditBox({ok:false,error:e.message||String(e)});
+  }
 }
 
 

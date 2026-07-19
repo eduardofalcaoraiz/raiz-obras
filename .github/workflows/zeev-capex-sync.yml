@@ -95,7 +95,7 @@ jobs:
           ZEEV_EXTRA_TOKENS: ${{ secrets.ZEEV_EXTRA_TOKENS }}
           ZEEV_SYNC_SECRET: ${{ secrets.ZEEV_SYNC_SECRET }}
           ZEEV_AUTOMATION_PAUSED: "false"
-          ZEEV_TOTAL_SCAN_LOCK: "0"
+          ZEEV_TOTAL_SCAN_LOCK: "1"
           ZEEV_BASE_URL: https://raizeducacao.zeev.it
           SUPABASE_URL: https://hjccxfznojjosvanwztv.supabase.co
           ZEEV_BUSINESS_TIMEZONE: America/Sao_Paulo
@@ -133,6 +133,8 @@ jobs:
           ZEEV_DOC_ATTACH_PER_TICKET_LIMIT: "40"
           ZEEV_RESCUE_BLOCK_EMAIL: "true"
           ZEEV_RESCUE_BLOCK_RECENT_HOURS: "24"
+          ZEEV_DOC_RETRY_MINUTES: "360"
+          ZEEV_DOC_RESCUE_AUDIT_SAMPLE: "160"
           ZEEV_DOC_RESCUE_LIMIT: ${{ github.event_name == 'schedule' && (github.event.schedule == '17 * * * *' || github.event.schedule == '7,27,47 * * * *') && '80' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '80' }}
           ZEEV_DOC_RESCUE_BATCH: ${{ github.event_name == 'schedule' && (github.event.schedule == '17 * * * *' || github.event.schedule == '7,27,47 * * * *') && '12' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '12' }}
           ZEEV_DOC_RESCUE_FAST_EDGE: "0"
