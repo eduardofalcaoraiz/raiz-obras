@@ -2854,6 +2854,9 @@ def rescue_docs():
         "ingested": 0,
         "downloadedDocs": 0,
         "filesAttached": 0,
+        "checkedWithoutFiscal": 0,
+        "checkedWithoutFiscalTickets": [],
+        "attachedTickets": [],
         "obraDoneEmails": [],
         "batches": [],
         "errors": [],
@@ -2874,17 +2877,26 @@ def rescue_docs():
             direct_docs = backfill.get("directDocs") if isinstance(backfill, dict) and isinstance(backfill.get("directDocs"), dict) else backfill
             if isinstance(direct_docs, dict):
                 attached = int(direct_docs.get("filesAttached", 0) or 0)
+                checked_without_fiscal = int(direct_docs.get("checkedWithoutFiscal", 0) or 0)
+                if direct_docs.get("checkedWithoutFiscalTickets"):
+                    out["checkedWithoutFiscalTickets"].extend(direct_docs.get("checkedWithoutFiscalTickets")[:80])
+                if direct_docs.get("attachedTickets"):
+                    out["attachedTickets"].extend(direct_docs.get("attachedTickets")[:80])
                 if direct_docs.get("obraDoneEmails"):
                     out["obraDoneEmails"].extend(direct_docs.get("obraDoneEmails")[:20])
+            else:
+                checked_without_fiscal = 0
             out["processed"] += len(chunk)
             out["ingested"] += len(tickets)
             out["downloadedDocs"] += downloaded
             out["filesAttached"] += attached
+            out["checkedWithoutFiscal"] += checked_without_fiscal
             out["batches"].append({
                 "ticketIds": chunk,
                 "tickets": len(tickets),
                 "downloadedDocs": downloaded,
                 "filesAttached": attached,
+                "checkedWithoutFiscal": checked_without_fiscal,
                 "obraDoneEmails": len(direct_docs.get("obraDoneEmails") or []) if isinstance(direct_docs, dict) else 0,
             })
         except Exception as exc:
@@ -2900,6 +2912,10 @@ def rescue_docs():
         out["errors"] = out["errors"][:25]
     if len(out["obraDoneEmails"]) > 80:
         out["obraDoneEmails"] = out["obraDoneEmails"][:80]
+    if len(out["checkedWithoutFiscalTickets"]) > 200:
+        out["checkedWithoutFiscalTickets"] = out["checkedWithoutFiscalTickets"][:200]
+    if len(out["attachedTickets"]) > 200:
+        out["attachedTickets"] = out["attachedTickets"][:200]
     out["completed"] = out["processed"] >= len(ids)
     return out
 
@@ -2918,6 +2934,9 @@ def rescue_docs_loop():
         "ingested": 0,
         "downloadedDocs": 0,
         "filesAttached": 0,
+        "checkedWithoutFiscal": 0,
+        "checkedWithoutFiscalTickets": [],
+        "attachedTickets": [],
         "obraDoneEmails": [],
         "errors": [],
         "roundResults": [],
@@ -2949,6 +2968,11 @@ def rescue_docs_loop():
         out["ingested"] += int(result.get("ingested", 0) or 0)
         out["downloadedDocs"] += int(result.get("downloadedDocs", 0) or 0)
         out["filesAttached"] += int(result.get("filesAttached", 0) or 0)
+        out["checkedWithoutFiscal"] += int(result.get("checkedWithoutFiscal", 0) or 0)
+        if result.get("checkedWithoutFiscalTickets"):
+            out["checkedWithoutFiscalTickets"].extend(result.get("checkedWithoutFiscalTickets")[:80])
+        if result.get("attachedTickets"):
+            out["attachedTickets"].extend(result.get("attachedTickets")[:80])
         if result.get("obraDoneEmails"):
             out["obraDoneEmails"].extend(result.get("obraDoneEmails")[:20])
         if result.get("errors"):
@@ -2959,6 +2983,7 @@ def rescue_docs_loop():
             "processed": int(result.get("processed", 0) or 0),
             "downloadedDocs": int(result.get("downloadedDocs", 0) or 0),
             "filesAttached": int(result.get("filesAttached", 0) or 0),
+            "checkedWithoutFiscal": int(result.get("checkedWithoutFiscal", 0) or 0),
             "obraDoneEmails": len(result.get("obraDoneEmails") or []),
             "completed": bool(result.get("completed")),
         })
@@ -2973,6 +2998,10 @@ def rescue_docs_loop():
         out["errors"] = out["errors"][:30]
     if len(out["obraDoneEmails"]) > 120:
         out["obraDoneEmails"] = out["obraDoneEmails"][:120]
+    if len(out["checkedWithoutFiscalTickets"]) > 300:
+        out["checkedWithoutFiscalTickets"] = out["checkedWithoutFiscalTickets"][:300]
+    if len(out["attachedTickets"]) > 300:
+        out["attachedTickets"] = out["attachedTickets"][:300]
     out["elapsedSeconds"] = round(time.time() - started, 1)
     out["completed"] = out.get("completed", False)
     try:

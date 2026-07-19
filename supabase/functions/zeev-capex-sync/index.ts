@@ -2842,6 +2842,34 @@ function safeZeevFileUrl(value: unknown) {
   }
 }
 
+function googleDriveFileId(value: unknown) {
+  try {
+    const url = new URL(String(value || '').trim())
+    const host = url.hostname.toLowerCase()
+    if (!host.includes('drive.google.com') && !host.includes('docs.google.com')) return ''
+    const byQuery = url.searchParams.get('id')
+    if (byQuery) return byQuery
+    const match = url.pathname.match(/\/(?:file\/d|document\/d|spreadsheets\/d|presentation\/d)\/([^/]+)/i)
+    return match?.[1] || ''
+  } catch (_) {
+    return ''
+  }
+}
+
+function isGoogleDriveUrl(value: unknown) {
+  return Boolean(googleDriveFileId(value))
+}
+
+function googleDriveDownloadUrls(value: unknown) {
+  const id = googleDriveFileId(value)
+  if (!id) return []
+  const safeId = encodeURIComponent(id)
+  return [
+    `https://drive.google.com/uc?export=download&id=${safeId}`,
+    `https://drive.usercontent.google.com/download?id=${safeId}&export=download`,
+  ]
+}
+
 function fileNameFromResponse(url: string, headers: Headers) {
   const disp = headers.get('content-disposition') || ''
   const match = disp.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i)
@@ -2892,9 +2920,9 @@ function financialDocPriority(doc: AnyRecord) {
   const kind = fiscalDocKind(doc)
   if (isInvoiceDocKind(kind)) return 0
   if (isChargeDocKind(kind)) return 1
-  if (String(kind).toUpperCase() === 'DOCUMENTO') return 2
-  if (isProofDocKind(kind)) return 4
-  return 3
+  if (isProofDocKind(kind)) return 2
+  if (String(kind).toUpperCase() === 'DOCUMENTO') return 3
+  return 4
 }
 
 function pushZeevDoc(out: AnyRecord[], name: unknown, url: unknown, type = '', source = '') {
@@ -2970,7 +2998,11 @@ function pushZeevDocText(out: AnyRecord[], label: string, value: unknown, source
   if (!text) return
   const proofLabel = /(comprovante|recibo|pix|pagamento|pago|liquidado)/.test(norm(text)) ? 'comprovante pagamento' : label
   const urls = text.match(/https?:\/\/[^\s"'<>]+/gi) || []
-  for (const url of urls) pushZeevDoc(out, proofLabel || 'documento-fiscal.pdf', url.replace(/[),.;]+$/, ''), '', source)
+  for (const url of urls) {
+    const cleanUrl = url.replace(/[),.;]+$/, '')
+    const driveProof = source === 'messages' && isGoogleDriveUrl(cleanUrl)
+    pushZeevDoc(out, driveProof ? 'comprovante pagamento' : proofLabel || 'documento-fiscal.pdf', cleanUrl, '', source)
+  }
 }
 
 function embeddedDocArray(ticket: AnyRecord) {
@@ -3203,6 +3235,9 @@ function fileDownloadUrls(doc: AnyRecord) {
   push(doc?.fileUrl)
   push(doc?.signedUrl)
   push(doc?.contentUrl)
+  for (const value of [doc?.url, doc?.openUrl, doc?.downloadUrl, doc?.fileUrl, doc?.signedUrl, doc?.contentUrl]) {
+    for (const driveUrl of googleDriveDownloadUrls(value)) push(driveUrl)
+  }
   const fileId = String(doc?.fileId || '').trim()
   if (fileId) {
     const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
@@ -3248,6 +3283,15 @@ async function downloadZeevDocFromUrl(doc: AnyRecord, url: string, depth = 0): P
     }
     const bytes = new TextEncoder().encode(text)
     return { body: bytes.buffer, name: ensureStorageExtension(doc.name || fileNameFromResponse(url, res.headers) || 'zeev-metadata.json', 'application/json'), type: 'application/json' }
+  }
+  if (/text\/html/i.test(type)) {
+    const text = await res.text()
+    const confirmMatch = text.match(/href="([^"]*(?:uc\?export=download|download\?id=)[^"]+)"/i)
+    if (confirmMatch && depth < 2) {
+      const nestedUrl = new URL(confirmMatch[1].replace(/&amp;/g, '&'), url).toString()
+      return await downloadZeevDocFromUrl(doc, nestedUrl, depth + 1)
+    }
+    throw new Error('URL retornou HTML em vez de arquivo para download.')
   }
   const body = await res.arrayBuffer()
   return {
@@ -3755,7 +3799,6 @@ function recordAttachedDocs(out: AnyRecord, target: string, row: AnyRecord, tick
   if (out.attachedTickets.length >= 80) return
   const ticketId = ticketDigits(ticket?.zeev_instance_id || row?.ticket_raiz || row?.ticket_raiz_instance_id || row?.referencia || '')
   const attachments = (Array.isArray(attach.newDocs) ? attach.newDocs : [])
-    .filter((doc: AnyRecord) => !isProofDocKind(doc?.kind))
     .map((doc: AnyRecord) => ({
       name: doc?.name || '',
       kind: doc?.kind || '',
