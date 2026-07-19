@@ -3776,6 +3776,29 @@ function recordAttachedDocs(out: AnyRecord, target: string, row: AnyRecord, tick
   })
 }
 
+function checkedRowWithAttach(row: AnyRecord, attach: AnyRecord) {
+  return {
+    ...row,
+    docs_json: Array.isArray(attach?.docs) ? attach.docs : row?.docs_json,
+    nf_doc_path: attach?.nfPath || row?.nf_doc_path || '',
+    comp_doc_path: attach?.compPath || row?.comp_doc_path || '',
+  }
+}
+
+function recordCheckedWithoutFiscalDoc(out: AnyRecord, target: string, row: AnyRecord, ticket: AnyRecord, attach: AnyRecord) {
+  if (hasStoredFiscalDoc(checkedRowWithAttach(row, attach))) return
+  out.checkedWithoutFiscal = Number(out.checkedWithoutFiscal || 0) + 1
+  if (!Array.isArray(out.checkedWithoutFiscalTickets)) out.checkedWithoutFiscalTickets = []
+  if (out.checkedWithoutFiscalTickets.length >= 80) return
+  const ticketId = ticketDigits(ticket?.zeev_instance_id || row?.ticket_raiz || row?.ticket_raiz_instance_id || row?.referencia || '')
+  out.checkedWithoutFiscalTickets.push({
+    tr: ticketId ? Number(ticketId) : null,
+    target,
+    rowId: row?.id || null,
+    checkedAt: new Date().toISOString(),
+  })
+}
+
 function docsCheckIsStale(row: AnyRecord, hours: number) {
   const checked = row?.zeev_docs_checked_at ? new Date(row.zeev_docs_checked_at).getTime() : 0
   if (!checked || Number.isNaN(checked)) return true
@@ -4195,7 +4218,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   const includePayments = input.includePayments !== false
   const includeCapex = input.includeCapex !== false
   const scanStrategy = targetTicketIds.length ? 'trs-explicitos-com-fanout' : 'obras-primeiro-capex-registrado-depois-registros-pendentes'
-  const out: AnyRecord = { ok: true, mode: 'backfill-docs', scanStrategy, targetTicketIds, scannedPending: 0, scannedPayments: 0, scannedCapex: 0, updatedPending: 0, updatedPayments: 0, updatedCapex: 0, filesAttached: 0, paidUpdated: 0, attachedTickets: [], errors: [] }
+  const out: AnyRecord = { ok: true, mode: 'backfill-docs', scanStrategy, targetTicketIds, scannedPending: 0, scannedPayments: 0, scannedCapex: 0, updatedPending: 0, updatedPayments: 0, updatedCapex: 0, filesAttached: 0, paidUpdated: 0, checkedWithoutFiscal: 0, checkedWithoutFiscalTickets: [], attachedTickets: [], errors: [] }
   const touchedObraIds = new Set<number>()
   let budget = limit
 
@@ -4215,6 +4238,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         const current = ticket?.zeev_instance_id && ticket.zeev_instance_id !== row.zeev_instance_id ? ticket : { ...row, ...(ticket || {}) }
         const attach = await attachDocsForTarget('pending', row, current, fileLimit)
         recordAttachedDocs(out, 'pending', row, current, attach)
+        recordCheckedWithoutFiscalDoc(out, 'pending', row, current, attach)
         if (targetSet.size && !attach.attached) addDocDebug(out, 'pending', row, current, attach)
         const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
         if (attach.attached || JSON.stringify(attach.docs || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = attach.docs
@@ -4248,6 +4272,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadWebhookTicketFromZeev(ticket)
         const attach = await attachDocsForTarget('payment', row, ticket, fileLimit)
         recordAttachedDocs(out, 'payment', row, ticket, attach)
+        recordCheckedWithoutFiscalDoc(out, 'payment', row, ticket, attach)
         if (targetSet.size && !attach.attached) addDocDebug(out, 'payment', row, ticket, attach)
         const paidDate = paymentDateFromTicket(ticket)
         const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
@@ -4285,6 +4310,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadWebhookTicketFromZeev({ ...ticket, zeev_instance_id: ticketId })
         const attach = await attachDocsForTarget('capex', row, ticket, fileLimit)
         recordAttachedDocs(out, 'capex', row, ticket, attach)
+        recordCheckedWithoutFiscalDoc(out, 'capex', row, ticket, attach)
         if (targetSet.size && !attach.attached) addDocDebug(out, 'capex', row, ticket, attach)
         const paidDate = paymentDateFromTicket(ticket)
         const patch: AnyRecord = { ticket_raiz_dados: ticketDataPatch(ticket, row.ticket_raiz_dados || {}), zeev_docs_checked_at: new Date().toISOString() }
@@ -4321,6 +4347,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         const current = ticket?.zeev_instance_id && ticket.zeev_instance_id !== row.zeev_instance_id ? ticket : { ...row, ...(ticket || {}) }
         const attach = await attachDocsForTarget('pending', row, current, fileLimit)
         recordAttachedDocs(out, 'pending', row, current, attach)
+        recordCheckedWithoutFiscalDoc(out, 'pending', row, current, attach)
         const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
         if (attach.attached || JSON.stringify(attach.docs || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = attach.docs
         if (Object.keys(patch).length) {
@@ -4370,7 +4397,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     const rows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=obra_id.asc.nullslast,id.asc')
     for (const row of (rows || []).sort(comparePaymentDocCandidates)) {
       if (ids.size >= limit) break
-      if (hasStoredFiscalDoc(row) && !docsCheckIsStale(row, staleHours)) continue
+      if (!docsCheckIsStale(row, staleHours)) continue
       add(row.ticket_raiz, 'paymentFiscal')
     }
   }
