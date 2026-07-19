@@ -8,6 +8,7 @@ on:
       - main
     paths:
       - index.html
+      - pre_deploy_check.py
       - vercel.json
       - api/**
       - .github/workflows/vercel-production-deploy.yml
@@ -61,12 +62,13 @@ jobs:
         run: |
           for i in $(seq 1 30); do
             code="$(curl --location --silent --output /tmp/raiz-obraviva.html --write-out '%{http_code}' "$APP_URL/?deploy_check=${GITHUB_SHA}")"
-            if [ "$code" = "200" ] && grep -q "Raiz ObraViva" /tmp/raiz-obraviva.html; then
-              echo "Production is responding."
+            curl --location --fail --silent "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/index.html" --output /tmp/raiz-obraviva-expected.html
+            if [ "$code" = "200" ] && cmp --silent /tmp/raiz-obraviva-expected.html /tmp/raiz-obraviva.html; then
+              echo "Production matches index.html from commit ${GITHUB_SHA}."
               exit 0
             fi
             echo "Waiting for Vercel production... attempt $i"
             sleep 10
           done
-          echo "::error::Production did not respond with the expected app after deploy."
+          echo "::error::Production did not match index.html from commit ${GITHUB_SHA} after deploy."
           exit 1
