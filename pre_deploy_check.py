@@ -5,11 +5,15 @@ Verifica problemas criticos que ja quebraram o sistema.
 import os, re, sys, collections
 sys.stdout.reconfigure(encoding='utf-8')
 
-BASE='C:/Users/eduardo.falcao/claude/raiz_obras'
+BASE=os.path.dirname(os.path.abspath(__file__))
+LEGACY_BASE='C:/Users/eduardo.falcao/claude/raiz_obras'
 HTML_PATH=next((p for p in [
-    f'{BASE}/raiz_index.html',
-    f'{BASE}/raiz_working.html',
-    f'{BASE}/index.html',
+    os.path.join(BASE,'index.html'),
+    os.path.join(BASE,'raiz_index.html'),
+    os.path.join(BASE,'raiz_working.html'),
+    f'{LEGACY_BASE}/index.html',
+    f'{LEGACY_BASE}/raiz_index.html',
+    f'{LEGACY_BASE}/raiz_working.html',
 ] if os.path.exists(p)), None)
 if not HTML_PATH:
     raise FileNotFoundError('Nenhum HTML encontrado para validar.')
