@@ -2805,6 +2805,36 @@ def doc_rescue_audit():
     )
 
 
+def doc_rescue_fast_edge_enabled():
+    return os.environ.get("ZEEV_DOC_RESCUE_FAST_EDGE", "1").strip().lower() not in {"0", "false", "nao", "no", "off"}
+
+
+def backfill_docs_for_ticket_ids(ticket_ids, file_limit=None):
+    payload = {
+        "mode": "backfill-docs",
+        "ticketIds": ",".join(str(x) for x in parse_ticket_ids(ticket_ids)),
+        "limit": max(1, min(len(parse_ticket_ids(ticket_ids)) or 1, int(os.environ.get("ZEEV_DOC_RESCUE_EDGE_LIMIT", "80") or "80"))),
+        "fileLimit": int(file_limit or os.environ.get("ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT", os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "6"))),
+        "refresh": True,
+        "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", os.environ.get("ZEEV_DOC_RESCUE_STALE_HOURS", "720"))),
+        "includePending": os.environ.get("ZEEV_DOC_RESCUE_PENDING", "true").lower() != "false",
+        "includePayments": os.environ.get("ZEEV_DOC_RESCUE_PAYMENTS", "true").lower() != "false",
+        "includeCapex": os.environ.get("ZEEV_DOC_RESCUE_CAPEX", "true").lower() != "false",
+        "fanoutTargets": True,
+    }
+    if ZEEV_TOKEN:
+        payload["zeevToken"] = ZEEV_TOKEN
+    add_document_options(payload)
+    return request_json(
+        "POST",
+        f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+        headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+        payload=payload,
+        timeout=300,
+        retries=1,
+    )
+
+
 def rescue_block_report(result):
     if os.environ.get("ZEEV_RESCUE_BLOCK_EMAIL", "true").strip().lower() in {"0", "false", "nao", "no", "off"}:
         return {"ok": True, "skipped": True, "reason": "ZEEV_RESCUE_BLOCK_EMAIL desativado"}
@@ -2844,7 +2874,7 @@ def rescue_docs():
     else:
         candidate_result = doc_rescue_candidates()
         ids = parse_ticket_ids(candidate_result.get("ticketIds", []))
-    limit = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_BATCH", os.environ.get("ZEEV_BACKFILL_BATCH", "4"))), 24))
+    limit = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_BATCH", os.environ.get("ZEEV_BACKFILL_BATCH", "4"))), 80))
     out = {
         "ok": True,
         "mode": "rescue-docs",
@@ -2864,14 +2894,19 @@ def rescue_docs():
     for start in range(0, len(ids), limit):
         chunk = ids[start:start + limit]
         try:
-            tickets = sync_ids(chunk, allow_non_capex=True, reason="Resgate automatico de documentos Zeev")
-            downloaded = 0
-            for ticket in tickets:
-                raw = ticket.get("raw_instance") if isinstance(ticket, dict) else {}
-                docs = raw.get("__downloaded_docs") if isinstance(raw, dict) else []
-                if isinstance(docs, list):
-                    downloaded += len(docs)
-            result = ingest(tickets, notify=False, backfill_limit=0, fanout_targets=True)
+            if doc_rescue_fast_edge_enabled():
+                tickets = []
+                downloaded = 0
+                result = {"backfill": backfill_docs_for_ticket_ids(chunk)}
+            else:
+                tickets = sync_ids(chunk, allow_non_capex=True, reason="Resgate automatico de documentos Zeev")
+                downloaded = 0
+                for ticket in tickets:
+                    raw = ticket.get("raw_instance") if isinstance(ticket, dict) else {}
+                    docs = raw.get("__downloaded_docs") if isinstance(raw, dict) else []
+                    if isinstance(docs, list):
+                        downloaded += len(docs)
+                result = ingest(tickets, notify=False, backfill_limit=0, fanout_targets=True)
             attached = 0
             backfill = result.get("backfill") if isinstance(result, dict) else {}
             direct_docs = backfill.get("directDocs") if isinstance(backfill, dict) and isinstance(backfill.get("directDocs"), dict) else backfill

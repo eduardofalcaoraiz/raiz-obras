@@ -122,13 +122,15 @@ jobs:
           ZEEV_STATUS_REFRESH_BATCH: ${{ github.event_name == 'schedule' && github.event.schedule == '43 * * * *' && '4' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '4' }}
           ZEEV_STATUS_ONLY_OVERDUE: ${{ github.event_name == 'schedule' && github.event.schedule == '43 * * * *' && 'false' || 'true' }}
           ZEEV_STATUS_REFRESH_PAUSE_SECONDS: "1"
-          ZEEV_BACKFILL_BATCH: ${{ github.event_name == 'schedule' && (github.event.schedule == '17 * * * *' || github.event.schedule == '7,27,47 * * * *') && '10' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
+          ZEEV_BACKFILL_BATCH: ${{ github.event_name == 'schedule' && (github.event.schedule == '17 * * * *' || github.event.schedule == '7,27,47 * * * *') && '40' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
           ZEEV_BACKFILL_STALE_HOURS: ${{ github.event_name == 'schedule' && (github.event.schedule == '17 * * * *' || github.event.schedule == '7,27,47 * * * *') && '720' || github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '720' }}
           ZEEV_BACKFILL_FILE_LIMIT: "6"
           ZEEV_RESCUE_BLOCK_EMAIL: "true"
           ZEEV_RESCUE_BLOCK_RECENT_HOURS: "24"
           ZEEV_DOC_RESCUE_LIMIT: ${{ github.event_name == 'schedule' && (github.event.schedule == '17 * * * *' || github.event.schedule == '7,27,47 * * * *') && '160' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '160' }}
-          ZEEV_DOC_RESCUE_BATCH: ${{ github.event_name == 'schedule' && (github.event.schedule == '17 * * * *' || github.event.schedule == '7,27,47 * * * *') && '10' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '10' }}
+          ZEEV_DOC_RESCUE_BATCH: ${{ github.event_name == 'schedule' && (github.event.schedule == '17 * * * *' || github.event.schedule == '7,27,47 * * * *') && '40' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '40' }}
+          ZEEV_DOC_RESCUE_FAST_EDGE: "1"
+          ZEEV_DOC_RESCUE_EDGE_LIMIT: "80"
           ZEEV_SYNC_IDS_CONCURRENCY: "10"
           ZEEV_INGEST_BACKFILL_LIMIT: "0"
           ZEEV_DIRECT_DOC_RESCUE_ENABLED: "1"

@@ -4279,7 +4279,7 @@ function isFinancialZeevRow(row: AnyRecord) {
 
 async function runBackfillDocs(input: AnyRecord = {}) {
   const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
-  const limitMax = targetTicketIds.length ? 80 : 10
+  const limitMax = targetTicketIds.length ? 120 : 80
   const limit = Math.max(1, Math.min(Number(input.limit || 4), limitMax))
   const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || 3), 8))
   const refresh = input.refresh !== false
