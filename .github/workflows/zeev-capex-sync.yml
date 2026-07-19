@@ -54,6 +54,9 @@ on:
         description: "Horas antes de rechecagem de anexos/status no Zeev"
         required: false
         default: "8"
+      checked_before:
+        description: "Marco ISO para varredura total finita de anexos; recheca registros ainda nao verificados depois desse horario"
+        required: false
       target_obra:
         description: "Obra destino para register-obra-payments"
         required: false
@@ -124,6 +127,7 @@ jobs:
           ZEEV_STATUS_REFRESH_PAUSE_SECONDS: "1"
           ZEEV_BACKFILL_BATCH: ${{ github.event_name == 'schedule' && (github.event.schedule == '17 * * * *' || github.event.schedule == '7,27,47 * * * *') && '40' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
           ZEEV_BACKFILL_STALE_HOURS: ${{ github.event_name == 'schedule' && (github.event.schedule == '17 * * * *' || github.event.schedule == '7,27,47 * * * *') && '720' || github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '720' }}
+          ZEEV_DOC_RESCUE_CHECKED_BEFORE: ${{ github.event_name == 'workflow_dispatch' && inputs.checked_before || '' }}
           ZEEV_BACKFILL_FILE_LIMIT: "6"
           ZEEV_RESCUE_BLOCK_EMAIL: "true"
           ZEEV_RESCUE_BLOCK_RECENT_HOURS: "24"

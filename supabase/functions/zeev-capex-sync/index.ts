@@ -3842,10 +3842,36 @@ function recordCheckedWithoutFiscalDoc(out: AnyRecord, target: string, row: AnyR
   })
 }
 
+function numberInput(value: unknown, fallback: number) {
+  if (value === undefined || value === null || value === '') return fallback
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function readDocStaleHours(input: AnyRecord, fallback = 8, max = 720) {
+  return Math.max(0, Math.min(numberInput(input?.staleHours ?? input?.stale_hours, fallback), max))
+}
+
+function readDocCheckedBefore(input: AnyRecord) {
+  const raw = String(input?.checkedBefore ?? input?.checked_before ?? input?.scanStartedAt ?? input?.scan_started_at ?? '').trim()
+  if (!raw) return 0
+  const ts = new Date(raw).getTime()
+  return Number.isFinite(ts) ? ts : 0
+}
+
 function docsCheckIsStale(row: AnyRecord, hours: number) {
+  if (Number(hours) <= 0) return true
   const checked = row?.zeev_docs_checked_at ? new Date(row.zeev_docs_checked_at).getTime() : 0
   if (!checked || Number.isNaN(checked)) return true
   return Date.now() - checked > Math.max(1, hours) * 3600 * 1000
+}
+
+function docsNeedRescue(row: AnyRecord, staleHours: number, checkedBefore = 0) {
+  if (checkedBefore > 0) {
+    const checked = row?.zeev_docs_checked_at ? new Date(row.zeev_docs_checked_at).getTime() : 0
+    return !checked || Number.isNaN(checked) || checked < checkedBefore
+  }
+  return docsCheckIsStale(row, staleHours)
 }
 
 function docsCandidateScore(row: AnyRecord) {
@@ -3881,10 +3907,10 @@ function hasStoredChargeDoc(row: AnyRecord) {
   })
 }
 
-function shouldRescueDocs(row: AnyRecord, staleHours: number, target: 'payment' | 'pending' | 'capex' | 'generic' = 'generic') {
-  if (target === 'payment' && !hasStoredFiscalDoc(row)) return docsCheckIsStale(row, staleHours)
-  if (!normalizeStoredDocs(row).length) return docsCheckIsStale(row, staleHours)
-  return docsCheckIsStale(row, staleHours)
+function shouldRescueDocs(row: AnyRecord, staleHours: number, target: 'payment' | 'pending' | 'capex' | 'generic' = 'generic', checkedBefore = 0) {
+  if (target === 'payment' && !hasStoredFiscalDoc(row)) return docsNeedRescue(row, staleHours, checkedBefore)
+  if (!normalizeStoredDocs(row).length) return docsNeedRescue(row, staleHours, checkedBefore)
+  return docsNeedRescue(row, staleHours, checkedBefore)
 }
 
 function stableHash(value: string) {
@@ -4204,8 +4230,9 @@ async function runRescueBlockReport(input: AnyRecord = {}) {
   const stateId = runId ? `zeev-rescue-block-email-${runId}` : `zeev-rescue-block-email-${stableHash(JSON.stringify({ result, at: input.finishedAt || input.finished_at || '' }).slice(0, 4000))}`
   const state = await getState(stateId)
   if (state?.last_success_at) return { ok: true, mode: 'rescue-docs-block-report', skipped: true, reason: 'relatorio_de_bloco_ja_enviado', stateId }
-  const staleHours = Math.max(1, Math.min(Number(input.staleHours || input.stale_hours || env('ZEEV_BACKFILL_STALE_HOURS', '8')), 720))
-  const audit = await runDocRescueAudit({ staleHours, recentHours: Number(input.recentHours || input.recent_hours || 24), sampleLimit: 60 })
+  const staleHours = readDocStaleHours(input, Number(env('ZEEV_BACKFILL_STALE_HOURS', '8')), 720)
+  const checkedBefore = readDocCheckedBefore(input)
+  const audit = await runDocRescueAudit({ staleHours, checkedBefore: checkedBefore ? new Date(checkedBefore).toISOString() : '', recentHours: Number(input.recentHours || input.recent_hours || 24), sampleLimit: 60 })
   let attachments = flattenAttachedTickets(result)
   let attachmentSource = 'bloco'
   if (!attachments.length) {
@@ -4283,14 +4310,15 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   const limit = Math.max(1, Math.min(Number(input.limit || 4), limitMax))
   const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || 3), 8))
   const refresh = input.refresh !== false
-  const staleHours = Math.max(1, Math.min(Number(input.staleHours || 8), 168))
+  const staleHours = readDocStaleHours(input, 8, 168)
+  const checkedBefore = readDocCheckedBefore(input)
   const targetSet = new Set(targetTicketIds.map((id) => String(id)))
   const fanoutTargets = input.fanoutTargets === true || input.fanout_targets === true
   const includePending = input.includePending !== false
   const includePayments = input.includePayments !== false
   const includeCapex = input.includeCapex !== false
   const scanStrategy = targetTicketIds.length ? 'trs-explicitos-com-fanout' : 'obras-primeiro-capex-registrado-depois-registros-pendentes'
-  const out: AnyRecord = { ok: true, mode: 'backfill-docs', scanStrategy, targetTicketIds, scannedPending: 0, scannedPayments: 0, scannedCapex: 0, updatedPending: 0, updatedPayments: 0, updatedCapex: 0, filesAttached: 0, paidUpdated: 0, checkedWithoutFiscal: 0, checkedWithoutFiscalTickets: [], attachedTickets: [], errors: [] }
+  const out: AnyRecord = { ok: true, mode: 'backfill-docs', scanStrategy, targetTicketIds, staleHours, checkedBefore: checkedBefore ? new Date(checkedBefore).toISOString() : '', scannedPending: 0, scannedPayments: 0, scannedCapex: 0, updatedPending: 0, updatedPayments: 0, updatedCapex: 0, filesAttached: 0, paidUpdated: 0, checkedWithoutFiscal: 0, checkedWithoutFiscalTickets: [], attachedTickets: [], errors: [] }
   const touchedObraIds = new Set<number>()
   let budget = limit
 
@@ -4299,7 +4327,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
     const pendingFilter = targetTicketIds.length ? `&zeev_instance_id=in.(${targetTicketIds.join(',')})` : '&status=eq.pendente'
     const rows = await rest(`/capex_zeev_solicitacoes?select=${pendingSelect}${pendingFilter}&order=start_date_time.desc&limit=${Math.max(30, limit * 12)}`)
     const candidates = (rows || [])
-      .filter((row: AnyRecord) => Number(row.zeev_instance_id) && (!targetSet.size || targetSet.has(String(Number(row.zeev_instance_id)))) && (targetSet.size || docsCheckIsStale(row, staleHours)))
+      .filter((row: AnyRecord) => Number(row.zeev_instance_id) && (!targetSet.size || targetSet.has(String(Number(row.zeev_instance_id)))) && (targetSet.size || docsNeedRescue(row, staleHours, checkedBefore)))
       .sort((a: AnyRecord, b: AnyRecord) => docsCandidateScore(a) - docsCandidateScore(b))
       .slice(0, budget)
     out.scannedPending = candidates.length
@@ -4330,7 +4358,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
     const paymentFilter = targetTicketIds.length ? `ticket_raiz=in.(${targetTicketIds.join(',')})` : 'ticket_raiz=not.is.null'
     const rows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&${paymentFilter}&order=obra_id.asc.nullslast,id.asc&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
-      .filter((row: AnyRecord) => ticketDigits(row.ticket_raiz) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz))) && (targetSet.size || docsCheckIsStale(row, staleHours)))
+      .filter((row: AnyRecord) => ticketDigits(row.ticket_raiz) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz))) && (targetSet.size || docsNeedRescue(row, staleHours, checkedBefore)))
       .sort(comparePaymentDocCandidates)
       .slice(0, budget)
     out.scannedPayments = candidates.length
@@ -4370,7 +4398,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
     const capexFilter = targetTicketIds.length ? `&or=(ticket_raiz_instance_id.in.(${targetTicketIds.join(',')}),referencia.in.(${targetTicketIds.join(',')}))` : ''
     const rows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at${capexFilter}&order=id.asc&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
-      .filter((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz_instance_id || row.referencia)) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz_instance_id || row.referencia))) && (targetSet.size || docsCheckIsStale(row, staleHours)))
+      .filter((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz_instance_id || row.referencia)) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz_instance_id || row.referencia))) && (targetSet.size || docsNeedRescue(row, staleHours, checkedBefore)))
       .sort((a: AnyRecord, b: AnyRecord) => docsCandidateScore(a) - docsCandidateScore(b) || Number(a.id) - Number(b.id))
       .slice(0, budget)
     out.scannedCapex = candidates.length
@@ -4408,7 +4436,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
     const pendingSelect = 'id,zeev_instance_id,flow_id,flow_name,flow_version,request_name,ticket_link,raw_fields,raw_instance,raw_tasks,itens_json,pagamento_json,campos_extraidos,docs_json,zeev_docs_checked_at,status,start_date_time'
     const rows = await rest(`/capex_zeev_solicitacoes?select=${pendingSelect}&status=eq.pendente&order=start_date_time.asc.nullsfirst,id.asc&limit=${Math.max(30, limit * 12)}`)
     const candidates = (rows || [])
-      .filter((row: AnyRecord) => Number(row.zeev_instance_id) && docsCheckIsStale(row, staleHours))
+      .filter((row: AnyRecord) => Number(row.zeev_instance_id) && docsNeedRescue(row, staleHours, checkedBefore))
       .sort((a: AnyRecord, b: AnyRecord) => docsCandidateScore(a) - docsCandidateScore(b) || Number(a.id) - Number(b.id))
       .slice(0, budget)
     out.scannedPending = candidates.length
@@ -4448,7 +4476,8 @@ async function runBackfillDocs(input: AnyRecord = {}) {
 async function runDocRescueCandidates(input: AnyRecord = {}) {
   const explicitIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const limit = Math.max(1, Math.min(Number(input.limit || input.backfillLimit || input.backfill_limit || 40), 160))
-  const staleHours = Math.max(1, Math.min(Number(input.staleHours || input.stale_hours || 8), 720))
+  const staleHours = readDocStaleHours(input, 8, 720)
+  const checkedBefore = readDocCheckedBefore(input)
   const includePending = input.includePending !== false
   const includePayments = input.includePayments !== false
   const includeCapex = input.includeCapex !== false
@@ -4469,7 +4498,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     const rows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=obra_id.asc.nullslast,id.asc')
     for (const row of (rows || []).sort(comparePaymentDocCandidates)) {
       if (ids.size >= limit) break
-      if (!docsCheckIsStale(row, staleHours)) continue
+      if (!docsNeedRescue(row, staleHours, checkedBefore)) continue
       add(row.ticket_raiz, 'paymentFiscal')
     }
   }
@@ -4480,7 +4509,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
       if (ids.size >= limit) break
       const tr = row.ticket_raiz_instance_id || row.referencia
       if (!ticketDigits(tr)) continue
-      if (!shouldRescueDocs(row, staleHours, 'capex')) continue
+      if (!shouldRescueDocs(row, staleHours, 'capex', checkedBefore)) continue
       add(tr, 'capex')
     }
   }
@@ -4488,7 +4517,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     const rows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=obra_id.asc.nullslast,id.asc')
     for (const row of (rows || []).sort(comparePaymentDocCandidates)) {
       if (ids.size >= limit) break
-      if (!shouldRescueDocs(row, staleHours, 'payment')) continue
+      if (!shouldRescueDocs(row, staleHours, 'payment', checkedBefore)) continue
       add(row.ticket_raiz, 'payments')
     }
   }
@@ -4497,7 +4526,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     for (const row of rows || []) {
       if (ids.size >= limit) break
       if (!isFinancialZeevRow(row)) continue
-      if (!shouldRescueDocs(row, staleHours, 'pending')) continue
+      if (!shouldRescueDocs(row, staleHours, 'pending', checkedBefore)) continue
       add(row.zeev_instance_id, 'financialPending')
     }
   }
@@ -4505,15 +4534,16 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     const rows = await restAll('/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=start_date_time.asc.nullsfirst,id.asc')
     for (const row of rows || []) {
       if (ids.size >= limit) break
-      if (!shouldRescueDocs(row, staleHours, 'pending')) continue
+      if (!shouldRescueDocs(row, staleHours, 'pending', checkedBefore)) continue
       add(row.zeev_instance_id, 'pending')
     }
   }
-  return { ok: true, mode: 'doc-rescue-candidates', strategy: 'obras-primeiro-capex-registrado-depois-registros-pendentes', ticketIds: [...ids].map(Number), sources, limit, staleHours }
+  return { ok: true, mode: 'doc-rescue-candidates', strategy: 'obras-primeiro-capex-registrado-depois-registros-pendentes', ticketIds: [...ids].map(Number), sources, limit, staleHours, checkedBefore: checkedBefore ? new Date(checkedBefore).toISOString() : '' }
 }
 
 async function runDocRescueAudit(input: AnyRecord = {}) {
-  const staleHours = Math.max(1, Math.min(Number(input.staleHours || input.stale_hours || 8), 720))
+  const staleHours = readDocStaleHours(input, 8, 720)
+  const checkedBefore = readDocCheckedBefore(input)
   const sampleLimit = Math.max(10, Math.min(Number(input.sampleLimit || input.sample_limit || 80), 300))
   const recentHours = Math.max(1, Math.min(Number(input.recentHours || input.recent_hours || 24), 168))
   const recentSince = Date.now() - recentHours * 3600 * 1000
@@ -4546,7 +4576,7 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
     if (hasStoredFiscalDoc(row)) withFiscalDocs.add(key)
     if (hasStoredChargeDoc(row)) withChargeDocs.add(key)
     if (!row?.zeev_docs_checked_at) neverChecked.add(key)
-    else if (!docsCheckIsStale(row, staleHours)) checkedFresh.add(key)
+    else if (!docsNeedRescue(row, staleHours, checkedBefore)) checkedFresh.add(key)
   }
   const collectRecentAttached = (key: string, target: string, row: AnyRecord) => {
     if (!key || recentAttached.length >= 120) return
@@ -4593,7 +4623,7 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
     paymentIds.add(key)
     markDocState(key, row)
     collectRecentAttached(key, 'payment', row)
-    if (shouldRescueDocs(row, staleHours, 'payment')) {
+    if (shouldRescueDocs(row, staleHours, 'payment', checkedBefore)) {
       rescueQueue.add(key)
       if (!hasStoredFiscalDoc(row)) paymentFiscalQueue.add(key)
     }
@@ -4605,7 +4635,7 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
     if (isFinancialZeevRow(row)) financialPendingIds.add(key)
     markDocState(key, row)
     collectRecentAttached(key, 'pending', row)
-    if (shouldRescueDocs(row, staleHours, 'pending')) rescueQueue.add(key)
+    if (shouldRescueDocs(row, staleHours, 'pending', checkedBefore)) rescueQueue.add(key)
   }
   for (const row of capex || []) {
     const key = addAll(row.ticket_raiz_instance_id || row.referencia)
@@ -4613,13 +4643,14 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
     capexIds.add(key)
     markDocState(key, row)
     collectRecentAttached(key, 'capex', row)
-    if (shouldRescueDocs(row, staleHours, 'capex')) rescueQueue.add(key)
+    if (shouldRescueDocs(row, staleHours, 'capex', checkedBefore)) rescueQueue.add(key)
   }
 
   return {
     ok: true,
     mode: 'doc-rescue-audit',
     staleHours,
+    checkedBefore: checkedBefore ? new Date(checkedBefore).toISOString() : '',
     rows: { payments: payments.length, pending: pending.length, capex: capex.length },
     uniqueTickets: all.size,
     uniqueBySource: { payments: paymentIds.size, pending: pendingIds.size, financialPending: financialPendingIds.size, capex: capexIds.size },
@@ -4640,7 +4671,7 @@ function paymentIsOverdue(row: AnyRecord) {
 async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
   const limit = Math.max(1, Math.min(Number(input.limit || input.backfillLimit || input.backfill_limit || 150), 350))
   const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || input.file_limit || 4), 8))
-  const staleHours = Math.max(0, Math.min(Number(input.staleHours || input.stale_hours || 8), 168))
+  const staleHours = readDocStaleHours(input, 8, 168)
   const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const targetSet = new Set(targetTicketIds.map((id) => String(id)))
   const onlyOverdue = input.onlyOverdue !== false && input.only_overdue !== false && !targetTicketIds.length

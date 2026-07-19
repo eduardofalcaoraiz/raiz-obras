@@ -321,6 +321,22 @@ def has_zeev_token():
     return bool(zeev_tokens())
 
 
+def doc_rescue_checked_before():
+    return (
+        os.environ.get("ZEEV_DOC_RESCUE_CHECKED_BEFORE")
+        or os.environ.get("ZEEV_CHECKED_BEFORE")
+        or os.environ.get("ZEEV_SCAN_STARTED_AT")
+        or ""
+    ).strip()
+
+
+def add_doc_rescue_marker(payload):
+    checked_before = doc_rescue_checked_before()
+    if checked_before:
+        payload["checkedBefore"] = checked_before
+    return payload
+
+
 def form_fields_present(data):
     if isinstance(data, dict):
         return bool(data.get("formFields"))
@@ -2668,6 +2684,7 @@ def backfill_docs():
     }
     if ZEEV_TOKEN:
         shared["zeevToken"] = ZEEV_TOKEN
+    add_doc_rescue_marker(shared)
     add_document_options(shared)
     ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
     if ticket_ids:
@@ -2781,6 +2798,7 @@ def doc_rescue_candidates(limit=None):
     ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
     if ticket_ids:
         payload["ticketIds"] = ticket_ids
+    add_doc_rescue_marker(payload)
     return request_json(
         "POST",
         f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
@@ -2796,6 +2814,7 @@ def doc_rescue_audit():
         "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", os.environ.get("ZEEV_DOC_RESCUE_STALE_HOURS", "8"))),
         "sampleLimit": int(os.environ.get("ZEEV_DOC_RESCUE_AUDIT_SAMPLE", "120")),
     }
+    add_doc_rescue_marker(payload)
     return request_json(
         "POST",
         f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
@@ -2824,6 +2843,7 @@ def backfill_docs_for_ticket_ids(ticket_ids, file_limit=None):
     }
     if ZEEV_TOKEN:
         payload["zeevToken"] = ZEEV_TOKEN
+    add_doc_rescue_marker(payload)
     add_document_options(payload)
     return request_json(
         "POST",
@@ -2851,6 +2871,7 @@ def rescue_block_report(result):
         "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", os.environ.get("ZEEV_DOC_RESCUE_STALE_HOURS", "8"))),
         "recentHours": int(os.environ.get("ZEEV_RESCUE_BLOCK_RECENT_HOURS", "24")),
     }
+    add_doc_rescue_marker(payload)
     return request_json(
         "POST",
         f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
