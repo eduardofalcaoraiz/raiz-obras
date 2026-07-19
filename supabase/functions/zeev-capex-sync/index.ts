@@ -1009,6 +1009,14 @@ async function enrichFieldsForFlow(flow: number) {
   return [...new Set([...capexFieldsForFlow(flow), ...base, ...configuredDocs, ...designDocs])]
 }
 
+async function documentFieldsForFlow(flow: number) {
+  const configuredDocs = parseListEnv([env('ZEEV_EXTRA_DOCUMENT_FIELDS'), REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS].filter(Boolean).join(','))
+  const designDocs = envFlag('ZEEV_DOC_DESIGN_FIELDS_ENABLED')
+    ? (await zeewFlowDesignDocumentFields(flow)).filter((field) => looksLikeZeevDocumentLabel(field))
+    : []
+  return [...new Set([...DOCUMENT_FIELDS, ...configuredDocs, ...designDocs])]
+}
+
 function iso(value: unknown) {
   const s = String(value || '').trim()
   if (!s) return null
@@ -1182,6 +1190,29 @@ function splitReportLine(line: string) {
   return null
 }
 
+function reportFileFieldsFromHtml(html: string) {
+  const fields: AnyRecord[] = []
+  const seen = new Set<string>()
+  const push = (label: string, href: string, value = '') => {
+    const cleanHref = decodeHtmlEntities(String(href || '')).trim()
+    const cleanLabel = htmlToPlainText(label || '').replace(/\s+/g, ' ').trim()
+    const cleanValue = htmlToPlainText(value || cleanLabel || cleanHref).replace(/\s+/g, ' ').trim()
+    if (!cleanHref || isZeevNavigationUrl(cleanHref, cleanLabel, 'reportLink')) return
+    if (!looksLikeDownloadPath(cleanHref) && !looksLikeDownloadPath(cleanValue) && !looksLikeZeevDocumentLabel(`${cleanLabel} ${cleanValue}`)) return
+    const name = cleanLabel || fileNameFromDownloadPath(cleanHref, 'documento-fiscal.pdf')
+    const key = `${normKey(name)}|${cleanHref}`
+    if (seen.has(key)) return
+    seen.add(key)
+    fields.push({ name, label: name, value: cleanValue || name, openUrl: cleanHref, row: fields.length + 1, source: 'reportLink' })
+  }
+  const anchorRe = /<a\b[^>]*href=(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi
+  let match: RegExpExecArray | null
+  while ((match = anchorRe.exec(String(html || '')))) push(match[3], match[2], match[3])
+  const hrefRe = /\bhref=(["'])(.*?)\1/gi
+  while ((match = hrefRe.exec(String(html || '')))) push(fileNameFromDownloadPath(match[2], 'documento-fiscal.pdf'), match[2], match[2])
+  return fields
+}
+
 function reportFieldsFromHtml(html: string) {
   const fields: AnyRecord[] = []
   const seen = new Set<string>()
@@ -1195,6 +1226,12 @@ function reportFieldsFromHtml(html: string) {
     if (seen.has(key)) continue
     seen.add(key)
     fields.push({ name: label, label, value, row: 1, source: 'reportLink' })
+  }
+  for (const field of reportFileFieldsFromHtml(html)) {
+    const key = `${normKey(field.name)}|${field.openUrl || field.value}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    fields.push(field)
   }
   return fields
 }
@@ -2634,7 +2671,7 @@ async function runIngest(input: AnyRecord) {
     ? await runBackfillDocs({
       ticketIds: docCheckTicketIds.join(','),
       limit: Math.min(Math.max(docCheckTicketIds.length, ingestBackfillLimit || 1), 80),
-      fileLimit: Math.max(1, Math.min(Number(input.directDocFileLimit || input.fileLimit || env('ZEEV_BACKFILL_FILE_LIMIT', '3')), 8)),
+      fileLimit: Math.max(1, Math.min(Number(input.directDocFileLimit || input.fileLimit || env('ZEEV_BACKFILL_FILE_LIMIT', '12')), 40)),
       fanoutTargets: input.fanoutTargets === true || input.fanout_targets === true,
       refresh: false,
       includePending: true,
@@ -2877,6 +2914,23 @@ function safeZeevFileUrl(value: unknown) {
   }
 }
 
+function looksLikeDownloadPath(value: unknown) {
+  const s = String(value || '').trim()
+  if (!s) return false
+  if (/^https?:\/\//i.test(s)) return true
+  if (/^(?:\.\.\/|\.\/|\/)?Storage\//i.test(s)) return true
+  if (/\/Storage\/[^?#]+/i.test(s)) return true
+  if (/\/api\/2\/files\//i.test(s)) return true
+  if (/^[^\s<>"]+\.(pdf|xml|png|jpe?g|webp|tiff?|xlsx?|docx?|zip)(?:$|[?#])/i.test(s)) return true
+  return false
+}
+
+function fileNameFromDownloadPath(value: unknown, fallback = 'documento-fiscal.pdf') {
+  const clean = String(value || '').split(/[?#]/)[0].replace(/\\/g, '/')
+  const name = clean.split('/').filter(Boolean).pop() || ''
+  return name || fallback
+}
+
 function googleDriveFileId(value: unknown) {
   try {
     const url = new URL(String(value || '').trim())
@@ -2964,9 +3018,19 @@ function pushZeevDoc(out: AnyRecord[], name: unknown, url: unknown, type = '', s
   const cleanUrl = safeZeevFileUrl(url)
   const cleanName = String(name || 'documento-fiscal.pdf').trim()
   if (!cleanUrl) return
+  if (isZeevNavigationUrl(cleanUrl, cleanName, source)) return
   const key = `${cleanUrl}|${source || cleanName}`
   if (out.some((d) => d.key === key)) return
   out.push({ key, name: cleanName || 'documento-fiscal.pdf', url: cleanUrl, type: String(type || ''), source: String(source || '') })
+}
+
+function isZeevNavigationUrl(url: string, label = '', source = '') {
+  const rawUrl = String(url || '')
+  const labelKey = normKey(`${label} ${source}`)
+  if (/(reportlink|ticketlink|linkdoticket|linkdasolicitacao|visualizarticket|auditlink)/.test(labelKey)) return true
+  if (/\/2\.0\/audit(?:\?|$)/i.test(rawUrl)) return true
+  if (/\/api\/2\/instances\/\d+(?:$|[?#])/i.test(rawUrl)) return true
+  return false
 }
 
 function pushZeevFileIdDoc(out: AnyRecord[], name: unknown, fileId: unknown, type = '', source = '') {
@@ -3007,8 +3071,9 @@ function pushZeevDocValue(out: AnyRecord[], label: string, value: unknown, sourc
   }
   if (typeof value === 'object') {
     const v = value as AnyRecord
-    const url = v.url || v.openUrl || v.downloadUrl || v.href || v.link || v.fileUrl || v.signedUrl || v.contentUrl || ''
-    const name = v.name || v.fileName || v.filename || v.originalName || v.displayName || v.title || v.label || label || 'documento-fiscal.pdf'
+    const valuePath = looksLikeDownloadPath(v.value) ? v.value : ''
+    const url = v.url || v.openUrl || v.downloadUrl || v.href || v.link || v.fileUrl || v.signedUrl || v.contentUrl || valuePath || ''
+    const name = v.fileName || v.filename || v.originalName || v.displayName || v.title || v.label || (valuePath ? fileNameFromDownloadPath(valuePath, label) : '') || v.name || label || 'documento-fiscal.pdf'
     pushZeevDoc(out, name, url, v.type || v.mimeType || v.contentType || '', source)
     const explicitFileId = v.fileId || v.fileID || v.file_id || v.arquivoId || v.arquivoID || v.documentId || v.documentID || v.document_id || v.attachmentId || v.attachmentID || v.attachment_id || ''
     const inferredFileId = !explicitFileId && objectFileHints(v) && looksLikeZeevDocumentLabel([source, label, name].filter(Boolean).join(' ')) ? v.id : ''
@@ -3025,7 +3090,7 @@ function pushZeevDocValue(out: AnyRecord[], label: string, value: unknown, sourc
     return
   }
   const s = String(value || '').trim()
-  if (/^https?:\/\//i.test(s)) pushZeevDoc(out, label || 'documento-fiscal.pdf', s, '', source)
+  if (looksLikeDownloadPath(s)) pushZeevDoc(out, fileNameFromDownloadPath(s, label || 'documento-fiscal.pdf'), s, '', source)
 }
 
 function pushZeevDocText(out: AnyRecord[], label: string, value: unknown, source: string) {
@@ -3035,8 +3100,38 @@ function pushZeevDocText(out: AnyRecord[], label: string, value: unknown, source
   const urls = text.match(/https?:\/\/[^\s"'<>]+/gi) || []
   for (const url of urls) {
     const cleanUrl = url.replace(/[),.;]+$/, '')
+    if (isZeevNavigationUrl(cleanUrl, label, source)) continue
     const driveProof = source === 'messages' && isGoogleDriveUrl(cleanUrl)
     pushZeevDoc(out, driveProof ? 'comprovante pagamento' : proofLabel || 'documento-fiscal.pdf', cleanUrl, '', source)
+  }
+}
+
+function collectZeevDocsDeep(out: AnyRecord[], label: string, value: unknown, source: string, depth = 0, contextLooksDoc = false, seen = new WeakSet<object>()) {
+  if (value == null || depth > 8) return
+  const labelText = String(label || '').trim()
+  const labelLooksDoc = looksLikeZeevDocumentLabel(labelText)
+  if (typeof value === 'string') {
+    if (/https?:\/\//i.test(value)) pushZeevDocText(out, labelText || 'documento Zeev', value, source)
+    if (contextLooksDoc || labelLooksDoc) pushZeevDocValue(out, labelText || 'documento Zeev', value, source)
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectZeevDocsDeep(out, labelText, item, source, depth + 1, contextLooksDoc || labelLooksDoc, seen)
+    return
+  }
+  if (typeof value !== 'object') return
+  const obj = value as AnyRecord
+  if (seen.has(obj)) return
+  seen.add(obj)
+  const keys = Object.keys(obj)
+  const hasDocKey = keys.some((key) => looksLikeZeevDocumentLabel(key))
+  const textCarrier = /(comments?|comentarios?|mensagens?|message|body|texto|description|descricao|observacao|resultado|result|historico|history|task|tarefa)/.test(normKey(labelText))
+  const activeContext = contextLooksDoc || labelLooksDoc || hasDocKey || objectFileHints(obj)
+  if (activeContext) pushZeevDocValue(out, labelText || source || 'documento Zeev', obj, source)
+  for (const [key, child] of Object.entries(obj)) {
+    const childLabel = labelText ? `${labelText} ${key}` : key
+    const childLooksDoc = activeContext || looksLikeZeevDocumentLabel(key) || textCarrier || /(comments?|comentarios?|mensagens?|message|body|texto|description|descricao|observacao|resultado|result|historico|history|task|tarefa)/.test(normKey(key))
+    collectZeevDocsDeep(out, childLabel, child, source, depth + 1, childLooksDoc, seen)
   }
 }
 
@@ -3113,9 +3208,10 @@ function zeevDocsFromTicket(ticket: AnyRecord) {
   }
   const tasks = Array.isArray(ticket?.raw_tasks) ? ticket.raw_tasks : Array.isArray(ticket?.rawTasks) ? ticket.rawTasks : []
   for (const task of tasks || []) {
-    if (!task || typeof task !== 'object' || !objectFileHints(task)) continue
-    pushZeevDocValue(docs, String(task?.task?.name || task?.alias || 'tarefa'), task, 'instanceTasks')
-    pushZeevDocText(docs, String(task?.task?.name || task?.alias || 'tarefa'), [task?.comments, task?.comment, task?.description, task?.result].filter(Boolean).join(' '), 'instanceTasks')
+    if (!task || typeof task !== 'object') continue
+    const label = String(task?.task?.name || task?.alias || 'tarefa')
+    if (objectFileHints(task)) pushZeevDocValue(docs, label, task, 'instanceTasks')
+    pushZeevDocText(docs, label, [task?.comments, task?.comment, task?.description, task?.result].filter(Boolean).join(' '), 'instanceTasks')
   }
   const messages = Array.isArray(ticket?.raw_messages)
     ? ticket.raw_messages
@@ -3137,6 +3233,7 @@ function zeevDocsFromTicket(ticket: AnyRecord) {
         pushZeevDocValue(docs, key, instance[key], `raw_instance.${key}`)
       }
     }
+    collectZeevDocsDeep(docs, 'raw_instance', instance, 'raw_instance.deep')
   }
   return docs
 }
@@ -3178,6 +3275,26 @@ function addDocDebug(out: AnyRecord, target: string, row: AnyRecord, ticket: Any
   if (!Array.isArray(out.debugDocs)) out.debugDocs = []
   if (out.debugDocs.length >= 12) return
   const candidates = zeevDocsFromTicket(ticket)
+  const candidatePreview = candidates.slice(0, 16).map((doc: AnyRecord) => {
+    let path = ''
+    let queryLength = 0
+    try {
+      const url = doc?.url ? new URL(String(doc.url)) : null
+      path = url?.pathname || ''
+      queryLength = (url?.search || '').length
+    } catch (_) {
+      path = ''
+    }
+    return {
+      name: doc?.name || '',
+      source: doc?.source || '',
+      kind: fiscalDocKind(doc),
+      hasUrl: Boolean(doc?.url),
+      path,
+      queryLength,
+      hasFileId: Boolean(doc?.fileId),
+    }
+  })
   out.debugDocs.push({
     target,
     rowId: row?.id || null,
@@ -3191,6 +3308,7 @@ function addDocDebug(out: AnyRecord, target: string, row: AnyRecord, ticket: Any
     base64Candidates: candidates.filter((doc: AnyRecord) => doc.base64Content).length,
     attached: Number(attach?.attached || 0),
     skipped: Array.isArray(attach?.skipped) ? attach.skipped : [],
+    candidatePreview,
     docFields: docFieldDebug(ticket),
     taskDocHints: taskDocDebug(ticket),
   })
@@ -3204,6 +3322,7 @@ function normalizeStoredDocs(row: AnyRecord) {
   const docs: AnyRecord[] = []
   const push = (doc: AnyRecord | null, kind = '') => {
     if (!doc) return
+    if (isInvalidStoredDoc(doc)) return
     const item = { ...doc, kind: doc.kind || kind, bucket: doc.bucket || 'pagamentos' }
     const key = storedDocKey(item)
     if (!key || docs.some((d) => storedDocKey(d) === key)) return
@@ -3213,6 +3332,14 @@ function normalizeStoredDocs(row: AnyRecord) {
   if (row?.nf_doc_path) push({ name: String(row.nf_doc_path).split('/').pop(), storagePath: row.nf_doc_path, type: '', kind: 'NF', bucket: 'pagamentos' }, 'NF')
   if (row?.comp_doc_path) push({ name: String(row.comp_doc_path).split('/').pop(), storagePath: row.comp_doc_path, type: '', kind: 'COMPROVANTE', bucket: 'pagamentos' }, 'COMPROVANTE')
   return docs
+}
+
+function isInvalidStoredDoc(doc: AnyRecord) {
+  const type = String(doc?.type || doc?.contentType || '').toLowerCase()
+  const name = String(doc?.name || doc?.storagePath || doc?.path || '').toLowerCase()
+  if (type.includes('text/html') || type.includes('application/xhtml')) return true
+  if (name.endsWith('.html') || name.endsWith('.htm')) return true
+  return false
 }
 
 function encodeStoragePath(path: string) {
@@ -3321,8 +3448,8 @@ async function downloadZeevDocFromUrl(doc: AnyRecord, url: string, depth = 0): P
   }
   if (/text\/html/i.test(type)) {
     const text = await res.text()
-    const confirmMatch = text.match(/href="([^"]*(?:uc\?export=download|download\?id=)[^"]+)"/i)
-    if (confirmMatch && depth < 2) {
+    const confirmMatch = depth < 2 ? text.match(/href="([^"]*(?:uc\?export=download|download\?id=)[^"]+)"/i) : null
+    if (confirmMatch) {
       const nestedUrl = new URL(confirmMatch[1].replace(/&amp;/g, '&'), url).toString()
       return await downloadZeevDocFromUrl(doc, nestedUrl, depth + 1)
     }
@@ -3630,6 +3757,63 @@ async function loadPaymentTicketFromZeev(row: AnyRecord) {
   return await attachZeevMessagesToTicket(ticket, id)
 }
 
+async function loadTicketDocsFromZeev(row: AnyRecord) {
+  const id = Number(row?.zeev_instance_id || row?.ticket_raiz || row?.ticket_raiz_instance_id || row?.referencia || row?.id || 0)
+  if (!id) return row
+  const baseRaw = row?.raw_instance && typeof row.raw_instance === 'object' ? { ...row.raw_instance } : {}
+  const preferredFlow = Number(row?.flow_id || row?.flowId || baseRaw?.flow?.id || baseRaw?.flowId || 0) || 0
+  const baseFields = Array.isArray(row?.raw_fields) ? row.raw_fields : Array.isArray(row?.rawFields) ? row.rawFields : Array.isArray(baseRaw?.formFields) ? baseRaw.formFields : []
+  const baseTasks = Array.isArray(row?.raw_tasks) ? row.raw_tasks : Array.isArray(row?.rawTasks) ? row.rawTasks : Array.isArray(baseRaw?.instanceTasks) ? baseRaw.instanceTasks : []
+  const errors: AnyRecord[] = []
+  let detail: AnyRecord = { ...baseRaw, id, formFields: baseFields, instanceTasks: baseTasks }
+  let flowUsed = preferredFlow
+  for (const flow of knownZeevFlowIds(preferredFlow)) {
+    let flowMatched = false
+    let flowFields: AnyRecord[] = []
+    try {
+      const fields = await documentFieldsForFlow(flow)
+      const chunkSize = Math.max(2, Math.min(Number(env('ZEEV_DOC_FIELD_CHUNK_SIZE', '6')) || 6, 12))
+      for (let i = 0; i < fields.length; i += chunkSize) {
+        const chunk = fields.slice(i, i + chunkSize)
+        try {
+          const fresh = await zeevInstanceReport(id, flow, chunk)
+          if (fresh && typeof fresh === 'object' && (Number(fresh.id) === id || Array.isArray(fresh.formFields))) {
+            detail = { ...detail, ...fresh }
+            flowFields = mergeFields(flowFields, Array.isArray(fresh.formFields) ? fresh.formFields : [])
+            flowUsed = Number(fresh?.flow?.id || fresh?.flowId || flow) || flow
+            flowMatched = true
+          }
+        } catch (error) {
+          errors.push({ flow, fields: chunk.join(',').slice(0, 180), error: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300) })
+        }
+      }
+    } catch (error) {
+      errors.push({ flow, error: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300) })
+    }
+    if (flowMatched) {
+      detail.formFields = mergeFields(Array.isArray(detail.formFields) ? detail.formFields : [], flowFields)
+      break
+    }
+  }
+  const merged = {
+    ...row,
+    zeev_instance_id: id,
+    flow_id: row?.flow_id || row?.flowId || detail?.flow?.id || detail?.flowId || flowUsed || null,
+    flow_name: row?.flow_name || row?.flowName || detail?.flow?.name || detail?.flowName || detail?.requestName || '',
+    request_name: row?.request_name || row?.requestName || detail?.requestName || '',
+    raw_fields: mergeFields(baseFields, Array.isArray(detail?.formFields) ? detail.formFields : []),
+    raw_tasks: Array.isArray(detail?.instanceTasks) && detail.instanceTasks.length ? detail.instanceTasks : baseTasks,
+    raw_instance: {
+      ...baseRaw,
+      ...detail,
+      __zeev_load_source: 'zeev-docs-only',
+      __zeev_doc_lookup_errors: errors,
+    },
+    __zeev_load_source: 'zeev-docs-only',
+  }
+  return await attachZeevMessagesToTicket(merged, id)
+}
+
 async function attachZeevMessagesToTicket(ticket: AnyRecord, id: number) {
   if (!id) return ticket
   try {
@@ -3779,8 +3963,11 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
   const newDocs: AnyRecord[] = []
   const hasInvoiceCandidate = docs.some((doc: AnyRecord) => isInvoiceDocKind(fiscalDocKind(doc)))
   const hasChargeCandidate = docs.some((doc: AnyRecord) => isChargeDocKind(fiscalDocKind(doc)))
-  const effectiveLimit = Math.min(8, Math.max(limitFiles, hasInvoiceCandidate && hasChargeCandidate ? 2 : limitFiles))
-  const candidateLimit = Math.max(effectiveLimit, Math.min(Number(env('ZEEV_DOC_CANDIDATE_ATTEMPT_LIMIT', '8')) || 8, 30))
+  const requestedLimit = Math.max(1, Number(limitFiles || 1))
+  const attachAllDocs = !['0', 'false', 'nao', 'no', 'off'].includes(String(env('ZEEV_ATTACH_ALL_TICKET_DOCS', '1')).toLowerCase())
+  const perTicketCap = Math.max(requestedLimit, Math.min(Number(env('ZEEV_DOC_ATTACH_PER_TICKET_LIMIT', '40')) || 40, 80))
+  const effectiveLimit = attachAllDocs ? perTicketCap : Math.min(perTicketCap, Math.max(requestedLimit, hasInvoiceCandidate && hasChargeCandidate ? 2 : requestedLimit))
+  const candidateLimit = Math.max(effectiveLimit, Math.min(Number(env('ZEEV_DOC_CANDIDATE_ATTEMPT_LIMIT', '50')) || 50, 120))
   for (const doc of docs.slice(0, candidateLimit)) {
     if (attached >= effectiveLimit) break
     const docKind = fiscalDocKind(doc)
@@ -3825,7 +4012,7 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
     if (!compPath && isProofDocKind(kind)) compPath = path
     attached++
   }
-  return { docs: stored, attached, nfPath, compPath, skipped, newDocs }
+  return { docs: stored, attached, nfPath, compPath, skipped, newDocs, candidateCount: docs.length, attemptedCandidateCount: Math.min(docs.length, candidateLimit), unattemptedCandidateCount: Math.max(0, docs.length - candidateLimit), reachedFileLimit: docs.length > candidateLimit || attached >= effectiveLimit }
 }
 
 function recordAttachedDocs(out: AnyRecord, target: string, row: AnyRecord, ticket: AnyRecord, attach: AnyRecord) {
@@ -4343,7 +4530,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const limitMax = targetTicketIds.length ? 120 : 80
   const limit = Math.max(1, Math.min(Number(input.limit || 4), limitMax))
-  const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || 3), 8))
+  const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || env('ZEEV_BACKFILL_FILE_LIMIT', '12')), 40))
   const refresh = input.refresh !== false
   const staleHours = readDocStaleHours(input, 8, 168)
   const checkedBefore = readDocCheckedBefore(input)
@@ -4369,7 +4556,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
     for (const row of candidates) {
       try {
         let ticket = row
-        if (refresh) ticket = await loadWebhookTicketFromZeev(ticket)
+        if (refresh) ticket = await loadTicketDocsFromZeev(ticket)
         const current = ticket?.zeev_instance_id && ticket.zeev_instance_id !== row.zeev_instance_id ? ticket : { ...row, ...(ticket || {}) }
         const attach = await attachDocsForTarget('pending', row, current, fileLimit)
         recordAttachedDocs(out, 'pending', row, current, attach)
@@ -4407,7 +4594,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         if (obraId > 0) touchedObraIds.add(obraId)
         const ticketId = Number(matchedTicketRef(paymentTicketRefs(row), targetSet))
         let ticket = ticketMap.get(ticketId) || { zeev_instance_id: ticketId, ticket_raiz: ticketId }
-        if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadWebhookTicketFromZeev(ticket)
+        if (refresh) ticket = await loadTicketDocsFromZeev({ ...ticket, zeev_instance_id: ticketId, ticket_raiz: ticketId })
         const attach = await attachDocsForTarget('payment', row, ticket, fileLimit)
         recordAttachedDocs(out, 'payment', row, ticket, attach)
         recordCheckedWithoutFiscalDoc(out, 'payment', row, ticket, attach)
@@ -4448,7 +4635,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
       try {
         const ticketId = Number(matchedTicketRef(capexTicketRefs(row), targetSet))
         let ticket = ticketMap.get(ticketId) || ticketFromCapexDados(row)
-        if (refresh && !ticketHasStoredZeevData(ticket)) ticket = await loadWebhookTicketFromZeev({ ...ticket, zeev_instance_id: ticketId })
+        if (refresh) ticket = await loadTicketDocsFromZeev({ ...ticket, zeev_instance_id: ticketId })
         const attach = await attachDocsForTarget('capex', row, ticket, fileLimit)
         recordAttachedDocs(out, 'capex', row, ticket, attach)
         recordCheckedWithoutFiscalDoc(out, 'capex', row, ticket, attach)
@@ -4484,7 +4671,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
     for (const row of candidates) {
       try {
         let ticket = row
-        if (refresh) ticket = await loadWebhookTicketFromZeev(ticket)
+        if (refresh) ticket = await loadTicketDocsFromZeev(ticket)
         const current = ticket?.zeev_instance_id && ticket.zeev_instance_id !== row.zeev_instance_id ? ticket : { ...row, ...(ticket || {}) }
         const attach = await attachDocsForTarget('pending', row, current, fileLimit)
         recordAttachedDocs(out, 'pending', row, current, attach)
@@ -4722,7 +4909,7 @@ function paymentIsOverdue(row: AnyRecord) {
 
 async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
   const limit = Math.max(1, Math.min(Number(input.limit || input.backfillLimit || input.backfill_limit || 150), 350))
-  const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || input.file_limit || 4), 8))
+  const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || input.file_limit || env('ZEEV_BACKFILL_FILE_LIMIT', '12')), 40))
   const staleHours = readDocStaleHours(input, 8, 168)
   const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const targetSet = new Set(targetTicketIds.map((id) => String(id)))
@@ -5008,7 +5195,7 @@ async function registerCapexItems(input: AnyRecord = {}) {
   const unidadeName = String(input.unidadeName || input.targetUnidade || input.target_unidade || input.unidade || input.escola || input.school || '').trim()
   const ano = Number(input.ano || input.targetAno || input.target_ano || input.year || new Date().getFullYear()) || new Date().getFullYear()
   const requestedFileLimit = input.fileLimit ?? input.file_limit ?? 2
-  const fileLimit = Math.max(0, Math.min(Number(requestedFileLimit), 6))
+  const fileLimit = Math.max(0, Math.min(Number(requestedFileLimit), 40))
   if (!ticketIds.length) throw new Error('Nenhum TR informado para registrar no CAPEX.')
   if (!unidadeName) throw new Error('Informe a unidade destino para registrar no CAPEX.')
 
@@ -5296,12 +5483,53 @@ async function probeZeevTicket(input: AnyRecord = {}) {
   return out
 }
 
+async function probeZeevDocDownload(input: AnyRecord = {}) {
+  const ticketId = Number(parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || input.ticketId || input.ticket_id || '')[0] || 0)
+  const flow = Number(input.flowId || input.flow_id || 263)
+  const fieldName = String(input.fieldName || input.field_name || 'anexarBoletoParcelado').trim()
+  const rowNumber = Number(input.row || input.rowNumber || input.row_number || 1)
+  if (!ticketId) throw new Error('Informe um TR para diagnosticar documento.')
+  const detail = await zeevInstanceReport(ticketId, flow, [fieldName])
+  const fields = Array.isArray(detail?.formFields) ? detail.formFields : []
+  const field = fields.find((f: AnyRecord) => String(f?.name || '') === fieldName && Number(f?.row || 1) === rowNumber) || fields.find((f: AnyRecord) => String(f?.name || '') === fieldName) || fields[0]
+  const url = field?.openUrl || field?.value || ''
+  const out: AnyRecord = {
+    ok: true,
+    mode: 'probe-zeev-doc-download',
+    tr: ticketId,
+    flow,
+    fieldName,
+    row: rowNumber,
+    fieldFound: Boolean(field),
+    fieldKeys: field && typeof field === 'object' ? Object.keys(field) : [],
+    valueLength: String(field?.value || '').length,
+    openUrlLength: String(field?.openUrl || '').length,
+  }
+  if (!url) return { ...out, ok: false, error: 'Campo sem URL/valor de documento.' }
+  try {
+    const file = await downloadZeevDoc({ name: fieldName, url, source: fieldName })
+    return {
+      ...out,
+      downloaded: Boolean(file),
+      type: file?.type || '',
+      name: file?.name || '',
+      bytes: file?.body ? file.body.byteLength : 0,
+    }
+  } catch (error) {
+    return {
+      ...out,
+      downloaded: false,
+      error: error instanceof Error ? error.message.slice(0, 800) : String(error).slice(0, 800),
+    }
+  }
+}
+
 async function registerObraPayments(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const obraName = String(input.obraName || input.targetObra || input.target_obra || input.obra || '').trim()
   const escopo = input.escopo === 'extra' || input.targetEscopo === 'extra' || input.target_escopo === 'extra' ? 'extra' : 'obra'
   const requestedFileLimit = input.fileLimit ?? input.file_limit ?? 5
-  const fileLimit = Math.max(0, Math.min(Number(requestedFileLimit), 8))
+  const fileLimit = Math.max(0, Math.min(Number(requestedFileLimit), 40))
   if (!ticketIds.length) throw new Error('Nenhum TR informado para registrar como pagamento.')
   if (!obraName) throw new Error('Informe a obra destino para registrar os pagamentos.')
 
@@ -5481,6 +5709,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'doc-rescue-audit') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await runDocRescueAudit(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'probe-zeev-doc-download') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await probeZeevDocDownload(input || {})
       return json(out)
     }
     if (input?.mode === 'rescue-docs-block-report') {

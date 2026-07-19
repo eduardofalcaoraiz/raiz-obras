@@ -1965,7 +1965,7 @@ def direct_doc_rescue_enabled():
 
 
 def direct_doc_rescue_file_limit():
-    return max(0, min(int(os.environ.get("ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT", os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "3")) or "3"), 8))
+    return max(0, min(int(os.environ.get("ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT", os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "12")) or "12"), 40))
 
 
 def direct_doc_rescue_max_bytes():
@@ -2010,8 +2010,12 @@ def normalize_doc_url(url):
         return ""
     if raw.startswith("//"):
         raw = "https:" + raw
+    if re.match(r"^(?:\.\./|\.\/|/)?Storage/", raw, re.I):
+        raw = urllib.parse.urljoin(ZEEV_BASE_URL.rstrip("/") + "/2.0/", raw)
     if raw.startswith("/"):
         raw = ZEEV_BASE_URL + raw
+    if not re.match(r"^https?://", raw, re.I) and re.match(r"^[^\s<>\"']+\.(pdf|xml|png|jpe?g|webp|tiff?|xlsx?|docx?|zip)(?:$|[?#])", raw, re.I):
+        raw = urllib.parse.urljoin(ZEEV_BASE_URL.rstrip("/") + "/2.0/", raw)
     if not re.match(r"^https?://", raw, re.I):
         return ""
     drive = re.search(r"drive\.google\.com/file/d/([^/]+)", raw)
@@ -2022,6 +2026,24 @@ def normalize_doc_url(url):
     if parsed.netloc.endswith("drive.google.com") and parsed.path == "/open" and qs.get("id"):
         return f"https://drive.google.com/uc?export=download&id={qs['id'][0]}"
     return raw
+
+
+def looks_like_download_path(value):
+    text = str(value or "").strip()
+    if not text:
+        return False
+    return bool(
+        re.match(r"^https?://", text, re.I)
+        or re.match(r"^(?:\.\./|\.\/|/)?Storage/", text, re.I)
+        or re.search(r"/Storage/[^?#]+", text, re.I)
+        or re.search(r"/api/2/files/", text, re.I)
+        or re.match(r"^[^\s<>\"']+\.(pdf|xml|png|jpe?g|webp|tiff?|xlsx?|docx?|zip)(?:$|[?#])", text, re.I)
+    )
+
+
+def filename_from_download_path(value, fallback="documento-fiscal.pdf"):
+    clean = str(value or "").split("?", 1)[0].split("#", 1)[0].replace("\\", "/")
+    return clean.rstrip("/").split("/")[-1] or fallback
 
 
 def doc_kind(name="", url="", source=""):
@@ -2067,9 +2089,10 @@ def collect_doc_candidates_from_value(out, label, value, source, depth=0):
             collect_doc_candidates_from_value(out, label, item, source, depth + 1)
         return
     if isinstance(value, dict):
-        name = value.get("name") or value.get("fileName") or value.get("filename") or value.get("originalName") or value.get("displayName") or value.get("title") or label
+        value_path = value.get("value") if looks_like_download_path(value.get("value")) else ""
+        name = value.get("fileName") or value.get("filename") or value.get("originalName") or value.get("displayName") or value.get("title") or (filename_from_download_path(value_path, label) if value_path else "") or value.get("name") or label
         content_type = value.get("type") or value.get("mimeType") or value.get("contentType") or ""
-        url = value.get("url") or value.get("openUrl") or value.get("downloadUrl") or value.get("href") or value.get("link") or value.get("fileUrl") or value.get("signedUrl") or value.get("contentUrl") or ""
+        url = value.get("url") or value.get("openUrl") or value.get("downloadUrl") or value.get("href") or value.get("link") or value.get("fileUrl") or value.get("signedUrl") or value.get("contentUrl") or value_path or ""
         file_id = value.get("fileId") or value.get("fileID") or value.get("file_id") or value.get("arquivoId") or value.get("documentId") or value.get("attachmentId") or ""
         if not file_id and doc_like_text(" ".join([str(label), str(name), str(source)])):
             file_id = value.get("id") if re.match(r"^[A-Za-z0-9._-]{3,180}$", str(value.get("id") or "")) else ""
@@ -2085,6 +2108,8 @@ def collect_doc_candidates_from_value(out, label, value, source, depth=0):
     for url in re.findall(r"https?://[^\s\"'<>),;]+", text):
         if doc_like_text(" ".join([label, url, source])):
             push_doc_candidate(out, name=label or "documento-fiscal.pdf", url=url, source=source)
+    if looks_like_download_path(text):
+        push_doc_candidate(out, name=filename_from_download_path(text, label or "documento-fiscal.pdf"), url=text, source=source)
     if re.match(r"^data:[^;]+;base64,", text, re.I) or (len(text) > 120 and re.match(r"^[A-Za-z0-9+/=\s]+$", text)):
         push_doc_candidate(out, name=label or "documento-fiscal.pdf", base64_content=text, source=source)
 
@@ -2166,16 +2191,17 @@ def downloaded_doc_from_response(candidate, response, depth=0):
                     return found
         except Exception:
             pass
-    if ("html" in ctype or text_head.lower().startswith("<!doctype") or text_head.lower().startswith("<html")) and depth < 2:
+    if "html" in ctype or text_head.lower().startswith("<!doctype") or text_head.lower().startswith("<html"):
         html = body.decode("utf-8", errors="replace")
         nested = []
-        for link in re.findall(r"""(?i)(?:href|src)=["']([^"']+)["']""", html) + re.findall(r"https?://[^\s\"'<>),;]+", html):
-            if doc_like_text(link):
-                push_doc_candidate(nested, candidate.get("name") or "documento-fiscal.pdf", urllib.parse.urljoin(response["url"], link), source="download-html")
-        for item in nested[:6]:
-            found = download_doc_candidate(item, depth + 1)
-            if found:
-                return found
+        if depth < 2:
+            for link in re.findall(r"""(?i)(?:href|src)=["']([^"']+)["']""", html) + re.findall(r"https?://[^\s\"'<>),;]+", html):
+                if doc_like_text(link):
+                    push_doc_candidate(nested, candidate.get("name") or "documento-fiscal.pdf", urllib.parse.urljoin(response["url"], link), source="download-html")
+            for item in nested[:6]:
+                found = download_doc_candidate(item, depth + 1)
+                if found:
+                    return found
         raise RuntimeError("download retornou HTML sem arquivo direto")
     if len(body) < 80:
         raise RuntimeError("conteudo muito pequeno para arquivo")
@@ -2274,7 +2300,7 @@ def rescue_documents_for_row(row):
     downloaded = []
     skipped = []
     for candidate in candidates:
-        candidate_limit = max(direct_doc_rescue_file_limit(), min(int(os.environ.get("ZEEV_DOC_CANDIDATE_ATTEMPT_LIMIT", "8") or "8"), 30))
+        candidate_limit = max(direct_doc_rescue_file_limit(), min(int(os.environ.get("ZEEV_DOC_CANDIDATE_ATTEMPT_LIMIT", "60") or "60"), 120))
         if len(skipped) + len(downloaded) >= candidate_limit:
             break
         if len(downloaded) >= direct_doc_rescue_file_limit():
@@ -2673,7 +2699,7 @@ def report_sync_error(error):
 def backfill_docs():
     total_limit = max(0, int(os.environ.get("ZEEV_BACKFILL_LIMIT", os.environ.get("ZEEV_MAX_PAGES", "30"))))
     base_batch = max(1, min(int(os.environ.get("ZEEV_BACKFILL_BATCH", "2")), 8))
-    base_file_limit = max(1, min(int(os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "3")), 8))
+    base_file_limit = max(1, min(int(os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "12")), 40))
     shared = {
         "mode": "backfill-docs",
         "refresh": os.environ.get("ZEEV_BACKFILL_REFRESH", "true").lower() != "false",
@@ -2833,7 +2859,7 @@ def backfill_docs_for_ticket_ids(ticket_ids, file_limit=None):
         "mode": "backfill-docs",
         "ticketIds": ",".join(str(x) for x in parse_ticket_ids(ticket_ids)),
         "limit": max(1, min(len(parse_ticket_ids(ticket_ids)) or 1, int(os.environ.get("ZEEV_DOC_RESCUE_EDGE_LIMIT", "80") or "80"))),
-        "fileLimit": int(file_limit or os.environ.get("ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT", os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "6"))),
+        "fileLimit": int(file_limit or os.environ.get("ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT", os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "12"))),
         "refresh": True,
         "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", os.environ.get("ZEEV_DOC_RESCUE_STALE_HOURS", "720"))),
         "includePending": os.environ.get("ZEEV_DOC_RESCUE_PENDING", "true").lower() != "false",
@@ -3083,7 +3109,7 @@ def register_obra_payments():
     obra = os.environ.get("ZEEV_TARGET_OBRA") or os.environ.get("ZEEV_OBRA_DESTINO") or ""
     escopo = os.environ.get("ZEEV_TARGET_ESCOPO") or "obra"
     batch_size = max(1, min(int(os.environ.get("ZEEV_REGISTER_BATCH", "3")), 8))
-    file_limit = max(0, min(int(os.environ.get("ZEEV_REGISTER_FILE_LIMIT", "0")), 4))
+    file_limit = max(0, min(int(os.environ.get("ZEEV_REGISTER_FILE_LIMIT", "0")), 40))
     out = {
         "ok": True,
         "mode": "register-obra-payments",
@@ -3171,7 +3197,7 @@ def register_capex_items():
     )
     ano = os.environ.get("ZEEV_TARGET_ANO") or os.environ.get("ZEEV_CAPEX_ANO") or ""
     batch_size = max(1, min(int(os.environ.get("ZEEV_REGISTER_BATCH", "6")), 10))
-    file_limit = max(0, min(int(os.environ.get("ZEEV_REGISTER_FILE_LIMIT", "0")), 4))
+    file_limit = max(0, min(int(os.environ.get("ZEEV_REGISTER_FILE_LIMIT", "0")), 40))
     out = {
         "ok": True,
         "mode": "register-capex-items",
@@ -3301,7 +3327,7 @@ def refresh_payment_statuses():
     if target_ids:
         total_limit = len(target_ids)
     base_batch = max(1, min(int(os.environ.get("ZEEV_STATUS_REFRESH_BATCH", os.environ.get("ZEEV_BACKFILL_BATCH", "6"))), 12))
-    base_file_limit = max(1, min(int(os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "3")), 6))
+    base_file_limit = max(1, min(int(os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "12")), 40))
     out = {
         "ok": True,
         "mode": "refresh-payment-statuses",
