@@ -1,6 +1,6 @@
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-webhook-secret, x-zeev-token, x-zeev-extra-tokens, x-zeev-extra-document-fields, x-zeev-file-download-url-template',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-webhook-secret, x-zeev-webhook-secret, x-zeev-sync-secret, x-zeev-token, x-zeev-extra-tokens, x-zeev-extra-document-fields, x-zeev-file-download-url-template',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
@@ -744,7 +744,12 @@ function secretAuthorized(req: Request) {
   const configuredSecrets = [env('ZEEV_SYNC_SECRET'), env('ZEEV_DB_CRON_SECRET'), env('ZEEV_WEBHOOK_SECRET')].filter(Boolean)
   if (!configuredSecrets.length) return false
   const url = new URL(req.url)
-  const got = req.headers.get('x-cron-secret') || req.headers.get('x-webhook-secret') || ''
+  const got =
+    req.headers.get('x-cron-secret') ||
+    req.headers.get('x-webhook-secret') ||
+    req.headers.get('x-zeev-webhook-secret') ||
+    req.headers.get('x-zeev-sync-secret') ||
+    ''
   const auth = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
   const querySecret =
     url.searchParams.get('x-cron-secret') ||
@@ -1764,6 +1769,41 @@ function ticketDigits(value: unknown) {
   const groups = raw.match(/\d+/g) || []
   for (const group of groups) {
     if (group.length >= 1 && group.length <= 7 && Number(group) > 0) return group
+  }
+  return ''
+}
+
+function standaloneAccessKeyFromText(raw: unknown) {
+  const match = String(raw || '').match(/(?:^|\D)(\d{44})(?!\d)/)
+  return match?.[1] || ''
+}
+
+function nfNumberFromAccessKey(key: unknown) {
+  const digits = String(key || '').replace(/\D/g, '')
+  if (digits.length !== 44) return ''
+  return digits.slice(25, 34).replace(/^0+(?=\d)/, '') || digits
+}
+
+function decodeNfseKeyNumber(raw: unknown, dateIso = '') {
+  const text = String(raw || '')
+  const compact = text.replace(/\D/g, '')
+  const candidates = ((text.match(/\d{30,60}/g) || []) as string[])
+    .concat(compact ? [compact] : [])
+    .filter((value, index, list) => value.length >= 30 && list.indexOf(value) === index)
+  for (const candidate of candidates) {
+    if (candidate.length >= 50) {
+      const fixed = candidate.slice(23, 36).replace(/^0+(?=\d)/, '')
+      if (/^\d{1,9}$/.test(fixed) && fixed !== '0') return fixed
+    }
+  }
+  const ym = String(dateIso || '').match(/^(\d{4})-(\d{2})/)
+  if (ym) {
+    const yymm = ym[1].slice(2) + ym[2]
+    const re = new RegExp(`0{4,}([1-9]\\d{0,8}?)(?=${yymm})`)
+    for (const candidate of candidates) {
+      const match = candidate.match(re)
+      if (match) return match[1].replace(/^0+(?=\d)/, '')
+    }
   }
   return ''
 }
@@ -2877,11 +2917,25 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
       extraTicketIds = (await knownTicketRefreshIds(input.refreshLimit || input.backfillLimit || env('ZEEV_GITHUB_REFRESH_LIMIT', '40'), parseFlowIds(flowIds))).join(',')
     }
     const normalizedMode = normalizedSyncMode
-    const workflowMode = normalizedMode === 'incremental'
-      ? 'incremental'
-      : syncMode === 'retro'
-        ? 'retro'
-        : (syncMode === 'deep-retro' ? 'deep-retro' : 'deep-incremental')
+    const directWorkflowModes = new Set([
+      'incremental',
+      'retro',
+      'deep-incremental',
+      'deep-retro',
+      'rescue-docs',
+      'rescue-docs-loop',
+      'backfill-docs',
+      'doc-rescue-audit',
+      'refresh-payment-statuses',
+      'reconcile-registered',
+    ])
+    const workflowMode = directWorkflowModes.has(syncMode)
+      ? syncMode
+      : normalizedMode === 'incremental'
+        ? 'incremental'
+        : syncMode === 'retro'
+          ? 'retro'
+          : (syncMode === 'deep-retro' ? 'deep-retro' : 'deep-incremental')
     const workflowInputs: Record<string, string> = {
       mode: workflowMode,
       start: requestedStart,
@@ -2889,7 +2943,12 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
       flow_ids: flowIds,
       max_pages: String(requestedMaxPages),
       notify: input.notify === false ? 'false' : 'true',
+      ticket_ids: String(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || ''),
       extra_ticket_ids: extraTicketIds,
+      backfill_limit: String(input.backfillLimit || input.backfill_limit || input.limit || ''),
+      backfill_batch: String(input.backfillBatch || input.backfill_batch || '1'),
+      backfill_stale_hours: String(input.backfillStaleHours || input.backfill_stale_hours || input.staleHours || input.stale_hours || ''),
+      checked_before: String(input.checkedBefore || input.checked_before || ''),
     }
     const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`, {
       method: 'POST',
@@ -3173,9 +3232,13 @@ function dateOnly(value: unknown) {
 function fiscalDocKind(doc: AnyRecord) {
   const urlName = doc?.url ? fileNameFromDownloadPath(doc.url, '') : ''
   const raw = [doc.name, doc.source, doc.type, doc.kind, urlName, doc.storagePath].filter(Boolean).join(' ')
+  const nameRaw = [doc.name, urlName, doc.storagePath].filter(Boolean).join(' ')
+  const nameText = norm(nameRaw)
+  const nameKey = normKey(nameRaw)
   const hay = norm(raw)
   if (hay.includes('recibo')) return 'RECIBO'
   if (hay.includes('comprovante') || hay.includes('pix')) return 'COMPROVANTE'
+  if (hay.includes('fatura') || /(?:^|\s)ft\s*0*\d{2,}(?:\s|$)/.test(nameText) || /^ft0*\d{2,}/.test(nameKey)) return 'FATURA'
   if (hay.includes('boleto')) return 'BOLETO'
   if (hay.includes('fatura')) return 'FATURA'
   if (/(cotacao|orcamento|proposta|mapa|contrato|memorial|cronograma|escopo|layout|projeto)/.test(hay) && !zeevDocHasExplicitFiscalOrPaymentTerms(doc)) return 'DOCUMENTO'
@@ -3191,6 +3254,54 @@ function zeevDocRawText(doc: AnyRecord) {
 
 function zeevDocNormKey(doc: AnyRecord) {
   return normKey(zeevDocRawText(doc))
+}
+
+function zeevDocLogicalKeys(doc: AnyRecord) {
+  const values = [
+    doc?.name,
+    doc?.url ? fileNameFromDownloadPath(doc.url, '') : '',
+    doc?.storagePath ? String(doc.storagePath).split(/[\\/]/).pop() : '',
+  ].filter(Boolean)
+  const keys = new Set<string>()
+  for (const value of values) {
+    const raw = String(value || '').replace(/\.[A-Za-z0-9]{2,8}(?:$|\?)/, ' ')
+    const accessKey = raw.match(/\d{44}/)
+    if (accessKey) keys.add(accessKey[0])
+    const words = norm(raw).split(/\s+/).filter(Boolean)
+    for (const word of words) {
+      if (/^(?:19|20)\d{6,}$/.test(word)) continue
+      if (/^\d{10,}$/.test(word)) continue
+      if (/^ft0*\d{2,}$/.test(word)) keys.add(word)
+      else if (/^(?:nfse|nfe|danfe|nf|fatura|recibo|boleto)0*\d{2,}$/.test(word)) keys.add(word)
+      else if (/^[a-z]{2,12}0*\d{4,}$/.test(word) && word.length <= 18) keys.add(word)
+      else if (/^\d{3,9}$/.test(word)) keys.add(word)
+    }
+    const compact = normKey(raw)
+    const ft = compact.match(/ft0*\d{2,}/)
+    if (ft) keys.add(ft[0])
+  }
+  return [...keys]
+}
+
+function docKindsAreEquivalentForCoverage(candidateKind: string, storedKind: string) {
+  if (candidateKind === storedKind) return true
+  if (isInvoiceDocKind(candidateKind) && isInvoiceDocKind(storedKind)) return true
+  if (isChargeDocKind(candidateKind) && isChargeDocKind(storedKind)) return true
+  if (candidateKind === 'DOCUMENTO' || storedKind === 'DOCUMENTO') return true
+  return false
+}
+
+function storedDocRepresentsZeevCandidate(stored: AnyRecord[], candidate: AnyRecord, candidateKind: string, ticketId: string) {
+  const candidateKeys = zeevDocLogicalKeys(candidate)
+  if (!candidateKeys.length) return false
+  return stored.some((existing) => {
+    if (!Boolean(existing?.storagePath || existing?.path || existing?.url)) return false
+    if (!sameStoredDocScope(existing, candidateKind, ticketId)) return false
+    const existingKind = fiscalDocKindWithContext(existing, candidate, existing)
+    if (!docKindsAreEquivalentForCoverage(candidateKind, existingKind)) return false
+    const existingKeys = zeevDocLogicalKeys(existing)
+    return existingKeys.some((key) => candidateKeys.includes(key))
+  })
 }
 
 function zeevDocHasExplicitFiscalOrPaymentTerms(doc: AnyRecord) {
@@ -3887,6 +3998,7 @@ function docFromJsonPayload(payload: unknown, fallback: AnyRecord) {
 
 async function downloadZeevDocFromUrl(doc: AnyRecord, url: string, depth = 0): Promise<{ body: ArrayBuffer; name: string; type: string } | null> {
   if (!zeevToken()) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
+  const availableTokenCount = Math.max(1, zeevTokens().length || 1)
   const res = await zeevBinaryRequest(url, {
     headers: {
       Accept: '*/*',
@@ -3894,7 +4006,7 @@ async function downloadZeevDocFromUrl(doc: AnyRecord, url: string, depth = 0): P
     },
   }, {
     timeoutMs: Math.max(4000, Math.min(Number(env('ZEEV_FILE_DOWNLOAD_TIMEOUT_MS', '8000')) || 8000, 30000)),
-    maxTokens: Math.max(1, Math.min(Number(env('ZEEV_FILE_TOKEN_ATTEMPT_LIMIT', '2')) || 2, 6)),
+    maxTokens: Math.max(1, Math.min(Number(env('ZEEV_FILE_TOKEN_ATTEMPT_LIMIT', String(availableTokenCount))) || availableTokenCount, availableTokenCount, 12)),
   })
   const type = res.headers.get('content-type') || doc.type || 'application/octet-stream'
   if (depth < 2 && /application\/json|text\/json/i.test(type)) {
@@ -4568,6 +4680,18 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
     try {
       file = await downloadZeevDoc(doc)
     } catch (error) {
+      if (storedDocRepresentsZeevCandidate(stored, doc, docKind, ticketId)) {
+        markCandidateKind(docKind)
+        if (deduped.length < 8) {
+          deduped.push({
+            name: doc.name || '',
+            source: doc.source || '',
+            kind: docKind,
+            reason: 'arquivo_equivalente_ja_anexado_download_indisponivel',
+          })
+        }
+        continue
+      }
       if (isIgnorableHtmlDownloadError(doc, error)) {
         if (ignored.length < 8) ignored.push({ name: doc.name || '', source: doc.source || '', kind: docKind, reason: 'html_sem_arquivo_baixavel' })
         continue
@@ -5236,7 +5360,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
 
   if (includePayments && budget > 0) {
     const obraFilter = targetObraIds.length ? `&obra_id=in.(${targetObraIds.join(',')})` : ''
-    const paymentBase = `/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,escopo_fin,zeev_docs_checked_at&ticket_raiz=not.is.null${obraFilter}&order=obra_id.asc.nullslast,id.asc`
+    const paymentBase = `/pagamentos?select=id,obra_id,ticket_raiz,nf_num,nf_tipo,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,escopo_fin,zeev_docs_checked_at&ticket_raiz=not.is.null${obraFilter}&order=obra_id.asc.nullslast,id.asc`
     const rows = targetTicketIds.length ? await restAll(paymentBase) : await rest(`${paymentBase}&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
       .filter((row: AnyRecord) => {
@@ -5267,6 +5391,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         if (attach.attached || JSON.stringify(attach.docs || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = attach.docs
         if (!row.nf_doc_path && attach.nfPath) patch.nf_doc_path = attach.nfPath
         if (!row.comp_doc_path && attach.compPath) patch.comp_doc_path = attach.compPath
+        Object.assign(patch, paymentFiscalMetadataPatch(checkedRowWithAttach(row, attach), ticket))
         if (paidDate && (row.st !== 'PAGO' || row.paga_em !== paidDate)) {
           patch.st = 'PAGO'
           patch.paga_em = paidDate
@@ -5745,7 +5870,7 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
   const out: AnyRecord = { ok: true, mode: 'refresh-payment-statuses', requested: targetTicketIds, staleHours, scannedPayments: 0, updatedPaid: 0, updatedDueDate: 0, filesAttached: 0, errors: [], updated: [], unchanged: [], sources: { storedReport: 0, zeevInstance: 0, failedInstance: 0 } }
 
   const paymentFilter = targetTicketIds.length ? `ticket_raiz=in.(${targetTicketIds.join(',')})` : 'ticket_raiz=not.is.null'
-  const rows = await restAll(`/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&${paymentFilter}&order=id.asc`, 1000)
+  const rows = await restAll(`/pagamentos?select=id,obra_id,ticket_raiz,nf_num,nf_tipo,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&${paymentFilter}&order=id.asc`, 1000)
   const candidates = (rows || [])
     .filter((row: AnyRecord) => ticketDigits(row.ticket_raiz) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz))))
     .filter((row: AnyRecord) => !onlyOverdue || paymentIsOverdue(row))
@@ -5772,6 +5897,7 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
       if (attach.attached || JSON.stringify(attach.docs || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = attach.docs || []
       if (!row.nf_doc_path && attach.nfPath) patch.nf_doc_path = attach.nfPath
       if (!row.comp_doc_path && attach.compPath) patch.comp_doc_path = attach.compPath
+      Object.assign(patch, paymentFiscalMetadataPatch(checkedRowWithAttach(row, attach), ticket))
       if (paidDate) {
         patch.st = 'PAGO'
         patch.paga_em = paidDate
@@ -5839,7 +5965,7 @@ function fiscalTypeForTicket(ticket: AnyRecord, storedDocs: AnyRecord[]) {
   const candidates = [...storedDocs, ...zeevDocsFromTicket(ticket)]
   const text = normKey(candidates.map((doc) => [doc?.name, doc?.source, doc?.type, doc?.url, doc?.storagePath].filter(Boolean).join(' ')).join(' '))
   const kinds = candidates.map((doc) => fiscalDocKindWithContext(doc, ticket, ticket))
-  if (/\d{44}/.test(candidates.map((doc) => [doc?.name, doc?.source, doc?.url, doc?.storagePath].filter(Boolean).join(' ')).join(' '))) return 'NF-e'
+  if (standaloneAccessKeyFromText(candidates.map((doc) => [doc?.name, doc?.source, doc?.url, doc?.storagePath].filter(Boolean).join(' ')).join(' '))) return 'NF-e'
   if (text.includes('nfe') || text.includes('danfe') || text.includes('xml')) return 'NF-e'
   if (text.includes('nfse') || text.includes('nfs e') || text.includes('nota') || text.includes('nf')) return 'NFS-e'
   if (text.includes('fatura')) return 'Fatura'
@@ -5859,10 +5985,14 @@ function fiscalDocNumberFromText(raw: unknown, kind: unknown, nfTipo = '') {
   if (!text) return ''
   const upperKind = String(kind || '').toUpperCase()
   if (upperKind === 'NF') {
-    const key = text.match(/\d{44}/)?.[0] || ''
-    if (key) return key.slice(25, 34).replace(/^0+(?=\d)/, '') || key
+    const key = standaloneAccessKeyFromText(text)
+    if (key) return nfNumberFromAccessKey(key)
     const explicit = text.match(/(?:n[uú]mero\s*(?:da\s*)?(?:nota|nf|nfs|nfse)|nota\s*fiscal|nf-?e|nfs-?e)\D{0,18}(\d{1,12})(?!\d)/i)
     if (explicit) return explicit[1].replace(/^0+(?=\d)/, '')
+    if (String(nfTipo || '').toUpperCase().includes('NFS')) {
+      const nfse = decodeNfseKeyNumber(text)
+      if (nfse) return nfse
+    }
     return ''
   }
   let base = text.split(/[?#]/)[0].split('/').pop() || text
@@ -5897,6 +6027,43 @@ function fiscalDocNumberForTicket(ticket: AnyRecord, storedDocs: AnyRecord[], nf
   const kind = fiscalDocKindWithContext(doc, ticket, ticket)
   const docName = String(doc?.name || fileNameFromDownloadPath(doc?.storagePath || doc?.path || doc?.url || '', '') || doc?.source || '')
   return fiscalDocNumberFromText(docName, kind, nfTipo)
+}
+
+function paymentFiscalMetadataFromDocs(row: AnyRecord, ticket: AnyRecord = {}) {
+  const storedDocs = normalizeStoredDocs(row)
+  if (!storedDocs.length && !row?.nf_doc_path) return { nfTipo: '', nfNum: '' }
+  const context = { ...(ticket || {}), ...(ticket?.zeev_instance_id ? {} : { zeev_instance_id: ticketDigits(row?.ticket_raiz) }) }
+  const nfTipo = fiscalTypeForTicket(context, storedDocs)
+  const nfNum = fiscalDocNumberForTicket(context, storedDocs, nfTipo)
+  return { nfTipo, nfNum: String(nfNum || '').trim() }
+}
+
+function neutralFiscalType(value: unknown) {
+  const text = normKey(value)
+  return !text || text === 'semnota' || text === 'documento'
+}
+
+function suspiciousFiscalNumber(value: unknown) {
+  const raw = String(value || '').trim()
+  if (!raw) return false
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return false
+  if (/^20\d{6,}$/.test(digits)) return true
+  if (digits.length > 13) return true
+  return false
+}
+
+function paymentFiscalMetadataPatch(row: AnyRecord, ticket: AnyRecord = {}) {
+  const meta = paymentFiscalMetadataFromDocs(row, ticket)
+  const currentTipo = String(row?.nf_tipo || '').trim()
+  const currentNum = String(row?.nf_num || '').trim()
+  const patch: AnyRecord = {}
+  const hasTypeEvidence = meta.nfTipo && !['Sem nota', 'Documento', 'Boleto'].includes(meta.nfTipo)
+  const hasNumberEvidence = Boolean(meta.nfNum)
+  if (!hasTypeEvidence && !hasNumberEvidence) return patch
+  if (hasTypeEvidence && (neutralFiscalType(currentTipo) || hasNumberEvidence)) patch.nf_tipo = meta.nfTipo
+  if (hasNumberEvidence && (!currentNum || neutralFiscalType(currentTipo) || suspiciousFiscalNumber(currentNum))) patch.nf_num = meta.nfNum
+  return patch
 }
 
 function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: string) {
@@ -6414,7 +6581,7 @@ async function registerObraPayments(input: AnyRecord = {}) {
   const obra = findTargetObra(obras, obraName)
   if (!obra) throw new Error(`Obra destino nao encontrada: ${obraName}`)
 
-  const existingRows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs&ticket_raiz=in.(${ticketIds.join(',')})`)
+  const existingRows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz,nf_num,nf_tipo,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs&ticket_raiz=in.(${ticketIds.join(',')})`)
   const existingByTicket = new Map<string, AnyRecord[]>()
   for (const row of existingRows || []) {
     const key = ticketDigits(row.ticket_raiz)
@@ -6472,6 +6639,7 @@ async function registerObraPayments(input: AnyRecord = {}) {
       if (JSON.stringify(attach.docs || []) !== JSON.stringify(saved.docs_json || [])) patch.docs_json = attach.docs || []
       if (!saved.nf_doc_path && attach.nfPath) patch.nf_doc_path = attach.nfPath
       if (!saved.comp_doc_path && attach.compPath) patch.comp_doc_path = attach.compPath
+      Object.assign(patch, paymentFiscalMetadataPatch(checkedRowWithAttach(saved, attach), { ...ticket, zeev_instance_id: ticketId }))
       if (paidDate && (saved.st !== 'PAGO' || saved.paga_em !== paidDate)) {
         patch.st = 'PAGO'
         patch.paga_em = paidDate
@@ -6574,7 +6742,47 @@ Deno.serve(async (req) => {
       return json(out)
     }
     if (input?.mode === 'backfill-docs') {
-      if (!secretAuthorized(req)) await requireAppUser(req)
+      const authorized = secretAuthorized(req)
+      const actor = authorized ? null : await requireAppUser(req)
+      const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+      const requestedLimit = Math.max(1, Number(input.limit || input.backfillLimit || input.backfill_limit || 4) || 4)
+      const requestedFileLimit = Math.max(1, Number(input.fileLimit || input.file_limit || env('ZEEV_BACKFILL_FILE_LIMIT', '12')) || 12)
+      const directTicketLimit = Math.max(1, Number(env('ZEEV_EDGE_DIRECT_TICKET_LIMIT', '2')) || 2)
+      const directLimit = Math.max(1, Number(env('ZEEV_EDGE_DIRECT_BACKFILL_LIMIT', '2')) || 2)
+      const directFileLimit = Math.max(1, Number(env('ZEEV_EDGE_DIRECT_FILE_LIMIT', '4')) || 4)
+      const forceEdge = input.target === 'edge' || input.runOnEdge === true || input.run_on_edge === true || input.forceEdge === true || input.force_edge === true
+      const canDispatchGithub = Boolean(env('GITHUB_SYNC_TOKEN') || env('GITHUB_TOKEN'))
+      const heavyBackfill = Boolean(input.checkedBefore || input.checked_before)
+        || targetTicketIds.length > directTicketLimit
+        || requestedLimit > directLimit
+        || requestedFileLimit > directFileLimit
+      if (!forceEdge && canDispatchGithub && heavyBackfill) {
+        const out = await dispatchGithubWorkflow({
+          ...input,
+          mode: 'dispatch',
+          target: 'github',
+          workflowMode: input.workflowMode || input.syncMode || 'rescue-docs',
+          ticketIds: targetTicketIds.join(','),
+          backfillLimit: String(Math.max(requestedLimit, targetTicketIds.length || requestedLimit)),
+          backfillBatch: String(input.backfillBatch || input.backfill_batch || '1'),
+          backfillStaleHours: String(input.backfillStaleHours || input.backfill_stale_hours || input.staleHours || input.stale_hours || ''),
+          checkedBefore: String(input.checkedBefore || input.checked_before || ''),
+          notify: input.notify === true,
+          refreshKnownTickets: false,
+          lockTtlMinutes: input.lockTtlMinutes || input.lock_ttl_minutes || 75,
+        }, actor)
+        return json({
+          ...out,
+          mode: 'backfill-docs',
+          delegated: true,
+          delegatedTo: 'github-actions',
+          workflowMode: input.workflowMode || input.syncMode || 'rescue-docs',
+          delegationReason: 'backfill_pesado_delegado_para_worker_em_blocos',
+          targetTicketIds,
+          requestedLimit,
+          requestedFileLimit,
+        })
+      }
       const out = await runBackfillDocs(input || {})
       return json(out)
     }
