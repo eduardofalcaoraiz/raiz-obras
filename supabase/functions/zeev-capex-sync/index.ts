@@ -5861,22 +5861,33 @@ function fiscalDocNumberFromText(raw: unknown, kind: unknown, nfTipo = '') {
   if (upperKind === 'NF') {
     const key = text.match(/\d{44}/)?.[0] || ''
     if (key) return key.slice(25, 34).replace(/^0+(?=\d)/, '') || key
+    const explicit = text.match(/(?:n[uú]mero\s*(?:da\s*)?(?:nota|nf|nfs|nfse)|nota\s*fiscal|nf-?e|nfs-?e)\D{0,18}(\d{1,12})(?!\d)/i)
+    if (explicit) return explicit[1].replace(/^0+(?=\d)/, '')
+    return ''
   }
-  let base = text.replace(/\.[a-z0-9]{1,8}$/i, '')
+  let base = text.split(/[?#]/)[0].split('/').pop() || text
+  base = base.replace(/\.[a-z0-9]{1,8}$/i, '')
   base = base.replace(/(?:[_\-\s]+20\d{10,}.*)$/i, '')
-  const numbers = Array.from(base.matchAll(/\d+(?:[._-]\d+)*/g))
-    .map((m) => m[0])
-    .filter((n) => n.replace(/\D/g, '').length <= 14)
-    .filter((n) => !/^20\d{6,}$/.test(n.replace(/\D/g, '')))
-  const picked = numbers.length ? numbers[numbers.length - 1] : ''
-  if (!picked) return ''
-  if (upperKind === 'NF' || /nf|nota/i.test(nfTipo)) return picked.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
-  return picked.replace(/_/g, '.').replace(/-(?=\d)/g, '.').replace(/\.+/g, '.').replace(/^\.+|\.+$/g, '')
+  if (upperKind === 'FATURA') {
+    const explicit = base.match(/(?:fatura|fat)\D{0,45}?(\d{1,8}(?:[._-]\d{1,4})?)(?!\d)/i)
+    if (!explicit) return ''
+    const before = base.slice(Math.max(0, Number(explicit.index || 0) - 8), Number(explicit.index || 0)).toLowerCase()
+    if (/r\$|rs|valor|total/.test(before)) return ''
+    return explicit[1].replace(/_/g, '.').replace(/-(?=\d)/g, '.').replace(/\.+/g, '.').replace(/^\.+|\.+$/g, '')
+  }
+  if (upperKind === 'RECIBO') {
+    const explicit = base.match(/(?:recibo|rcb)\D{0,20}(?:n(?:º|o|ro)?\.?\D{0,8})?(\d{1,8})(?!\d)/i)
+    if (!explicit) return ''
+    const before = base.slice(Math.max(0, Number(explicit.index || 0) - 8), Number(explicit.index || 0)).toLowerCase()
+    if (/r\$|rs|valor|total/.test(before)) return ''
+    return explicit[1].replace(/^0+(?=\d)/, '')
+  }
+  return ''
 }
 
 function fiscalDocNumberForTicket(ticket: AnyRecord, storedDocs: AnyRecord[], nfTipo: string) {
   const direct = ticket?.pagamento_json?.nota_fiscal
-    || ticketFirstField(ticket, ['notaFiscal', 'numeroNF', 'numeroNotaFiscal', 'numero da nota fiscal', 'nf', 'fatura', 'recibo', 'boleto'])
+    || ticketFirstField(ticket, ['notaFiscal', 'numeroNF', 'numeroNotaFiscal', 'numero da nota fiscal', 'numero da nf', 'numero da nfs', 'numeroFatura', 'numero da fatura', 'numeroRecibo', 'numero do recibo'])
     || ''
   if (String(direct || '').trim()) return String(direct || '').trim()
   const candidates = [...storedDocs, ...zeevDocsFromTicket(ticket)]
@@ -5884,7 +5895,8 @@ function fiscalDocNumberForTicket(ticket: AnyRecord, storedDocs: AnyRecord[], nf
   const doc = fiscalDocs[0] || candidates[0]
   if (!doc) return ''
   const kind = fiscalDocKindWithContext(doc, ticket, ticket)
-  return fiscalDocNumberFromText([doc?.name, doc?.storagePath, doc?.url, doc?.source].filter(Boolean).join(' '), kind, nfTipo)
+  const docName = String(doc?.name || fileNameFromDownloadPath(doc?.storagePath || doc?.path || doc?.url || '', '') || doc?.source || '')
+  return fiscalDocNumberFromText(docName, kind, nfTipo)
 }
 
 function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: string) {
