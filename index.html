@@ -6483,6 +6483,8 @@ function capexZeevIsWindowScroller(el){
 }
 
 function capexZeevScrollEl(){
+  const list=document.querySelector('#capex-zeev-results .capex-zeev-list');
+  if(list&&list.scrollHeight-list.clientHeight>2)return list;
   const start=document.getElementById('capex-zeev-results')||document.getElementById('registros-pendentes-body')||document.querySelector('.view.active')||document.querySelector('.main');
   let el=start?.parentElement||null;
   while(el&&el!==document.body&&el!==document.documentElement){
