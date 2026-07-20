@@ -3544,8 +3544,18 @@ const CAPEX_ZEEV_LIST_COLUMNS=[
   'requester_name','requester_email','requester_username','requester_team','etapa_atual','passou_conferir_entrega',
   'pronto_valor_final','valor','valor_final','valor_status','unidade','marca','pedido','categoria_capex','fonte','setor',
   'situacao_sugerida','realizado_sugerido','status','capex_item_id','aprovado_por','aprovado_em','ignorado_por','ignorado_em',
-  'email_notified_at','last_seen_at','created_at','updated_at','itens_json','pagamento_json','campos_extraidos','docs_json',
-  'zeev_docs_checked_at','enrichment_errors'
+  'email_notified_at','last_seen_at','created_at','updated_at','zeev_docs_checked_at'
+].join(',');
+
+const PAYMENT_LIST_COLUMNS=[
+  'id','obra_id','ben','v','ref','nf_num','cat','sub','pagn','st','venc','nf_tipo','comp','nf_doc_path','comp_doc_path',
+  'emissao','paga_em','escopo_fin','contrato_seq','tipo_custo','mat_tipo','mat_qtd','mat_unidade','chave','obs','pag_forma',
+  'construtora_seq','ticket_raiz'
+].join(',');
+
+const CAPEX_ITEM_LIST_COLUMNS=[
+  'id','ano','fonte','unidade','unidades_json','marca','pedido','referencia','setor','categoria_capex','situacao','orcamento',
+  'realizado','observacoes','ticket_raiz_url','ticket_raiz_instance_id','origem','ticket_raiz_dados','aprovado','created_at','updated_at'
 ].join(',');
 
 async function loadCapexZeevSolicitacoes(){
@@ -3629,12 +3639,12 @@ async function loadCapexData(opts){
   if(capexDataLoading&&!opts.force)return capexDataLoading;
   capexDataLoading=(async()=>{
     const[ciRes,csRes]=await Promise.all([
-      selectAllRows('capex_itens',{order:'id',ascending:false}),
+      selectAllRows('capex_itens',{columns:CAPEX_ITEM_LIST_COLUMNS,order:'id',ascending:false}),
       selectAllRows('capex_saldos',{order:'ano',ascending:false})
     ]);
     if(ciRes.error)throw ciRes.error;
     if(csRes.error)throw csRes.error;
-    capexItens=normalizeCapexItensList(ciRes.data||[]);
+    capexItens=normalizeCapexItensList((ciRes.data||[]).map(r=>({...r,_docsLoaded:false})));
     capexSaldos=(csRes.data||[]).map(r=>({...r,ano:+r.ano||new Date().getFullYear(),valor:+r.valor||0}));
     capexDataLoaded=true;
     return{ok:true,itens:capexItens.length,saldos:capexSaldos.length};
@@ -6096,6 +6106,8 @@ let capexListStatus='Todos';
 let capexTrSearchQuery='';
 let capexZeevSearchQuery='';
 let capexZeevTypeFilter='todos';
+let capexZeevPage=0;
+const CAPEX_ZEEV_PAGE_SIZE=80;
 let capexZeevReturnState=null;
 let capexCardDescriptionOpen=new Set();
 let capexAutoFinalizeSyncing={};
@@ -6535,7 +6547,8 @@ function capexZeevHasSearch(){
 }
 
 function capexZeevSearchHaystack(z){
-  return capexNormText([
+  if(z&&!z._detailLoaded&&z._searchHaystack)return z._searchHaystack;
+  const text=capexNormText([
     z?.zeev_instance_id,
     z?.id,
     z?.request_name,
@@ -6550,9 +6563,10 @@ function capexZeevSearchHaystack(z){
     capexZeevTypeLabel(capexZeevType(z)),
     capexZeevTicketStatus(z),
     capexZeevFornecedor(z),
-    capexZeevDescricaoLancamento(z),
-    capexZeevFieldText(z)
+    capexZeevDescricaoLancamento(z)
   ].filter(Boolean).join(' '));
+  if(z&&!z._detailLoaded)z._searchHaystack=text;
+  return text;
 }
 
 function capexZeevSearchMatches(z,query){
@@ -6655,6 +6669,7 @@ function capexCaptureZeevReturnState(id){
   capexZeevReturnState={
     query:capexZeevSearchQuery,
     typeFilter:capexZeevTypeFilter,
+    page:capexZeevPage,
     active:snap.active,
     mainScrollTop:snap.mainScrollTop,
     windowScrollY:snap.windowScrollY,
@@ -6674,6 +6689,7 @@ function capexRestoreZeevReturnState(){
   if(!state)return;
   capexZeevSearchQuery=state.query||'';
   capexZeevTypeFilter=state.typeFilter||'todos';
+  capexZeevPage=Number.isFinite(+state.page)?+state.page:0;
   const restore=()=>{
     const scroller=capexZeevScrollEl();
     const cards=Array.from(document.querySelectorAll('#capex-zeev-results [data-zeev-card-id]'));
@@ -6728,6 +6744,7 @@ function capexZeevCountText(visible,total){
 
 function setCapexZeevSearch(v){
   capexZeevSearchQuery=String(v||'').slice(0,120);
+  capexZeevPage=0;
   const input=document.getElementById('capex-zeev-ticket-search');
   if(input&&input.value!==capexZeevSearchQuery)input.value=capexZeevSearchQuery;
   renderCapexZeevResults();
@@ -6735,6 +6752,12 @@ function setCapexZeevSearch(v){
 
 function setCapexZeevTypeFilter(type){
   capexZeevTypeFilter=['todos','compras','financeiras'].includes(type)?type:'todos';
+  capexZeevPage=0;
+  renderCapexZeevResults();
+}
+
+function setCapexZeevPage(page){
+  capexZeevPage=Math.max(0,+page||0);
   renderCapexZeevResults();
 }
 
@@ -7247,6 +7270,62 @@ function hydratePaymentDocs(p){
     if(comp)p.compDoc={...comp,kind:comp.kind||'COMPROVANTE',bucket:comp.bucket||'pagamentos'};
   }
   return p;
+}
+
+function applyPaymentHeavyRow(p,row){
+  if(!p||!row)return p;
+  if(row.nf_doc_path&&!p.nfDoc)p.nfDoc={name:String(row.nf_doc_path).split('/').pop(),storagePath:row.nf_doc_path,type:inferType(row.nf_doc_path),bucket:'pagamentos',kind:'NF'};
+  if(row.comp_doc_path&&!p.compDoc)p.compDoc={name:String(row.comp_doc_path).split('/').pop(),storagePath:row.comp_doc_path,type:inferType(row.comp_doc_path),bucket:'pagamentos',kind:'COMPROVANTE'};
+  p.docs=Array.isArray(row.docs_json)?row.docs_json:[];
+  p.parcelas=Array.isArray(row.parcelas)?row.parcelas:[];
+  p.itens=Array.isArray(row.itens_pag)?row.itens_pag:[];
+  p._heavyLoaded=true;
+  hydratePaymentDocs(p);
+  return p;
+}
+
+async function ensurePaymentHeavyFields(p){
+  if(!p||p._heavyLoaded||!p.dbId)return p;
+  const{data,error}=await db.from('pagamentos')
+    .select('id,docs_json,parcelas,itens_pag,nf_doc_path,comp_doc_path')
+    .eq('id',p.dbId)
+    .single();
+  if(error)throw error;
+  return applyPaymentHeavyRow(p,data);
+}
+
+async function ensureObraPaymentHeavyFields(o){
+  const pending=(o?.pag||[]).filter(p=>p&&p.dbId&&!p._heavyLoaded);
+  if(!pending.length)return;
+  const ids=pending.map(p=>p.dbId);
+  const rows=[];
+  for(let i=0;i<ids.length;i+=150){
+    const chunk=ids.slice(i,i+150);
+    const{data,error}=await db.from('pagamentos')
+      .select('id,docs_json,parcelas,itens_pag,nf_doc_path,comp_doc_path')
+      .in('id',chunk);
+    if(error)throw error;
+    rows.push(...(data||[]));
+  }
+  const byId=new Map(rows.map(r=>[+r.id,r]));
+  pending.forEach(p=>{
+    const row=byId.get(+p.dbId);
+    if(row)applyPaymentHeavyRow(p,row);
+    else p._heavyLoaded=true;
+  });
+}
+
+function paymentDocsAreLoaded(p){
+  return !!(p&&p._heavyLoaded);
+}
+
+function paymentQuickDocsCount(p){
+  if(!p)return 0;
+  if(paymentDocsAreLoaded(p))return paymentDocsCount(p);
+  let n=0;
+  if(p.nfDoc)n++;
+  if(p.compDoc&&paymentDocKey(p.compDoc)!==paymentDocKey(p.nfDoc))n++;
+  return n;
 }
 
 function paymentDocsLabel(p){
@@ -7833,9 +7912,34 @@ function closeCapexNotCapexModal(){
   document.getElementById('capex-notcapex-overlay')?.classList.remove('show');
 }
 
+function renderCapexZeevPager(total){
+  if(total<=CAPEX_ZEEV_PAGE_SIZE)return'';
+  const pages=Math.max(1,Math.ceil(total/CAPEX_ZEEV_PAGE_SIZE));
+  if(capexZeevPage>=pages)capexZeevPage=pages-1;
+  if(capexZeevPage<0)capexZeevPage=0;
+  const start=capexZeevPage*CAPEX_ZEEV_PAGE_SIZE+1;
+  const end=Math.min(total,(capexZeevPage+1)*CAPEX_ZEEV_PAGE_SIZE);
+  return`<div class="capex-zeev-pager" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0 10px;flex-wrap:wrap">
+    <span style="font-size:12.5px;color:var(--muted);font-weight:700">Mostrando ${start}-${end} de ${total}</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="btn btn-ghost btn-sm" ${capexZeevPage<=0?'disabled':''} onclick="setCapexZeevPage(${capexZeevPage-1})">Anterior</button>
+      <span style="font-size:12px;color:var(--muted);font-weight:800">${capexZeevPage+1}/${pages}</span>
+      <button class="btn btn-ghost btn-sm" ${capexZeevPage>=pages-1?'disabled':''} onclick="setCapexZeevPage(${capexZeevPage+1})">Proxima</button>
+    </div>
+  </div>`;
+}
+
 function capexZeevResultsHtml(pend,total){
-  const cards=renderCapexZeevCards(pend);
-  if(pend.length)return`<div class="capex-zeev-list">${cards}</div>`;
+  const filteredTotal=pend.length;
+  const pages=Math.max(1,Math.ceil(filteredTotal/CAPEX_ZEEV_PAGE_SIZE));
+  if(capexZeevPage>=pages)capexZeevPage=pages-1;
+  if(capexZeevPage<0)capexZeevPage=0;
+  const visible=pend.slice(capexZeevPage*CAPEX_ZEEV_PAGE_SIZE,(capexZeevPage+1)*CAPEX_ZEEV_PAGE_SIZE);
+  const cards=renderCapexZeevCards(visible);
+  if(pend.length){
+    const pager=renderCapexZeevPager(filteredTotal);
+    return`${pager}<div class="capex-zeev-list">${cards}</div>${pager}`;
+  }
   if(capexZeevLoadError){
     return`<div class="capex-zeev-empty" style="border-color:#C0392B;color:#7A1F18;background:#FFF7F4"><b>Falha ao carregar a fila do Ticket Raiz.</b><br>${escHtml(capexZeevLoadError)}<br>Os dados nao foram apagados; a plataforma apenas nao conseguiu carregar a lista completa agora. Tente atualizar ou acione a automacao novamente.</div>`;
   }
@@ -10026,7 +10130,7 @@ function renderCapexRegisteredCard(it){
   const statusTitle=autoFinalizado?'Pedidos de 2024 ficam resolvidos por exceção':'Alterar status';
   const ticketLink=it.ticket_raiz_url?`<a href="${escHtml(it.ticket_raiz_url)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Abrir Ticket Raiz</a>`:'';
   const docsCount=capexItemDocs(it).length;
-  const docsButton=docsCount?`<button class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexDocsModal(${it.id})">Arquivos (${docsCount})</button>`:'';
+  const docsButton=(docsCount||it.ticket_raiz_instance_id)?`<button class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexDocsModal(${it.id})">Arquivos${docsCount?' ('+docsCount+')':''}</button>`:'';
   const compraLink=capexCompraLinkFromItem(it);
   const compraTr=capexZeevSearchDigits(compraLink?.tr||compraLink?.zeev_id||'');
   const respLabel=compraTr?`${setorLabel} / Compra TR ${compraTr}${compraLink?.encontrado===false?' - conferir':''}`:setorLabel;
@@ -10526,6 +10630,10 @@ async function saveCapexItemLocked(options){if(['leitor','doc'].includes(current
   const autoFinalizado=capexIsAutoFinalizedYear(ano);
   const situacao=autoFinalizado?'Resolvido':document.getElementById('ci-m-sit').value;
   const antigo=wasEdit?capexItens.find(i=>i.id===editId):null;
+  if(antigo&&!antigo._docsLoaded){
+    try{await ensureCapexItemDocs(editId);}
+    catch(e){console.warn('ensureCapexItemDocs:',e);toast('Nao consegui conferir anexos existentes deste CAPEX. Tente salvar novamente em instantes.');return;}
+  }
   const existingRateioInfo=capexRateioInfoFromItem(antigo);
   if(rateioAtivo&&wasEdit&&!existingRateioInfo){toast('O rateio so pode ser criado no registro inicial.');return;}
   if(rateioAtivo&&!wasEdit&&rateioUnits.length<2){toast('Selecione pelo menos duas unidades para ratear o custo.');return;}
@@ -11392,34 +11500,57 @@ function renderMatServ(){
 function setPagFiltro(f){pagFiltro=f;pagPage=0;renderPag();}
 function drillPag(escopo){pagEscopo=escopo;pagExpanded=new Set();pagMes="";pagBusca="";pagFornecedor="";pagPagante="";pagNfTipo="";pagContrato="";renderPag();}
 function backPag(){pagEscopo=null;pagExpanded=new Set();pagMes="";pagFornecedor="";pagPagante="";pagNfTipo="";pagContrato="";renderPag();}
-function togglePagRow(i){pagExpanded.has(i)?pagExpanded.delete(i):pagExpanded.add(i);renderPag();}
+async function togglePagRow(i){
+  if(!pagExpanded.has(i)){
+    const p=cur?.pag?.[i];
+    if(p&&p.dbId&&!p._heavyLoaded){
+      try{await ensurePaymentHeavyFields(p);}catch(e){console.warn('ensurePaymentHeavyFields:',e);toast('Detalhes do pagamento ainda nao carregaram.');}
+    }
+  }
+  pagExpanded.has(i)?pagExpanded.delete(i):pagExpanded.add(i);
+  renderPag();
+}
 
-function docCell(o,i,p){hydratePaymentDocs(p);let nf;if(p.nfDoc){const nm=(p.nfDoc.name||p.nfDoc.storagePath||'NF').length>16?(p.nfDoc.name||p.nfDoc.storagePath||'NF').slice(0,14)+"…":(p.nfDoc.name||p.nfDoc.storagePath||'NF');nf=`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${nm} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:10.5px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${p.nota?("NF "+p.nota):(p.nfTipo||"NF")}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
+function docCell(o,i,p){if(paymentDocsAreLoaded(p))hydratePaymentDocs(p);let nf;if(p.nfDoc){const nm=(p.nfDoc.name||p.nfDoc.storagePath||'NF').length>16?(p.nfDoc.name||p.nfDoc.storagePath||'NF').slice(0,14)+"…":(p.nfDoc.name||p.nfDoc.storagePath||'NF');nf=`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${nm} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:10.5px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${p.nota?("NF "+p.nota):(p.nfTipo||"NF")}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
 
   const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">comprovante ↓</button>`:`<button class="linkbtn" onclick="anexarComp(${o.id},${i})">anexar</button>`;
 
-  const docsN=paymentDocsCount(p);
-  const docs=docsN?`<span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Docs</b> <button class="linkbtn" onclick="openPaymentDocsModal(${o.id},${i})">${paymentDocsLabel(p)||docsN+' arquivo'+(docsN!==1?'s':'')}</button></span>`:'';
+  const docsN=paymentQuickDocsCount(p);
+  const docsLabel=paymentDocsAreLoaded(p)?paymentDocsLabel(p):(p.ticketRaiz?'carregar arquivos':'');
+  const docs=(docsN||p.ticketRaiz)?`<span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Docs</b> <button class="linkbtn" onclick="openPaymentDocsModal(${o.id},${i})">${docsLabel||docsN+' arquivo'+(docsN!==1?'s':'')}</button></span>`:'';
   return `<div style="display:flex;flex-direction:column;gap:3px;font-size:11.5px;min-width:155px"><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">NF</b> ${nf}</span><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Pgto</b> ${comp}</span>${docs}</div>`;}
 
-function openPaymentDocsModal(oid,i){
+async function openPaymentDocsModal(oid,i){
   const o=obras.find(x=>+x.id===+oid);
   const p=o?.pag?.[i];
   if(!o||!p){toast('Pagamento nao encontrado.');return;}
+  let body=document.getElementById('payment-docs-body');
+  if(body)body.innerHTML='<div class="capex-zeev-empty">Carregando arquivos salvos deste pagamento...</div>';
+  document.getElementById('payment-docs-overlay')?.classList.add('show');
+  try{await ensurePaymentHeavyFields(p);}catch(e){console.warn('ensurePaymentHeavyFields:',e);}
   const docs=paymentAllDocs(p);
   activePaymentDocs={obraId:oid,index:i,docs};
   const title=document.getElementById('payment-docs-title');
   if(title)title.textContent='Arquivos do pagamento';
   const ctx=document.getElementById('payment-docs-context');
   if(ctx)ctx.innerHTML=`<b style="color:var(--ink)">${escHtml(p.ben||'Pagamento')}</b>${p.ticketRaiz?` &middot; TR ${escHtml(p.ticketRaiz)}`:''}${p.ref?`<br>${escHtml(p.ref)}`:''}`;
-  const body=document.getElementById('payment-docs-body');
+  body=document.getElementById('payment-docs-body');
   if(body)body.innerHTML=docs.length?docs.map((d,idx)=>`<div class="payment-doc-row"><div><b>${escHtml(d.name||'Arquivo')}</b><span>${escHtml([d.kind||'',d.origin||'',d.source||''].filter(Boolean).join(' · ')||'Documento salvo na plataforma')}</span></div><button class="btn btn-sm" onclick="viewFile(activePaymentDocs.docs[${idx}])">Ver / baixar</button></div>`).join(''):'<div class="capex-zeev-empty">Nenhum arquivo salvo neste pagamento.</div>';
-  document.getElementById('payment-docs-overlay')?.classList.add('show');
 }
 
 function closePaymentDocsModal(){
   document.getElementById('payment-docs-overlay')?.classList.remove('show');
   activePaymentDocs=null;
+}
+
+async function ensureCapexItemDocs(id){
+  const it=capexItens.find(x=>+x.id===+id);
+  if(!it||it._docsLoaded)return it;
+  const{data,error}=await db.from('capex_itens').select('id,docs_json').eq('id',id).single();
+  if(error)throw error;
+  it.docs_json=Array.isArray(data?.docs_json)?data.docs_json:[];
+  it._docsLoaded=true;
+  return it;
 }
 
 function capexItemDocs(it){
@@ -11436,18 +11567,21 @@ function capexItemDocs(it){
   return out;
 }
 
-function openCapexDocsModal(id){
-  const it=capexItens.find(x=>+x.id===+id);
+async function openCapexDocsModal(id){
+  let it=capexItens.find(x=>+x.id===+id);
   if(!it){toast('Pedido de CAPEX nao encontrado.');return;}
+  let body=document.getElementById('payment-docs-body');
+  if(body)body.innerHTML='<div class="capex-zeev-empty">Carregando arquivos salvos deste CAPEX...</div>';
+  document.getElementById('payment-docs-overlay')?.classList.add('show');
+  try{it=await ensureCapexItemDocs(id)||it;}catch(e){console.warn('ensureCapexItemDocs:',e);}
   const docs=capexItemDocs(it);
   activePaymentDocs={capexId:id,docs};
   const title=document.getElementById('payment-docs-title');
   if(title)title.textContent='Arquivos do Ticket Raiz';
   const ctx=document.getElementById('payment-docs-context');
   if(ctx)ctx.innerHTML=`<b style="color:var(--ink)">${escHtml(it.pedido||'Pedido CAPEX')}</b>${it.ticket_raiz_instance_id||it.referencia?` &middot; TR ${escHtml(it.ticket_raiz_instance_id||it.referencia)}`:''}${it.unidade?`<br>${escHtml(it.unidade)}`:''}`;
-  const body=document.getElementById('payment-docs-body');
+  body=document.getElementById('payment-docs-body');
   if(body)body.innerHTML=docs.length?docs.map((d,idx)=>`<div class="payment-doc-row"><div><b>${escHtml(d.name||'Arquivo')}</b><span>${escHtml([d.kind||'',d.origin||'',d.source||''].filter(Boolean).join(' · ')||'Documento salvo na plataforma')}</span></div><button class="btn btn-sm" onclick="viewFile(activePaymentDocs.docs[${idx}])">Ver / baixar</button></div>`).join(''):'<div class="capex-zeev-empty">Nenhum arquivo salvo neste pedido de CAPEX.</div>';
-  document.getElementById('payment-docs-overlay')?.classList.add('show');
 }
 
 let pagBusca="",pagDe="",pagAte="",pagPage=0;
@@ -12090,7 +12224,7 @@ function renderPag(){const o=cur;
 
   // Row expansível
   const expandableRow=({p,i})=>{
-    hydratePaymentDocs(p);
+    if(paymentDocsAreLoaded(p))hydratePaymentDocs(p);
     const atr=isAtraso(p);
     const exp=pagExpanded.has(i);
     const stColor=atr?'var(--danger)':p.st==='PAGO'?'var(--ok)':'var(--warn)';
@@ -12099,8 +12233,8 @@ function renderPag(){const o=cur;
     const tc=getTipoCusto(p);
     const markBtn=(p.st==='PENDENTE'||atr)?`<button onclick="event.stopPropagation();marcarPagoLista(${o.id},${i})" class="btn btn-sm" style="background:var(--ok-bg);color:var(--ok);border-color:var(--ok);font-size:12px">✓ Marcar pago</button>`:'';
 
-    const docsN=paymentDocsCount(p);
-    const docsLabel=paymentDocsLabel(p);
+    const docsN=paymentQuickDocsCount(p);
+    const docsLabel=paymentDocsAreLoaded(p)?paymentDocsLabel(p):(p.ticketRaiz?'carregar arquivos':'');
 
     const detalhes=exp?`
       <div style="padding:14px 20px 16px 36px;background:var(--surface-2);border-top:1px solid var(--line)">
@@ -12117,7 +12251,7 @@ function renderPag(){const o=cur;
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)">
           ${p.nfDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">📄 Ver NF</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarNF(${o.id},${i})">📎 Anexar NF</button>`}
           ${p.compDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾 Ver comprovante</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarComp(${o.id},${i})">🧾 Anexar comprovante</button>`}
-          ${docsN?`<button class="btn btn-sm" onclick="event.stopPropagation();openPaymentDocsModal(${o.id},${i})">Arquivos (${docsLabel||docsN})</button>`:''}
+          ${docsN||p.ticketRaiz?`<button class="btn btn-sm" onclick="event.stopPropagation();openPaymentDocsModal(${o.id},${i})">Arquivos (${docsLabel||docsN})</button>`:''}
           ${markBtn}
           <div style="margin-left:auto;display:flex;gap:8px">
             <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openPagModal(${i})">✎ Editar</button>
@@ -12160,7 +12294,7 @@ function renderPag(){const o=cur;
     var _btnComp=p.compDoc
       ?('<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].compDoc)" style="'+_bs+'color:var(--ok);background:var(--ok)10;border-color:var(--ok)40">&#129534; Comp</button>')
       :('<button onclick="event.stopPropagation();anexarComp('+o.id+','+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#128462; Comp</button>');
-    var _btnDocs=docsN
+    var _btnDocs=(docsN||p.ticketRaiz)
       ?('<button onclick="event.stopPropagation();openPaymentDocsModal('+o.id+','+i+')" style="'+_bs+'color:var(--brand-text);background:var(--brand-cur-light);border-color:var(--brand-cur)55">&#128194; '+(docsLabel||docsN+' arq.')+'</button>')
       :'';
     var _btnEdit='<button onclick="event.stopPropagation();openPagModal('+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#9998; Editar</button>';
@@ -12201,10 +12335,24 @@ function renderPag(){const o=cur;
 
   // Ordem fixa de lançamento: filtra sem reordenar, para o último lançado ficar no fim.
   rows=rows.slice();
+  const totalRows=rows.length;
+  const totalPages=Math.max(1,Math.ceil(totalRows/PAGE_SIZE));
+  if(pagPage>=totalPages)pagPage=totalPages-1;
+  if(pagPage<0)pagPage=0;
+  const pageStart=pagPage*PAGE_SIZE;
+  const visibleRows=rows.slice(pageStart,pageStart+PAGE_SIZE);
+  const pagerHtml=totalRows>PAGE_SIZE?`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0 10px;flex-wrap:wrap">
+    <span style="font-size:12px;color:var(--muted);font-weight:700">Mostrando ${pageStart+1}-${Math.min(totalRows,pageStart+PAGE_SIZE)} de ${totalRows}</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="btn btn-ghost btn-sm" ${pagPage<=0?'disabled':''} onclick="setPagPage(${pagPage-1})">Anterior</button>
+      <span style="font-size:12px;color:var(--muted);font-weight:800">${pagPage+1}/${totalPages}</span>
+      <button class="btn btn-ghost btn-sm" ${pagPage>=totalPages-1?'disabled':''} onclick="setPagPage(${pagPage+1})">Proxima</button>
+    </div>
+  </div>`:'';
 
   const listHtml=rows.length===0
     ?`<div style="padding:40px;text-align:center;color:var(--muted)"><div style="font-size:40px;margin-bottom:10px">${icon}</div><p>Nenhum lançamento${pagFiltro!=='todos'||pagMes?' com este filtro':''}</p></div>`
-    :rows.map(r=>expandableRow(r)).join('');
+    :visibleRows.map(r=>expandableRow(r)).join('');
 
   document.getElementById("pane-pag").innerHTML=`
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
@@ -12231,9 +12379,9 @@ function renderPag(){const o=cur;
     ${optNf.length>1?'<select class="fi" style="flex:1;min-width:95px;max-width:135px;padding:5px 8px;font-size:12.5px" onchange="setPagNfTipo(this.value)"><option value="">Tipo de NF</option>'+optNf.map(n=>'<option value="'+n+'"'+(n===pagNfTipo?' selected':'')+'>'+n+'</option>').join('')+'</select>':''}
     ${optContr.length>1?'<select class="fi" style="flex:1;min-width:110px;max-width:165px;padding:5px 8px;font-size:12.5px" onchange="setPagContrato(this.value)"><option value="">Contrato</option>'+optContr.map(s=>{const c2=o.contratos.find(x=>String(x.seq)===s);return'<option value="'+s+'"'+(s===pagContrato?' selected':'>')+(c2?c2.nome_contr||c2.forn:'Contrato '+s)+'</option>';}).join('')+'</select>':''}
     ${nFiltrosAtivos>0?'<button onclick="limparFiltrosPag()" style="font-size:12px;font-weight:600;color:var(--danger);background:var(--danger)10;border:1px solid var(--danger)30;border-radius:var(--r);padding:4px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:inherit">✕ Limpar ('+nFiltrosAtivos+')</button>':''}
-    <span style="font-size:11.5px;color:var(--muted);margin-left:auto;flex-shrink:0">${rows.length} resultado${rows.length!==1?'s':''}</span>
+    <span style="font-size:11.5px;color:var(--muted);margin-left:auto;flex-shrink:0">${totalRows} resultado${totalRows!==1?'s':''}</span>
   </div>
-  <div>${listHtml}</div>`;
+  <div>${pagerHtml}${listHtml}${pagerHtml}</div>`;
 
   if(pagBusca){const sb=document.getElementById("pag-busca");if(sb){const e=sb.value.length;sb.focus();sb.setSelectionRange(e,e);}}
 }
@@ -13692,7 +13840,10 @@ let pagEditIdx=null;
 
 function pmSubs(){}
 
-function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(typeof idx==="number")?idx:null;const g=v=>document.getElementById(v);
+async function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEditIdx=(typeof idx==="number")?idx:null;const g=v=>document.getElementById(v);
+  if(pagEditIdx!==null&&cur.pag[pagEditIdx]){
+    try{await ensurePaymentHeavyFields(cur.pag[pagEditIdx]);}catch(e){console.warn('ensurePaymentHeavyFields:',e);toast('Dados completos do pagamento ainda nao carregaram.');}
+  }
 
   if(g("pm-cat"))g("pm-cat").value=PAYMENT_CAT_DEFAULT;
 
@@ -15085,6 +15236,8 @@ async function persist(obraId){
 
     for(const o of ts){
 
+      await ensureObraPaymentHeavyFields(o);
+
       (o.pag||[]).forEach(hydratePaymentDocs);
 
       await db.from('pagamentos').delete().eq('obra_id',o.id);
@@ -15135,7 +15288,7 @@ async function loadFromDB(){
 
     const[pagR,aprR,cntrR,catR,uniR,cnpjR]=await Promise.all([
 
-      selectAllRows('pagamentos',{order:'id'}),
+      selectAllRows('pagamentos',{columns:PAYMENT_LIST_COLUMNS,order:'id'}),
 
       selectAllRows('aportes',{order:'id'}),
 
@@ -15170,14 +15323,13 @@ async function loadFromDB(){
 
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
 
-      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:cleanImpDocNumber(p.nf_num||'',p.nf_tipo||'Sem nota'),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:normalizeDateISO(p.venc)||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path),bucket:'pagamentos',kind:'NF'}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path),bucket:'pagamentos',kind:'COMPROVANTE'}:null,docs:Array.isArray(p.docs_json)?p.docs_json:[],contratoSeq:p.contrato_seq||null,emissao:normalizeDateISO(p.emissao)||'',pagaEm:normalizeDateISO(p.paga_em)||'',escopoFin:p.escopo_fin||'obra',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:Array.isArray(p.parcelas)?p.parcelas:[],itens:Array.isArray(p.itens_pag)?p.itens_pag:[],construtora_seq:p.construtora_seq||null,ticketRaiz:p.ticket_raiz||''})),
+      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({dbId:p.id,ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:cleanImpDocNumber(p.nf_num||'',p.nf_tipo||'Sem nota'),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:normalizeDateISO(p.venc)||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path),bucket:'pagamentos',kind:'NF'}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path),bucket:'pagamentos',kind:'COMPROVANTE'}:null,docs:[],contratoSeq:p.contrato_seq||null,emissao:normalizeDateISO(p.emissao)||'',pagaEm:normalizeDateISO(p.paga_em)||'',escopoFin:p.escopo_fin||'obra',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:[],itens:[],construtora_seq:p.construtora_seq||null,ticketRaiz:p.ticket_raiz||'',_heavyLoaded:false})),
 
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({inv:a.inv||'',v:+a.v||0,d:a.d||''})),
 
       contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||'',aditivos:Array.isArray(c.aditivos)?c.aditivos:[],pct_investimento:c.pct_investimento!==null?+c.pct_investimento:100,valor_investimento:c.valor_investimento!==null&&c.valor_investimento!==undefined?+c.valor_investimento:null}))
 
     }));
-    obras.forEach(o=>(o.pag||[]).forEach(hydratePaymentDocs));
     obras.forEach(sincronizaPagoObra);
 
     nextObraId=obras.reduce((m,o)=>Math.max(m,o.id),0)+1;
@@ -15205,8 +15357,6 @@ async function loadFromDB(){
     capexDataLoaded=false;
     capexZeevLoaded=false;
     refreshCapexZeevSyncState().then(()=>updateNavBadge()).catch(()=>{});
-    scheduleCapexDataWarmLoad(350);
-    scheduleCapexZeevWarmLoad(650);
 
   }catch(e){console.error('[loadFromDB] Erro:',e);throw e;}
 
