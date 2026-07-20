@@ -6477,68 +6477,103 @@ function capexZeevSearchMatches(z,query){
   return terms.every(term=>hay.includes(term));
 }
 
+function capexZeevIsWindowScroller(el){
+  const doc=document.scrollingElement||document.documentElement;
+  return !el||el===window||el===document||el===document.body||el===document.documentElement||el===doc;
+}
+
 function capexZeevScrollEl(){
-  const snap=capexZeevScrollSnapshot();
-  if(snap.active==='main')return document.querySelector('.main');
+  const start=document.getElementById('capex-zeev-results')||document.getElementById('registros-pendentes-body')||document.querySelector('.view.active')||document.querySelector('.main');
+  let el=start?.parentElement||null;
+  while(el&&el!==document.body&&el!==document.documentElement){
+    const style=window.getComputedStyle?getComputedStyle(el):null;
+    const overflow=String(style?.overflowY||style?.overflow||'');
+    if(/auto|scroll|overlay/i.test(overflow)&&el.scrollHeight-el.clientHeight>2)return el;
+    el=el.parentElement;
+  }
+  const main=document.querySelector('.main');
+  if(main&&main.scrollHeight-main.clientHeight>2)return main;
   return document.scrollingElement||document.documentElement;
 }
 
-function capexZeevScrollSnapshot(){
-  const main=document.querySelector('.main');
-  const doc=document.scrollingElement||document.documentElement;
-  const body=document.body;
-  const mainMax=main?Math.max(0,main.scrollHeight-main.clientHeight):0;
-  const docMax=doc?Math.max(0,doc.scrollHeight-doc.clientHeight,body?body.scrollHeight-window.innerHeight:0):0;
-  const mainTop=main?.scrollTop||0;
-  const windowTop=window.scrollY||(doc?doc.scrollTop:0)||0;
-  let active='window';
-  if(main&&mainMax>2&&(mainTop>0||windowTop<2||docMax<3))active='main';
-  return{active,mainTop,windowTop,mainMax,docMax};
+function capexZeevScrollTop(el){
+  if(capexZeevIsWindowScroller(el)){
+    const doc=document.scrollingElement||document.documentElement;
+    return window.scrollY||(doc?doc.scrollTop:0)||0;
+  }
+  return el?.scrollTop||0;
 }
 
-function capexZeevApplyScroll(state,top){
-  const main=document.querySelector('.main');
-  const doc=document.scrollingElement||document.documentElement;
-  const mainMax=main?Math.max(0,main.scrollHeight-main.clientHeight):0;
-  const docMax=doc?Math.max(0,doc.scrollHeight-doc.clientHeight,document.body?document.body.scrollHeight-window.innerHeight:0):0;
-  const useMain=state?.active==='main'&&main&&mainMax>2;
-  const target=Math.max(0,Math.min(+top||0,useMain?mainMax:docMax));
-  if(useMain)main.scrollTop=target;
-  else{
+function capexZeevScrollMax(el){
+  if(capexZeevIsWindowScroller(el)){
+    const doc=document.scrollingElement||document.documentElement;
+    return Math.max(0,doc?doc.scrollHeight-doc.clientHeight:0,document.body?document.body.scrollHeight-window.innerHeight:0);
+  }
+  return Math.max(0,(el?.scrollHeight||0)-(el?.clientHeight||0));
+}
+
+function capexZeevSetScrollTop(el,top){
+  const target=Math.max(0,Math.min(+top||0,capexZeevScrollMax(el)));
+  if(capexZeevIsWindowScroller(el)){
+    const doc=document.scrollingElement||document.documentElement;
     if(doc)doc.scrollTop=target;
     window.scrollTo(0,target);
+  }else if(el){
+    el.scrollTop=target;
   }
 }
 
-function capexZeevAdjustScroll(state,delta){
+function capexZeevScrollSnapshot(){
+  const scroller=capexZeevScrollEl();
   const main=document.querySelector('.main');
-  const mainMax=main?Math.max(0,main.scrollHeight-main.clientHeight):0;
-  const useMain=state?.active==='main'&&main&&mainMax>2;
-  if(useMain)main.scrollTop+=delta;
-  else window.scrollBy(0,delta);
+  const doc=document.scrollingElement||document.documentElement;
+  return{
+    active:capexZeevIsWindowScroller(scroller)?'window':String(scroller?.id||scroller?.className||scroller?.tagName||'element'),
+    scrollTop:capexZeevScrollTop(scroller),
+    mainScrollTop:main?.scrollTop||0,
+    windowScrollY:window.scrollY||(doc?doc.scrollTop:0)||0
+  };
 }
 
-function capexZeevVisualTop(el){
+function capexZeevApplyScroll(state,top){
+  capexZeevSetScrollTop(capexZeevScrollEl(),top);
+}
+
+function capexZeevAdjustScroll(state,delta){
+  const scroller=capexZeevScrollEl();
+  capexZeevSetScrollTop(scroller,capexZeevScrollTop(scroller)+(+delta||0));
+}
+
+function capexZeevVisualTop(el,scroller){
   if(!el)return null;
-  return el.getBoundingClientRect().top;
+  const er=el.getBoundingClientRect();
+  if(capexZeevIsWindowScroller(scroller))return er.top;
+  const sr=scroller?.getBoundingClientRect?scroller.getBoundingClientRect():{top:0};
+  return er.top-sr.top;
 }
 
 function capexCaptureZeevReturnState(id){
   const snap=capexZeevScrollSnapshot();
+  const scroller=capexZeevScrollEl();
   const cards=Array.from(document.querySelectorAll('#capex-zeev-results [data-zeev-card-id]'));
   const idx=cards.findIndex(el=>String(el.dataset.zeevCardId)===String(id));
   const current=idx>=0?cards[idx]:null;
-  const anchor=idx>=0?(cards[idx+1]||cards[idx-1]||current):null;
+  const next=idx>=0?cards[idx+1]:null;
+  const prev=idx>=0?cards[idx-1]:null;
+  const anchor=next||prev||current;
   capexZeevReturnState={
     query:capexZeevSearchQuery,
     typeFilter:capexZeevTypeFilter,
     active:snap.active,
-    mainScrollTop:snap.mainTop,
-    windowScrollY:snap.windowTop,
-    scrollTop:snap.active==='main'?snap.mainTop:snap.windowTop,
+    mainScrollTop:snap.mainScrollTop,
+    windowScrollY:snap.windowScrollY,
+    scrollTop:snap.scrollTop,
     cardId:String(id||''),
+    cardIndex:idx,
+    visibleIds:cards.map(el=>String(el.dataset.zeevCardId||'')).filter(Boolean),
+    anchorIds:[next?.dataset?.zeevCardId,prev?.dataset?.zeevCardId,current?.dataset?.zeevCardId].filter(Boolean),
     anchorId:anchor?.dataset?.zeevCardId||'',
-    anchorTop:anchor?capexZeevVisualTop(anchor):null
+    anchorTop:anchor?capexZeevVisualTop(anchor,scroller):null
   };
 }
 
@@ -6548,17 +6583,21 @@ function capexRestoreZeevReturnState(){
   if(!state)return;
   capexZeevSearchQuery=state.query||'';
   capexZeevTypeFilter=state.typeFilter||'todos';
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  const restore=()=>{
+    const scroller=capexZeevScrollEl();
     const cards=Array.from(document.querySelectorAll('#capex-zeev-results [data-zeev-card-id]'));
-    const anchor=state.anchorId?cards.find(el=>String(el.dataset.zeevCardId)===String(state.anchorId)):null;
+    const ids=(state.anchorIds&&state.anchorIds.length?state.anchorIds:[state.anchorId]).filter(Boolean).map(String);
+    const anchor=ids.length?cards.find(el=>ids.includes(String(el.dataset.zeevCardId))):null;
     if(anchor&&Number.isFinite(state.anchorTop)){
-      const now=capexZeevVisualTop(anchor);
+      const now=capexZeevVisualTop(anchor,scroller);
       if(Number.isFinite(now))capexZeevAdjustScroll(state,now-state.anchorTop);
     }else if(Number.isFinite(state.scrollTop)){
-      const fallbackTop=state.active==='main'?(Number.isFinite(state.mainScrollTop)?state.mainScrollTop:state.scrollTop):(Number.isFinite(state.windowScrollY)?state.windowScrollY:state.scrollTop);
-      capexZeevApplyScroll(state,fallbackTop);
+      capexZeevApplyScroll(state,state.scrollTop);
     }
-  }));
+  };
+  requestAnimationFrame(()=>requestAnimationFrame(restore));
+  setTimeout(restore,80);
+  setTimeout(restore,220);
 }
 
 function capexZeevType(z){
