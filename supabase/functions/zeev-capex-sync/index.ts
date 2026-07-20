@@ -8,6 +8,7 @@ type AnyRecord = Record<string, any>
 
 const DEFAULT_FLOW_IDS = [299, 275, 263, 102, 300]
 const FINANCE_FLOW_IDS = new Set([299, 275, 263, 110])
+const PURCHASE_FLOW_IDS = new Set([102, 300])
 const CAPEX_FIELDS = ['investimentoCAPEX', 'cAPEX', 'CAPEX', 'capex']
 const FINANCE_DESCRIPTION_FIELDS = [
   'informacoesReferentesASolicitacao',
@@ -915,11 +916,15 @@ function suggestedCapexStatus(row: AnyRecord, ready: boolean) {
 }
 
 function isCompra(row: AnyRecord) {
+  const flow = flowId(row) || 0
+  if (PURCHASE_FLOW_IDS.has(flow)) return true
   const name = norm(row?.flow?.name || row?.flowName || row?.flow_name || row?.requestName || row?.request_name || row?.raw_instance?.flow?.name || row?.raw_instance?.flowName || '')
   return name.includes('solicitacao de compras') || name.includes('solicitacoes de compras')
 }
 
 function isFinanceiro(row: AnyRecord) {
+  const flow = flowId(row) || 0
+  if (FINANCE_FLOW_IDS.has(flow)) return true
   const name = norm(row?.flow?.name || row?.flowName || row?.flow_name || row?.requestName || row?.request_name || row?.raw_instance?.flow?.name || row?.raw_instance?.flowName || '')
   return name.includes('solicitacao financeira') || name.includes('solicitacoes financeiras') || name.includes('financeiro')
 }
@@ -3077,10 +3082,64 @@ function fiscalDocKind(doc: AnyRecord) {
   if (hay.includes('comprovante') || hay.includes('recibo') || hay.includes('pix')) return 'COMPROVANTE'
   if (hay.includes('boleto')) return 'BOLETO'
   if (hay.includes('fatura')) return 'FATURA'
-  if (hay.includes('cotacao') && !/(nota|nfse|nfe|nfs|danfe|xml)/.test(hay)) return 'DOCUMENTO'
+  if (/(cotacao|orcamento|proposta|mapa|contrato|memorial|cronograma|escopo|layout|projeto)/.test(hay) && !zeevDocHasExplicitFiscalOrPaymentTerms(doc)) return 'DOCUMENTO'
   if (/\d{44}/.test(raw)) return 'NF'
   if (hay.includes('xml') || hay.includes('danfe') || hay.includes('nota') || hay.includes('nf')) return 'NF'
   return 'DOCUMENTO'
+}
+
+function zeevDocRawText(doc: AnyRecord) {
+  const urlName = doc?.url ? fileNameFromDownloadPath(doc.url, '') : ''
+  return [doc?.name, doc?.source, doc?.type, doc?.kind, urlName, doc?.storagePath].filter(Boolean).join(' ')
+}
+
+function zeevDocNormKey(doc: AnyRecord) {
+  return normKey(zeevDocRawText(doc))
+}
+
+function zeevDocHasExplicitFiscalOrPaymentTerms(doc: AnyRecord) {
+  const raw = zeevDocRawText(doc)
+  const key = normKey(raw)
+  const text = norm(raw)
+  if (/\d{44}/.test(raw)) return true
+  if (/(notafiscal|notasfiscais|danfe|xml|nfse|nfs|nfe|nf-e|nfs-e)/.test(key)) return true
+  if (/(boleto|fatura|comprovante|recibo|pix)/.test(key)) return true
+  if (/(^|[^a-z])nf([^a-z]|$)/.test(text)) return true
+  return false
+}
+
+function zeevDocLooksLikeSupportAttachment(doc: AnyRecord) {
+  const key = zeevDocNormKey(doc)
+  if (!key) return false
+  return /(cotacao|orcamento|proposta|mapa|contrato|memorial|cronograma|escopo|layout|projeto|imagem|foto|print)/.test(key)
+}
+
+function zeevDocLooksLikeFinancialDocumentField(doc: AnyRecord) {
+  const key = zeevDocNormKey(doc)
+  const hasFile = /\.(pdf|xml|zip|rar|7z|jpg|jpeg|png|webp)$/i.test(String(doc?.name || doc?.url || doc?.storagePath || ''))
+  return hasFile && /(documento|documentofiscal|notafiscal|anexarnota|anexarnf|danfe|xml)/.test(key)
+}
+
+function fiscalDocKindWithContext(doc: AnyRecord, ticket?: AnyRecord, row?: AnyRecord) {
+  const baseKind = fiscalDocKind(doc)
+  if (isPurchaseZeevTicket(ticket, row)) {
+    if (zeevDocHasExplicitFiscalOrPaymentTerms(doc)) return baseKind
+    return 'DOCUMENTO'
+  }
+  if (isFinancialZeevTicket(ticket, row)) {
+    if (String(baseKind).toUpperCase() === 'DOCUMENTO' && zeevDocLooksLikeFinancialDocumentField(doc) && !zeevDocLooksLikeSupportAttachment(doc)) {
+      return 'NF'
+    }
+  }
+  return baseKind
+}
+
+function isPurchaseZeevTicket(ticket?: AnyRecord, row?: AnyRecord) {
+  return [ticket, row].some((item) => item && isCompra(item))
+}
+
+function isFinancialZeevTicket(ticket?: AnyRecord, row?: AnyRecord) {
+  return [ticket, row].some((item) => item && isFinanceiro(item))
 }
 
 function isAlwaysIgnoredZeevDocCandidate(doc: AnyRecord) {
@@ -3145,13 +3204,13 @@ function withLatestZeevDocAudit(docs: AnyRecord[], audit: AnyRecord) {
   return [...visible, audit]
 }
 
-function countStoredDocsByKind(docs: AnyRecord[]) {
+function countStoredDocsByKind(docs: AnyRecord[], row?: AnyRecord, ticket?: AnyRecord) {
   const out = { total: 0, fiscal: 0, charge: 0, proof: 0, other: 0 }
   for (const doc of docs || []) {
     if (isZeevAuditDoc(doc)) continue
     if (!Boolean(doc?.storagePath || doc?.path || doc?.url)) continue
     out.total++
-    const kind = fiscalDocKind(doc)
+    const kind = fiscalDocKindWithContext(doc, ticket, row)
     if (isInvoiceDocKind(kind)) out.fiscal++
     else if (isChargeDocKind(kind)) out.charge++
     else if (isProofDocKind(kind)) out.proof++
@@ -3168,7 +3227,7 @@ function buildZeevDocAudit(target: string, row: AnyRecord, ticket: AnyRecord, do
   const deduped = Array.isArray(attach?.deduped) ? attach.deduped : []
   const ignored = Array.isArray(attach?.ignored) ? attach.ignored : []
   const unattempted = Number(attach?.unattemptedCandidateCount || 0)
-  const storedCounts = countStoredDocsByKind(docs)
+  const storedCounts = countStoredDocsByKind(docs, row, ticket)
   const attached = Number(attach?.attached || 0)
   const hasAnyCandidate = candidateCount > 0
   const hasInvoiceCandidate = Boolean(attach?.hasInvoiceCandidate)
@@ -3221,8 +3280,8 @@ function buildZeevDocAudit(target: string, row: AnyRecord, ticket: AnyRecord, do
   }
 }
 
-function financialDocPriority(doc: AnyRecord) {
-  const kind = fiscalDocKind(doc)
+function financialDocPriority(doc: AnyRecord, ticket?: AnyRecord, row?: AnyRecord) {
+  const kind = fiscalDocKindWithContext(doc, ticket, row)
   if (isInvoiceDocKind(kind)) return 0
   if (isChargeDocKind(kind)) return 1
   if (isProofDocKind(kind)) return 2
@@ -3530,7 +3589,7 @@ function addDocDebug(out: AnyRecord, target: string, row: AnyRecord, ticket: Any
     return {
       name: doc?.name || '',
       source: doc?.source || '',
-      kind: fiscalDocKind(doc),
+      kind: fiscalDocKindWithContext(doc, ticket, row),
       hasUrl: Boolean(doc?.url),
       path,
       queryLength,
@@ -3838,11 +3897,12 @@ async function downloadPaymentStorage(path: string) {
 
 function sameStoredDocScope(doc: AnyRecord, kind: string, ticketId: string) {
   const docKind = fiscalDocKind(doc)
-  if (docKind !== kind) return false
-  if (!ticketId) return true
+  if (!ticketId) return docKind === kind
   const path = storedDocPath(doc)
   const rawTicket = ticketDigits(doc?.ticketRaiz || doc?.ticket_raiz || doc?.ticket || '')
-  return rawTicket === ticketId || path.includes(`zeev_tr_${ticketId}/`) || path.includes(`zeev_tr_${ticketId}\\`)
+  const sameTicket = rawTicket === ticketId || path.includes(`zeev_tr_${ticketId}/`) || path.includes(`zeev_tr_${ticketId}\\`)
+  if (sameTicket) return true
+  return docKind === kind
 }
 
 async function storedDocMatchesDownloadedFile(stored: AnyRecord[], kind: string, ticketId: string, file: { body: ArrayBuffer; name: string; type: string }, fileHash: string, hashCache: Map<string, string>) {
@@ -4327,7 +4387,7 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
   }
   const docs = zeevDocsFromTicket(ticket)
     .filter((doc) => doc.url || doc.base64Content || doc.fileId)
-    .sort((a: AnyRecord, b: AnyRecord) => financialDocPriority(a) - financialDocPriority(b))
+    .sort((a: AnyRecord, b: AnyRecord) => financialDocPriority(a, ticket, row) - financialDocPriority(b, ticket, row))
   let attached = 0
   let nfPath = row.nf_doc_path || ''
   let compPath = row.comp_doc_path || ''
@@ -4353,7 +4413,7 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
   const candidateLimit = Math.max(effectiveLimit, Math.min(Number(env('ZEEV_DOC_CANDIDATE_ATTEMPT_LIMIT', '50')) || 50, 120))
   for (const doc of docs.slice(0, candidateLimit)) {
     if (attached >= effectiveLimit) break
-    const docKind = fiscalDocKind(doc)
+    const docKind = fiscalDocKindWithContext(doc, ticket, row)
     if (isAlwaysIgnoredZeevDocCandidate(doc)) {
       if (ignored.length < 8) ignored.push({ name: doc.name || '', source: doc.source || '', kind: docKind, reason: 'campo_de_formulario_sem_arquivo' })
       continue
@@ -4553,14 +4613,14 @@ function comparePaymentDocCandidates(a: AnyRecord, b: AnyRecord) {
 function hasStoredFiscalDoc(row: AnyRecord) {
   if (String(row?.nf_doc_path || '').trim()) return true
   return normalizeStoredDocs(row).some((doc: AnyRecord) => {
-    const kind = fiscalDocKind(doc)
+    const kind = fiscalDocKindWithContext(doc, row, row)
     return isInvoiceDocKind(kind) && Boolean(doc?.storagePath || doc?.path || doc?.url)
   })
 }
 
 function hasStoredChargeDoc(row: AnyRecord) {
   return normalizeStoredDocs(row).some((doc: AnyRecord) => {
-    const kind = fiscalDocKind(doc)
+    const kind = fiscalDocKindWithContext(doc, row, row)
     return isChargeDocKind(kind) && Boolean(doc?.storagePath || doc?.path || doc?.url)
   })
 }
@@ -4568,7 +4628,7 @@ function hasStoredChargeDoc(row: AnyRecord) {
 function hasStoredProofDoc(row: AnyRecord) {
   if (String(row?.comp_doc_path || '').trim()) return true
   return normalizeStoredDocs(row).some((doc: AnyRecord) => {
-    const kind = fiscalDocKind(doc)
+    const kind = fiscalDocKindWithContext(doc, row, row)
     return isProofDocKind(kind) && Boolean(doc?.storagePath || doc?.path || doc?.url)
   })
 }
@@ -4595,7 +4655,7 @@ function obraDoneEmailEnabled() {
 
 function docKindsForRow(row: AnyRecord) {
   const docs = normalizeStoredDocs(row)
-  const kinds = docs.map((doc: AnyRecord) => fiscalDocKind(doc))
+  const kinds = docs.map((doc: AnyRecord) => fiscalDocKindWithContext(doc, row, row))
   return {
     docs,
     hasAny: Boolean(docs.length || row?.nf_doc_path || row?.comp_doc_path),
@@ -4645,7 +4705,7 @@ async function summarizeObraDocScan(obraId: number, staleHours: number, obraInfo
     if (docsCheckIsStale(row, staleHours)) staleRows.push(row)
     if (!state.hasFiscal) missingFiscalRows.push(row)
     const docKey = state.docs
-      .map((doc: AnyRecord) => `${fiscalDocKind(doc)}:${storedDocKey(doc)}`)
+      .map((doc: AnyRecord) => `${fiscalDocKindWithContext(doc, row, row)}:${storedDocKey(doc)}`)
       .sort()
       .join(',')
     docFingerprints.push(`${row.id}:${tr}:${state.hasFiscal ? 1 : 0}:${state.hasCharge ? 1 : 0}:${docKey}`)
@@ -5287,7 +5347,7 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
       const current = recentDocMap.get(keyName)
       const item = {
         name,
-        kind: fiscalDocKind(doc),
+        kind: fiscalDocKindWithContext(doc, row, row),
         storagePath: doc?.storagePath || doc?.path || '',
         attachedAt: doc?.attachedAt || (ts ? new Date(ts).toISOString() : ''),
         _ts: ts,
@@ -5379,7 +5439,7 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
 function docRescueDetailRow(target: string, row: AnyRecord, tr: unknown) {
   const docs = normalizeStoredDocs(row)
   const audit = latestZeevDocAudit(row)
-  const counts = countStoredDocsByKind(docs)
+  const counts = countStoredDocsByKind(docs, row, row)
   return {
     target,
     id: row?.id || null,
@@ -5408,7 +5468,7 @@ function docRescueDetailRow(target: string, row: AnyRecord, tr: unknown) {
     } : null,
     files: docs.slice(0, 20).map((doc: AnyRecord) => ({
       name: doc.name || '',
-      kind: fiscalDocKind(doc),
+      kind: fiscalDocKindWithContext(doc, row, row),
       path: doc.storagePath || doc.path || '',
       sha256: doc.sha256 || '',
       attachedAt: doc.attachedAt || '',
@@ -5545,21 +5605,25 @@ function defaultPagadorForObra(obra: AnyRecord) {
 
 function fiscalTypeForTicket(ticket: AnyRecord, storedDocs: AnyRecord[]) {
   const candidates = [...storedDocs, ...zeevDocsFromTicket(ticket)]
-  const text = normKey(candidates.map((doc) => [doc?.name, doc?.source, doc?.type, doc?.kind].filter(Boolean).join(' ')).join(' '))
+  const text = normKey(candidates.map((doc) => [doc?.name, doc?.source, doc?.type, doc?.url, doc?.storagePath].filter(Boolean).join(' ')).join(' '))
+  const kinds = candidates.map((doc) => fiscalDocKindWithContext(doc, ticket, ticket))
   if (/\d{44}/.test(candidates.map((doc) => [doc?.name, doc?.source, doc?.url, doc?.storagePath].filter(Boolean).join(' ')).join(' '))) return 'NF-e'
   if (text.includes('nfe') || text.includes('danfe') || text.includes('xml')) return 'NF-e'
   if (text.includes('nfse') || text.includes('nfs e') || text.includes('nota') || text.includes('nf')) return 'NFS-e'
   if (text.includes('boleto')) return 'Boleto'
   if (text.includes('fatura')) return 'Fatura'
   if (text.includes('recibo')) return 'Recibo'
+  if (kinds.some((kind) => isInvoiceDocKind(kind))) return 'NFS-e'
+  if (kinds.some((kind) => isChargeDocKind(kind))) return 'Fatura'
+  if (kinds.some((kind) => isProofDocKind(kind))) return 'Recibo'
   if (candidates.length) return 'Documento'
   return 'Sem nota'
 }
 
 function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: string) {
   const storedDocs = normalizeStoredDocs(ticket)
-  const invoiceDocs = storedDocs.filter((doc) => isInvoiceDocKind(fiscalDocKind(doc)))
-  const comprovantes = storedDocs.filter((doc) => isProofDocKind(fiscalDocKind(doc)))
+  const invoiceDocs = storedDocs.filter((doc) => isInvoiceDocKind(fiscalDocKindWithContext(doc, ticket, ticket)))
+  const comprovantes = storedDocs.filter((doc) => isProofDocKind(fiscalDocKindWithContext(doc, ticket, ticket)))
   const nfTipo = fiscalTypeForTicket(ticket, storedDocs)
   const nfNum = ticket?.pagamento_json?.nota_fiscal
     || ticketFirstField(ticket, ['notaFiscal', 'numeroNF', 'numeroNotaFiscal', 'numero da nota fiscal', 'nf', 'fatura', 'boleto'])
