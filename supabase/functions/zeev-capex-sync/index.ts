@@ -5842,14 +5842,49 @@ function fiscalTypeForTicket(ticket: AnyRecord, storedDocs: AnyRecord[]) {
   if (/\d{44}/.test(candidates.map((doc) => [doc?.name, doc?.source, doc?.url, doc?.storagePath].filter(Boolean).join(' ')).join(' '))) return 'NF-e'
   if (text.includes('nfe') || text.includes('danfe') || text.includes('xml')) return 'NF-e'
   if (text.includes('nfse') || text.includes('nfs e') || text.includes('nota') || text.includes('nf')) return 'NFS-e'
-  if (text.includes('boleto')) return 'Boleto'
   if (text.includes('fatura')) return 'Fatura'
   if (text.includes('recibo')) return 'Recibo'
-  if (kinds.some((kind) => isInvoiceDocKind(kind))) return 'NFS-e'
+  if (text.includes('boleto')) return 'Boleto'
+  if (kinds.some((kind) => String(kind || '').toUpperCase() === 'FATURA')) return 'Fatura'
+  if (kinds.some((kind) => String(kind || '').toUpperCase() === 'RECIBO')) return 'Recibo'
+  if (kinds.some((kind) => String(kind || '').toUpperCase() === 'NF')) return 'NFS-e'
   if (kinds.some((kind) => isChargeDocKind(kind))) return 'Fatura'
   if (kinds.some((kind) => isProofDocKind(kind))) return 'Recibo'
   if (candidates.length) return 'Documento'
   return 'Sem nota'
+}
+
+function fiscalDocNumberFromText(raw: unknown, kind: unknown, nfTipo = '') {
+  const text = String(raw || '').trim()
+  if (!text) return ''
+  const upperKind = String(kind || '').toUpperCase()
+  if (upperKind === 'NF') {
+    const key = text.match(/\d{44}/)?.[0] || ''
+    if (key) return key.slice(25, 34).replace(/^0+(?=\d)/, '') || key
+  }
+  let base = text.replace(/\.[a-z0-9]{1,8}$/i, '')
+  base = base.replace(/(?:[_\-\s]+20\d{10,}.*)$/i, '')
+  const numbers = Array.from(base.matchAll(/\d+(?:[._-]\d+)*/g))
+    .map((m) => m[0])
+    .filter((n) => n.replace(/\D/g, '').length <= 14)
+    .filter((n) => !/^20\d{6,}$/.test(n.replace(/\D/g, '')))
+  const picked = numbers.length ? numbers[numbers.length - 1] : ''
+  if (!picked) return ''
+  if (upperKind === 'NF' || /nf|nota/i.test(nfTipo)) return picked.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+  return picked.replace(/_/g, '.').replace(/-(?=\d)/g, '.').replace(/\.+/g, '.').replace(/^\.+|\.+$/g, '')
+}
+
+function fiscalDocNumberForTicket(ticket: AnyRecord, storedDocs: AnyRecord[], nfTipo: string) {
+  const direct = ticket?.pagamento_json?.nota_fiscal
+    || ticketFirstField(ticket, ['notaFiscal', 'numeroNF', 'numeroNotaFiscal', 'numero da nota fiscal', 'nf', 'fatura', 'recibo', 'boleto'])
+    || ''
+  if (String(direct || '').trim()) return String(direct || '').trim()
+  const candidates = [...storedDocs, ...zeevDocsFromTicket(ticket)]
+  const fiscalDocs = candidates.filter((doc) => isInvoiceDocKind(fiscalDocKindWithContext(doc, ticket, ticket)))
+  const doc = fiscalDocs[0] || candidates[0]
+  if (!doc) return ''
+  const kind = fiscalDocKindWithContext(doc, ticket, ticket)
+  return fiscalDocNumberFromText([doc?.name, doc?.storagePath, doc?.url, doc?.source].filter(Boolean).join(' '), kind, nfTipo)
 }
 
 function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: string) {
@@ -5857,9 +5892,7 @@ function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: st
   const invoiceDocs = storedDocs.filter((doc) => isInvoiceDocKind(fiscalDocKindWithContext(doc, ticket, ticket)))
   const comprovantes = storedDocs.filter((doc) => isProofDocKind(fiscalDocKindWithContext(doc, ticket, ticket)))
   const nfTipo = fiscalTypeForTicket(ticket, storedDocs)
-  const nfNum = ticket?.pagamento_json?.nota_fiscal
-    || ticketFirstField(ticket, ['notaFiscal', 'numeroNF', 'numeroNotaFiscal', 'numero da nota fiscal', 'nf', 'fatura', 'boleto'])
-    || ''
+  const nfNum = fiscalDocNumberForTicket(ticket, storedDocs, nfTipo)
   const venc = dateOnly(ticket?.pagamento_json?.previsao_pagamento || ticket?.pagamento_json?.dataVencimento)
     || dateOnly(ticketFirstField(ticket, ['previsaoPagamento', 'dataDeVencimento', 'dataVencimento', 'dataPagamento']))
   const paidDate = paymentDateFromTicket(ticket)

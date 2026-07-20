@@ -4114,12 +4114,45 @@ function paymentNfNumber(p){
   return'';
 }
 
+function paymentDocDisplayType(doc,p){
+  const kind=paymentDocKindLabel(doc);
+  if(kind)return kind;
+  const tipo=String(p?.nfTipo||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  if(tipo.includes('FATURA'))return'FATURA';
+  if(tipo.includes('RECIBO'))return'RECIBO';
+  if(tipo.includes('BOLETO'))return'BOLETO';
+  if(tipo&&tipo!=='SEM NOTA')return'NF';
+  return'NF';
+}
+
+function paymentDocNumberFromText(raw,kind,tipo,dateIso){
+  const text=String(raw||'').trim();
+  if(!text)return'';
+  if(kind==='NF'){
+    const key=(text.match(/\d{44}/)||[])[0];
+    if(key)return cleanImpDocNumber(key,tipo||'NF-e',dateIso||'');
+    const direct=cleanImpDocNumber(text,tipo||'NFS-e',dateIso||'');
+    if(direct&&direct!==text)return direct;
+  }
+  let base=text.replace(/\.[a-z0-9]{1,8}$/i,'');
+  base=base.replace(/(?:[_\-\s]+20\d{10,}.*)$/,'');
+  const numbers=(base.match(/\d+(?:[._-]\d+)*/g)||[])
+    .filter(n=>n.replace(/\D/g,'').length<=14)
+    .filter(n=>!/^20\d{6,}$/.test(n.replace(/\D/g,'')));
+  const picked=numbers.length?numbers[numbers.length-1]:'';
+  if(!picked)return'';
+  if(kind==='NF')return cleanImpDocNumber(picked,tipo||'NFS-e',dateIso||'');
+  return picked.replace(/_/g,'.').replace(/-(?=\d)/g,'.').replace(/\.+/g,'.').replace(/^\.+|\.+$/g,'');
+}
+
 function paymentNfFileNumber(p){
   const tipo=p?.nfTipo||'NF-e';
   const fiscalDoc=(p?.nfDoc)||paymentFiscalDocs(p)[0]||null;
   const name=String(fiscalDoc?.name||fiscalDoc?.storagePath||'');
   const key=(name.match(/\d{44}/)||[])[0];
-  return key?cleanImpDocNumber(key,tipo):'';
+  if(key)return cleanImpDocNumber(key,tipo);
+  const kind=paymentDocDisplayType(fiscalDoc,p);
+  return paymentDocNumberFromText(name,kind,tipo,p?.emissao||p?.venc||'');
 }
 
 function paymentNfNumberKeys(p,opts){
@@ -4129,8 +4162,13 @@ function paymentNfNumberKeys(p,opts){
 }
 
 function paymentNfNumberLabel(p){
-  const nums=paymentNfNumberKeys(p);
-  return nums.length?'NF '+nums.join(', '):'';
+  const fiscalDoc=(p?.nfDoc)||paymentFiscalDocs(p)[0]||null;
+  const kind=paymentDocDisplayType(fiscalDoc,p);
+  const explicit=[p?.nfNum,p?.nota].filter(Boolean).map(v=>cleanImpDocNumber(v,p?.nfTipo||kind,p?.emissao||p?.venc||'')).find(Boolean);
+  const fileNum=paymentNfFileNumber(p);
+  const number=explicit||fileNum;
+  if(number)return kind+' '+number;
+  return fiscalDoc?kind:'';
 }
 
 function esferaNfSearchResults(query){
@@ -6879,9 +6917,13 @@ function capexZeevPagamentoDate(z,names){
 
 function capexBuildPagamentoFromZeev(z,obra,escopo){
   const valor=+z?.valor_final||+z?.valor||+(z?.pagamento_json?.valor_total||0)||0;
-  const docs=capexZeevFiscalDocuments(z);
-  const nfNum=String(z?.pagamento_json?.nota_fiscal||capexZeevAnyField(z,['notaFiscal','numeroNF','numeroNotaFiscal','numero da nota fiscal','nf'])||'').trim();
-  const hasDoc=docs.some(d=>d.url||d.name);
+  const storedDocs=capexZeevStoredDocs(z);
+  const candidateDocs=[...storedDocs,...capexZeevFiscalDocuments(z)];
+  const fiscalDoc=candidateDocs.find(paymentIsFiscalDoc)||null;
+  const fiscalKind=paymentDocDisplayType(fiscalDoc,{nfTipo:''});
+  const fiscalType=fiscalDoc?(fiscalKind==='FATURA'?'Fatura':fiscalKind==='RECIBO'?'Recibo':'NFS-e'):'Sem nota';
+  const nfNumRaw=String(z?.pagamento_json?.nota_fiscal||capexZeevAnyField(z,['notaFiscal','numeroNF','numeroNotaFiscal','numero da nota fiscal','nf','fatura','recibo'])||'').trim();
+  const nfNum=nfNumRaw||paymentDocNumberFromText([fiscalDoc?.name,fiscalDoc?.storagePath,fiscalDoc?.source].filter(Boolean).join(' '),fiscalKind,fiscalType);
   const venc=capexZeevPagamentoDate(z,['previsao_pagamento','dataVencimento','dataDeVencimento','previsaoPagamento','dataPagamento']);
   const dataPag=capexZeevPagamentoDate(z,['data_pagamento','dataPagamento']);
   const ref=capexZeevDescricaoLancamento(z)||z?.request_name||('Ticket Raiz '+(z?.zeev_instance_id||''));
@@ -6889,7 +6931,7 @@ function capexBuildPagamentoFromZeev(z,obra,escopo){
     ben:capexZeevFornecedor(z),
     v:valor,
     ref,
-    nfNum:cleanImpDocNumber(nfNum,hasDoc?'NFS-e':'Sem nota'),
+    nfNum:cleanImpDocNumber(nfNum,fiscalType),
     cat:PAYMENT_CAT_DEFAULT,
     sub:0,
     pagn:_defaultPagadorObra(obra),
@@ -6897,7 +6939,7 @@ function capexBuildPagamentoFromZeev(z,obra,escopo){
     venc:venc||dataPag||'',
     emissao:'',
     pagaEm:dataPag||'',
-    nfTipo:hasDoc?'NFS-e':'Sem nota',
+    nfTipo:fiscalType,
     contratoSeq:null,
     tipoCusto:'outros',
     escopoFin:escopo==='extra'?'extra':'obra',
@@ -6907,7 +6949,7 @@ function capexBuildPagamentoFromZeev(z,obra,escopo){
     pagForma:z?.pagamento_json?.forma||'A_VISTA',
     parcelas:[],
     itens:Array.isArray(z?.itens_json)?z.itens_json:[],
-    docs:capexZeevStoredDocs(z)
+    docs:storedDocs
   };
 }
 
@@ -6969,18 +7011,29 @@ function paymentDocNorm(doc){
   return capexZeevNormField([doc?.kind,doc?.name,doc?.source,doc?.type,doc?.storagePath].filter(Boolean).join(' '));
 }
 
-function paymentIsFiscalDoc(doc){
+function paymentDocKindLabel(doc){
+  const explicit=String(doc?.kind||'').toUpperCase().trim();
+  if(['FATURA','RECIBO','BOLETO','COMPROVANTE'].includes(explicit))return explicit;
+  if(['NF','NFE','NF-E','NFSE','NFS-E','DANFE','XML'].includes(explicit))return'NF';
   const n=paymentDocNorm(doc);
-  if(/boleto|fatura|comprovante|recibo|pix/.test(n))return false;
-  return /nf|nfe|nfse|nota|danfe|xml|documento/.test(n);
+  if(/fatura/.test(n))return'FATURA';
+  if(/recibo/.test(n))return'RECIBO';
+  if(/boleto/.test(n))return'BOLETO';
+  if(/comprovante|pix|pagamento|liquidado/.test(n))return'COMPROVANTE';
+  if(/xml|danfe|nfe|nfse|nota|nf|documento/.test(n))return'NF';
+  return'';
+}
+
+function paymentIsFiscalDoc(doc){
+  return ['NF','FATURA','RECIBO'].includes(paymentDocKindLabel(doc));
 }
 
 function paymentIsProofDoc(doc){
-  return /comprovante|recibo|pix/.test(paymentDocNorm(doc));
+  return paymentDocKindLabel(doc)==='COMPROVANTE';
 }
 
 function paymentIsChargeDoc(doc){
-  return /boleto|fatura/.test(paymentDocNorm(doc));
+  return ['BOLETO','FATURA'].includes(paymentDocKindLabel(doc));
 }
 
 function paymentFiscalDocs(p){
@@ -7011,12 +7064,13 @@ function hydratePaymentDocs(p){
 
 function paymentDocsLabel(p){
   const docs=paymentAllDocs(p);
-  const fiscal=docs.filter(paymentIsFiscalDoc).length;
-  const charge=docs.filter(paymentIsChargeDoc).length;
-  const proof=docs.filter(paymentIsProofDoc).length;
+  const countKind=kind=>docs.filter(d=>paymentDocKindLabel(d)===kind).length;
   const parts=[];
-  if(fiscal)parts.push(fiscal+' NF');
-  if(charge)parts.push(charge+' boleto/fatura');
+  const nf=countKind('NF'),fat=countKind('FATURA'),rec=countKind('RECIBO'),bol=countKind('BOLETO'),proof=countKind('COMPROVANTE');
+  if(nf)parts.push(nf+' NF');
+  if(fat)parts.push(fat+' fatura');
+  if(rec)parts.push(rec+' recibo');
+  if(bol)parts.push(bol+' boleto');
   if(proof)parts.push(proof+' comprovante');
   return parts.length?parts.join(' + '):(docs.length?(docs.length+' arquivo'+(docs.length!==1?'s':'')):'');
 }
@@ -7043,7 +7097,8 @@ function capexZeevDocKind(doc){
   const n=capexZeevNormField([doc?.name,doc?.source,doc?.type].filter(Boolean).join(' '));
   if(/boleto/.test(n))return'BOLETO';
   if(/fatura/.test(n))return'FATURA';
-  if(/comprovante|recibo|pix/.test(n))return'COMPROVANTE';
+  if(/recibo/.test(n))return'RECIBO';
+  if(/comprovante|pix/.test(n))return'COMPROVANTE';
   return'NF';
 }
 
@@ -7958,11 +8013,11 @@ function updateZeevObraDerivedFields(){
 }
 
 function capexZeevSuggestedFiscalType(z){
-  const docs=capexZeevFiscalDocuments(z);
+  const docs=[...capexZeevStoredDocs(z),...capexZeevFiscalDocuments(z)];
   const text=capexZeevNormField(docs.map(d=>[d.name,d.source,d.type].filter(Boolean).join(' ')).join(' '));
-  if(/boleto/.test(text))return'Boleto';
   if(/fatura/.test(text))return'Fatura';
   if(/recibo/.test(text))return'Recibo';
+  if(/boleto/.test(text))return'Boleto';
   if(/nfe|danfe|xml/.test(text))return'NF-e';
   if(docs.length)return'NFS-e';
   return'Sem nota';
@@ -7986,7 +8041,8 @@ async function openCapexZeevObraApproval(id){
   const tipo=capexZeevSuggestedFiscalType(z);
   const tipoEl=document.getElementById('zo-nf-tipo');
   if(tipoEl)tipoEl.value=tipo;
-  const nfNum=String(z?.pagamento_json?.nota_fiscal||capexZeevAnyField(z,['notaFiscal','numeroNF','numeroNotaFiscal','numero da nota fiscal','nf','fatura','boleto'])||'').trim();
+  const fiscalDoc=[...capexZeevStoredDocs(z),...capexZeevFiscalDocuments(z)].find(paymentIsFiscalDoc)||null;
+  const nfNum=String(z?.pagamento_json?.nota_fiscal||capexZeevAnyField(z,['notaFiscal','numeroNF','numeroNotaFiscal','numero da nota fiscal','nf','fatura','recibo','boleto'])||paymentDocNumberFromText([fiscalDoc?.name,fiscalDoc?.storagePath,fiscalDoc?.source].filter(Boolean).join(' '),paymentDocDisplayType(fiscalDoc,{nfTipo:tipo}),tipo)||'').trim();
   const ref=capexZeevDescricaoLancamento(z)||z.request_name||('Ticket Raiz '+(z.zeev_instance_id||id));
   const venc=capexZeevPagamentoDate(z,['previsao_pagamento','dataVencimento','dataDeVencimento','previsaoPagamento','dataPagamento']);
   document.getElementById('zo-ben').value=capexZeevFornecedor(z);
