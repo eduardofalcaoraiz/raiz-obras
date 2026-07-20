@@ -2956,12 +2956,50 @@ function looksLikeFileUrl(value: unknown) {
   }
 }
 
+function isBareZeevRootFileUrl(value: unknown) {
+  try {
+    const raw = String(value || '').trim()
+    if (!raw) return false
+    const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+    const url = new URL(raw, base)
+    const host = url.hostname.toLowerCase()
+    const isZeev = host === 'raizeducacao.zeev.it' || host.endsWith('.zeev.it') || host.includes('zeev')
+    if (!isZeev || url.search) return false
+    return /^\/[^/]+\.(pdf|xml|png|jpe?g|webp|tiff?|xlsx?|docx?|zip)$/i.test(decodeURIComponent(url.pathname || ''))
+  } catch (_) {
+    return false
+  }
+}
+
 function shouldAcceptZeevDocUrl(url: string, label = '', source = '') {
   if (isZeevNavigationUrl(url, label, source)) return false
+  if (isBareZeevRootFileUrl(url)) return false
   if (looksLikeFileUrl(url)) return true
   const sourceKey = normKey(source)
   if (/(githubdirect|downloadeddocs|zeevdownloadeddocs|directdownloadeddocs)/.test(sourceKey)) return true
   return false
+}
+
+function zeevDocUrlsFromHtml(html: string, baseUrl: string, label = '') {
+  const urls: string[] = []
+  const push = (value: unknown) => {
+    try {
+      const raw = decodeHtmlEntities(String(value || '')).trim()
+      if (!raw || raw.startsWith('#') || /^javascript:/i.test(raw)) return
+      const safe = safeZeevFileUrl(new URL(raw, baseUrl).toString())
+      if (!safe || urls.includes(safe)) return
+      if (!shouldAcceptZeevDocUrl(safe, label || fileNameFromDownloadPath(safe), 'download-html')) return
+      urls.push(safe)
+    } catch (_) {
+      // Ignore non-URL attributes from Zeev HTML wrappers.
+    }
+  }
+  const attrRe = /\b(?:href|src|data-url|data-href|data-download-url|download-url)=["']([^"']+)["']/gi
+  let match: RegExpExecArray | null
+  while ((match = attrRe.exec(String(html || '')))) push(match[1])
+  const absoluteRe = /https?:\/\/[^\s"'<>),;]+/gi
+  while ((match = absoluteRe.exec(String(html || '')))) push(match[0])
+  return urls.slice(0, 8)
 }
 
 function looksLikeDownloadPath(value: unknown) {
@@ -3033,11 +3071,13 @@ function dateOnly(value: unknown) {
 }
 
 function fiscalDocKind(doc: AnyRecord) {
-  const raw = [doc.name, doc.source, doc.type, doc.kind, doc.url, doc.storagePath].filter(Boolean).join(' ')
+  const urlName = doc?.url ? fileNameFromDownloadPath(doc.url, '') : ''
+  const raw = [doc.name, doc.source, doc.type, doc.kind, urlName, doc.storagePath].filter(Boolean).join(' ')
   const hay = norm(raw)
   if (hay.includes('comprovante') || hay.includes('recibo') || hay.includes('pix')) return 'COMPROVANTE'
   if (hay.includes('boleto')) return 'BOLETO'
   if (hay.includes('fatura')) return 'FATURA'
+  if (hay.includes('cotacao') && !/(nota|nfse|nfe|nfs|danfe|xml)/.test(hay)) return 'DOCUMENTO'
   if (/\d{44}/.test(raw)) return 'NF'
   if (hay.includes('xml') || hay.includes('danfe') || hay.includes('nota') || hay.includes('nf')) return 'NF'
   return 'DOCUMENTO'
@@ -3058,6 +3098,7 @@ function isIgnorableHtmlDownloadError(doc: AnyRecord, error: unknown) {
   const key = normKey([doc?.name, doc?.source].filter(Boolean).join(' '))
   if (key.includes('rawinstancedeep') && (key.includes('anexarboleto') || key.includes('boletoparcelado') || key.includes('boletoavista'))) return true
   if (key.includes('rawinstancedeep') && key.includes('comprovantedopagamento')) return true
+  if (key.includes('rawinstancedeep') && (key.includes('atribuaumanotaparaoatendimento') || key.includes('anexopdf') || key.includes('cotacaopdf'))) return true
   if (key.includes('rawinstanceformfieldsvalue')) return true
   if (key.includes('codigodebarras')) return true
   if (key.includes('codigodocentrodecusto')) return true
@@ -3491,6 +3532,23 @@ function storedDocKey(doc: AnyRecord) {
   return String(doc?.storagePath || doc?.url || doc?.name || '').trim().toLowerCase()
 }
 
+function storedDocTicketId(doc: AnyRecord) {
+  const explicit = ticketDigits(doc?.ticketRaiz || doc?.ticket_raiz || doc?.ticket || '')
+  if (explicit) return explicit
+  const path = String(doc?.storagePath || doc?.path || doc?.url || '')
+  return path.match(/zeev_tr_(\d+)/i)?.[1] || ''
+}
+
+function visibleStoredDocKey(doc: AnyRecord) {
+  const name = normKey(doc?.name || fileNameFromDownloadPath(doc?.storagePath || doc?.path || doc?.url || ''))
+  const ticket = storedDocTicketId(doc)
+  const path = String(doc?.storagePath || doc?.path || doc?.url || '')
+  const origin = String(doc?.origin || '').toUpperCase()
+  const fromZeev = origin === 'ZEEV' || /zeev_tr_\d+/i.test(path) || path.includes('zeev_pendente/')
+  if (!fromZeev || !ticket || !name) return ''
+  return `zeev:${ticket}:${fiscalDocKind(doc)}:${name}`
+}
+
 function normalizeStoredDocs(row: AnyRecord) {
   const docs: AnyRecord[] = []
   const push = (doc: AnyRecord | null, kind = '') => {
@@ -3499,13 +3557,55 @@ function normalizeStoredDocs(row: AnyRecord) {
     if (isInvalidStoredDoc(doc)) return
     const item = { ...doc, kind: doc.kind || kind, bucket: doc.bucket || 'pagamentos' }
     const key = storedDocKey(item)
+    const visibleKey = visibleStoredDocKey(item)
     if (!key || docs.some((d) => storedDocKey(d) === key)) return
+    if (visibleKey && docs.some((d) => visibleStoredDocKey(d) === visibleKey)) return
     docs.push(item)
   }
   for (const doc of Array.isArray(row?.docs_json) ? row.docs_json : []) push(doc, doc?.kind || '')
   if (row?.nf_doc_path) push({ name: String(row.nf_doc_path).split('/').pop(), storagePath: row.nf_doc_path, type: '', kind: 'NF', bucket: 'pagamentos' }, 'NF')
   if (row?.comp_doc_path) push({ name: String(row.comp_doc_path).split('/').pop(), storagePath: row.comp_doc_path, type: '', kind: 'COMPROVANTE', bucket: 'pagamentos' }, 'COMPROVANTE')
   return docs
+}
+
+async function storedDocsFromSameTicket(ticketId: string, target: 'pending' | 'payment' | 'capex', rowId: unknown) {
+  if (!ticketId) return []
+  const out: AnyRecord[] = []
+  const pushDocs = (sourceTarget: string, row: AnyRecord) => {
+    for (const doc of normalizeStoredDocs(row)) {
+      if (!storedDocPath(doc) && !doc?.url) continue
+      const cloned = {
+        ...doc,
+        origin: doc.origin || 'ZEEV',
+        copiedFromTarget: sourceTarget,
+        copiedFromRowId: row?.id || null,
+        ticketRaiz: storedDocTicketId(doc) || ticketId,
+      }
+      const key = visibleStoredDocKey(cloned) || storedDocKey(cloned)
+      if (!key || out.some((item) => (visibleStoredDocKey(item) || storedDocKey(item)) === key)) continue
+      out.push(cloned)
+    }
+  }
+  const sameRow = (sourceTarget: string, row: AnyRecord) => sourceTarget === target && String(row?.id || '') === String(rowId || '')
+  try {
+    const pending = await rest(`/capex_zeev_solicitacoes?select=id,zeev_instance_id,docs_json&zeev_instance_id=eq.${Number(ticketId)}&limit=8`)
+    for (const row of pending || []) if (!sameRow('pending', row)) pushDocs('pending', row)
+  } catch (_) {
+    // Cross-target reuse is best-effort; direct Zeev download remains the source of truth.
+  }
+  try {
+    const payments = await rest(`/pagamentos?select=id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json&ticket_raiz=eq.${Number(ticketId)}&limit=8`)
+    for (const row of payments || []) if (!sameRow('payment', row)) pushDocs('payment', row)
+  } catch (_) {
+    // Keep the rescue path resilient even if one table cannot be queried.
+  }
+  try {
+    const capex = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json&ticket_raiz_instance_id=eq.${Number(ticketId)}&limit=8`)
+    for (const row of capex || []) if (!sameRow('capex', row)) pushDocs('capex', row)
+  } catch (_) {
+    // Ignore cross-target lookup failures.
+  }
+  return out
 }
 
 function isInvalidStoredDoc(doc: AnyRecord) {
@@ -3626,6 +3726,17 @@ async function downloadZeevDocFromUrl(doc: AnyRecord, url: string, depth = 0): P
     if (confirmMatch) {
       const nestedUrl = new URL(confirmMatch[1].replace(/&amp;/g, '&'), url).toString()
       return await downloadZeevDocFromUrl(doc, nestedUrl, depth + 1)
+    }
+    if (depth < 2) {
+      for (const nestedUrl of zeevDocUrlsFromHtml(text, url, doc.name || 'documento-fiscal.pdf')) {
+        if (nestedUrl === url) continue
+        try {
+          const nested = await downloadZeevDocFromUrl(doc, nestedUrl, depth + 1)
+          if (nested) return nested
+        } catch (_) {
+          // Keep looking through the HTML wrapper before classifying it as unavailable.
+        }
+      }
     }
     throw new Error('URL retornou HTML em vez de arquivo para download.')
   }
@@ -4180,7 +4291,12 @@ async function loadPaymentTicketForRefresh(row: AnyRecord, storedTicket: AnyReco
 }
 
 async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row: AnyRecord, ticket: AnyRecord, limitFiles: number) {
-  const stored = normalizeStoredDocs(row)
+  let stored = normalizeStoredDocs(row)
+  const ticketId = ticketDigits(ticket.zeev_instance_id || row.ticket_raiz || row.ticket_raiz_instance_id || row.referencia || '')
+  if (ticketId && stored.length === 0) {
+    const reused = await storedDocsFromSameTicket(ticketId, target, row.id)
+    if (reused.length) stored = normalizeStoredDocs({ docs_json: reused })
+  }
   const docs = zeevDocsFromTicket(ticket)
     .filter((doc) => doc.url || doc.base64Content || doc.fileId)
     .sort((a: AnyRecord, b: AnyRecord) => financialDocPriority(a) - financialDocPriority(b))
@@ -4192,7 +4308,6 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
   const ignored: AnyRecord[] = []
   const newDocs: AnyRecord[] = []
   const storedHashCache = new Map<string, string>()
-  const ticketId = ticketDigits(ticket.zeev_instance_id || row.ticket_raiz || row.ticket_raiz_instance_id || row.referencia || '')
   let effectiveCandidateCount = 0
   let hasInvoiceCandidate = false
   let hasChargeCandidate = false
