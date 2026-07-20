@@ -2049,7 +2049,9 @@ def filename_from_download_path(value, fallback="documento-fiscal.pdf"):
 
 def doc_kind(name="", url="", source=""):
     hay = norm(" ".join([str(name or ""), str(url or ""), str(source or "")]))
-    if any(x in hay for x in ["comprovante", "recibo", "pix", "pagamento", "pago", "liquidado"]):
+    if "recibo" in hay:
+        return "RECIBO"
+    if any(x in hay for x in ["comprovante", "pix", "pagamento", "pago", "liquidado"]):
         return "COMPROVANTE"
     if "boleto" in hay:
         return "BOLETO"

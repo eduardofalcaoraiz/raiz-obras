@@ -3174,7 +3174,8 @@ function fiscalDocKind(doc: AnyRecord) {
   const urlName = doc?.url ? fileNameFromDownloadPath(doc.url, '') : ''
   const raw = [doc.name, doc.source, doc.type, doc.kind, urlName, doc.storagePath].filter(Boolean).join(' ')
   const hay = norm(raw)
-  if (hay.includes('comprovante') || hay.includes('recibo') || hay.includes('pix')) return 'COMPROVANTE'
+  if (hay.includes('recibo')) return 'RECIBO'
+  if (hay.includes('comprovante') || hay.includes('pix')) return 'COMPROVANTE'
   if (hay.includes('boleto')) return 'BOLETO'
   if (hay.includes('fatura')) return 'FATURA'
   if (/(cotacao|orcamento|proposta|mapa|contrato|memorial|cronograma|escopo|layout|projeto)/.test(hay) && !zeevDocHasExplicitFiscalOrPaymentTerms(doc)) return 'DOCUMENTO'
@@ -3260,7 +3261,7 @@ function isIgnorableHtmlDownloadError(doc: AnyRecord, error: unknown) {
 }
 
 function isInvoiceDocKind(kind: unknown) {
-  return String(kind || '').toUpperCase() === 'NF'
+  return ['NF', 'FATURA', 'RECIBO'].includes(String(kind || '').toUpperCase())
 }
 
 function isChargeDocKind(kind: unknown) {
@@ -3306,10 +3307,15 @@ function countStoredDocsByKind(docs: AnyRecord[], row?: AnyRecord, ticket?: AnyR
     if (!Boolean(doc?.storagePath || doc?.path || doc?.url)) continue
     out.total++
     const kind = fiscalDocKindWithContext(doc, ticket, row)
-    if (isInvoiceDocKind(kind)) out.fiscal++
-    else if (isChargeDocKind(kind)) out.charge++
-    else if (isProofDocKind(kind)) out.proof++
-    else out.other++
+    const counted = {
+      fiscal: isInvoiceDocKind(kind),
+      charge: isChargeDocKind(kind),
+      proof: isProofDocKind(kind),
+    }
+    if (counted.fiscal) out.fiscal++
+    if (counted.charge) out.charge++
+    if (counted.proof) out.proof++
+    if (!counted.fiscal && !counted.charge && !counted.proof) out.other++
   }
   return out
 }
@@ -4892,7 +4898,7 @@ async function sendObraDocScanEmail(summary: AnyRecord) {
   const missingRows = Array.isArray(summary.missingFiscalSample) ? summary.missingFiscalSample : []
   const missingHtml = missingRows.length
     ? `<div style="margin-top:16px">
-        <p style="margin:0 0 8px"><b>TRs ainda sem NF/DANFE/XML anexado</b> <span style="color:#6b6257">(primeiros ${missingRows.length})</span></p>
+        <p style="margin:0 0 8px"><b>TRs ainda sem documento fiscal anexado</b> <span style="color:#6b6257">(primeiros ${missingRows.length})</span></p>
         <table style="border-collapse:collapse;width:100%;font-size:13px">
           <thead>
             <tr>
@@ -4913,7 +4919,7 @@ async function sendObraDocScanEmail(summary: AnyRecord) {
           </tbody>
         </table>
       </div>`
-    : '<p style="margin:16px 0 0;color:#28704f"><b>Todos os pagamentos checados desta obra ja possuem NF/DANFE/XML anexado.</b></p>'
+    : '<p style="margin:16px 0 0;color:#28704f"><b>Todos os pagamentos checados desta obra ja possuem documento fiscal anexado.</b></p>'
   const html = `
     <div style="font-family:Arial,sans-serif;color:#173C34;line-height:1.5;background:#fffaf3;padding:20px;border-radius:12px">
       <p style="margin:0 0 6px;color:#a35a00;text-transform:uppercase;letter-spacing:.04em;font-size:12px"><b>Varredura Zeev concluida por obra</b></p>
@@ -4927,7 +4933,7 @@ async function sendObraDocScanEmail(summary: AnyRecord) {
             <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Valor auditado</b><br>${htmlEscape(formatBrMoney(summary.totalValue))}</td>
           </tr>
           <tr>
-            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Com NF/DANFE/XML</b><br>${htmlEscape(summary.withFiscalRows)}</td>
+            <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Com documento fiscal</b><br>${htmlEscape(summary.withFiscalRows)}</td>
             <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Com boleto/fatura</b><br>${htmlEscape(summary.withChargeRows)}</td>
             <td style="background:#ffffff;border:1px solid #eadcc9;border-radius:10px;padding:10px"><b>Com comprovante</b><br>${htmlEscape(summary.withProofRows)}</td>
           </tr>
@@ -5140,7 +5146,7 @@ async function runRescueBlockReport(input: AnyRecord = {}) {
       </table>
       <p style="margin:10px 0 0"><b>Ainda sem NF fiscal na fila:</b> ${htmlEscape(audit?.queue?.paymentFiscal || 0)} pagamentos. Eles voltarao a ser consultados nas proximas varreduras quando o prazo de rechecagem vencer ou o Zeev atualizar.</p>
       <p style="margin:10px 0 0"><b>Auditoria:</b> ${htmlEscape(audit?.audit?.blocked || 0)} bloqueado(s) por download, ${htmlEscape(audit?.audit?.partial || 0)} parcial(is), ${htmlEscape(audit?.audit?.noDocsInZeev || 0)} sem documento encontrado no Zeev.</p>
-      <p style="margin:10px 0 0"><b>Acumulado:</b> ${htmlEscape(audit?.docs?.withAnyDocs || 0)} tickets com algum documento, ${htmlEscape(audit?.docs?.withFiscalDocs || 0)} com NF/DANFE/XML, ${htmlEscape(audit?.docs?.withChargeDocs || 0)} com boleto/fatura e ${htmlEscape(audit?.docs?.withProofDocs || 0)} com comprovante.</p>
+      <p style="margin:10px 0 0"><b>Acumulado:</b> ${htmlEscape(audit?.docs?.withAnyDocs || 0)} tickets com algum documento, ${htmlEscape(audit?.docs?.withFiscalDocs || 0)} com documento fiscal, ${htmlEscape(audit?.docs?.withChargeDocs || 0)} com boleto/fatura e ${htmlEscape(audit?.docs?.withProofDocs || 0)} com comprovante.</p>
       <p style="margin:4px 0 0"><b>Origem da lista de anexos:</b> ${attachmentSource === 'bloco' ? 'resultado direto deste bloco' : 'janela recente da auditoria, pois o bloco nao trouxe lista detalhada'}.</p>
       ${errors.length ? `<p style="margin:10px 0;color:#a33"><b>Alertas/erros no bloco:</b> ${htmlEscape(JSON.stringify(errors.slice(0, 5)).slice(0, 1200))}</p>` : ''}
       ${attachmentRowsHtml(attachments)}
@@ -5676,7 +5682,7 @@ async function runDocMissingReport(input: AnyRecord = {}) {
     const state = docKindsForRow(row)
     for (const ref of refs) {
       if (!state.hasAny) pushMissingDocSample(out, 'missingAny', missingDocSampleRow(target, row, ref, 'sem nenhum anexo na plataforma'), sampleLimit)
-      if (fiscalRequired && !state.hasFiscal) pushMissingDocSample(out, 'missingFiscal', missingDocSampleRow(target, row, ref, 'sem NF/DANFE/XML na plataforma'), sampleLimit)
+      if (fiscalRequired && !state.hasFiscal) pushMissingDocSample(out, 'missingFiscal', missingDocSampleRow(target, row, ref, 'sem documento fiscal na plataforma'), sampleLimit)
       if (fiscalRequired && !state.hasCharge) pushMissingDocSample(out, 'missingCharge', missingDocSampleRow(target, row, ref, 'sem boleto/fatura na plataforma'), sampleLimit)
       if (fiscalRequired && !state.hasProof) pushMissingDocSample(out, 'missingProof', missingDocSampleRow(target, row, ref, 'sem comprovante na plataforma'), sampleLimit)
     }
