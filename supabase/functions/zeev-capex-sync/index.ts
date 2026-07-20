@@ -6757,11 +6757,12 @@ Deno.serve(async (req) => {
         || requestedLimit > directLimit
         || requestedFileLimit > directFileLimit
       if (!forceEdge && canDispatchGithub && heavyBackfill) {
+        const delegatedWorkflowMode = String(input.workflowMode || input.syncMode || (targetTicketIds.length ? 'rescue-docs' : 'rescue-docs-loop'))
         const out = await dispatchGithubWorkflow({
           ...input,
           mode: 'dispatch',
           target: 'github',
-          workflowMode: input.workflowMode || input.syncMode || 'rescue-docs',
+          workflowMode: delegatedWorkflowMode,
           ticketIds: targetTicketIds.join(','),
           backfillLimit: String(Math.max(requestedLimit, targetTicketIds.length || requestedLimit)),
           backfillBatch: String(input.backfillBatch || input.backfill_batch || '1'),
@@ -6776,7 +6777,7 @@ Deno.serve(async (req) => {
           mode: 'backfill-docs',
           delegated: true,
           delegatedTo: 'github-actions',
-          workflowMode: input.workflowMode || input.syncMode || 'rescue-docs',
+          workflowMode: delegatedWorkflowMode,
           delegationReason: 'backfill_pesado_delegado_para_worker_em_blocos',
           targetTicketIds,
           requestedLimit,
