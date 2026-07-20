@@ -1016,7 +1016,8 @@ async function enrichFieldsForFlow(flow: number) {
 
 async function documentFieldsForFlow(flow: number) {
   const configuredDocs = parseListEnv([env('ZEEV_EXTRA_DOCUMENT_FIELDS'), REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS].filter(Boolean).join(','))
-  const designDocs = envFlag('ZEEV_DOC_DESIGN_FIELDS_ENABLED')
+  const designDocsEnabled = env('ZEEV_DOC_DESIGN_FIELDS_ENABLED', '1') !== '0'
+  const designDocs = designDocsEnabled
     ? (await zeewFlowDesignDocumentFields(flow)).filter((field) => looksLikeZeevDocumentLabel(field))
     : []
   return [...new Set([...DOCUMENT_FIELDS, ...configuredDocs, ...designDocs])]
@@ -1663,11 +1664,32 @@ async function restAll(path: string, pageSize = 1000) {
   return rows
 }
 
+async function tokenFingerprint(value: string) {
+  const bytes = new TextEncoder().encode(String(value || ''))
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return hex.slice(0, 12)
+}
+
+async function zeevTokenDiagnostics() {
+  const tokens = zeevTokens()
+  const out: AnyRecord[] = []
+  for (const token of tokens) {
+    out.push({
+      length: String(token || '').length,
+      hasPercentEncoding: /%[0-9a-f]{2}/i.test(String(token || '')),
+      fingerprint: await tokenFingerprint(String(token || '')),
+    })
+  }
+  return out
+}
+
 async function runZeevTokenHealth() {
   const started = Date.now()
-  if (!zeevToken()) return { ok: false, status: 'missing_token', error: 'ZEEV_TOKEN ausente.' }
+  const tokenInfo = await zeevTokenDiagnostics()
+  if (!zeevToken()) return { ok: false, status: 'missing_token', error: 'ZEEV_TOKEN ausente.', tokenInfo }
   const instanceId = String(env('ZEEV_HEALTH_INSTANCE_ID', '151321') || '').replace(/\D+/g, '')
-  if (!instanceId) return { ok: true, status: 'skipped', reason: 'ZEEV_HEALTH_INSTANCE_ID ausente' }
+  if (!instanceId) return { ok: true, status: 'skipped', reason: 'ZEEV_HEALTH_INSTANCE_ID ausente', tokenInfo }
   try {
     const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
     const data = await zeevJsonRequest(`${base}/api/2/instances/${encodeURIComponent(instanceId)}`, {}, { timeoutMs: 9000 })
@@ -1676,11 +1698,12 @@ async function runZeevTokenHealth() {
       status: 'ok',
       instanceId,
       hasReportLink: Boolean(data?.reportLink),
+      tokenInfo,
       elapsedMs: Date.now() - started,
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
-    return { ok: false, status: 'unhealthy', instanceId, error: msg.slice(0, 700), elapsedMs: Date.now() - started }
+    return { ok: false, status: 'unhealthy', instanceId, error: msg.slice(0, 700), tokenInfo, elapsedMs: Date.now() - started }
   }
 }
 
@@ -2178,48 +2201,120 @@ async function zeevReport(flow: number, page: number, start: string, end: string
 async function zeevInstance(instanceId: number, flow: number, fields: string[]) {
   if (!zeevToken()) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
-  const url = new URL(`${base}/api/2/instances/${instanceId}`)
-  for (const field of fields) url.searchParams.append('formFieldNames', field)
-  url.searchParams.set('showPendingInstanceTasks', 'true')
-  url.searchParams.set('showFinishedInstanceTasks', 'true')
-  url.searchParams.set('showPendingAssignees', 'true')
-  url.searchParams.set('useCache', 'false')
-  url.searchParams.set('allowOpenUrlsForFilesInForm', 'true')
-  return await zeevJsonRequest(url.toString(), {
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
-    },
-  }, { needsFormFields: Array.isArray(fields) && fields.length > 0 })
+  const fieldList = [...new Set((fields || []).map((field) => String(field || '').trim()).filter(Boolean))]
+  const makeUrl = (options: { fields?: boolean; tasks?: boolean; cache?: boolean; openUrls?: boolean }) => {
+    const url = new URL(`${base}/api/2/instances/${instanceId}`)
+    if (options.fields) for (const field of fieldList) url.searchParams.append('formFieldNames', field)
+    if (options.tasks) {
+      url.searchParams.set('showPendingInstanceTasks', 'true')
+      url.searchParams.set('showFinishedInstanceTasks', 'true')
+      url.searchParams.set('showPendingAssignees', 'true')
+    }
+    if (options.cache) url.searchParams.set('useCache', 'false')
+    if (options.openUrls) url.searchParams.set('allowOpenUrlsForFilesInForm', 'true')
+    return url.toString()
+  }
+  const attempts = fieldList.length
+    ? [
+        makeUrl({ fields: true }),
+        makeUrl({ fields: true, tasks: true }),
+        makeUrl({ fields: true, tasks: true, cache: true }),
+        makeUrl({ fields: true, tasks: true, cache: true, openUrls: true }),
+      ]
+    : [
+        makeUrl({}),
+        makeUrl({ tasks: true }),
+        makeUrl({ tasks: true, cache: true }),
+        makeUrl({ tasks: true, cache: true, openUrls: true }),
+      ]
+  const errors: string[] = []
+  let fallback: AnyRecord | null = null
+  for (const url of [...new Set(attempts)]) {
+    try {
+      const data = await zeevJsonRequest(url, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+        },
+      }, { needsFormFields: fieldList.length > 0 })
+      if (data && typeof data === 'object' && !fallback) fallback = data
+      if (fieldList.length && !hasFormFields(data)) {
+        errors.push('consulta sem formFields para campos solicitados')
+        continue
+      }
+      return data
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500))
+    }
+  }
+  if (fallback) return fallback
+  throw new Error(`Zeev instance ${instanceId}: ${errors.join(' | ')}`)
 }
 
 async function zeevInstanceReport(instanceId: number, flow: number, fields: string[]) {
   if (!zeevToken()) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
-  const body: AnyRecord = {
+  const fieldList = [...new Set((fields || []).map((field) => String(field || '').trim()).filter(Boolean))]
+  const baseBody: AnyRecord = {
     instanceId,
     recordsPerPage: 10,
     pageNumber: 1,
     useCache: false,
-    simulation: false,
+  }
+  if (fieldList.length) baseBody.formFieldNames = fieldList
+  const taskBody: AnyRecord = {
+    ...baseBody,
     showPendingInstanceTasks: true,
     showFinishedInstanceTasks: true,
     showPendingAssignees: true,
+  }
+  const openUrlBody: AnyRecord = {
+    ...taskBody,
+    simulation: false,
     allowOpenUrlsForFilesInForm: true,
   }
-  if (flow) body.flowId = flow
-  if (Array.isArray(fields) && fields.length) body.formFieldNames = fields
-  const data = await zeevJsonRequest(`${base}/api/2/instances/report`, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
-    },
-    body: JSON.stringify(body),
-  }, { needsFormFields: Array.isArray(fields) && fields.length > 0, mergeRows: true })
-  const rows = Array.isArray(data) ? data : [data]
-  return rows.find((row: AnyRecord) => Number(row?.id) === Number(instanceId)) || rows[0] || {}
+  const bodies: AnyRecord[] = []
+  const addBody = (body: AnyRecord, includeFlow: boolean) => {
+    const next = { ...body }
+    if (flow && includeFlow) next.flowId = flow
+    const key = JSON.stringify(next)
+    if (!bodies.some((item) => JSON.stringify(item) === key)) bodies.push(next)
+  }
+  addBody(baseBody, true)
+  addBody(taskBody, true)
+  addBody(openUrlBody, true)
+  if (flow) {
+    addBody(baseBody, false)
+    addBody(taskBody, false)
+    addBody(openUrlBody, false)
+  }
+  const errors: string[] = []
+  let fallback: AnyRecord | null = null
+  for (const body of bodies) {
+    try {
+      const data = await zeevJsonRequest(`${base}/api/2/instances/report`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+        },
+        body: JSON.stringify(body),
+      }, { needsFormFields: fieldList.length > 0, mergeRows: true })
+      const rows = Array.isArray(data) ? data : [data]
+      const row = rows.find((item: AnyRecord) => Number(item?.id) === Number(instanceId)) || rows[0] || {}
+      if (row && typeof row === 'object' && Object.keys(row).length && !fallback) fallback = row
+      if (fieldList.length && !hasFormFields(row)) {
+        errors.push('report sem formFields para campos solicitados')
+        continue
+      }
+      return row
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500))
+    }
+  }
+  if (fallback) return fallback
+  throw new Error(`Zeev report instance ${instanceId}: ${errors.join(' | ')}`)
 }
 
 function knownZeevFlowIds(...values: unknown[]) {
@@ -4194,7 +4289,16 @@ async function loadTicketDocsFromZeev(row: AnyRecord) {
   const errors: AnyRecord[] = []
   let detail: AnyRecord = { ...baseRaw, id, formFields: baseFields, instanceTasks: baseTasks }
   let flowUsed = preferredFlow
-  for (const flow of knownZeevFlowIds(preferredFlow)) {
+  try {
+    const probe = await zeevInstance(id, preferredFlow, [])
+    if (probe && typeof probe === 'object') {
+      detail = { ...detail, ...probe }
+      flowUsed = Number(probe?.flow?.id || probe?.flowId || flowUsed || 0) || flowUsed
+    }
+  } catch (error) {
+    errors.push({ flow: preferredFlow || null, phase: 'minimal-instance', error: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300) })
+  }
+  for (const flow of knownZeevFlowIds(flowUsed || preferredFlow)) {
     let flowMatched = false
     let flowFields: AnyRecord[] = []
     try {
@@ -4220,6 +4324,24 @@ async function loadTicketDocsFromZeev(row: AnyRecord) {
     if (flowMatched) {
       detail.formFields = mergeFields(Array.isArray(detail.formFields) ? detail.formFields : [], flowFields)
       break
+    }
+  }
+  const reportLink = detail?.reportLink || detail?.reportUrl || row?.ticket_link || row?.ticket_raiz_url || ''
+  if (reportLink) {
+    try {
+      const report = await fetchReportLinkFields(reportLink)
+      if (report.fields.length) {
+        detail.formFields = mergeFields(Array.isArray(detail.formFields) ? detail.formFields : [], report.fields)
+        detail.__reportLinkExtraction = {
+          fields: report.fields.length,
+          length: report.length || 0,
+          contentType: report.contentType || '',
+        }
+      } else if (report.error) {
+        errors.push({ flow: flowUsed || null, phase: 'reportLink', error: report.error.slice(0, 300) })
+      }
+    } catch (error) {
+      errors.push({ flow: flowUsed || null, phase: 'reportLink', error: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300) })
     }
   }
   const merged = {
@@ -4568,6 +4690,28 @@ function readDocCheckedBefore(input: AnyRecord) {
   if (!raw) return 0
   const ts = new Date(raw).getTime()
   return Number.isFinite(ts) ? ts : 0
+}
+
+function inputObraIds(input: AnyRecord) {
+  const raw = input?.obraIds ?? input?.obra_ids ?? input?.obraId ?? input?.obra_id ?? ''
+  const values = Array.isArray(raw) ? raw : String(raw || '').split(/[\s,;|]+/)
+  return uniqueNumbers(values.map((value: unknown) => Number(value))).filter((value) => value > 0)
+}
+
+function inputPaymentScope(input: AnyRecord) {
+  const raw = normKey(input?.escopoFin ?? input?.escopo_fin ?? input?.escopo ?? input?.scope ?? '')
+  if (!raw) return ''
+  if (raw === 'obra' || raw.includes('dentrodaobra') || raw.includes('dentroobra')) return 'obra'
+  if (raw === 'extra' || raw.includes('fora') || raw.includes('caixaproprio')) return 'extra'
+  return raw
+}
+
+function paymentScopeMatches(row: AnyRecord, scope: string) {
+  if (!scope) return true
+  const value = normKey(row?.escopo_fin || row?.escopoFin || 'obra')
+  if (scope === 'obra') return !value || value === 'obra' || value.includes('dentro')
+  if (scope === 'extra') return value.includes('extra') || value.includes('fora') || value.includes('caixaproprio')
+  return value === scope
 }
 
 function docsCheckIsStale(row: AnyRecord, hours: number) {
@@ -5033,6 +5177,9 @@ function isFinancialZeevRow(row: AnyRecord) {
 
 async function runBackfillDocs(input: AnyRecord = {}) {
   const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+  const targetObraIds = inputObraIds(input)
+  const targetObraSet = new Set(targetObraIds.map((id) => Number(id)))
+  const paymentScope = inputPaymentScope(input)
   const limitMax = targetTicketIds.length ? 120 : 80
   const limit = Math.max(1, Math.min(Number(input.limit || 4), limitMax))
   const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || env('ZEEV_BACKFILL_FILE_LIMIT', '12')), 40))
@@ -5045,7 +5192,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   const includePayments = input.includePayments !== false
   const includeCapex = input.includeCapex !== false
   const scanStrategy = targetTicketIds.length ? 'trs-explicitos-com-fanout' : 'obras-primeiro-capex-registrado-depois-registros-pendentes'
-  const out: AnyRecord = { ok: true, mode: 'backfill-docs', scanStrategy, targetTicketIds, staleHours, checkedBefore: checkedBefore ? new Date(checkedBefore).toISOString() : '', scannedPending: 0, scannedPayments: 0, scannedCapex: 0, updatedPending: 0, updatedPayments: 0, updatedCapex: 0, filesAttached: 0, paidUpdated: 0, checkedWithoutFiscal: 0, checkedWithoutFiscalTickets: [], attachedTickets: [], errors: [] }
+  const out: AnyRecord = { ok: true, mode: 'backfill-docs', scanStrategy, targetTicketIds, targetObraIds, paymentScope, staleHours, checkedBefore: checkedBefore ? new Date(checkedBefore).toISOString() : '', scannedPending: 0, scannedPayments: 0, scannedCapex: 0, updatedPending: 0, updatedPayments: 0, updatedCapex: 0, filesAttached: 0, paidUpdated: 0, checkedWithoutFiscal: 0, checkedWithoutFiscalTickets: [], attachedTickets: [], errors: [] }
   const touchedObraIds = new Set<number>()
   let budget = limit
 
@@ -5082,12 +5229,17 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   }
 
   if (includePayments && budget > 0) {
-    const paymentBase = '/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&ticket_raiz=not.is.null&order=obra_id.asc.nullslast,id.asc'
+    const obraFilter = targetObraIds.length ? `&obra_id=in.(${targetObraIds.join(',')})` : ''
+    const paymentBase = `/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,escopo_fin,zeev_docs_checked_at&ticket_raiz=not.is.null${obraFilter}&order=obra_id.asc.nullslast,id.asc`
     const rows = targetTicketIds.length ? await restAll(paymentBase) : await rest(`${paymentBase}&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
       .filter((row: AnyRecord) => {
         const refs = paymentTicketRefs(row)
-        return refs.length && (!targetSet.size || refs.some((ref) => targetSet.has(ref))) && (targetSet.size || docsNeedRescue(row, staleHours, checkedBefore))
+        return refs.length
+          && (!targetObraSet.size || targetObraSet.has(Number(row.obra_id || 0)))
+          && paymentScopeMatches(row, paymentScope)
+          && (!targetSet.size || refs.some((ref) => targetSet.has(ref)))
+          && (targetSet.size || docsNeedRescue(row, staleHours, checkedBefore))
       })
       .sort(comparePaymentDocCandidates)
       .slice(0, budget)
@@ -5503,12 +5655,17 @@ function pushMissingDocSample(out: AnyRecord, key: string, sample: AnyRecord, sa
 
 async function runDocMissingReport(input: AnyRecord = {}) {
   const sampleLimit = Math.max(10, Math.min(Number(input.sampleLimit || input.sample_limit || 80), 300))
+  const targetObraIds = inputObraIds(input)
+  const targetObraSet = new Set(targetObraIds.map((id) => Number(id)))
+  const paymentScope = inputPaymentScope(input)
   const includePending = input.includePending !== false
   const includePayments = input.includePayments !== false
   const includeCapex = input.includeCapex !== false
   const out: AnyRecord = {
     ok: true,
     mode: 'doc-missing-report',
+    targetObraIds,
+    paymentScope,
     counts: { missingAny: 0, missingFiscal: 0, missingCharge: 0, missingProof: 0 },
     byTarget: {},
     samples: { missingAny: [], missingFiscal: [], missingCharge: [], missingProof: [] },
@@ -5525,8 +5682,13 @@ async function runDocMissingReport(input: AnyRecord = {}) {
     }
   }
   if (includePayments) {
-    const rows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz,ben,ref,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,zeev_docs_checked_at&ticket_raiz=not.is.null&order=obra_id.asc.nullslast,id.asc')
-    for (const row of rows || []) inspect('payment', row, paymentTicketRefs(row), true)
+    const obraFilter = targetObraIds.length ? `&obra_id=in.(${targetObraIds.join(',')})` : ''
+    const rows = await restAll(`/pagamentos?select=id,obra_id,ticket_raiz,ben,ref,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,escopo_fin,zeev_docs_checked_at&ticket_raiz=not.is.null${obraFilter}&order=obra_id.asc.nullslast,id.asc`)
+    for (const row of rows || []) {
+      if (targetObraSet.size && !targetObraSet.has(Number(row.obra_id || 0))) continue
+      if (!paymentScopeMatches(row, paymentScope)) continue
+      inspect('payment', row, paymentTicketRefs(row), true)
+    }
   }
   if (includePending) {
     const rows = await restAll('/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=start_date_time.asc.nullsfirst,id.asc')
