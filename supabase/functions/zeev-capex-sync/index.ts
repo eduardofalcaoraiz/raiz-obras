@@ -3132,7 +3132,7 @@ function latestZeevDocAudit(row: AnyRecord) {
 }
 
 function auditStatusNeedsAttention(status: unknown) {
-  return ['parcial_limite', 'bloqueado_download', 'pendente_download', 'erro_download', 'candidatos_sem_anexo'].includes(String(status || '').toLowerCase())
+  return ['parcial_limite', 'bloqueado_download', 'permissao_zeev_download', 'pendente_download', 'erro_download', 'candidatos_sem_anexo'].includes(String(status || '').toLowerCase())
 }
 
 function zeevDocAuditRetryAt(audit: AnyRecord | null | undefined) {
@@ -3179,10 +3179,12 @@ function buildZeevDocAudit(target: string, row: AnyRecord, ticket: AnyRecord, do
     && (!hasChargeCandidate || storedCounts.charge > 0)
     && (!hasProofCandidate || storedCounts.proof > 0)
   const retryMinutes = Math.max(5, Math.min(Number(env('ZEEV_DOC_RETRY_MINUTES', '360')) || 360, 1440))
+  const skippedHasPermissionError = skipped.some((item: AnyRecord) => /HTTP 403|permission|permiss/i.test(String(item?.reason || '')))
   let status = 'sem_documento_no_zeev'
   if (hasAnyCandidate && requiredKindsCovered && attached > 0) status = skipped.length ? 'concluido_com_alerta' : 'concluido'
   else if (hasAnyCandidate && requiredKindsCovered && attached <= 0) status = skipped.length ? 'ja_anexado_com_alerta' : 'ja_anexado'
   else if (hasAnyCandidate && unattempted > 0) status = 'parcial_limite'
+  else if (hasAnyCandidate && skippedHasPermissionError) status = 'permissao_zeev_download'
   else if (hasAnyCandidate && skipped.length) status = 'bloqueado_download'
   else if (hasAnyCandidate && attached > 0) status = 'concluido'
   else if (hasAnyCandidate && storedCounts.total > 0) status = 'ja_anexado'
@@ -3228,9 +3230,35 @@ function financialDocPriority(doc: AnyRecord) {
   return 4
 }
 
+function isGenericZeevDocName(value: unknown) {
+  const key = normKey(value)
+  if (!key) return true
+  return [
+    'anexo',
+    'arquivo',
+    'documento',
+    'documentozee',
+    'documentozeev',
+    'documentofiscal',
+    'cotacao',
+    'download',
+    'file',
+    'attachment',
+    'rawinstanceformfieldsvalue',
+  ].includes(key)
+}
+
+function preferredZeevDocName(name: unknown, url: unknown) {
+  const cleanName = String(name || '').trim()
+  const fromUrl = fileNameFromDownloadPath(url, '').trim()
+  const urlHasConcreteFileName = Boolean(fromUrl && /\.[A-Za-z0-9]{2,8}$/.test(fromUrl) && !isGenericZeevDocName(fromUrl))
+  if (urlHasConcreteFileName && isGenericZeevDocName(cleanName)) return fromUrl
+  return cleanName || fromUrl || 'documento-fiscal.pdf'
+}
+
 function pushZeevDoc(out: AnyRecord[], name: unknown, url: unknown, type = '', source = '') {
   const cleanUrl = safeZeevFileUrl(url)
-  const cleanName = String(name || 'documento-fiscal.pdf').trim()
+  const cleanName = preferredZeevDocName(name || 'documento-fiscal.pdf', cleanUrl || url)
   if (!cleanUrl) return
   if (!shouldAcceptZeevDocUrl(cleanUrl, cleanName, source)) return
   const key = `${cleanUrl}|${source || cleanName}`
@@ -5219,6 +5247,7 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
   const auditStatusCounts: Record<string, number> = {}
   const auditAttention = new Set<string>()
   const auditBlocked = new Set<string>()
+  const auditPermission = new Set<string>()
   const auditPartial = new Set<string>()
   const auditNoDocs = new Set<string>()
   const addAll = (value: unknown) => {
@@ -5240,6 +5269,7 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
       auditStatusCounts[status] = (auditStatusCounts[status] || 0) + 1
       if (status === 'sem_documento_no_zeev') auditNoDocs.add(key)
       if (status === 'bloqueado_download' || status === 'erro_download') auditBlocked.add(key)
+      if (status === 'permissao_zeev_download') auditPermission.add(key)
       if (status === 'parcial_limite') auditPartial.add(key)
       if (auditStatusNeedsAttention(status)) auditAttention.add(key)
     }
@@ -5332,14 +5362,16 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
       statusCounts: auditStatusCounts,
       attention: auditAttention.size,
       blocked: auditBlocked.size,
+      permission: auditPermission.size,
       partial: auditPartial.size,
       noDocsInZeev: auditNoDocs.size,
       attentionSample: [...auditAttention].slice(0, sampleLimit).map(Number),
       blockedSample: [...auditBlocked].slice(0, sampleLimit).map(Number),
+      permissionSample: [...auditPermission].slice(0, sampleLimit).map(Number),
       partialSample: [...auditPartial].slice(0, sampleLimit).map(Number),
       noDocsSample: [...auditNoDocs].slice(0, sampleLimit).map(Number),
     },
-    queue: { total: rescueQueue.size, paymentFiscal: paymentFiscalQueue.size, blocked: auditBlocked.size, partial: auditPartial.size, attention: auditAttention.size, strategy: 'obras-primeiro-capex-registrado-depois-registros-pendentes', sample: [...rescueQueue].slice(0, sampleLimit).map(Number) },
+    queue: { total: rescueQueue.size, paymentFiscal: paymentFiscalQueue.size, blocked: auditBlocked.size, permission: auditPermission.size, partial: auditPartial.size, attention: auditAttention.size, strategy: 'obras-primeiro-capex-registrado-depois-registros-pendentes', sample: [...rescueQueue].slice(0, sampleLimit).map(Number) },
     recentAttached: { hours: recentHours, total: recentAttached.length, tickets: recentAttached.slice(0, sampleLimit) },
   }
 }
