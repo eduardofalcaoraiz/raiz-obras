@@ -5476,6 +5476,70 @@ function docRescueDetailRow(target: string, row: AnyRecord, tr: unknown) {
   }
 }
 
+function missingDocSampleRow(target: string, row: AnyRecord, tr: unknown, issue: string) {
+  return {
+    target,
+    rowId: row?.id || null,
+    tr: Number(ticketDigits(tr) || 0) || ticketDigits(tr),
+    issue,
+    status: row?.st || row?.status || row?.situacao || '',
+    checkedAt: row?.zeev_docs_checked_at || '',
+    obraId: row?.obra_id || null,
+    resumo: row?.ben || row?.ref || row?.request_name || row?.flow_name || row?.referencia || '',
+  }
+}
+
+function pushMissingDocSample(out: AnyRecord, key: string, sample: AnyRecord, sampleLimit: number) {
+  if (!key || !sample?.tr) return
+  if (!out._seen[key]) out._seen[key] = new Set<string>()
+  const uniqueKey = `${sample.target}|${sample.rowId}|${sample.tr}|${sample.issue}`
+  if (out._seen[key].has(uniqueKey)) return
+  out._seen[key].add(uniqueKey)
+  out.counts[key] = Number(out.counts[key] || 0) + 1
+  out.byTarget[sample.target] = out.byTarget[sample.target] || { missingAny: 0, missingFiscal: 0, missingCharge: 0, missingProof: 0 }
+  out.byTarget[sample.target][key] = Number(out.byTarget[sample.target][key] || 0) + 1
+  if (out.samples[key].length < sampleLimit) out.samples[key].push(sample)
+}
+
+async function runDocMissingReport(input: AnyRecord = {}) {
+  const sampleLimit = Math.max(10, Math.min(Number(input.sampleLimit || input.sample_limit || 80), 300))
+  const includePending = input.includePending !== false
+  const includePayments = input.includePayments !== false
+  const includeCapex = input.includeCapex !== false
+  const out: AnyRecord = {
+    ok: true,
+    mode: 'doc-missing-report',
+    counts: { missingAny: 0, missingFiscal: 0, missingCharge: 0, missingProof: 0 },
+    byTarget: {},
+    samples: { missingAny: [], missingFiscal: [], missingCharge: [], missingProof: [] },
+    _seen: { missingAny: new Set<string>(), missingFiscal: new Set<string>(), missingCharge: new Set<string>(), missingProof: new Set<string>() },
+  }
+  const inspect = (target: string, row: AnyRecord, refs: string[], fiscalRequired = false) => {
+    if (!refs.length) return
+    const state = docKindsForRow(row)
+    for (const ref of refs) {
+      if (!state.hasAny) pushMissingDocSample(out, 'missingAny', missingDocSampleRow(target, row, ref, 'sem nenhum anexo na plataforma'), sampleLimit)
+      if (fiscalRequired && !state.hasFiscal) pushMissingDocSample(out, 'missingFiscal', missingDocSampleRow(target, row, ref, 'sem NF/DANFE/XML na plataforma'), sampleLimit)
+      if (fiscalRequired && !state.hasCharge) pushMissingDocSample(out, 'missingCharge', missingDocSampleRow(target, row, ref, 'sem boleto/fatura na plataforma'), sampleLimit)
+      if (fiscalRequired && !state.hasProof) pushMissingDocSample(out, 'missingProof', missingDocSampleRow(target, row, ref, 'sem comprovante na plataforma'), sampleLimit)
+    }
+  }
+  if (includePayments) {
+    const rows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz,ben,ref,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,zeev_docs_checked_at&ticket_raiz=not.is.null&order=obra_id.asc.nullslast,id.asc')
+    for (const row of rows || []) inspect('payment', row, paymentTicketRefs(row), true)
+  }
+  if (includePending) {
+    const rows = await restAll('/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=start_date_time.asc.nullsfirst,id.asc')
+    for (const row of rows || []) inspect('pending', row, [ticketDigits(row.zeev_instance_id)].filter(Boolean), isFinancialZeevRow(row))
+  }
+  if (includeCapex) {
+    const rows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at,situacao,realizado&order=id.asc')
+    for (const row of rows || []) inspect('capex', row, capexTicketRefs(row), false)
+  }
+  delete out._seen
+  return out
+}
+
 async function runDocRescueDetail(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || input.ticketId || input.ticket_id || '')
   if (!ticketIds.length) throw new Error('Informe ao menos um TR para detalhar auditoria.')
@@ -6314,6 +6378,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'doc-rescue-detail') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await runDocRescueDetail(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'doc-missing-report') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await runDocMissingReport(input || {})
       return json(out)
     }
     if (input?.mode === 'probe-zeev-doc-download') {
