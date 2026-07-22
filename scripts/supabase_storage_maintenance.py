@@ -147,8 +147,17 @@ def dedupe_bucket(bucket, objects):
 def compress_pdf(data):
     import fitz
 
+    # MuPDF may print parser diagnostics for malformed-but-readable PDFs.
+    # Keep logs clean; real failures are still caught by the caller.
+    for method in ("mupdf_display_errors", "mupdf_display_warnings"):
+        try:
+            getattr(fitz.TOOLS, method)(False)
+        except Exception:
+            pass
+
     src = fitz.open(stream=data, filetype="pdf")
     if src.is_encrypted:
+        src.close()
         return None, "encrypted_pdf"
     out = io.BytesIO()
     src.save(out, garbage=4, deflate=True, clean=True)
