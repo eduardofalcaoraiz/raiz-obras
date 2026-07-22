@@ -1025,7 +1025,6 @@ select.multi-unit-select{display:none!important}
 .reading{text-align:center;padding:30px 10px;display:none}
 
 .reading .spin{width:32px;height:32px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;margin:0 auto 14px;animation:sp 1s linear infinite}
-
 @keyframes sp{to{transform:rotate(360deg)}}
 
 .review-panel{display:none}
@@ -3665,15 +3664,7 @@ function scheduleCapexDataWarmLoad(delay){
 }
 
 function capexLoadingPanel(title,sub){
-  return`<div class="card" style="padding:22px;border-style:dashed">
-    <div style="display:flex;align-items:center;gap:13px">
-      <div style="width:30px;height:30px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;flex:none"></div>
-      <div>
-        <div style="font-size:16px;font-weight:850;color:var(--ink)">${escHtml(title||'Carregando')}</div>
-        <div class="sub" style="margin:2px 0 0">${escHtml(sub||'Buscando dados na nuvem sem bloquear o restante da plataforma.')}</div>
-      </div>
-    </div>
-  </div>`;
+  return '';
 }
 
 // FONTES removido — pagantes são escolas e investidores cadastrados na plataforma
@@ -7208,6 +7199,8 @@ function normalizePaymentDocs(p){
     if(!doc)return;
     if(isZeevAuditDocClient(doc))return;
     const item={...doc,kind:doc.kind||kind||'',bucket:doc.bucket||'pagamentos',type:doc.type||inferType(doc.name||doc.storagePath||'')};
+    const corrected=paymentDocKindLabel(item);
+    if(corrected)item.kind=corrected;
     const key=paymentDocKey(item);
     if(!key||rows.some(x=>paymentDocKey(x)===key))return;
     rows.push(item);
@@ -7222,7 +7215,16 @@ function paymentDocNorm(doc){
   return capexZeevNormField([doc?.kind,doc?.name,doc?.source,doc?.type,doc?.storagePath].filter(Boolean).join(' '));
 }
 
+function paymentDocFileNorm(doc){
+  return capexZeevNormField([doc?.name,doc?.source,doc?.url,doc?.storagePath,doc?.path].filter(Boolean).join(' '));
+}
+
 function paymentDocKindLabel(doc){
+  const file=paymentDocFileNorm(doc);
+  if(/comprovante|pix|liquidado|liquidacao|pago/.test(file))return'COMPROVANTE';
+  if(/boleto/.test(file))return'BOLETO';
+  if(/fatura/.test(file))return'FATURA';
+  if(/recibo/.test(file))return'RECIBO';
   const explicit=String(doc?.kind||'').toUpperCase().trim();
   if(['FATURA','RECIBO','BOLETO','COMPROVANTE'].includes(explicit))return explicit;
   if(['NF','NFE','NF-E','NFSE','NFS-E','DANFE','XML'].includes(explicit))return'NF';
@@ -7230,7 +7232,7 @@ function paymentDocKindLabel(doc){
   if(/fatura/.test(n))return'FATURA';
   if(/recibo/.test(n))return'RECIBO';
   if(/boleto/.test(n))return'BOLETO';
-  if(/comprovante|pix|pagamento|liquidado/.test(n))return'COMPROVANTE';
+  if(/comprovante|pix|liquidado|liquidacao|pago/.test(n))return'COMPROVANTE';
   if(/xml|danfe|nfe|nfse|nota|nf|documento/.test(n))return'NF';
   return'';
 }
@@ -7261,6 +7263,16 @@ function paymentChargeDocs(p){
 
 function hydratePaymentDocs(p){
   if(!p)return p;
+  if(p.nfDoc){
+    const kind=paymentDocKindLabel(p.nfDoc);
+    p.nfDoc=kind?{...p.nfDoc,kind}:p.nfDoc;
+    if(!paymentIsFiscalDoc(p.nfDoc))p.nfDoc=null;
+  }
+  if(p.compDoc){
+    const kind=paymentDocKindLabel(p.compDoc);
+    p.compDoc=kind?{...p.compDoc,kind}:p.compDoc;
+    if(!paymentIsProofDoc(p.compDoc))p.compDoc=null;
+  }
   p.docs=normalizePaymentDocs(p);
   if(!p.nfDoc){
     const nf=p.docs.find(paymentIsFiscalDoc);
@@ -7275,9 +7287,11 @@ function hydratePaymentDocs(p){
 
 function applyPaymentHeavyRow(p,row){
   if(!p||!row)return p;
-  if(row.nf_doc_path&&!p.nfDoc)p.nfDoc={name:String(row.nf_doc_path).split('/').pop(),storagePath:row.nf_doc_path,type:inferType(row.nf_doc_path),bucket:'pagamentos',kind:'NF'};
-  if(row.comp_doc_path&&!p.compDoc)p.compDoc={name:String(row.comp_doc_path).split('/').pop(),storagePath:row.comp_doc_path,type:inferType(row.comp_doc_path),bucket:'pagamentos',kind:'COMPROVANTE'};
   p.docs=Array.isArray(row.docs_json)?row.docs_json:[];
+  if(row.nf_doc_path)p.docs.push({name:String(row.nf_doc_path).split('/').pop(),storagePath:row.nf_doc_path,type:inferType(row.nf_doc_path),bucket:'pagamentos',kind:'NF'});
+  if(row.comp_doc_path)p.docs.push({name:String(row.comp_doc_path).split('/').pop(),storagePath:row.comp_doc_path,type:inferType(row.comp_doc_path),bucket:'pagamentos',kind:'COMPROVANTE'});
+  p.nfDoc=null;
+  p.compDoc=null;
   p.parcelas=Array.isArray(row.parcelas)?row.parcelas:[];
   p.itens=Array.isArray(row.itens_pag)?row.itens_pag:[];
   p._heavyLoaded=true;
@@ -7361,7 +7375,7 @@ function paymentDocsCount(p){
 }
 
 function capexZeevDocKind(doc){
-  const n=capexZeevNormField([doc?.name,doc?.source,doc?.type].filter(Boolean).join(' '));
+  const n=capexZeevNormField([doc?.name,doc?.source,doc?.type,doc?.url,doc?.storagePath,doc?.path].filter(Boolean).join(' '));
   if(/boleto/.test(n))return'BOLETO';
   if(/fatura/.test(n))return'FATURA';
   if(/recibo/.test(n))return'RECIBO';
@@ -7375,9 +7389,9 @@ async function capexImportAllZeevDocsToPayment(obra,pag,z){
   pag.docs=normalizePaymentDocs(pag);
   capexZeevStoredDocs(z).forEach(doc=>{
     addPaymentDoc(pag,doc,doc.kind||'ZEEV');
-    const kind=String(doc.kind||'').toUpperCase();
-    if(kind==='COMPROVANTE'&&!pag.compDoc)pag.compDoc=doc;
-    if(kind!=='COMPROVANTE'&&!pag.nfDoc)pag.nfDoc=doc;
+    const normalized={...doc,kind:paymentDocKindLabel(doc)||doc.kind||''};
+    if(paymentIsProofDoc(normalized)&&!pag.compDoc)pag.compDoc=normalized;
+    if(paymentIsFiscalDoc(normalized)&&!pag.nfDoc)pag.nfDoc=normalized;
   });
   if(!docs.length)return 0;
   for(const doc of docs){

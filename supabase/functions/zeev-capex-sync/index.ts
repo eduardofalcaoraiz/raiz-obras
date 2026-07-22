@@ -3229,9 +3229,30 @@ function dateOnly(value: unknown) {
   return d.toISOString().slice(0, 10)
 }
 
-function fiscalDocKind(doc: AnyRecord) {
+function explicitDocKindFromFileContext(doc: AnyRecord) {
   const urlName = doc?.url ? fileNameFromDownloadPath(doc.url, '') : ''
-  const raw = [doc.name, doc.source, doc.type, doc.kind, urlName, doc.storagePath].filter(Boolean).join(' ')
+  const sourceKey = normKey([doc?.source, doc?.field, doc?.fieldName, doc?.label].filter(Boolean).join(' '))
+  const fileKey = normKey([doc?.name, urlName, doc?.storagePath, doc?.path].filter(Boolean).join(' '))
+  const fileText = norm([doc?.name, urlName, doc?.storagePath, doc?.path].filter(Boolean).join(' '))
+  if (/(comprovante|comprovantedopagamento|arquivocomprovante|documentocomprovante|pix)/.test(sourceKey)) return 'COMPROVANTE'
+  if (/(anexarboleto|boletoparcelado|boletoavista|boleto)/.test(sourceKey)) return 'BOLETO'
+  if (/(fatura)/.test(sourceKey)) return 'FATURA'
+  if (/(recibo)/.test(sourceKey)) return 'RECIBO'
+  if (/(comprovante|pix|liquidado|liquidacao|pago)/.test(fileKey)) return 'COMPROVANTE'
+  if (/(boleto|boletoparcelado|boletoavista)/.test(fileKey)) return 'BOLETO'
+  if (/(fatura)/.test(fileKey) || /(?:^|\s)ft\s*0*\d{2,}(?:\s|$)/.test(fileText) || /^ft0*\d{2,}/.test(fileKey)) return 'FATURA'
+  if (/(recibo)/.test(fileKey)) return 'RECIBO'
+  return ''
+}
+
+function fiscalDocKind(doc: AnyRecord) {
+  const explicitKind = explicitDocKindFromFileContext(doc)
+  if (explicitKind) return explicitKind
+  const declaredKind = String(doc?.kind || '').toUpperCase().trim()
+  if (['NF', 'NFE', 'NF-E', 'NFSE', 'NFS-E', 'DANFE', 'XML'].includes(declaredKind)) return 'NF'
+  if (['FATURA', 'RECIBO', 'BOLETO', 'COMPROVANTE', 'DOCUMENTO'].includes(declaredKind)) return declaredKind
+  const urlName = doc?.url ? fileNameFromDownloadPath(doc.url, '') : ''
+  const raw = [doc.name, doc.source, doc.type, urlName, doc.storagePath, doc.path].filter(Boolean).join(' ')
   const nameRaw = [doc.name, urlName, doc.storagePath].filter(Boolean).join(' ')
   const nameText = norm(nameRaw)
   const nameKey = normKey(nameRaw)
@@ -3240,7 +3261,6 @@ function fiscalDocKind(doc: AnyRecord) {
   if (hay.includes('comprovante') || hay.includes('pix')) return 'COMPROVANTE'
   if (hay.includes('fatura') || /(?:^|\s)ft\s*0*\d{2,}(?:\s|$)/.test(nameText) || /^ft0*\d{2,}/.test(nameKey)) return 'FATURA'
   if (hay.includes('boleto')) return 'BOLETO'
-  if (hay.includes('fatura')) return 'FATURA'
   if (/(cotacao|orcamento|proposta|mapa|contrato|memorial|cronograma|escopo|layout|projeto)/.test(hay) && !zeevDocHasExplicitFiscalOrPaymentTerms(doc)) return 'DOCUMENTO'
   if (/\d{44}/.test(raw)) return 'NF'
   if (hay.includes('xml') || hay.includes('danfe') || hay.includes('nota') || hay.includes('nf')) return 'NF'
@@ -3854,7 +3874,8 @@ function normalizeStoredDocs(row: AnyRecord) {
     if (!doc) return
     if (isZeevAuditDoc(doc)) return
     if (isInvalidStoredDoc(doc)) return
-    const item = { ...doc, kind: doc.kind || kind, bucket: doc.bucket || 'pagamentos' }
+    const base = { ...doc, kind: doc.kind || kind, bucket: doc.bucket || 'pagamentos' }
+    const item = { ...base, kind: fiscalDocKindWithContext(base, row, row) || base.kind }
     const key = storedDocKey(item)
     const visibleKey = visibleStoredDocKey(item)
     if (!key || docs.some((d) => storedDocKey(d) === key)) return
@@ -4651,8 +4672,13 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
     .filter((doc) => doc.url || doc.base64Content || doc.fileId)
     .sort((a: AnyRecord, b: AnyRecord) => financialDocPriority(a, ticket, row) - financialDocPriority(b, ticket, row))
   let attached = 0
-  let nfPath = row.nf_doc_path || ''
-  let compPath = row.comp_doc_path || ''
+  let nfPath = ''
+  let compPath = ''
+  for (const doc of stored) {
+    const kind = fiscalDocKindWithContext(doc, ticket, row)
+    if (!nfPath && isInvoiceDocKind(kind)) nfPath = String(doc.storagePath || doc.path || '')
+    if (!compPath && isProofDocKind(kind)) compPath = String(doc.storagePath || doc.path || '')
+  }
   const skipped: AnyRecord[] = []
   const deduped: AnyRecord[] = []
   const ignored: AnyRecord[] = []
@@ -4817,11 +4843,21 @@ function recordAttachedDocs(out: AnyRecord, target: string, row: AnyRecord, tick
 }
 
 function checkedRowWithAttach(row: AnyRecord, attach: AnyRecord) {
-  return {
+  const docs = normalizeStoredDocs({
     ...row,
     docs_json: Array.isArray(attach?.docs) ? attach.docs : row?.docs_json,
     nf_doc_path: attach?.nfPath || row?.nf_doc_path || '',
     comp_doc_path: attach?.compPath || row?.comp_doc_path || '',
+  })
+  const firstPathBy = (predicate: (kind: string) => boolean) => {
+    const found = docs.find((doc: AnyRecord) => predicate(fiscalDocKindWithContext(doc, row, row)) && Boolean(doc?.storagePath || doc?.path))
+    return found ? String(found.storagePath || found.path || '') : ''
+  }
+  return {
+    ...row,
+    docs_json: docs,
+    nf_doc_path: firstPathBy(isInvoiceDocKind),
+    comp_doc_path: firstPathBy(isProofDocKind),
   }
 }
 
@@ -4919,7 +4955,6 @@ function comparePaymentDocCandidates(a: AnyRecord, b: AnyRecord) {
 }
 
 function hasStoredFiscalDoc(row: AnyRecord) {
-  if (String(row?.nf_doc_path || '').trim()) return true
   return normalizeStoredDocs(row).some((doc: AnyRecord) => {
     const kind = fiscalDocKindWithContext(doc, row, row)
     return isInvoiceDocKind(kind) && Boolean(doc?.storagePath || doc?.path || doc?.url)
@@ -5421,11 +5456,12 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         recordCheckedWithoutFiscalDoc(out, 'payment', row, ticket, attach)
         if (targetSet.size && !attach.attached) addDocDebug(out, 'payment', row, ticket, attach)
         const paidDate = paymentDateFromTicket(ticket)
+        const checked = checkedRowWithAttach(row, attach)
         const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
-        if (attach.attached || JSON.stringify(attach.docs || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = attach.docs
-        if (!row.nf_doc_path && attach.nfPath) patch.nf_doc_path = attach.nfPath
-        if (!row.comp_doc_path && attach.compPath) patch.comp_doc_path = attach.compPath
-        Object.assign(patch, paymentFiscalMetadataPatch(checkedRowWithAttach(row, attach), ticket))
+        if (attach.attached || JSON.stringify(checked.docs_json || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = checked.docs_json
+        if (String(checked.nf_doc_path || '') !== String(row.nf_doc_path || '')) patch.nf_doc_path = checked.nf_doc_path || ''
+        if (String(checked.comp_doc_path || '') !== String(row.comp_doc_path || '')) patch.comp_doc_path = checked.comp_doc_path || ''
+        Object.assign(patch, paymentFiscalMetadataPatch(checked, ticket))
         if (paidDate && (row.st !== 'PAGO' || row.paga_em !== paidDate)) {
           patch.st = 'PAGO'
           patch.paga_em = paidDate
@@ -5927,11 +5963,12 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
       const paidDate = paymentDateFromTicket(ticket)
       const dueDate = dueDateFromTicket(ticket)
       const lifecycleStatus = paymentLifecycleStatusFromTicket(ticket)
+      const checked = checkedRowWithAttach(row, attach)
       const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
-      if (attach.attached || JSON.stringify(attach.docs || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = attach.docs || []
-      if (!row.nf_doc_path && attach.nfPath) patch.nf_doc_path = attach.nfPath
-      if (!row.comp_doc_path && attach.compPath) patch.comp_doc_path = attach.compPath
-      Object.assign(patch, paymentFiscalMetadataPatch(checkedRowWithAttach(row, attach), ticket))
+      if (attach.attached || JSON.stringify(checked.docs_json || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = checked.docs_json || []
+      if (String(checked.nf_doc_path || '') !== String(row.nf_doc_path || '')) patch.nf_doc_path = checked.nf_doc_path || ''
+      if (String(checked.comp_doc_path || '') !== String(row.comp_doc_path || '')) patch.comp_doc_path = checked.comp_doc_path || ''
+      Object.assign(patch, paymentFiscalMetadataPatch(checked, ticket))
       if (paidDate) {
         patch.st = 'PAGO'
         patch.paga_em = paidDate
