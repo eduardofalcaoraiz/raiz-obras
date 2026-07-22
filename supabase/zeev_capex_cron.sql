@@ -9,6 +9,7 @@ create extension if not exists pg_net with schema extensions;
 do $$
 declare
   job text;
+  existing record;
 begin
   foreach job in array array[
     'zeev-capex-sync-every-5-min',
@@ -25,6 +26,23 @@ begin
       perform cron.unschedule(job);
     exception when others then
       null;
+    end;
+  end loop;
+
+  for existing in
+    select jobid, jobname
+    from cron.job
+    where command ilike '%zeev-capex-sync%'
+       or jobname ilike '%zeev%'
+  loop
+    begin
+      perform cron.unschedule(existing.jobid);
+    exception when others then
+      begin
+        perform cron.unschedule(existing.jobname);
+      exception when others then
+        null;
+      end;
     end;
   end loop;
 end
