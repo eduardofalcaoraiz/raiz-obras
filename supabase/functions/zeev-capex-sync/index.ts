@@ -1610,12 +1610,12 @@ async function buildTicket(row: AnyRecord) {
     situacao_sugerida: situacao,
     realizado_sugerido: realizado,
     raw_fields: fields,
-    raw_instance: row,
-    raw_tasks: tasks,
+    raw_instance: {},
+    raw_tasks: [],
     itens_json: itens,
     pagamento_json: { ...pagamento, valor_total: valor || null },
     campos_extraidos: campos,
-    enrichment_errors: enrichmentErrors,
+    enrichment_errors: enrichmentErrors.slice(0, 5),
     last_seen_at: new Date().toISOString(),
   }
 }
@@ -1845,12 +1845,12 @@ function matchedTicketRef(refs: string[], targetSet: Set<string>) {
 
 function ticketDataPatch(ticket: AnyRecord, previous: AnyRecord = {}) {
   const oldDados = previous && typeof previous === 'object' ? previous : {}
+  const { rawFields: _rawFields, rawInstance: _rawInstance, rawTasks: _rawTasks, ...keptOldDados } = oldDados
   return {
-    ...oldDados,
+    ...keptOldDados,
     campos: ticket.campos_extraidos || oldDados.campos || {},
     itens: ticket.itens_json || oldDados.itens || [],
     pagamento: ticket.pagamento_json || oldDados.pagamento || {},
-    rawFields: ticket.raw_fields || oldDados.rawFields || [],
     atualizadoPeloZeevEm: new Date().toISOString(),
   }
 }
@@ -4549,8 +4549,8 @@ function genericZeevTicket(enriched: AnyRecord, fallback: AnyRecord = {}) {
     fonte: fallback.fonte || 'UNIDADE',
     setor: financeiro ? 'FINANCEIRO' : 'COMPRAS',
     raw_fields: fields,
-    raw_instance: enriched || fallback,
-    raw_tasks: tasks,
+    raw_instance: {},
+    raw_tasks: [],
     itens_json: itens,
     pagamento_json: { ...pagamento, valor_total: valor || null },
     campos_extraidos: fieldsObject(fields),
@@ -6397,15 +6397,15 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
     situacao_sugerida: ticket?.situacao_sugerida || status.situacao,
     realizado_sugerido: ticket?.realizado_sugerido ?? status.realizado,
     raw_fields: fields,
-    raw_instance: raw || ticket,
-    raw_tasks: tasks,
+    raw_instance: {},
+    raw_tasks: [],
     itens_json: itens,
     pagamento_json: ticket?.pagamento_json || { ...extractPagamento(fmap), valor_total: valor || null },
     campos_extraidos: campos,
     enrichment_errors: [
       ...(Array.isArray(ticket?.enrichment_errors) ? ticket.enrichment_errors : []),
       { field: 'CAPEX', warning: reason || 'Ticket incluído manualmente na fila mesmo sem CAPEX marcado como Sim.' },
-    ],
+    ].slice(0, 5),
     status: 'pendente',
     capex_item_id: null,
     last_seen_at: new Date().toISOString(),

@@ -1558,8 +1558,8 @@ def build_ticket(row):
         "situacao_sugerida": situacao,
         "realizado_sugerido": realizado,
         "raw_fields": fields,
-        "raw_instance": row,
-        "raw_tasks": tasks,
+        "raw_instance": {},
+        "raw_tasks": [],
         "itens_json": itens,
         "pagamento_json": {
             "forma": field_value_by_priority(fields, ["formaDePagamento", "formaPagamento", "condicaoPagamento"]) or None,
@@ -1571,7 +1571,7 @@ def build_ticket(row):
             "valor_total": valor or None,
         },
         "campos_extraidos": campos_extraidos,
-        "enrichment_errors": enrichment_errors,
+        "enrichment_errors": enrichment_errors[:5],
     }
 
 
@@ -1633,8 +1633,8 @@ def generic_ticket_from_instance(row, reason=""):
         "situacao_sugerida": situacao,
         "realizado_sugerido": realizado,
         "raw_fields": fields,
-        "raw_instance": row,
-        "raw_tasks": tasks,
+        "raw_instance": {},
+        "raw_tasks": [],
         "itens_json": itens,
         "pagamento_json": {
             "forma": field_value_by_priority(fields, ["formaDePagamento", "formaPagamento", "condicaoPagamento"]) or None,
@@ -1646,7 +1646,7 @@ def generic_ticket_from_instance(row, reason=""):
             "valor_total": valor or None,
         },
         "campos_extraidos": campos_extraidos,
-        "enrichment_errors": list(row.get("__enrichmentErrors") or []),
+        "enrichment_errors": list(row.get("__enrichmentErrors") or [])[:5],
     }
 
 
@@ -2334,16 +2334,16 @@ def attach_rescued_docs(ticket, row):
     if not ticket or not isinstance(ticket, dict):
         return ticket
     docs, debug = rescue_documents_for_row(row)
-    raw = ticket.get("raw_instance") if isinstance(ticket.get("raw_instance"), dict) else row
-    if docs:
-        raw["__downloaded_docs"] = docs
-    raw["__doc_rescue"] = debug
-    ticket["raw_instance"] = raw
     campos = ticket.get("campos_extraidos") if isinstance(ticket.get("campos_extraidos"), dict) else {}
-    campos["_zeev_doc_rescue"] = {k: v for k, v in debug.items() if k != "skipped"}
+    campos["_zeev_doc_rescue"] = {
+        **{k: v for k, v in debug.items() if k != "skipped"},
+        "downloadedDocsInMemory": len(docs),
+    }
     if debug.get("skipped"):
         campos["_zeev_doc_rescue_skipped"] = debug.get("skipped")[:5]
     ticket["campos_extraidos"] = campos
+    ticket["raw_instance"] = {}
+    ticket["raw_tasks"] = []
     return ticket
 
 
