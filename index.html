@@ -3526,6 +3526,7 @@ async function selectAllRows(table,opts){
   let from=0,rows=[];
   while(true){
     let q=db.from(table).select(opts.columns||'*');
+    if(opts.statusIn)q=q.in('status',opts.statusIn);
     if(opts.order)q=q.order(opts.order,{ascending:opts.ascending!==false});
     q=q.range(from,from+pageSize-1);
     const{data,error}=await q;
@@ -3546,6 +3547,15 @@ const CAPEX_ZEEV_LIST_COLUMNS=[
   'email_notified_at','last_seen_at','created_at','updated_at','zeev_docs_checked_at','campos_extraidos','pagamento_json','itens_json'
 ].join(',');
 
+const CAPEX_ZEEV_QUEUE_COLUMNS=[
+  'id','zeev_instance_id','zeev_uid','flow_id','flow_name','flow_version','request_name','ticket_link','confirmation_code',
+  'start_date_time','end_date_time','last_finished_task_date_time','active','flow_result','capex_field_name','capex_field_value',
+  'requester_name','requester_email','requester_username','requester_team','etapa_atual','passou_conferir_entrega',
+  'pronto_valor_final','valor','valor_final','valor_status','unidade','marca','pedido','categoria_capex','fonte','setor',
+  'situacao_sugerida','realizado_sugerido','status','capex_item_id','aprovado_por','aprovado_em','ignorado_por','ignorado_em',
+  'email_notified_at','last_seen_at','created_at','updated_at','zeev_docs_checked_at'
+].join(',');
+
 const PAYMENT_LIST_COLUMNS=[
   'id','obra_id','ben','v','ref','nf_num','cat','sub','pagn','st','venc','nf_tipo','comp','nf_doc_path','comp_doc_path',
   'emissao','paga_em','escopo_fin','contrato_seq','tipo_custo','mat_tipo','mat_qtd','mat_unidade','chave','obs','pag_forma',
@@ -3558,7 +3568,7 @@ const CAPEX_ITEM_LIST_COLUMNS=[
 ].join(',');
 
 async function loadCapexZeevSolicitacoes(){
-  const res=await selectAllRows('capex_zeev_solicitacoes',{columns:CAPEX_ZEEV_LIST_COLUMNS,order:'start_date_time',ascending:false,pageSize:500});
+  const res=await selectAllRows('capex_zeev_solicitacoes',{columns:CAPEX_ZEEV_QUEUE_COLUMNS,order:'start_date_time',ascending:false,pageSize:1000,statusIn:['pendente','ignorado']});
   if(res.error){
     capexZeevLoadError=res.error.message||String(res.error);
     return{data:capexZeevSolicitacoes||[],error:res.error};
@@ -8052,9 +8062,7 @@ function renderCapexZeevQueue(){
   const allPend=capexZeevPendingList();
   const pend=capexZeevFilteredPendingList(allPend);
   const notCapex=capexZeevNotCapexList();
-  const all=capexZeevSolicitacoes||[];
   const ready=allPend.filter(z=>z.pronto_valor_final||z.valor_status==='final').length;
-  const approved=all.filter(z=>z.status==='aprovado').length;
   const ignored=notCapex.length;
   return`<section class="capex-zeev-panel">
     <div class="capex-zeev-head">
@@ -8062,7 +8070,6 @@ function renderCapexZeevQueue(){
       <div class="capex-zeev-kpis">
         <span class="capex-zeev-pill" id="capex-zeev-visible-count">${capexZeevCountText(pend.length,allPend.length)}</span>
         <span class="capex-zeev-pill">${ready} pronto${ready!==1?'s':''}</span>
-        <span class="capex-zeev-pill">${approved} aprovado${approved!==1?'s':''}</span>
         <button class="btn btn-ghost btn-sm" onclick="openCapexNotCapexModal()">NÃO É CAPEX (${ignored})</button>
         <button class="btn btn-ghost btn-sm" onclick="syncZeevCapexNow()">Atualizar Zeev</button>
       </div>
