@@ -4118,11 +4118,11 @@ function sameStoredDocScope(doc: AnyRecord, kind: string, ticketId: string) {
   return docKind === kind
 }
 
-async function storedDocMatchesDownloadedFile(stored: AnyRecord[], kind: string, ticketId: string, file: { body: ArrayBuffer; name: string; type: string }, fileHash: string, hashCache: Map<string, string>) {
+async function storedDocMatchingDownloadedFile(stored: AnyRecord[], kind: string, ticketId: string, file: { body: ArrayBuffer; name: string; type: string }, fileHash: string, hashCache: Map<string, string>) {
   for (const doc of stored) {
     if (!sameStoredDocScope(doc, kind, ticketId)) continue
     const storedHash = String(doc?.sha256 || doc?.hash || '').trim().toLowerCase()
-    if (storedHash && storedHash === fileHash) return true
+    if (storedHash && storedHash === fileHash) return doc
     const path = storedDocPath(doc)
     if (!path) continue
     let existingHash = hashCache.get(path)
@@ -4134,9 +4134,31 @@ async function storedDocMatchesDownloadedFile(stored: AnyRecord[], kind: string,
       doc.sha256 = existingHash
       doc.size = doc.size || bytes.byteLength
     }
-    if (existingHash === fileHash) return true
+    if (existingHash === fileHash) return doc
   }
-  return false
+  return null
+}
+
+async function storedDocMatchesDownloadedFile(stored: AnyRecord[], kind: string, ticketId: string, file: { body: ArrayBuffer; name: string; type: string }, fileHash: string, hashCache: Map<string, string>) {
+  return Boolean(await storedDocMatchingDownloadedFile(stored, kind, ticketId, file, fileHash, hashCache))
+}
+
+function reusableStoredDocForTarget(doc: AnyRecord, target: string, row: AnyRecord, ticketId: string, kind: string, file: { body: ArrayBuffer; name: string; type: string }, fileHash: string) {
+  return {
+    ...doc,
+    name: doc?.name || file.name,
+    type: doc?.type || file.type,
+    bucket: doc?.bucket || 'pagamentos',
+    kind: doc?.kind || kind,
+    origin: doc?.origin || 'ZEEV',
+    ticketRaiz: storedDocTicketId(doc) || ticketId,
+    copiedToTarget: target,
+    copiedToRowId: row?.id || null,
+    reusedStorage: true,
+    sha256: doc?.sha256 || fileHash,
+    size: doc?.size || file.body.byteLength,
+    attachedAt: doc?.attachedAt || new Date().toISOString(),
+  }
 }
 
 function paymentDateFromTicket(ticket: AnyRecord) {
@@ -4636,6 +4658,8 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
   const ignored: AnyRecord[] = []
   const newDocs: AnyRecord[] = []
   const storedHashCache = new Map<string, string>()
+  const reusableFromSameTicket = ticketId ? await storedDocsFromSameTicket(ticketId, target, row.id) : []
+  const reusableStored = normalizeStoredDocs({ docs_json: [...stored, ...reusableFromSameTicket] })
   let effectiveCandidateCount = 0
   let hasInvoiceCandidate = false
   let hasChargeCandidate = false
@@ -4648,7 +4672,7 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
   }
   const requestedLimit = Math.max(1, Number(limitFiles || 1))
   const attachAllDocs = !['0', 'false', 'nao', 'no', 'off'].includes(String(env('ZEEV_ATTACH_ALL_TICKET_DOCS', '1')).toLowerCase())
-  const perTicketCap = Math.max(requestedLimit, Math.min(Number(env('ZEEV_DOC_ATTACH_PER_TICKET_LIMIT', '40')) || 40, 80))
+  const perTicketCap = Math.max(requestedLimit, Math.min(Number(env('ZEEV_DOC_ATTACH_PER_TICKET_LIMIT', '8')) || 8, 12))
   const effectiveLimit = attachAllDocs ? perTicketCap : Math.min(perTicketCap, Math.max(requestedLimit, hasInvoiceCandidate && hasChargeCandidate ? 2 : requestedLimit))
   const candidateLimit = Math.max(effectiveLimit, Math.min(Number(env('ZEEV_DOC_CANDIDATE_ATTEMPT_LIMIT', '50')) || 50, 120))
   for (const doc of docs.slice(0, candidateLimit)) {
@@ -4712,13 +4736,23 @@ async function attachDocsForTarget(target: 'pending' | 'payment' | 'capex', row:
     const kind = docKind
     markCandidateKind(kind)
     const fileHash = await sha256Hex(file.body)
-    if (await storedDocMatchesDownloadedFile(stored, kind, ticketId, file, fileHash, storedHashCache)) {
+    const matchedStoredDoc = await storedDocMatchingDownloadedFile(reusableStored, kind, ticketId, file, fileHash, storedHashCache)
+    if (matchedStoredDoc) {
+      const reused = reusableStoredDocForTarget(matchedStoredDoc, target, row, ticketId, kind, file, fileHash)
+      const reusedKey = visibleStoredDocKey(reused) || storedDocKey(reused)
+      if (reusedKey && !stored.some((existing) => (visibleStoredDocKey(existing) || storedDocKey(existing)) === reusedKey)) {
+        stored.push(reused)
+        newDocs.push(reused)
+        if (!nfPath && isInvoiceDocKind(kind)) nfPath = reused.storagePath || reused.path || ''
+        if (!compPath && isProofDocKind(kind)) compPath = reused.storagePath || reused.path || ''
+        attached++
+      }
       if (deduped.length < 8) {
         deduped.push({
           name: file.name || doc.name || '',
           source: doc.source || '',
           kind,
-          reason: 'arquivo_equivalente_ja_anexado',
+          reason: 'arquivo_equivalente_reaproveitado_sem_novo_upload',
         })
       }
       continue

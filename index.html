@@ -4994,8 +4994,9 @@ async function saveContr(){
   // Upload do arquivo (se houver)
   if(_cmDocFile&&cur){
     try{
-      const p='obra_'+cur.id+'/contratos/'+Date.now()+'_'+_cmDocFile.name.replace(/[^a-zA-Z0-9._-]/g,'_');
-      const{error}=await db.storage.from('contratos').upload(p,_cmDocFile,{upsert:true});
+      const contratoFile=await prepareFileForStorage(_cmDocFile,{maxDim:2200,quality:.84});
+      const p='obra_'+cur.id+'/contratos/'+Date.now()+'_'+contratoFile.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+      const{error}=await db.storage.from('contratos').upload(p,contratoFile,{upsert:true,contentType:contratoFile.type||inferType(contratoFile.name)});
       if(!error)obj.contrato_doc_path=p;
     }catch(e){console.warn('upload contrato:',e);}
   }
@@ -13387,7 +13388,7 @@ function openObraFaseNaoModal(fid,iid){if(!canEditObraFluxo()){toast('Sem permis
 function closeObraFaseNaoModal(){obraFaseNaoCtx=null;document.getElementById('fase-nao-overlay').classList.remove('show');}
 async function saveObraFaseNaoRealizada(){if(!obraFaseNaoCtx)return;const motivo=(document.getElementById('fase-nao-motivo').value||'').trim();const data=(document.getElementById('fase-nao-data')?.value||_faseHoje()).trim()||_faseHoje();if(motivo.length<3){toast('Informe o motivo da etapa nao realizada.');return;}const found=findObraFaseItem(obraFaseNaoCtx.fid,obraFaseNaoCtx.iid);if(!found.item){closeObraFaseNaoModal();return;}found.item.status='not_done';found.item.done=false;found.item.doneAt='';found.item.notDone=true;found.item.notDoneAt=data;found.item.notDoneReason=motivo;obraFaseAddHistory(found.item,'not_done',motivo);if(await persistObraFases()){closeObraFaseNaoModal();renderObraFases();renderDashboard();toast('Etapa registrada como nao realizada.');}}
 async function reabrirObraFaseItem(fid,iid){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');return;}const found=findObraFaseItem(fid,iid);if(!found.item)return;found.item.status='pending';found.item.done=false;found.item.doneAt='';found.item.notDone=false;found.item.notDoneAt='';found.item.notDoneReason='';obraFaseAddHistory(found.item,'reopen','');if(await persistObraFases()){renderObraFases();renderDashboard();toast('Etapa reaberta.');}}
-function anexarObraFaseDoc(fid,iid){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');return;}if(!cur){toast('Abra uma obra.');return;}let inp=document.getElementById('obra-fase-doc-input');if(!inp){inp=document.createElement('input');inp.type='file';inp.id='obra-fase-doc-input';inp.multiple=true;inp.style.display='none';document.body.appendChild(inp);}inp.onchange=async()=>{if(!inp.files.length)return;const found=findObraFaseItem(fid,iid);if(!found.item){inp.value='';return;}let ok=0;for(const f of Array.from(inp.files)){const safeName=f.name.replace(/[^a-zA-Z0-9._-]/g,'_');const path='obra_'+cur.id+'/fases/'+fid+'/'+iid+'/'+Date.now()+'_'+safeName;const{error}=await db.storage.from('documentos').upload(path,f,{upsert:true,contentType:f.type||inferType(f.name)});if(error){console.error('anexarObraFaseDoc:',error);toast('Erro ao enviar: '+f.name);continue;}found.item.docs=found.item.docs||[];found.item.docs.push({name:f.name,storagePath:path,bucket:'documentos',type:f.type||inferType(f.name)});ok++;}inp.value='';if(ok&&await persistObraFases()){renderObraFases();renderDashboard();toast(ok>1?ok+' documentos anexados.':'Documento anexado.');}};inp.click();}
+function anexarObraFaseDoc(fid,iid){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');return;}if(!cur){toast('Abra uma obra.');return;}let inp=document.getElementById('obra-fase-doc-input');if(!inp){inp=document.createElement('input');inp.type='file';inp.id='obra-fase-doc-input';inp.multiple=true;inp.style.display='none';document.body.appendChild(inp);}inp.onchange=async()=>{if(!inp.files.length)return;const found=findObraFaseItem(fid,iid);if(!found.item){inp.value='';return;}let ok=0;for(const originalFile of Array.from(inp.files)){const f=await prepareFileForStorage(originalFile,{maxDim:2200,quality:.84});const safeName=f.name.replace(/[^a-zA-Z0-9._-]/g,'_');const path='obra_'+cur.id+'/fases/'+fid+'/'+iid+'/'+Date.now()+'_'+safeName;const{error}=await db.storage.from('documentos').upload(path,f,{upsert:true,contentType:f.type||inferType(f.name)});if(error){console.error('anexarObraFaseDoc:',error);toast('Erro ao enviar: '+f.name);continue;}found.item.docs=found.item.docs||[];found.item.docs.push({name:f.name,storagePath:path,bucket:'documentos',type:f.type||inferType(f.name)});ok++;}inp.value='';if(ok&&await persistObraFases()){renderObraFases();renderDashboard();toast(ok>1?ok+' documentos anexados.':'Documento anexado.');}};inp.click();}
 function viewObraFaseDoc(fid,iid,di){const found=findObraFaseItem(fid,iid);const d=found.item?.docs?.[di];if(!d){toast('Documento nao encontrado.');return;}viewFile({...d,bucket:d.bucket||'documentos'});}
 async function deleteObraFaseDoc(fid,iid,di){if(!canEditObraFluxo()){toast('Sem permissao para esta operacao.');return;}const found=findObraFaseItem(fid,iid);const d=found.item?.docs?.[di];if(!d)return;askConfirm('Excluir o documento "'+(d.name||'Documento')+'"? Esta acao nao pode ser desfeita.',async()=>{if(d.storagePath)await db.storage.from(d.bucket||'documentos').remove([d.storagePath]).catch(e=>console.warn('deleteObraFaseDoc storage:',e));found.item.docs.splice(di,1);if(await persistObraFases()){renderObraFases();renderDashboard();toast('Documento removido.');}});}
 
@@ -14654,7 +14655,7 @@ function inferDocCat(name){
   return DOC_CATS[0]?.id||null;
 }
 
-function anexarCat(cid){if(!curUni){toast("Abra uma unidade.");return;}anexAlvo=cid;let inp=document.getElementById("anexo-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="anexo-input";inp.multiple=true;inp.style.display="none";document.body.appendChild(inp);inp.onchange=async()=>{if(!inp.files.length)return;const cid2=anexAlvo;const inserts=[];for(const f of Array.from(inp.files)){const path=`${curUni.id}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const{error}=await db.storage.from('documentos').upload(path,f);if(error){toast("Erro ao enviar: "+f.name);continue;}(curUni.docs[cid2]=curUni.docs[cid2]||[]).push({name:f.name,storagePath:path,type:f.type});inserts.push({unidade_id:curUni.id,cat_id:cid2,name:f.name,type:f.type,storage_path:path});}if(inserts.length){const{data:rows}=await db.from('documentos_unidade').insert(inserts).select('id,storage_path');if(rows)rows.forEach(r=>{const arr=curUni.docs[cid2]||[];const item=arr.find(d=>d.storagePath===r.storage_path);if(item)item.dbId=r.id;});}const n=inp.files.length;renderUni();toast(n>1?n+" documentos anexados":"Documento anexado");inp.value="";};}inp.click();}
+function anexarCat(cid){if(!curUni){toast("Abra uma unidade.");return;}anexAlvo=cid;let inp=document.getElementById("anexo-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="anexo-input";inp.multiple=true;inp.style.display="none";document.body.appendChild(inp);inp.onchange=async()=>{if(!inp.files.length)return;const cid2=anexAlvo;const inserts=[];for(const originalFile of Array.from(inp.files)){const f=await prepareFileForStorage(originalFile,{maxDim:2200,quality:.84});const path=`${curUni.id}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const{error}=await db.storage.from('documentos').upload(path,f,{contentType:f.type||inferType(f.name)});if(error){toast("Erro ao enviar: "+f.name);continue;}(curUni.docs[cid2]=curUni.docs[cid2]||[]).push({name:f.name,storagePath:path,type:f.type});inserts.push({unidade_id:curUni.id,cat_id:cid2,name:f.name,type:f.type,storage_path:path});}if(inserts.length){const{data:rows}=await db.from('documentos_unidade').insert(inserts).select('id,storage_path');if(rows)rows.forEach(r=>{const arr=curUni.docs[cid2]||[];const item=arr.find(d=>d.storagePath===r.storage_path);if(item)item.dbId=r.id;});}const n=inp.files.length;renderUni();toast(n>1?n+" documentos anexados":"Documento anexado");inp.value="";};}inp.click();}
 
 function anexarIA(){if(!curUni){toast("Abra uma unidade.");return;}let inp=document.getElementById("ia-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="ia-input";inp.multiple=true;inp.style.display="none";document.body.appendChild(inp);inp.onchange=()=>{if(!inp.files.length)return;pendingDocs=Array.from(inp.files).map(f=>{const cat=inferDocCat(f.name);return{file:f,name:f.name,cat,newCat:!cat,newCatName:cat?'':'Geral'};});inp.value="";openDocModal();};}inp.click();}
 
@@ -14666,7 +14667,7 @@ function onCatSelect(i,val){if(val==="__new__")pendingDocs[i].newCat=true;else{p
 
 function closeDocModal(){document.getElementById("doc-overlay").classList.remove("show");pendingDocs=[];}
 
-async function confirmDocs(){for(const p of pendingDocs)if(p.newCat&&!(p.newCatName||"").trim()){toast("Dê nome à nova pasta.");return;}const map={};pendingDocs.forEach(p=>{if(p.newCat){const nm=p.newCatName.trim(),k=capexNormText(nm);let id=map[k];if(!id){const ex=DOC_CATS.find(c=>capexNormText(c.nome)===k);id=ex?ex.id:"doc_cat_"+(docCatSeq++);if(!ex)DOC_CATS.push({id,nome:nm,subs:["Geral"],tipo:'documento'});map[k]=id;}p.cat=id;}else if(!p.cat&&DOC_CATS[0])p.cat=DOC_CATS[0].id;});const inserts=[];for(const p of pendingDocs){if(!p.cat){toast('Escolha uma pasta para todos os documentos.');return;}const path=`${curUni.id}/${Date.now()}_${p.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const{error}=await db.storage.from('documentos').upload(path,p.file);if(error){toast("Erro ao enviar: "+p.name);continue;}(curUni.docs[p.cat]=curUni.docs[p.cat]||[]).push({name:p.name,storagePath:path,type:p.file.type});inserts.push({unidade_id:curUni.id,cat_id:p.cat,name:p.name,type:p.file.type,storage_path:path});}if(inserts.length){const{data:rows}=await db.from('documentos_unidade').insert(inserts).select('id,storage_path');if(rows)rows.forEach(r=>{for(const arr of Object.values(curUni.docs)){const item=arr.find(d=>d.storagePath===r.storage_path);if(item){item.dbId=r.id;break;}}});}await persistCats();const n=pendingDocs.length;document.getElementById("doc-overlay").classList.remove("show");pendingDocs=[];renderUni();toast(n>1?n+" documentos anexados":"Documento anexado");}
+async function confirmDocs(){for(const p of pendingDocs)if(p.newCat&&!(p.newCatName||"").trim()){toast("Dê nome à nova pasta.");return;}const map={};pendingDocs.forEach(p=>{if(p.newCat){const nm=p.newCatName.trim(),k=capexNormText(nm);let id=map[k];if(!id){const ex=DOC_CATS.find(c=>capexNormText(c.nome)===k);id=ex?ex.id:"doc_cat_"+(docCatSeq++);if(!ex)DOC_CATS.push({id,nome:nm,subs:["Geral"],tipo:'documento'});map[k]=id;}p.cat=id;}else if(!p.cat&&DOC_CATS[0])p.cat=DOC_CATS[0].id;});const inserts=[];for(const p of pendingDocs){if(!p.cat){toast('Escolha uma pasta para todos os documentos.');return;}const f=await prepareFileForStorage(p.file,{maxDim:2200,quality:.84});const path=`${curUni.id}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const{error}=await db.storage.from('documentos').upload(path,f,{contentType:f.type||inferType(f.name)});if(error){toast("Erro ao enviar: "+f.name);continue;}(curUni.docs[p.cat]=curUni.docs[p.cat]||[]).push({name:f.name,storagePath:path,type:f.type});inserts.push({unidade_id:curUni.id,cat_id:p.cat,name:f.name,type:f.type,storage_path:path});}if(inserts.length){const{data:rows}=await db.from('documentos_unidade').insert(inserts).select('id,storage_path');if(rows)rows.forEach(r=>{for(const arr of Object.values(curUni.docs)){const item=arr.find(d=>d.storagePath===r.storage_path);if(item){item.dbId=r.id;break;}}});}await persistCats();const n=pendingDocs.length;document.getElementById("doc-overlay").classList.remove("show");pendingDocs=[];renderUni();toast(n>1?n+" documentos anexados":"Documento anexado");}
 
 
 
@@ -14676,9 +14677,42 @@ function fileToDataUrl(file){return new Promise((res,rej)=>{const r=new FileRead
 
 
 
+async function compressImageForStorage(file,opts={}){
+  if(!file||!/^image\/(png|jpe?g|webp)$/i.test(file.type||''))return file;
+  const maxDim=opts.maxDim||2200;
+  const quality=opts.quality||0.84;
+  try{
+    const bmp=await createImageBitmap(file);
+    const scale=Math.min(1,maxDim/Math.max(bmp.width,bmp.height));
+    const w=Math.max(1,Math.round(bmp.width*scale));
+    const h=Math.max(1,Math.round(bmp.height*scale));
+    const canvas=document.createElement('canvas');
+    canvas.width=w;canvas.height=h;
+    const ctx=canvas.getContext('2d',{alpha:false});
+    ctx.fillStyle='#fff';
+    ctx.fillRect(0,0,w,h);
+    ctx.drawImage(bmp,0,0,w,h);
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));
+    if(!blob||blob.size>=file.size*0.92)return file;
+    const base=String(file.name||'imagem').replace(/\.[^.]+$/,'');
+    return new File([blob],`${base}.jpg`,{type:'image/jpeg',lastModified:file.lastModified||Date.now()});
+  }catch(e){
+    console.warn('compressImageForStorage:',e);
+    return file;
+  }
+}
+
+async function prepareFileForStorage(file,opts={}){
+  return await compressImageForStorage(file,opts);
+}
+
+
+
 /* ===== STORAGE DE ARQUIVOS DE PAGAMENTO ===== */
 
 async function uploadPagDoc(obraId,file,tipo){
+
+  file=await prepareFileForStorage(file,{maxDim:2200,quality:.84});
 
   const ts=Date.now();
 
