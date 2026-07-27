@@ -3252,16 +3252,27 @@ function dateOnly(value: unknown) {
 function explicitDocKindFromFileContext(doc: AnyRecord) {
   const urlName = doc?.url ? fileNameFromDownloadPath(doc.url, '') : ''
   const sourceKey = normKey([doc?.source, doc?.field, doc?.fieldName, doc?.label].filter(Boolean).join(' '))
-  const fileKey = normKey([doc?.name, urlName, doc?.storagePath, doc?.path].filter(Boolean).join(' '))
-  const fileText = norm([doc?.name, urlName, doc?.storagePath, doc?.path].filter(Boolean).join(' '))
+  const originalKey = normKey([doc?.name, urlName].filter(Boolean).join(' '))
+  const originalText = norm([doc?.name, urlName].filter(Boolean).join(' '))
+  const storageKey = normKey([doc?.storagePath, doc?.path].filter(Boolean).join(' '))
+  const storageText = norm([doc?.storagePath, doc?.path].filter(Boolean).join(' '))
+  const fromMessage = /(messages|comentario|comment|instancetasks|rawtasks)/.test(sourceKey)
+  const explicitFiscalOrChargeFile = /(notafiscal|notasfiscais|anexarnota|anexarnf|danfe|xml|nfe|nfse|nfs-e|nf-e|fatura|boleto|recibo)/.test(originalKey)
+  if (/(pgfor|comprovante|comprovantedopagamento|pix|liquidado|liquidacao|pago)/.test(originalKey)) return 'COMPROVANTE'
+  if (/(boleto|boletoparcelado|boletoavista)/.test(originalKey)) return 'BOLETO'
+  if (/(fatura)/.test(originalKey) || /(?:^|\s)ft\s*0*\d{2,}(?:\s|$)/.test(originalText) || /^ft0*\d{2,}/.test(originalKey)) return 'FATURA'
+  if (/(recibo)/.test(originalKey)) return 'RECIBO'
+  if (/(xml|danfe|nfe|nfse|nfs-e|nf-e|notafiscal|notasfiscais)/.test(originalKey) || /(^|[^a-z])nf([^a-z]|$)/.test(originalText)) return 'NF'
+  if (fromMessage && !explicitFiscalOrChargeFile) return 'COMPROVANTE'
   if (/(comprovante|comprovantedopagamento|arquivocomprovante|documentocomprovante|pix)/.test(sourceKey)) return 'COMPROVANTE'
   if (/(anexarboleto|boletoparcelado|boletoavista|boleto)/.test(sourceKey)) return 'BOLETO'
   if (/(fatura)/.test(sourceKey)) return 'FATURA'
   if (/(recibo)/.test(sourceKey)) return 'RECIBO'
-  if (/(comprovante|pix|liquidado|liquidacao|pago)/.test(fileKey)) return 'COMPROVANTE'
-  if (/(boleto|boletoparcelado|boletoavista)/.test(fileKey)) return 'BOLETO'
-  if (/(fatura)/.test(fileKey) || /(?:^|\s)ft\s*0*\d{2,}(?:\s|$)/.test(fileText) || /^ft0*\d{2,}/.test(fileKey)) return 'FATURA'
-  if (/(recibo)/.test(fileKey)) return 'RECIBO'
+  if (/(comprovante|pix|liquidado|liquidacao|pago)/.test(storageKey)) return 'COMPROVANTE'
+  if (/(boleto|boletoparcelado|boletoavista)/.test(storageKey)) return 'BOLETO'
+  if (/(fatura)/.test(storageKey) || /(?:^|\s)ft\s*0*\d{2,}(?:\s|$)/.test(storageText) || /^ft0*\d{2,}/.test(storageKey)) return 'FATURA'
+  if (/(recibo)/.test(storageKey)) return 'RECIBO'
+  if (/(xml|danfe|nfe|nfse|nfs-e|nf-e|notafiscal|notasfiscais)/.test(storageKey) || /(^|[^a-z])nf([^a-z]|$)/.test(storageText)) return 'NF'
   return ''
 }
 
@@ -6746,11 +6757,12 @@ async function registerObraPayments(input: AnyRecord = {}) {
       }
       const paidDate = paymentDateFromTicket(ticket)
       const lifecycleStatus = paymentLifecycleStatusFromTicket(ticket)
+      const checked = checkedRowWithAttach(saved, attach)
       const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
-      if (JSON.stringify(attach.docs || []) !== JSON.stringify(saved.docs_json || [])) patch.docs_json = attach.docs || []
-      if (!saved.nf_doc_path && attach.nfPath) patch.nf_doc_path = attach.nfPath
-      if (!saved.comp_doc_path && attach.compPath) patch.comp_doc_path = attach.compPath
-      Object.assign(patch, paymentFiscalMetadataPatch(checkedRowWithAttach(saved, attach), { ...ticket, zeev_instance_id: ticketId }))
+      if (JSON.stringify(checked.docs_json || []) !== JSON.stringify(saved.docs_json || [])) patch.docs_json = checked.docs_json || []
+      if (String(checked.nf_doc_path || '') !== String(saved.nf_doc_path || '')) patch.nf_doc_path = checked.nf_doc_path || ''
+      if (String(checked.comp_doc_path || '') !== String(saved.comp_doc_path || '')) patch.comp_doc_path = checked.comp_doc_path || ''
+      Object.assign(patch, paymentFiscalMetadataPatch(checked, { ...ticket, zeev_instance_id: ticketId }))
       if (paidDate && (saved.st !== 'PAGO' || saved.paga_em !== paidDate)) {
         patch.st = 'PAGO'
         patch.paga_em = paidDate

@@ -7222,28 +7222,47 @@ function normalizePaymentDocs(p){
 }
 
 function paymentDocNorm(doc){
-  return capexZeevNormField([doc?.kind,doc?.name,doc?.source,doc?.type,doc?.storagePath].filter(Boolean).join(' '));
+  return capexZeevNormField([doc?.kind,doc?.name,paymentDocUrlFileName(doc),doc?.source,doc?.type,doc?.storagePath].filter(Boolean).join(' '));
 }
 
 function paymentDocFileNorm(doc){
-  return capexZeevNormField([doc?.name,doc?.source,doc?.url,doc?.storagePath,doc?.path].filter(Boolean).join(' '));
+  return capexZeevNormField([doc?.name,doc?.source,paymentDocUrlFileName(doc),doc?.storagePath,doc?.path].filter(Boolean).join(' '));
+}
+
+function paymentDocUrlFileName(doc){
+  try{
+    const clean=String(doc?.url||'').split('?')[0];
+    return decodeURIComponent(clean.split('/').pop()||'');
+  }catch(_){return'';}
 }
 
 function paymentDocKindLabel(doc){
-  const file=paymentDocFileNorm(doc);
-  if(/comprovante|pix|liquidado|liquidacao|pago/.test(file))return'COMPROVANTE';
-  if(/boleto/.test(file))return'BOLETO';
-  if(/fatura/.test(file))return'FATURA';
-  if(/recibo/.test(file))return'RECIBO';
+  const original=capexZeevNormField([doc?.name,paymentDocUrlFileName(doc)].filter(Boolean).join(' '));
+  const stored=capexZeevNormField([doc?.storagePath,doc?.path].filter(Boolean).join(' '));
+  const file=[original,stored].filter(Boolean).join(' ');
+  const source=capexZeevNormField([doc?.source,doc?.origin,doc?.copiedFromTarget].filter(Boolean).join(' '));
+  const fromMessage=/(messages|comentario|comment|instancetasks|rawtasks)/.test(source);
+  const explicitFiscalOrCharge=/(notafiscal|notasfiscais|anexarnota|anexarnf|danfe|xml|nfe|nfse|nfs-e|nf-e|fatura|boleto|recibo)/.test(original);
+  if(/pgfor|comprovante|pix|liquidado|liquidacao|pago/.test(original))return'COMPROVANTE';
+  if(/boleto/.test(original))return'BOLETO';
+  if(/fatura/.test(original))return'FATURA';
+  if(/recibo/.test(original))return'RECIBO';
+  if(/xml|danfe|nfe|nfse|nota|nf/.test(original))return'NF';
+  if(fromMessage&&!explicitFiscalOrCharge)return'COMPROVANTE';
   const explicit=String(doc?.kind||'').toUpperCase().trim();
   if(['FATURA','RECIBO','BOLETO','COMPROVANTE'].includes(explicit))return explicit;
   if(['NF','NFE','NF-E','NFSE','NFS-E','DANFE','XML'].includes(explicit))return'NF';
+  if(/pgfor|comprovante|pix|liquidado|liquidacao|pago/.test(stored))return'COMPROVANTE';
+  if(/boleto/.test(stored))return'BOLETO';
+  if(/fatura/.test(stored))return'FATURA';
+  if(/recibo/.test(stored))return'RECIBO';
+  if(/xml|danfe|nfe|nfse|nota|nf/.test(stored))return'NF';
   const n=paymentDocNorm(doc);
   if(/fatura/.test(n))return'FATURA';
   if(/recibo/.test(n))return'RECIBO';
   if(/boleto/.test(n))return'BOLETO';
   if(/comprovante|pix|liquidado|liquidacao|pago/.test(n))return'COMPROVANTE';
-  if(/xml|danfe|nfe|nfse|nota|nf|documento/.test(n))return'NF';
+  if(/xml|danfe|nfe|nfse|nota|nf/.test(n))return'NF';
   return'';
 }
 
@@ -7385,7 +7404,23 @@ function paymentDocsCount(p){
 }
 
 function capexZeevDocKind(doc){
-  const n=capexZeevNormField([doc?.name,doc?.source,doc?.type,doc?.url,doc?.storagePath,doc?.path].filter(Boolean).join(' '));
+  const original=capexZeevNormField([doc?.name,paymentDocUrlFileName(doc)].filter(Boolean).join(' '));
+  const stored=capexZeevNormField([doc?.storagePath,doc?.path].filter(Boolean).join(' '));
+  const n=capexZeevNormField([doc?.name,paymentDocUrlFileName(doc),doc?.source,doc?.type,doc?.storagePath,doc?.path].filter(Boolean).join(' '));
+  const source=capexZeevNormField(doc?.source||'');
+  const fromMessage=/(messages|comentario|comment|instancetasks|rawtasks)/.test(source);
+  const explicitFiscalOrCharge=/(notafiscal|notasfiscais|anexarnota|anexarnf|danfe|xml|nfe|nfse|nfs-e|nf-e|fatura|boleto|recibo)/.test(original);
+  if(/pgfor|comprovante|pix|liquidado|liquidacao|pago/.test(original))return'COMPROVANTE';
+  if(/boleto/.test(original))return'BOLETO';
+  if(/fatura/.test(original))return'FATURA';
+  if(/recibo/.test(original))return'RECIBO';
+  if(/xml|danfe|nfe|nfse|nota|nf/.test(original))return'NF';
+  if(fromMessage&&!explicitFiscalOrCharge)return'COMPROVANTE';
+  if(/pgfor|comprovante|pix|liquidado|liquidacao|pago/.test(stored))return'COMPROVANTE';
+  if(/boleto/.test(stored))return'BOLETO';
+  if(/fatura/.test(stored))return'FATURA';
+  if(/recibo/.test(stored))return'RECIBO';
+  if(/xml|danfe|nfe|nfse|nota|nf/.test(stored))return'NF';
   if(/boleto/.test(n))return'BOLETO';
   if(/fatura/.test(n))return'FATURA';
   if(/recibo/.test(n))return'RECIBO';
@@ -7414,7 +7449,7 @@ async function capexImportAllZeevDocsToPayment(obra,pag,z){
       const item={name:file.name,storagePath:path,type:file.type||inferType(file.name),bucket:'pagamentos',kind,origin:'ZEEV',source:doc.source||'',url:doc.url||'',ticketRaiz:String(z?.zeev_instance_id||'')};
       addPaymentDoc(pag,item,kind);
       if(kind==='COMPROVANTE'&&!pag.compDoc)pag.compDoc=item;
-      if(kind!=='COMPROVANTE'&&!pag.nfDoc)pag.nfDoc=item;
+      if(paymentIsFiscalDoc(item)&&!pag.nfDoc)pag.nfDoc=item;
       imported++;
     }catch(e){
       console.warn('capexImportAllZeevDocsToPayment:',e);
