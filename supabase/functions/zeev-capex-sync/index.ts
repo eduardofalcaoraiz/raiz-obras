@@ -225,7 +225,20 @@ const ITEM_DESC_FIELDS = [
   ...PURCHASE_ITEM_DESCRIPTION_FIELDS,
 ]
 const ITEM_QTY_FIELDS = ['quantidade', 'quantidadeSolicitada', 'quantidade solicitada', 'qtd', 'qtde']
-const FISCAL_NUMBER_FIELDS = ['numeroNF', 'numeroNotaFiscal', 'n\u00famero', 'numero', 'N\u00famero', 'Numero']
+const FISCAL_NUMBER_FIELDS = [
+  'notaFiscal',
+  'numeroNF',
+  'numeroDaNF',
+  'numeroNotaFiscal',
+  'numero da nota fiscal',
+  'numero da nf',
+  'numero da nfs',
+  'numero da nfs-e',
+  'numeroFatura',
+  'numero da fatura',
+  'numeroRecibo',
+  'numero do recibo',
+]
 const ISSUE_DATE_FIELDS = ['dataEmissao', 'data de emissao', 'data de emiss\u00e3o', 'Data de emiss\u00e3o', 'Data de emiss\u00e3o *']
 const DESTINATION_UNIT_FIELDS = [
   'Unidade / Filial',
@@ -1108,7 +1121,7 @@ function extractPagamento(fmap: Map<string, AnyRecord[]>) {
     data_pagamento: firstField(fmap, ['dataPagamento']) || null,
     previsao_pagamento: firstField(fmap, ['previsaoPagamento', 'dataDeVencimento', 'dataVencimento']) || null,
     data_entrega: firstField(fmap, ['dataEntrega', 'prazoEntrega']) || null,
-    nota_fiscal: firstField(fmap, ['notaFiscal', 'numeroNF', 'numeroNotaFiscal']) || null,
+    nota_fiscal: firstField(fmap, FISCAL_NUMBER_FIELDS) || null,
     chave_acesso: firstField(fmap, ['chaveAcesso']) || null,
   }
 }
@@ -3280,14 +3293,18 @@ function fiscalDocKind(doc: AnyRecord) {
   const explicitKind = explicitDocKindFromFileContext(doc)
   if (explicitKind) return explicitKind
   const declaredKind = String(doc?.kind || '').toUpperCase().trim()
-  if (['NF', 'NFE', 'NF-E', 'NFSE', 'NFS-E', 'DANFE', 'XML'].includes(declaredKind)) return 'NF'
-  if (['FATURA', 'RECIBO', 'BOLETO', 'COMPROVANTE', 'DOCUMENTO'].includes(declaredKind)) return declaredKind
   const urlName = doc?.url ? fileNameFromDownloadPath(doc.url, '') : ''
   const raw = [doc.name, doc.source, doc.type, urlName, doc.storagePath, doc.path].filter(Boolean).join(' ')
   const nameRaw = [doc.name, urlName, doc.storagePath].filter(Boolean).join(' ')
   const nameText = norm(nameRaw)
   const nameKey = normKey(nameRaw)
   const hay = norm(raw)
+  if (['NF', 'NFE', 'NF-E', 'NFSE', 'NFS-E', 'DANFE', 'XML'].includes(declaredKind)) {
+    const genericStoredDoc = /^documento\d+\d*anexo(?:pdf)?$/.test(nameKey) || /(?:^|\/)documento[_-]\d{10,}[_-]\d+[_-]anexo(?:\.pdf)?$/i.test(String(doc?.storagePath || doc?.path || doc?.name || ''))
+    if (genericStoredDoc && !zeevDocHasExplicitFiscalOrPaymentTerms(doc)) return 'DOCUMENTO'
+    return 'NF'
+  }
+  if (['FATURA', 'RECIBO', 'BOLETO', 'COMPROVANTE', 'DOCUMENTO'].includes(declaredKind)) return declaredKind
   if (hay.includes('recibo')) return 'RECIBO'
   if (hay.includes('comprovante') || hay.includes('pix')) return 'COMPROVANTE'
   if (hay.includes('fatura') || /(?:^|\s)ft\s*0*\d{2,}(?:\s|$)/.test(nameText) || /^ft0*\d{2,}/.test(nameKey)) return 'FATURA'
@@ -6019,8 +6036,73 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
   return out
 }
 
+async function runRepairPaymentFiscalMetadata(input: AnyRecord = {}) {
+  const limit = Math.max(1, Math.min(Number(input.limit || input.backfillLimit || input.backfill_limit || 300), 1000))
+  const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+  const targetSet = new Set(targetTicketIds.map((id) => String(id)))
+  const paymentFilter = targetTicketIds.length ? `ticket_raiz=in.(${targetTicketIds.join(',')})` : 'ticket_raiz=not.is.null'
+  const out: AnyRecord = { ok: true, mode: 'repair-payment-fiscal-metadata', requested: targetTicketIds, scannedPayments: 0, updatedPayments: 0, unchanged: 0, updated: [], errors: [] }
+  const rows = await restAll(`/pagamentos?select=id,obra_id,ticket_raiz,nf_num,nf_tipo,nf_doc_path,comp_doc_path,docs_json&${paymentFilter}&order=id.asc`, 1000)
+  const candidates = (rows || [])
+    .filter((row: AnyRecord) => ticketDigits(row.ticket_raiz) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz))))
+    .filter((row: AnyRecord) => {
+      const docs = normalizeStoredDocs(row)
+      const hasInvoice = docs.some((doc) => isInvoiceDocKind(fiscalDocKindWithContext(doc, row, row)))
+      const currentNum = String(row?.nf_num || '').trim()
+      return !currentNum || suspiciousFiscalNumber(currentNum) || hasInvoice || neutralFiscalType(row?.nf_tipo)
+    })
+    .sort((a: AnyRecord, b: AnyRecord) => fiscalMetadataRepairPriority(b) - fiscalMetadataRepairPriority(a) || Number(a.id) - Number(b.id))
+    .slice(0, limit)
+  out.scannedPayments = candidates.length
+  const ticketMap = await loadTicketsByIds(candidates.map((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz))))
+  for (const row of candidates) {
+    const tr = Number(ticketDigits(row.ticket_raiz))
+    try {
+      const storedTicket = ticketMap.get(tr)
+      const ticket = storedTicket ? normalizeStoredTicketSnapshot(storedTicket, tr) : { zeev_instance_id: tr }
+      const patch = paymentFiscalMetadataPatch(row, ticket)
+      if (!Object.keys(patch).length) {
+        out.unchanged++
+        continue
+      }
+      await rest(`/pagamentos?id=eq.${Number(row.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) })
+      out.updatedPayments++
+      if (out.updated.length < 120) {
+        out.updated.push({ tr, pagamento_id: Number(row.id), obra_id: Number(row.obra_id), before: { nf_tipo: row.nf_tipo || '', nf_num: row.nf_num || '' }, after: patch })
+      }
+    } catch (error) {
+      out.errors.push({ tr, pagamento_id: Number(row.id), error: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  if (out.errors.length > 30) out.errors = out.errors.slice(0, 30)
+  return out
+}
+
+function ticketFormRows(ticket: AnyRecord) {
+  const rows = Array.isArray(ticket?.raw_fields)
+    ? [...ticket.raw_fields]
+    : Array.isArray(ticket?.rawFields)
+      ? [...ticket.rawFields]
+      : []
+  const extracted = ticket?.campos_extraidos || ticket?.campos || {}
+  if (extracted && typeof extracted === 'object' && !Array.isArray(extracted)) {
+    for (const [name, value] of Object.entries(extracted)) {
+      if (!String(name || '').trim() || String(name).startsWith('_')) continue
+      rows.push({ name, label: name, value })
+    }
+  }
+  const pagamento = ticket?.pagamento_json || ticket?.pagamento || {}
+  if (pagamento && typeof pagamento === 'object' && !Array.isArray(pagamento)) {
+    for (const [name, value] of Object.entries(pagamento)) {
+      if (!String(name || '').trim()) continue
+      rows.push({ name, label: name, value })
+    }
+  }
+  return rows
+}
+
 function ticketFieldMap(ticket: AnyRecord) {
-  return fieldMap(Array.isArray(ticket?.raw_fields) ? ticket.raw_fields : Array.isArray(ticket?.rawFields) ? ticket.rawFields : [])
+  return fieldMap(ticketFormRows(ticket))
 }
 
 function ticketFirstField(ticket: AnyRecord, names: string[]) {
@@ -6060,16 +6142,14 @@ function fiscalTypeForTicket(ticket: AnyRecord, storedDocs: AnyRecord[]) {
   const text = normKey(candidates.map((doc) => [doc?.name, doc?.source, doc?.type, doc?.url, doc?.storagePath].filter(Boolean).join(' ')).join(' '))
   const kinds = candidates.map((doc) => fiscalDocKindWithContext(doc, ticket, ticket))
   if (standaloneAccessKeyFromText(candidates.map((doc) => [doc?.name, doc?.source, doc?.url, doc?.storagePath].filter(Boolean).join(' ')).join(' '))) return 'NF-e'
-  if (text.includes('nfe') || text.includes('danfe') || text.includes('xml')) return 'NF-e'
-  if (text.includes('nfse') || text.includes('nfs e') || text.includes('nota') || text.includes('nf')) return 'NFS-e'
-  if (text.includes('fatura')) return 'Fatura'
-  if (text.includes('recibo')) return 'Recibo'
-  if (text.includes('boleto')) return 'Boleto'
   if (kinds.some((kind) => String(kind || '').toUpperCase() === 'FATURA')) return 'Fatura'
   if (kinds.some((kind) => String(kind || '').toUpperCase() === 'RECIBO')) return 'Recibo'
+  if (text.includes('fatura')) return 'Fatura'
+  if (text.includes('recibo')) return 'Recibo'
+  if (text.includes('nfe') || text.includes('danfe') || text.includes('xml')) return 'NF-e'
+  if (text.includes('nfse') || text.includes('nfs e') || text.includes('nota') || text.includes('nf')) return 'NFS-e'
+  if (text.includes('boleto')) return 'Boleto'
   if (kinds.some((kind) => String(kind || '').toUpperCase() === 'NF')) return 'NFS-e'
-  if (kinds.some((kind) => isChargeDocKind(kind))) return 'Fatura'
-  if (kinds.some((kind) => isProofDocKind(kind))) return 'Recibo'
   if (candidates.length) return 'Documento'
   return 'Sem nota'
 }
@@ -6087,6 +6167,8 @@ function fiscalDocNumberFromText(raw: unknown, kind: unknown, nfTipo = '') {
       const nfse = decodeNfseKeyNumber(text)
       if (nfse) return nfse
     }
+    const fileNumber = invoiceFileNumberFromText(text, kind, nfTipo)
+    if (fileNumber) return fileNumber
     return ''
   }
   let base = text.split(/[?#]/)[0].split('/').pop() || text
@@ -6106,17 +6188,45 @@ function fiscalDocNumberFromText(raw: unknown, kind: unknown, nfTipo = '') {
     if (/r\$|rs|valor|total/.test(before)) return ''
     return explicit[1].replace(/^0+(?=\d)/, '')
   }
+  const fileNumber = invoiceFileNumberFromText(text, kind, nfTipo)
+  if (fileNumber) return fileNumber
+  return ''
+}
+
+function normalizeFiscalDocumentNumber(value: unknown, nfTipo: unknown = '') {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const compact = raw.replace(/\D/g, '')
+  const typeText = String(nfTipo || '').toUpperCase()
+  if (compact && (typeText.includes('NFS') || /^20\d{6,}$/.test(compact))) {
+    const yearPrefixed = compact.match(/^20\d{2}0+(\d{1,9})$/)
+    if (yearPrefixed) return yearPrefixed[1].replace(/^0+(?=\d)/, '')
+  }
+  return raw.replace(/^0+(?=\d)/, '')
+}
+
+function invoiceFileNumberFromText(raw: unknown, kind: unknown, nfTipo = '') {
+  const upperKind = String(kind || nfTipo || '').toUpperCase()
+  if (!isInvoiceDocKind(upperKind)) return ''
+  let base = String(raw || '').split(/[?#]/)[0].split('/').pop() || String(raw || '')
+  base = base.replace(/\.[a-z0-9]{1,8}$/i, '')
+  base = base.replace(/^(?:nf|documento|fatura|recibo)_\d{10,}_\d+_/i, '')
+  base = base.replace(/(?:[_\-\s]+20\d{10,}.*)$/i, '')
+  const explicit = base.match(/(?:nfse|nfs-e|nfs|nfe|nf-e|nfe|nf|nota(?:\s|_|-)*(?:fiscal)?)(?:\D{0,16}(?:20\d{2}))?\D{0,12}0*(\d{1,8})(?!\d)/i)
+  if (explicit) return normalizeFiscalDocumentNumber(explicit[1], nfTipo || kind)
+  const leading = base.match(/^0*(\d{1,8})(?:[_\-\s]+20\d{6,}|\b)/)
+  if (leading) return normalizeFiscalDocumentNumber(leading[1], nfTipo || kind)
   return ''
 }
 
 function fiscalDocNumberForTicket(ticket: AnyRecord, storedDocs: AnyRecord[], nfTipo: string) {
   const direct = ticket?.pagamento_json?.nota_fiscal
-    || ticketFirstField(ticket, ['notaFiscal', 'numeroNF', 'numeroNotaFiscal', 'numero da nota fiscal', 'numero da nf', 'numero da nfs', 'numeroFatura', 'numero da fatura', 'numeroRecibo', 'numero do recibo'])
+    || ticketFirstField(ticket, FISCAL_NUMBER_FIELDS)
     || ''
-  if (String(direct || '').trim()) return String(direct || '').trim()
+  if (String(direct || '').trim()) return normalizeFiscalDocumentNumber(direct, nfTipo)
   const candidates = [...storedDocs, ...zeevDocsFromTicket(ticket)]
   const fiscalDocs = candidates.filter((doc) => isInvoiceDocKind(fiscalDocKindWithContext(doc, ticket, ticket)))
-  const doc = fiscalDocs[0] || candidates[0]
+  const doc = fiscalDocs[0]
   if (!doc) return ''
   const kind = fiscalDocKindWithContext(doc, ticket, ticket)
   const docName = String(doc?.name || fileNameFromDownloadPath(doc?.storagePath || doc?.path || doc?.url || '', '') || doc?.source || '')
@@ -6125,10 +6235,11 @@ function fiscalDocNumberForTicket(ticket: AnyRecord, storedDocs: AnyRecord[], nf
 
 function paymentFiscalMetadataFromDocs(row: AnyRecord, ticket: AnyRecord = {}) {
   const storedDocs = normalizeStoredDocs(row)
-  if (!storedDocs.length && !row?.nf_doc_path) return { nfTipo: '', nfNum: '' }
   const context = { ...(ticket || {}), ...(ticket?.zeev_instance_id ? {} : { zeev_instance_id: ticketDigits(row?.ticket_raiz) }) }
-  const nfTipo = fiscalTypeForTicket(context, storedDocs)
-  const nfNum = fiscalDocNumberForTicket(context, storedDocs, nfTipo)
+  const invoiceDocs = storedDocs.filter((doc) => isInvoiceDocKind(fiscalDocKindWithContext(doc, context, row)))
+  if (!invoiceDocs.length && !String(ticketFirstField(context, FISCAL_NUMBER_FIELDS) || context?.pagamento_json?.nota_fiscal || '').trim()) return { nfTipo: '', nfNum: '' }
+  const nfTipo = fiscalTypeForTicket(context, invoiceDocs)
+  const nfNum = fiscalDocNumberForTicket(context, invoiceDocs, nfTipo)
   return { nfTipo, nfNum: String(nfNum || '').trim() }
 }
 
@@ -6147,6 +6258,19 @@ function suspiciousFiscalNumber(value: unknown) {
   return false
 }
 
+function fiscalMetadataRepairPriority(row: AnyRecord) {
+  let score = 0
+  const currentNum = String(row?.nf_num || '').trim()
+  const currentTipo = String(row?.nf_tipo || '').trim()
+  if (!currentNum) score += 100
+  if (suspiciousFiscalNumber(currentNum)) score += 80
+  if (neutralFiscalType(currentTipo)) score += 30
+  if (String(row?.nf_doc_path || '').trim()) score += 20
+  const docs = normalizeStoredDocs(row)
+  if (docs.some((doc) => isInvoiceDocKind(fiscalDocKindWithContext(doc, row, row)))) score += 10
+  return score
+}
+
 function paymentFiscalMetadataPatch(row: AnyRecord, ticket: AnyRecord = {}) {
   const meta = paymentFiscalMetadataFromDocs(row, ticket)
   const currentTipo = String(row?.nf_tipo || '').trim()
@@ -6154,9 +6278,10 @@ function paymentFiscalMetadataPatch(row: AnyRecord, ticket: AnyRecord = {}) {
   const patch: AnyRecord = {}
   const hasTypeEvidence = meta.nfTipo && !['Sem nota', 'Documento', 'Boleto'].includes(meta.nfTipo)
   const hasNumberEvidence = Boolean(meta.nfNum)
+  const strongNonInvoiceType = ['Fatura', 'Recibo'].includes(meta.nfTipo)
   if (!hasTypeEvidence && !hasNumberEvidence) return patch
-  if (hasTypeEvidence && (neutralFiscalType(currentTipo) || hasNumberEvidence)) patch.nf_tipo = meta.nfTipo
-  if (hasNumberEvidence && (!currentNum || neutralFiscalType(currentTipo) || suspiciousFiscalNumber(currentNum))) patch.nf_num = meta.nfNum
+  if (hasTypeEvidence && meta.nfTipo !== currentTipo && (neutralFiscalType(currentTipo) || strongNonInvoiceType)) patch.nf_tipo = meta.nfTipo
+  if (hasNumberEvidence && meta.nfNum !== currentNum && (!currentNum || neutralFiscalType(currentTipo) || suspiciousFiscalNumber(currentNum))) patch.nf_num = meta.nfNum
   return patch
 }
 
@@ -6164,8 +6289,9 @@ function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: st
   const storedDocs = normalizeStoredDocs(ticket)
   const invoiceDocs = storedDocs.filter((doc) => isInvoiceDocKind(fiscalDocKindWithContext(doc, ticket, ticket)))
   const comprovantes = storedDocs.filter((doc) => isProofDocKind(fiscalDocKindWithContext(doc, ticket, ticket)))
-  const nfTipo = fiscalTypeForTicket(ticket, storedDocs)
-  const nfNum = fiscalDocNumberForTicket(ticket, storedDocs, nfTipo)
+  const hasFiscalFieldNumber = Boolean(String(ticket?.pagamento_json?.nota_fiscal || ticketFirstField(ticket, FISCAL_NUMBER_FIELDS) || '').trim())
+  const nfTipo = invoiceDocs.length || hasFiscalFieldNumber ? fiscalTypeForTicket(ticket, invoiceDocs) : 'Sem nota'
+  const nfNum = invoiceDocs.length || hasFiscalFieldNumber ? fiscalDocNumberForTicket(ticket, invoiceDocs, nfTipo) : ''
   const venc = dateOnly(ticket?.pagamento_json?.previsao_pagamento || ticket?.pagamento_json?.dataVencimento)
     || dateOnly(ticketFirstField(ticket, ['previsaoPagamento', 'dataDeVencimento', 'dataVencimento', 'dataPagamento']))
   const paidDate = paymentDateFromTicket(ticket)
@@ -6948,6 +7074,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'refresh-payment-statuses') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await runRefreshPaymentStatuses(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'repair-payment-fiscal-metadata') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await runRepairPaymentFiscalMetadata(input || {})
       return json(out)
     }
     if (mode === 'webhook-ticket' || mode === 'webhook') {

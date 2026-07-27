@@ -4259,6 +4259,17 @@ function paymentDocDisplayType(doc,p){
   return'NF';
 }
 
+function paymentDocKindPretty(kind,tipo){
+  const k=String(kind||'').toUpperCase();
+  const t=String(tipo||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  if(k==='FATURA'||t.includes('FATURA'))return'Fatura';
+  if(k==='RECIBO'||t.includes('RECIBO'))return'Recibo';
+  if(t.includes('NFS'))return'NFS-e';
+  if(t.includes('NFE')||t.includes('NF-E'))return'NF-e';
+  if(k==='NF'||t.includes('NF'))return'NF';
+  return k||t||'NF';
+}
+
 function paymentDocNumberFromText(raw,kind,tipo,dateIso){
   const text=String(raw||'').trim();
   if(!text)return'';
@@ -4311,8 +4322,9 @@ function paymentNfNumberLabel(p){
   const explicit=[p?.nfNum,p?.nota].filter(Boolean).map(v=>cleanImpDocNumber(v,p?.nfTipo||kind,p?.emissao||p?.venc||'')).find(Boolean);
   const fileNum=paymentNfFileNumber(p);
   const number=explicit||fileNum;
-  if(number)return kind+' '+number;
-  return fiscalDoc?kind:'';
+  const label=paymentDocKindPretty(kind,p?.nfTipo);
+  if(number)return label+' '+number;
+  return fiscalDoc?label:'';
 }
 
 function esferaNfSearchResults(query){
@@ -4464,6 +4476,9 @@ function _buildPagadores(obraAtual, valorAtual){
 }
 function _obraEscolaPagadora(obraAtual){
   if(!obraAtual)return'';
+  const refs=Array.isArray(obraAtual.unidades_obra)?obraAtual.unidades_obra:[];
+  const principal=refs.find(u=>u&&u.principal&&String(u.nome||'').trim())||refs.find(u=>u&&String(u.nome||'').trim());
+  if(principal)return String(principal.nome||'').trim();
   const u=_obraLinkedUnit(obraAtual);
   return (u&&u.nome)||obraAtual.nome||'';
 }
@@ -7167,7 +7182,7 @@ function capexBuildPagamentoFromZeev(z,obra,escopo){
   const fiscalDoc=candidateDocs.find(paymentIsFiscalDoc)||null;
   const fiscalKind=paymentDocDisplayType(fiscalDoc,{nfTipo:''});
   const fiscalType=fiscalDoc?(fiscalKind==='FATURA'?'Fatura':fiscalKind==='RECIBO'?'Recibo':'NFS-e'):'Sem nota';
-  const nfNumRaw=String(z?.pagamento_json?.nota_fiscal||capexZeevAnyField(z,['notaFiscal','numeroNF','numeroNotaFiscal','numero da nota fiscal','numero da nf','numero da nfs','numeroFatura','numero da fatura','numeroRecibo','numero do recibo'])||'').trim();
+  const nfNumRaw=String(z?.pagamento_json?.nota_fiscal||capexZeevAnyField(z,CAPEX_ZEEV_FISCAL_NUMBER_FIELDS)||'').trim();
   const fiscalDocName=String(fiscalDoc?.name||(fiscalDoc?.storagePath||'').split('/').pop()||fiscalDoc?.source||'');
   const nfNum=nfNumRaw||paymentDocNumberFromText(fiscalDocName,fiscalKind,fiscalType);
   const venc=capexZeevPagamentoDate(z,['previsao_pagamento','dataVencimento','dataDeVencimento','previsaoPagamento','dataPagamento']);
@@ -7618,6 +7633,12 @@ function capexZeevRawField(z,names){
 function capexZeevAnyField(z,names){
   return capexZeevField(z,names)||capexZeevRawField(z,names);
 }
+
+const CAPEX_ZEEV_FISCAL_NUMBER_FIELDS=[
+  'notaFiscal','numeroNF','numeroDaNF','numeroNotaFiscal',
+  'numero da nota fiscal','numero da nf','numero da nfs','numero da nfs-e',
+  'numeroFatura','numero da fatura','numeroRecibo','numero do recibo'
+];
 
 const CAPEX_ZEEV_VENDOR_FIELDS=[
   'fornecedor','nomeFornecedor','razaoSocial','razao social','fornecedorEscolhido','favorecido','beneficiario',
@@ -8445,7 +8466,7 @@ async function openCapexZeevObraApproval(id){
   if(tipoEl)tipoEl.value=tipo;
   const fiscalDoc=[...capexZeevStoredDocs(z),...capexZeevFiscalDocuments(z)].find(paymentIsFiscalDoc)||null;
   const fiscalDocName=String(fiscalDoc?.name||(fiscalDoc?.storagePath||'').split('/').pop()||fiscalDoc?.source||'');
-  const nfNum=String(z?.pagamento_json?.nota_fiscal||capexZeevAnyField(z,['notaFiscal','numeroNF','numeroNotaFiscal','numero da nota fiscal','numero da nf','numero da nfs','numeroFatura','numero da fatura','numeroRecibo','numero do recibo'])||paymentDocNumberFromText(fiscalDocName,paymentDocDisplayType(fiscalDoc,{nfTipo:tipo}),tipo)||'').trim();
+  const nfNum=String(z?.pagamento_json?.nota_fiscal||capexZeevAnyField(z,CAPEX_ZEEV_FISCAL_NUMBER_FIELDS)||paymentDocNumberFromText(fiscalDocName,paymentDocDisplayType(fiscalDoc,{nfTipo:tipo}),tipo)||'').trim();
   const ref=capexZeevDescricaoLancamento(z)||z.request_name||('Ticket Raiz '+(z.zeev_instance_id||id));
   const venc=capexZeevPagamentoDate(z,['previsao_pagamento','dataVencimento','dataDeVencimento','previsaoPagamento','dataPagamento']);
   document.getElementById('zo-ben').value=capexZeevFornecedor(z);
@@ -11609,7 +11630,7 @@ async function togglePagRow(i){
   renderPag();
 }
 
-function docCell(o,i,p){if(paymentDocsAreLoaded(p))hydratePaymentDocs(p);let nf;if(p.nfDoc){const nm=(p.nfDoc.name||p.nfDoc.storagePath||'NF').length>16?(p.nfDoc.name||p.nfDoc.storagePath||'NF').slice(0,14)+"…":(p.nfDoc.name||p.nfDoc.storagePath||'NF');nf=`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${nm} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:10.5px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${p.nota?("NF "+p.nota):(p.nfTipo||"NF")}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
+function docCell(o,i,p){if(paymentDocsAreLoaded(p))hydratePaymentDocs(p);let nf;const nfLabel=paymentNfNumberLabel(p);if(p.nfDoc){const fileName=p.nfDoc.name||p.nfDoc.storagePath||'documento fiscal';nf=`<button class="linkbtn" title="${escHtml(fileName)}" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${escHtml(nfLabel||paymentDocKindPretty(paymentDocDisplayType(p.nfDoc,p),p.nfTipo)||'Documento fiscal')} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:10.5px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${escHtml(nfLabel||paymentDocKindPretty('',p.nfTipo)||'NF')}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
 
   const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">comprovante ↓</button>`:`<button class="linkbtn" onclick="anexarComp(${o.id},${i})">anexar</button>`;
 
@@ -12343,7 +12364,7 @@ function renderPag(){const o=cur;
           ${p.pagaEm&&p.st==='PAGO'?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Pago em</div><div style="font-size:13.5px;color:var(--ok);font-weight:600">✓ ${fmtD(p.pagaEm)}</div></div>`:''}
           ${p.pagn?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Pago por</div><div style="font-size:13.5px">👤 ${p.pagn}</div></div>`:''}
           ${cVinc?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Contrato vinculado</div><button onclick="event.stopPropagation();goToContract(${cVinc.seq})" style="font-size:13px;color:var(--info);background:var(--info)12;border:1px solid var(--info)33;border-radius:8px;padding:3px 10px;cursor:pointer;font-family:inherit;font-weight:600;text-align:left">📋 ${cVinc.nome_contr||cVinc.forn} →</button></div>`:''}
-          ${p.nfTipo?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Documento fiscal</div><div style="font-size:13.5px">${p.nfTipo}${p.nfNum?' · Nº '+cleanImpDocNumber(p.nfNum,p.nfTipo):''}</div></div>`:''}
+          ${p.nfTipo?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Documento fiscal</div><div style="font-size:13.5px">${escHtml(paymentNfNumberLabel(p)||paymentDocKindPretty('',p.nfTipo)||p.nfTipo)}</div></div>`:''}
           ${p.ticketRaiz?`<div><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Ticket Raiz</div><div style="font-size:13.5px;font-family:Geist,sans-serif;font-weight:700;color:var(--brand-text)">TR ${p.ticketRaiz}</div></div>`:''}${p.obs?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Observações</div><div style="font-size:13px;color:var(--ink)">${p.obs}</div></div>`:''}${p.itens&&p.itens.length?`<div style="grid-column:1/-1;margin-top:8px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:5px">Itens da Nota (${p.itens.length})</div><div style="overflow-x:auto"><table class="imp-itens-tbl"><thead><tr><th>#</th><th>Descrição</th><th style="text-align:right">Qtd</th><th>Un</th><th style="text-align:right">Total</th></tr></thead><tbody>${p.itens.map((it,ii)=>`<tr><td style="color:var(--muted);text-align:center;width:24px">${ii+1}</td><td>${it.descricao||'—'}</td><td style="text-align:right;white-space:nowrap">${it.quantidade!=null?parseFloat(it.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:4}):'—'}</td><td style="color:var(--muted)">${it.unidade||'—'}</td><td style="text-align:right;font-weight:600;white-space:nowrap">R$ ${it.valor_total!=null?parseFloat(it.valor_total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)">

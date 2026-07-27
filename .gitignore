@@ -38,6 +38,7 @@ good_*.html
 working_version.html
 
 # Supabase CLI e zips
+tools/supabase/
 supabase_cli/
 supabase_cli.zip
 supabase/.temp/

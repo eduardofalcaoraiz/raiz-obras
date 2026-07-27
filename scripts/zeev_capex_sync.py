@@ -188,7 +188,20 @@ ITEM_DESC_FIELDS = [
 
 ITEM_QTY_FIELDS = ["quantidade", "quantidade solicitada", "quantidadeSolicitada", "qtd", "qtde"]
 ITEM_UNIT_MEASURE_FIELDS = ["unidadeMedida", "unidade medida", "unidade", "un"]
-FISCAL_NUMBER_FIELDS = ["numeroNF", "numeroNotaFiscal", "n\u00famero", "numero", "N\u00famero", "Numero"]
+FISCAL_NUMBER_FIELDS = [
+    "notaFiscal",
+    "numeroNF",
+    "numeroDaNF",
+    "numeroNotaFiscal",
+    "numero da nota fiscal",
+    "numero da nf",
+    "numero da nfs",
+    "numero da nfs-e",
+    "numeroFatura",
+    "numero da fatura",
+    "numeroRecibo",
+    "numero do recibo",
+]
 ISSUE_DATE_FIELDS = ["dataEmissao", "data de emissao", "data de emiss\u00e3o", "Data de emiss\u00e3o", "Data de emiss\u00e3o *"]
 DESTINATION_UNIT_FIELDS = [
     "Unidade / Filial", "Unidade / Filial *", "Unidade / Filial de destino",
@@ -1592,7 +1605,7 @@ def build_ticket(row):
             "data_pagamento": field_value(fields, ["dataPagamento"]) or None,
             "previsao_pagamento": field_value_by_priority(fields, ["previsaoPagamento", "dataDeVencimento", "dataVencimento"]) or None,
             "data_entrega": field_value(fields, ["dataEntrega", "prazoEntrega"]) or None,
-            "nota_fiscal": field_value(fields, ["notaFiscal", "numeroNF", "numeroNotaFiscal"]) or None,
+            "nota_fiscal": field_value(fields, FISCAL_NUMBER_FIELDS) or None,
             "chave_acesso": field_value(fields, ["chaveAcesso"]) or None,
             "valor_total": valor or None,
         },
@@ -1667,7 +1680,7 @@ def generic_ticket_from_instance(row, reason=""):
             "data_pagamento": field_value(fields, ["dataPagamento"]) or None,
             "previsao_pagamento": field_value_by_priority(fields, ["previsaoPagamento", "dataDeVencimento", "dataVencimento"]) or None,
             "data_entrega": field_value(fields, ["dataEntrega", "prazoEntrega"]) or None,
-            "nota_fiscal": field_value(fields, ["notaFiscal", "numeroNF", "numeroNotaFiscal"]) or None,
+            "nota_fiscal": field_value(fields, FISCAL_NUMBER_FIELDS) or None,
             "chave_acesso": field_value(fields, ["chaveAcesso"]) or None,
             "valor_total": valor or None,
         },
