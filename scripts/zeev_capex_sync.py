@@ -1182,6 +1182,32 @@ def parse_ticket_ids(value):
     return out
 
 
+def known_ticket_refresh_ids(limit):
+    try:
+        n = max(0, min(int(limit or 0), 25))
+    except (TypeError, ValueError):
+        n = 0
+    if not n or not ZEEV_SYNC_SECRET:
+        return []
+    try:
+        data = request_json(
+            "POST",
+            f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+            headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+            payload={
+                "mode": "known-ticket-refresh-ids",
+                "limit": n,
+                "flowIds": ",".join(str(x) for x in FLOW_IDS),
+            },
+            timeout=45,
+            retries=1,
+        )
+        return parse_ticket_ids((data or {}).get("ticketIds") or [])
+    except Exception as exc:
+        print(json.dumps({"progress": "known-ticket-refresh-ids-error", "error": str(exc)[:500]}, ensure_ascii=False), file=sys.stderr)
+        return []
+
+
 def fields_object(fields):
     out = {}
     for field in fields or []:
@@ -3510,6 +3536,8 @@ def main():
     if mode == "incremental" and not deep_mode:
         max_pages = min(max_pages, int(os.environ.get("ZEEV_INCREMENTAL_MAX_PAGES_CAP", "2") or "2"))
         extra_limit = max(0, int(os.environ.get("ZEEV_INCREMENTAL_EXTRA_TICKET_CAP", "5") or "5"))
+        if extra_limit and not extra_ticket_ids:
+            extra_ticket_ids = known_ticket_refresh_ids(extra_limit)
         if extra_limit and len(extra_ticket_ids) > extra_limit:
             print(json.dumps({
                 "progress": "extra-ticket-cap",

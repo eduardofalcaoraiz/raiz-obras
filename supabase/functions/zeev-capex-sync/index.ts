@@ -2176,6 +2176,18 @@ async function knownTicketRefreshIds(limit: number, flows: number[] = []) {
   return uniqueNumbers([...(recentApproved || []), ...(staleKnown || [])].map((row: AnyRecord) => row.zeev_instance_id)).slice(0, n)
 }
 
+async function runKnownTicketRefreshIds(input: AnyRecord = {}) {
+  const limit = Math.max(0, Math.min(Number(input.limit || input.refreshLimit || input.refresh_limit || 8) || 0, 25))
+  const flows = parseFlowIds(input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','))
+  return {
+    ok: true,
+    mode: 'known-ticket-refresh-ids',
+    limit,
+    flowIds: flows,
+    ticketIds: await knownTicketRefreshIds(limit, flows),
+  }
+}
+
 async function zeevReport(flow: number, page: number, start: string, end: string) {
   if (!zeevToken()) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
@@ -3058,6 +3070,14 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
     await saveState('zeev-capex', { running: false, last_error: String(msg).slice(0, 1500) })
     throw new Error(`Vercel Zeev bridge ${res.status}: ${String(msg).slice(0, 1500)}`)
   }
+  await saveState('zeev-capex', {
+    running: false,
+    last_success_at: new Date().toISOString(),
+    last_error: null,
+    last_run_found: Number(payload?.tickets || payload?.ingest?.found || 0),
+    last_run_new: Number(payload?.ingest?.new || 0),
+    last_run_updated: Number(payload?.ingest?.updated || 0),
+  })
   return {
     ok: true,
     mode: 'dispatch',
@@ -5478,7 +5498,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   }
 
   if (includeCapex && budget > 0) {
-    const capexBase = '/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at&order=id.asc'
+    const capexBase = '/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at,pedido,orcamento,categoria_capex&order=zeev_docs_checked_at.asc.nullsfirst,id.asc'
     const rows = targetTicketIds.length ? await restAll(capexBase) : await rest(`${capexBase}&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
       .filter((row: AnyRecord) => {
@@ -5498,16 +5518,8 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         recordAttachedDocs(out, 'capex', row, ticket, attach)
         recordCheckedWithoutFiscalDoc(out, 'capex', row, ticket, attach)
         if (targetSet.size && !attach.attached) addDocDebug(out, 'capex', row, ticket, attach)
-        const paidDate = paymentDateFromTicket(ticket)
-        const patch: AnyRecord = { ticket_raiz_dados: ticketDataPatch(ticket, row.ticket_raiz_dados || {}), zeev_docs_checked_at: new Date().toISOString() }
+        const patch: AnyRecord = capexRegisteredPatchFromTicket(ticket, row)
         if (attach.attached || JSON.stringify(attach.docs || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = attach.docs
-        if (paidDate || ticket.realizado_sugerido === true) {
-          patch.situacao = 'Resolvido'
-          patch.realizado = true
-        } else if (String(ticket.situacao_sugerida || '').toLowerCase() === 'cancelado') {
-          patch.situacao = 'Cancelado'
-          patch.realizado = false
-        }
         await rest(`/capex_itens?id=eq.${Number(row.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) })
         out.updatedCapex++
         out.filesAttached += attach.attached
@@ -6305,6 +6317,34 @@ function capexPayloadFromTicket(ticket: AnyRecord, unit: AnyRecord, ano: number)
   }
 }
 
+function capexRegisteredPatchFromTicket(ticket: AnyRecord, row: AnyRecord = {}) {
+  const patch: AnyRecord = {
+    ticket_raiz_dados: ticketDataPatch(ticket, row.ticket_raiz_dados || {}),
+    zeev_docs_checked_at: new Date().toISOString(),
+  }
+
+  const value = ticketValueForPayment(ticket)
+  if (Number.isFinite(value) && value > 0) patch.orcamento = value
+
+  const status = capexStatusFromTicket(ticket)
+  if (status.realizado === true) {
+    patch.situacao = 'Resolvido'
+    patch.realizado = true
+  } else if (String(status.situacao || '').toLowerCase() === 'cancelado') {
+    patch.situacao = 'Cancelado'
+    patch.realizado = false
+  }
+
+  const category = capexCategoryFromTicket(ticket)
+  if (category && !row.categoria_capex) patch.categoria_capex = category
+
+  const pedido = ticketDescriptionForPayment(ticket)
+  const currentPedido = String(row.pedido || '').trim()
+  if (pedido && (!currentPedido || /^ticket raiz\s+\d+$/i.test(currentPedido))) patch.pedido = pedido
+
+  return patch
+}
+
 async function registerCapexItems(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const unidadeName = String(input.unidadeName || input.targetUnidade || input.target_unidade || input.unidade || input.escola || input.school || '').trim()
@@ -6810,6 +6850,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'reconcile-registered') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await reconcilePendingTicketsAlreadyRegistered()
+      return json(out)
+    }
+    if (input?.mode === 'known-ticket-refresh-ids') {
+      if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
+      const out = await runKnownTicketRefreshIds(input || {})
       return json(out)
     }
     if (input?.mode === 'backfill-docs') {
