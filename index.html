@@ -567,8 +567,20 @@ button{font-family:inherit;cursor:pointer}
 .capex-inline-grid{display:grid;grid-template-columns:minmax(130px,180px) minmax(115px,1fr);gap:10px;align-items:end;margin-top:0;padding-top:0;border-top:0}
 .capex-flag{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:8px 10px;font-size:12.5px;color:var(--muted)}
 .capex-flag input{width:17px;height:17px}
-.capex-form-card{border:1px solid var(--line);background:var(--surface-2);border-radius:var(--r);padding:14px 16px;margin-bottom:14px}
-.capex-form-title{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-bottom:10px}
+.capex-form-card{border:1px solid var(--line);background:rgba(255,255,255,.62);border-radius:14px;padding:14px 16px;margin-bottom:14px;box-shadow:0 10px 24px -28px rgba(0,0,0,.5)}
+.capex-form-card.priority{border-color:color-mix(in srgb,var(--brand-cur,var(--accent)) 18%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.86),color-mix(in srgb,var(--brand-cur-light,var(--raiz-soft)) 32%,#fff))}
+.capex-form-card.optional{background:rgba(255,255,255,.46)}
+.capex-form-card.full-row{grid-column:1/-1}
+.capex-form-title{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--brand-text,var(--accent-text));font-weight:900;margin-bottom:8px}
+.capex-form-sub{font-size:12px;line-height:1.38;color:var(--muted);margin:-2px 0 12px}
+.capex-form-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.capex-form-grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.capex-form-card .fgrid{gap:12px}
+.capex-form-card .frow{margin-bottom:12px}
+.capex-form-card .frow:last-child{margin-bottom:0}
+.capex-form-card .fi{background:rgba(255,255,255,.84)}
+.capex-form-divider{height:1px;background:var(--line);margin:12px 0}
+.capex-form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:4px}
 .capex-context{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:10px 12px;margin-bottom:14px}
 .capex-context-logo{width:62px;height:38px;border-radius:8px;background:white;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:4px;overflow:hidden;flex-shrink:0}
 .capex-context-title{font-weight:700;font-size:14px;line-height:1.25}
@@ -678,8 +690,8 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-card.not-capex .capex-zeev-money-value{color:var(--muted)}
 .capex-notcapex-modal-list{display:grid;grid-template-columns:1fr;gap:9px;max-height:62vh;overflow:auto;padding:1px 2px 1px 1px}
 .capex-context.zeev{display:block}
-.capex-item-modal{max-width:1120px!important;width:min(1120px,calc(100vw - 28px))}
-.capex-item-modal .mbody{max-height:min(82vh,820px);overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+.capex-item-modal{max-width:1180px!important;width:min(1180px,calc(100vw - 28px))}
+.capex-item-modal .mbody{max-height:min(82vh,820px);overflow:auto;display:grid;grid-template-columns:minmax(0,1.22fr) minmax(340px,.78fr);gap:14px;align-items:start}
 .capex-item-modal #ci-m-context.capex-context.zeev{margin-bottom:12px}
 .capex-item-modal #ci-m-context,.capex-item-modal .mbody>div:last-child{grid-column:1/-1}
 .capex-item-modal .capex-form-card{margin-bottom:0}
@@ -688,6 +700,15 @@ button{font-family:inherit;cursor:pointer}
 .capex-context-ticket{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
 .capex-context-ticket:last-child{margin-bottom:0}
 .capex-context-ticket .mark{width:40px;height:40px;border-radius:10px;background:var(--brand-cur-light,var(--raiz-soft));border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 28%,var(--line));display:flex;align-items:center;justify-content:center;font-family:"Geist",sans-serif;font-weight:900;color:var(--brand-text,var(--accent-text));flex:none}
+.capex-ticket-overview{gap:12px}
+.capex-ticket-main{min-width:0;width:100%;display:grid;gap:8px}
+.capex-ticket-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.capex-ticket-link{display:inline-flex;align-items:center;justify-content:center;border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 26%,var(--line));background:var(--surface);color:var(--brand-text,var(--accent-text));border-radius:9px;padding:6px 10px;font-size:11.5px;font-weight:850;text-decoration:none;white-space:nowrap}
+.capex-ticket-meta{font-size:12px;color:var(--muted);line-height:1.35}
+.capex-ticket-desc{border-top:1px solid var(--line);padding-top:8px;font-size:12.7px;line-height:1.45;color:var(--muted)}
+.capex-ticket-desc b,.capex-ticket-items b{color:var(--ink);font-weight:900}
+.capex-ticket-items{display:grid;gap:4px;font-size:12.2px;color:var(--muted);line-height:1.35}
+.capex-ticket-item{padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.55)}
 .capex-context-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:9px 0 7px}
 .capex-context-fact{border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 18%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.82),color-mix(in srgb,var(--brand-cur-light,var(--raiz-soft)) 38%,#fff));border-radius:10px;padding:8px 10px;min-width:0}
 .capex-context-fact b{display:block;font-size:9.8px;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
@@ -699,8 +720,8 @@ button{font-family:inherit;cursor:pointer}
 .zeev-destination-card b{font-size:15px;line-height:1.18;color:var(--ink)}
 .zeev-destination-card span{font-size:12.5px;line-height:1.45;color:var(--muted)}
 .zeev-destination-card em{margin-top:auto;font-style:normal;font-size:11.5px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-text,var(--accent-text))}
-.zeev-obra-modal{max-width:1120px!important;width:min(1120px,calc(100vw - 28px))}
-.zeev-obra-modal .mbody{max-height:min(82vh,820px);overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+.zeev-obra-modal{max-width:1180px!important;width:min(1180px,calc(100vw - 28px))}
+.zeev-obra-modal .mbody{max-height:min(82vh,820px);overflow:auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,.8fr);gap:14px;align-items:start}
 .zeev-obra-modal .capex-context,.zeev-obra-modal .full-row,.zeev-obra-modal .modal-actions{grid-column:1/-1}
 .zeev-doc-list{display:grid;gap:7px;margin-top:6px}
 .zeev-doc-pill{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;border:1px solid var(--line);background:rgba(255,255,255,.72);border-radius:10px;padding:8px 10px;font-size:12.2px;color:var(--muted);min-width:0}
@@ -797,6 +818,10 @@ button{font-family:inherit;cursor:pointer}
   .capex-item-modal{width:calc(100vw - 18px)}
   .capex-item-modal .mbody{display:block}
   .capex-item-modal .capex-form-card{margin-bottom:12px}
+  .capex-form-grid-2,.capex-form-grid-3{grid-template-columns:1fr}
+  .capex-ticket-top{flex-direction:column}
+  .capex-ticket-link{width:100%}
+  .capex-context-facts{grid-template-columns:1fr}
   .zeev-destination-grid{grid-template-columns:1fr}
   .zeev-obra-modal{width:calc(100vw - 18px)}
   .zeev-obra-modal .mbody{display:block}
@@ -3292,15 +3317,20 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <div id="ci-m-context" class="capex-context" style="display:none"></div>
 
-    <div class="capex-form-card">
-      <div class="capex-form-title">Contexto do pedido</div>
-      <div class="fgrid"><div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="ci-m-ano" onchange="updateCapexUnitHint();syncCapexResolvedState()"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option></select></div><div class="frow"><label class="fl">Solicitante</label><input class="fi" id="ci-m-solicitante" placeholder="Nome da pessoa solicitante"></div></div>
-      <div class="fgrid"><div class="frow"><label class="fl">E-mail do solicitante</label><input class="fi" id="ci-m-solicitante-email" type="email" placeholder="email@raizeducacao.com.br"></div></div>
+    <div class="capex-form-card priority full-row">
+      <div class="capex-form-title">Dados principais do CAPEX</div>
+      <div class="capex-form-sub">Preencha o destino do pedido e revise somente os dados que impactam dashboards, saldo e registro final.</div>
+      <div class="capex-form-grid-3">
+        <div class="frow"><label class="fl">Ano do CAPEX</label><select class="fi" id="ci-m-ano" onchange="updateCapexUnitHint();syncCapexResolvedState()"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option></select></div>
+        <div class="frow"><label class="fl">Solicitante</label><input class="fi" id="ci-m-solicitante" placeholder="Nome da pessoa solicitante"></div>
+        <div class="frow"><label class="fl">E-mail do solicitante</label><input class="fi" id="ci-m-solicitante-email" type="email" placeholder="email@raizeducacao.com.br"></div>
+      </div>
       <input type="hidden" id="ci-m-fonte" value="">
 
-      <div class="fgrid">
+      <div class="capex-form-grid-3">
         <div class="frow"><label class="fl">Unidade principal / escola <span style="font-weight:500;color:var(--muted)">(opcional no rateio)</span></label><select class="fi" id="ci-m-unidade" onchange="syncCapexExtraUnitOptions();syncCapexRateioOptions();updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
         <div class="frow"><label class="fl">Categoria CAPEX <button type="button" onclick="openCatModal(undefined,'capex')" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">+ Nova</button></label><select class="fi" id="ci-m-cat"><option value="capex_outros">A classificar / outros</option></select></div>
+        <div class="frow"><label class="fl">Valor registrado (R$)</label><input class="fi num" id="ci-m-orc" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div>
       </div>
       <div class="frow" id="ci-m-extra-units-row">
         <label class="fl">Outras unidades envolvidas <span style="font-weight:500;color:var(--muted)">(opcional)</span></label>
@@ -3317,14 +3347,15 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       </div>
     </div>
 
-    <div class="capex-form-card capex-description-card">
+    <div class="capex-form-card capex-description-card priority">
       <div class="capex-form-title">Descrição do lançamento</div>
+      <div class="capex-form-sub">Texto que vai aparecer no pedido registrado. Use o resumo do Ticket Raiz apenas como apoio, sem perder a descrição completa.</div>
       <div class="frow"><label class="fl">Pedido</label><textarea class="fi" id="ci-m-pedido" rows="4" style="resize:vertical" placeholder="Descreva a melhoria, compra, reparo ou solicitação"></textarea></div>
 
       <div class="fgrid"><div class="frow"><label class="fl">Ticket / referência</label><input class="fi" id="ci-m-ref" placeholder="Número do ticket, chamado ou referência interna" oninput="updateCapexTrDuplicateHint(this.value)"><div id="capex-tr-dup-hint" style="display:none;margin-top:6px;font-size:12px;line-height:1.35;color:var(--warn);font-weight:750"></div></div><div class="frow"><label class="fl">Setor responsável pela resolução</label><select class="fi" id="ci-m-setor"></select></div></div>
     </div>
 
-    <div class="capex-form-card">
+    <div class="capex-form-card optional">
       <div class="capex-form-title">V&iacute;nculo com solicita&ccedil;&atilde;o de compra</div>
       <label class="capex-flag" style="margin-bottom:10px"><input type="checkbox" id="ci-m-compra-vinculada" onchange="toggleCapexCompraLink()"> &Eacute; ligado a alguma compra?</label>
       <div id="ci-m-compra-vinculada-row" style="display:none">
@@ -3333,7 +3364,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       </div>
     </div>
 
-    <div class="capex-form-card" id="ci-m-obra-card">
+    <div class="capex-form-card optional" id="ci-m-obra-card">
       <div class="capex-form-title">Vinculo com pagamento de obra</div>
       <label class="capex-flag" style="margin-bottom:10px"><input type="checkbox" id="ci-m-obra-vinculada" onchange="toggleCapexObraLink()"> E relacionado a alguma obra?</label>
       <div id="ci-m-obra-vinculada-row" style="display:none">
@@ -3349,12 +3380,12 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <div class="capex-form-card">
       <div class="capex-form-title">Status financeiro e execução</div>
-      <div class="fgrid"><div class="frow"><label class="fl">Situação</label><select class="fi" id="ci-m-sit" onchange="syncCapexResolvedState()"><option>Em Andamento</option><option>Resolvido</option><option>Cancelado</option></select></div><div class="frow"><label class="fl">Orçamento (R$)</label><input class="fi num" id="ci-m-orc" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div></div>
+      <div class="fgrid"><div class="frow"><label class="fl">Situação</label><select class="fi" id="ci-m-sit" onchange="syncCapexResolvedState()"><option>Em Andamento</option><option>Resolvido</option><option>Cancelado</option></select></div></div>
 
       <div class="fgrid"><label class="capex-flag"><input type="checkbox" id="ci-m-real"> Finalizado</label></div>
     </div>
 
-    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px"><button class="btn btn-ghost" onclick="closeCapexItemModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCapexItem()"><span class="ic">✓</span> Salvar</button></div>
+    <div class="capex-form-actions"><button class="btn btn-ghost" onclick="closeCapexItemModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCapexItem()"><span class="ic">✓</span> Salvar</button></div>
 
   </div>
 
@@ -3431,8 +3462,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
   <div class="mbody">
     <div id="zo-context" class="capex-context zeev" style="display:block"></div>
 
-    <div class="capex-form-card">
+    <div class="capex-form-card priority">
       <div class="capex-form-title">Destino na obra</div>
+      <div class="capex-form-sub">Escolha a obra e se o pagamento entra no financeiro da obra ou da escola.</div>
       <div class="frow"><label class="fl">Obra relacionada</label><select class="fi" id="zo-obra-id" onchange="updateZeevObraDerivedFields()"></select></div>
       <div style="display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface);margin-top:10px">
         <button type="button" id="zo-escopo-obra-btn" onclick="setZeevObraEscopo('obra')" style="flex:1;padding:9px 12px;font-size:12.5px;font-weight:850;border:0;cursor:pointer;background:var(--accent);color:var(--accent-readable)">Dentro da obra</button>
@@ -3442,8 +3474,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div id="zo-obra-hint" style="font-size:12.3px;line-height:1.45;color:var(--muted);margin-top:8px"></div>
     </div>
 
-    <div class="capex-form-card">
+    <div class="capex-form-card priority">
       <div class="capex-form-title">Dados do pagamento</div>
+      <div class="capex-form-sub">Revise fornecedor, valor, data e documento fiscal antes de registrar.</div>
       <div class="fgrid">
         <div class="frow"><label class="fl">Fornecedor / favorecido</label><input class="fi" id="zo-ben"></div>
         <div class="frow"><label class="fl">Valor total</label><input class="fi num" id="zo-val" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)"></div>
@@ -3457,17 +3490,18 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div class="frow"><label class="fl">Tipo de documento</label><select class="fi" id="zo-nf-tipo"><option>NFS-e</option><option>NF-e</option><option>Fatura</option><option>Boleto</option><option>Recibo</option><option>Sem nota</option></select></div>
     </div>
 
-    <div class="capex-form-card full-row">
+    <div class="capex-form-card full-row priority">
       <div class="capex-form-title">Descrição / referência do lançamento</div>
+      <div class="capex-form-sub">Mantenha aqui o contexto completo que veio do Ticket Raiz para facilitar auditoria futura.</div>
       <textarea class="fi" id="zo-ref" rows="5" style="height:auto;resize:vertical"></textarea>
     </div>
 
-    <div class="capex-form-card full-row">
+    <div class="capex-form-card full-row optional">
       <div class="capex-form-title">Arquivos encontrados no Ticket Raiz</div>
       <div id="zo-docs" class="zeev-doc-list"></div>
     </div>
 
-    <div class="modal-actions" style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px">
+    <div class="modal-actions capex-form-actions">
       <button class="btn btn-ghost" onclick="closeCapexZeevObraApproval()">Cancelar</button>
       <button class="btn btn-primary" onclick="saveCapexZeevObraApproval()"><span class="ic">✓</span> Registrar na obra</button>
     </div>
@@ -8249,9 +8283,7 @@ async function restoreCapexZeev(id,openAfter){
 function capexZeevContextHtml(){
   const z=capexZeevApproveId?capexZeevSolicitacoes.find(x=>+x.id===+capexZeevApproveId):null;
   if(!z)return'';
-  const link=z.ticket_link?`<a href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" style="color:var(--brand-text,var(--accent-text));font-weight:800;text-decoration:none">Abrir Ticket Raiz</a>`:'Sem link informado';
   const detail=[capexZeevKind(z),z.requester_name,capexZeevDate(z.start_date_time),capexZeevStageLabel(z)].filter(Boolean).map(escHtml).join(' &middot; ');
-  const fields=z.campos_extraidos||{};
   const selectedUnit=document.getElementById('ci-m-unidade')?.value||'';
   const selectedReg=selectedUnit?findCapexUnit(selectedUnit):null;
   const centroCusto=capexZeevAnyField(z,['centroDeCusto','centroCusto','centro de custo','centro de custos','centro custos']);
@@ -8263,31 +8295,29 @@ function capexZeevContextHtml(){
   ]);
   const cnpjTicket=capexOnlyCnpj(cnpjRaw);
   const cnpjCadastro=selectedReg?.cnpj||'';
-  const cnpjDisplay=cnpjTicket||cnpjCadastro||'Selecione a unidade para confirmar';
-  const cnpjSource=cnpjTicket?'Ticket Raiz':(cnpjCadastro?'Cadastro central':'Aguardando unidade');
+  const cnpjDisplay=cnpjTicket||cnpjCadastro||'Confirmar apos escolher a unidade';
+  const docs=capexZeevStoredDocs(z);
+  const links=capexZeevFiscalDocuments(z);
+  const docTotal=docs.length||links.length;
+  const docLine=docTotal?`${docTotal} arquivo${docTotal!==1?'s':''} ${docs.length?'salvo'+(docs.length!==1?'s':''):'identificado'+(docTotal!==1?'s':'')}`:'Nenhum anexo identificado';
   const fact=(label,value,source,missing)=>`<div class="capex-context-fact ${missing?'missing':''}" title="${escHtml(value||'')}"><b>${escHtml(label)}${source?` · ${escHtml(source)}`:''}</b><span>${escHtml(value||'Nao informado')}</span></div>`;
   const critical=`<div class="capex-context-facts">
-    ${fact('CNPJ filial/coligada',cnpjDisplay,cnpjSource,!cnpjTicket&&!cnpjCadastro)}
-    ${fact('Centro de custo',centroCusto||'Nao informado no Ticket Raiz','Ticket Raiz',!centroCusto)}
+    ${fact('CNPJ filial/coligada',cnpjDisplay,'',!cnpjTicket&&!cnpjCadastro)}
+    ${fact('Centro de custo',centroCusto||'Nao informado','',!centroCusto)}
+    ${fact('Valor',capexZeevValueLabel(z)||'Nao informado','',!+z.valor_final&&!+z.valor)}
+    ${fact('Arquivos',docLine,'',!docs.length&&!links.length)}
   </div>`;
-  const hiddenContextFields=new Set([
-    'capex','investimentocapex','centrodecusto','centrocusto','localentrega',
-    'cnpjfilial','cnpjdafilial','cnpjcoligada','cnpjdacoligada','filialcnpj','coligadacnpj',
-    'cnpjunidade','cnpjdaunidade','cnpjescola','cnpjdaescola','cpfcnpjfilial','cpfcnpjcoligada',
-    'cnpjempresa','empresacnpj','cnpjinstituicao','cnpjdainstituicao','instituicaocnpj'
-  ]);
-  const fieldRows=Object.entries(fields).filter(([k,v])=>!hiddenContextFields.has(capexZeevNormField(k))&&String(v||'').trim()).slice(0,8).map(([k,v])=>`<div style="font-size:11.7px;color:var(--muted);line-height:1.35"><b style="color:var(--ink)">${escHtml(k)}:</b> ${escHtml(Array.isArray(v)?v.join(' | '):v)}</div>`).join('');
   const itens=Array.isArray(z.itens_json)?z.itens_json:[];
-  const itemRows=itens.slice(0,5).map(it=>`<div style="font-size:11.7px;color:var(--muted);line-height:1.35"><b style="color:var(--ink)">Item:</b> ${escHtml(it.descricao||'')} ${it.quantidade?`&middot; qtd ${escHtml(it.quantidade)}`:''} ${it.valor_total?`&middot; ${fmt(it.valor_total)}`:''}</div>`).join('');
-  const manualUnit=`<div style="font-size:11.7px;color:var(--muted);line-height:1.35"><b style="color:var(--ink)">Unidade:</b> escolha manualmente no formulario</div>`;
-  const extra=`<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--line);display:grid;gap:3px">${manualUnit}${itemRows}${fieldRows}</div>`;
-  return`<div class="capex-context-ticket"><div class="mark">TR</div><div style="min-width:0"><div class="capex-context-title">Ticket Raiz #${escHtml(z.zeev_instance_id||z.id)}</div><div class="capex-context-sub">${detail}</div><div class="capex-context-sub">${link}</div>${critical}${extra}</div></div>`;
+  const itemRows=itens.slice(0,3).map(it=>`<div class="capex-ticket-item">${escHtml([it.descricao||'',it.quantidade?`qtd ${it.quantidade}`:'',it.valor_total?fmt(it.valor_total):''].filter(Boolean).join(' / '))}</div>`).join('')+(itens.length>3?`<div class="capex-ticket-item">+ ${itens.length-3} item${itens.length-3!==1?'s':''} no Ticket Raiz</div>`:'');
+  const desc=capexZeevDescricaoLancamento(z)||z.request_name||'Descricao pendente no Zeev';
+  const extra=`<div class="capex-ticket-desc"><b>Descricao do lancamento:</b> ${escHtml(desc)}</div>${itemRows?`<div class="capex-ticket-items"><b>Itens principais</b>${itemRows}</div>`:''}`;
+  return`<div class="capex-context-ticket capex-ticket-overview"><div class="mark">TR</div><div class="capex-ticket-main"><div class="capex-ticket-top"><div style="min-width:0"><div class="capex-context-title">Ticket Raiz #${escHtml(z.zeev_instance_id||z.id)}</div><div class="capex-ticket-meta">${detail}</div></div>${z.ticket_link?`<a class="capex-ticket-link" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener">Visualizar Ticket</a>`:''}</div>${critical}${extra}</div></div>`;
 }
 
 function capexZeevContextHtmlFor(z,opts){
   opts=opts||{};
   if(!z)return'';
-  const link=z.ticket_link?`<a href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" style="color:var(--brand-text,var(--accent-text));font-weight:800;text-decoration:none">Abrir Ticket Raiz</a>`:'Sem link informado';
+  const link=z.ticket_link?`<a class="capex-ticket-link" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener">Visualizar Ticket</a>`:'';
   const detail=[capexZeevKind(z),z.requester_name,capexZeevDate(z.start_date_time),capexZeevStageLabel(z)].filter(Boolean).map(escHtml).join(' &middot; ');
   const centroCusto=capexZeevAnyField(z,['centroDeCusto','centroCusto','centro de custo','centro de custos','centro custos']);
   const cnpjRaw=capexZeevAnyField(z,[
@@ -8302,17 +8332,15 @@ function capexZeevContextHtmlFor(z,opts){
   const docTotal=docs.length||links.length;
   const docLine=docTotal?`${docTotal} arquivo${docTotal!==1?'s':''} ${docs.length?'salvo'+(docs.length!==1?'s':''):'identificado'+(docTotal!==1?'s':'')}`:'Nenhum arquivo fiscal identificado';
   const desc=capexZeevDescricaoLancamento(z)||z.request_name||'Descricao pendente no Zeev';
-  return`<div class="capex-context-ticket"><div class="mark">TR</div><div style="min-width:0;width:100%">
-    <div class="capex-context-title">Ticket Raiz #${escHtml(z.zeev_instance_id||z.id)}</div>
-    <div class="capex-context-sub">${detail}</div>
-    <div class="capex-context-sub">${link}</div>
+  return`<div class="capex-context-ticket capex-ticket-overview"><div class="mark">TR</div><div class="capex-ticket-main">
+    <div class="capex-ticket-top"><div style="min-width:0"><div class="capex-context-title">Ticket Raiz #${escHtml(z.zeev_instance_id||z.id)}</div><div class="capex-ticket-meta">${detail}</div></div>${link}</div>
     <div class="capex-context-facts">
-      ${fact('CNPJ filial/coligada',capexOnlyCnpj(cnpjRaw)||'Nao informado','Ticket Raiz',!capexOnlyCnpj(cnpjRaw))}
-      ${fact('Centro de custo',centroCusto||'Nao informado','Ticket Raiz',!centroCusto)}
-      ${fact('Valor importado',capexZeevValueLabel(z)||'Nao informado','Zeev',false)}
-      ${fact('Arquivos',docLine,'Zeev',!docs.length)}
+      ${fact('CNPJ filial/coligada',capexOnlyCnpj(cnpjRaw)||'Nao informado','',!capexOnlyCnpj(cnpjRaw))}
+      ${fact('Centro de custo',centroCusto||'Nao informado','',!centroCusto)}
+      ${fact('Valor',capexZeevValueLabel(z)||'Nao informado','',false)}
+      ${fact('Arquivos',docLine,'',!docs.length)}
     </div>
-    <div style="font-size:12.4px;line-height:1.45;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;margin-top:8px"><b style="color:var(--ink)">Descricao:</b> ${escHtml(desc)}</div>
+    <div class="capex-ticket-desc"><b>Descricao:</b> ${escHtml(desc)}</div>
   </div></div>`;
 }
 
