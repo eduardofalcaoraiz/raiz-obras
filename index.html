@@ -676,11 +676,25 @@ html.is-fast-scrolling #side-color-layer::before{filter:none!important}
 .capex-zeev-sync-sub{font-size:11.8px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere}
 .capex-zeev-sync.warn .capex-zeev-sync-sub{color:#8A4B00}
 .capex-zeev-sync.error .capex-zeev-sync-sub{color:var(--danger)}
-.capex-zeev-tools{display:grid;grid-template-columns:minmax(260px,420px) 1fr;gap:10px;align-items:end;margin:-2px 0 10px}
+.capex-zeev-tools{display:grid;grid-template-columns:minmax(260px,420px) minmax(190px,260px) 1fr;gap:10px;align-items:end;margin:-2px 0 10px}
 .capex-zeev-search label{display:block;font-size:10.5px;font-weight:850;text-transform:uppercase;letter-spacing:.06em;color:var(--brand-text,var(--accent-text));margin-bottom:5px}
 .capex-zeev-search-row{display:grid;grid-template-columns:1fr auto;gap:7px}
 .capex-zeev-search-row input{height:36px;width:100%;border:1px solid var(--line-2);border-radius:9px;background:rgba(255,255,255,.86);color:var(--ink);padding:7px 10px;font:800 13.5px "Geist",system-ui,sans-serif;outline:none}
 .capex-zeev-search-row input:focus{border-color:var(--brand-cur,var(--accent));box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-cur,var(--accent)) 16%,transparent)}
+.capex-zeev-requester-filter{position:relative;z-index:8}
+.capex-zeev-requester-filter summary{height:36px;border:1px solid var(--line);background:rgba(255,255,255,.72);color:var(--ink);border-radius:999px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:900;cursor:pointer;list-style:none}
+.capex-zeev-requester-filter summary::-webkit-details-marker{display:none}
+.capex-zeev-requester-filter summary:after{content:"v";font-size:11px;color:var(--brand-text,var(--accent-text));line-height:1}
+.capex-zeev-requester-filter[open] summary{border-color:color-mix(in srgb,var(--brand-cur,var(--accent)) 42%,var(--line));box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-cur,var(--accent)) 10%,transparent)}
+.capex-zeev-requester-filter .count{min-width:22px;height:20px;border-radius:999px;background:color-mix(in srgb,var(--brand-cur,var(--accent)) 10%,#fff);border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 20%,var(--line));display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:var(--brand-text,var(--accent-text));padding:0 7px}
+.capex-zeev-requester-menu{position:absolute;right:0;top:42px;width:min(360px,calc(100vw - 36px));max-height:360px;overflow:auto;border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 24%,var(--line));background:rgba(255,255,255,.97);border-radius:14px;padding:10px;box-shadow:0 18px 38px -24px rgba(0,0,0,.42)}
+.capex-zeev-requester-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.capex-zeev-requester-actions button{border:0;background:transparent;color:var(--brand-text,var(--accent-text));font-size:11.5px;font-weight:900;cursor:pointer;padding:4px 2px}
+.capex-zeev-requester-options{display:grid;gap:6px}
+.capex-zeev-requester-option{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.72);padding:7px 8px;font-size:12px;font-weight:850;color:var(--ink);cursor:pointer}
+.capex-zeev-requester-option input{width:16px;height:16px;accent-color:var(--brand-cur,var(--accent))}
+.capex-zeev-requester-option small{display:block;font-size:10.5px;color:var(--muted);font-weight:750;line-height:1.25;margin-top:1px;overflow-wrap:anywhere}
+.capex-zeev-requester-option .qty{font-family:"Geist",system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:950}
 .capex-zeev-type-filter{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
 .capex-zeev-type-filter button{height:36px;border:1px solid var(--line);background:rgba(255,255,255,.66);color:var(--muted);border-radius:999px;padding:0 11px;display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:850;transition:background .15s,border-color .15s,color .15s,transform .12s}
 .capex-zeev-type-filter button:hover{border-color:color-mix(in srgb,var(--brand-cur,var(--accent)) 28%,var(--line));background:rgba(255,255,255,.86);color:var(--ink);transform:translateY(-1px)}
@@ -6224,6 +6238,7 @@ let capexListStatus='Todos';
 let capexTrSearchQuery='';
 let capexZeevSearchQuery='';
 let capexZeevTypeFilter='todos';
+let capexZeevRequesterExcluded=new Set();
 let capexZeevPage=0;
 const CAPEX_ZEEV_PAGE_SIZE=80;
 let capexZeevReturnState=null;
@@ -6800,6 +6815,7 @@ function capexCaptureZeevReturnState(id){
   capexZeevReturnState={
     query:capexZeevSearchQuery,
     typeFilter:capexZeevTypeFilter,
+    requesterExcluded:[...capexZeevRequesterExcluded],
     page:capexZeevPage,
     active:snap.active,
     mainScrollTop:snap.mainScrollTop,
@@ -6820,6 +6836,7 @@ function capexRestoreZeevReturnState(){
   if(!state)return;
   capexZeevSearchQuery=state.query||'';
   capexZeevTypeFilter=state.typeFilter||'todos';
+  capexZeevRequesterExcluded=new Set(Array.isArray(state.requesterExcluded)?state.requesterExcluded:[]);
   capexZeevPage=Number.isFinite(+state.page)?+state.page:0;
   const restore=()=>{
     const scroller=capexZeevScrollEl();
@@ -6865,6 +6882,44 @@ function capexZeevTypeCounts(list){
   },{todos:0,compras:0,financeiras:0,facilities:0,outros:0});
 }
 
+function capexZeevRequesterMeta(z){
+  const name=String(z?.requester_name||capexZeevAnyField(z,['solicitante','nomeSolicitante','nome do solicitante'])||'').trim();
+  const email=String(z?.requester_email||capexZeevAnyField(z,['emailSolicitante','email do solicitante','e-mail solicitante','email'])||'').trim();
+  const team=String(z?.requester_team||'').trim();
+  const label=name||email||team||'Nao informado';
+  const key=capexZeevNormField(email||label||team)||'naoinformado';
+  return{key,label,email,team};
+}
+
+function capexZeevRequesterOptions(list){
+  const rows=list||capexZeevPendingList();
+  const map=new Map();
+  rows.forEach(z=>{
+    const meta=capexZeevRequesterMeta(z);
+    const current=map.get(meta.key)||{...meta,count:0};
+    current.count++;
+    if(!current.email&&meta.email)current.email=meta.email;
+    if(!current.team&&meta.team)current.team=meta.team;
+    map.set(meta.key,current);
+  });
+  return[...map.values()].sort((a,b)=>{
+    if(a.key==='naoinformado')return 1;
+    if(b.key==='naoinformado')return-1;
+    return String(a.label||'').localeCompare(String(b.label||''),'pt-BR',{sensitivity:'base'});
+  });
+}
+
+function capexZeevRequesterFilterLabel(list){
+  const opts=capexZeevRequesterOptions(list);
+  if(!opts.length)return'0';
+  const hidden=opts.filter(o=>capexZeevRequesterExcluded.has(o.key)).length;
+  return hidden?`${opts.length-hidden}/${opts.length}`:'Todos';
+}
+
+function capexZeevHasRequesterFilter(){
+  return capexZeevRequesterExcluded.size>0;
+}
+
 function capexZeevFilteredPendingList(list){
   const all=list||capexZeevPendingList();
   const hasSearch=capexZeevHasSearch();
@@ -6873,12 +6928,15 @@ function capexZeevFilteredPendingList(list){
   if(capexZeevTypeFilter&&capexZeevTypeFilter!=='todos'&&!trSearch){
     pend=pend.filter(z=>capexZeevType(z)===capexZeevTypeFilter);
   }
+  if(capexZeevRequesterExcluded.size){
+    pend=pend.filter(z=>!capexZeevRequesterExcluded.has(capexZeevRequesterMeta(z).key));
+  }
   if(!hasSearch)return pend;
   return pend.filter(z=>capexZeevSearchMatches(z,capexZeevSearchQuery));
 }
 
 function capexZeevCountText(visible,total){
-  if(capexZeevHasSearch()||capexZeevTypeFilter!=='todos')return `${visible} de ${total} pendente${total!==1?'s':''}`;
+  if(capexZeevHasSearch()||capexZeevTypeFilter!=='todos'||capexZeevHasRequesterFilter())return `${visible} de ${total} pendente${total!==1?'s':''}`;
   return `${total} pendente${total!==1?'s':''}`;
 }
 
@@ -6896,6 +6954,22 @@ function setCapexZeevTypeFilter(type){
   renderCapexZeevResults();
 }
 
+function setCapexZeevRequesterVisible(encodedKey,visible){
+  const key=decodeURIComponent(String(encodedKey||''));
+  if(!key)return;
+  if(visible)capexZeevRequesterExcluded.delete(key);
+  else capexZeevRequesterExcluded.add(key);
+  capexZeevPage=0;
+  renderCapexZeevResults();
+}
+
+function resetCapexZeevRequesterFilter(){
+  capexZeevRequesterExcluded.clear();
+  document.querySelectorAll('[data-zeev-requester-check]').forEach(el=>{el.checked=true;});
+  capexZeevPage=0;
+  renderCapexZeevResults();
+}
+
 function setCapexZeevPage(page){
   capexZeevPage=Math.max(0,+page||0);
   renderCapexZeevResults();
@@ -6906,6 +6980,31 @@ function renderCapexZeevTypeFilters(allPend){
   return`<div class="capex-zeev-type-filter" role="group" aria-label="Filtrar registros pendentes por tipo">
     ${['todos','compras','financeiras','facilities','outros'].map(type=>`<button type="button" data-zeev-type-filter="${type}" class="${capexZeevTypeFilter===type?'active':''}" onclick="setCapexZeevTypeFilter('${type}')" title="Mostrar ${escHtml(type==='facilities'?'solicitacoes de facilities':capexZeevTypeLabel(type).toLowerCase())}">${escHtml(capexZeevTypeLabel(type))}<span>${counts[type]||0}</span></button>`).join('')}
   </div>`;
+}
+
+function renderCapexZeevRequesterFilter(allPend){
+  const opts=capexZeevRequesterOptions(allPend);
+  if(!opts.length)return'<div></div>';
+  return`<details class="capex-zeev-requester-filter">
+    <summary><span>Solicitantes</span><span class="count" id="capex-zeev-requester-count">${escHtml(capexZeevRequesterFilterLabel(allPend))}</span></summary>
+    <div class="capex-zeev-requester-menu">
+      <div class="capex-zeev-requester-actions">
+        <button type="button" onclick="resetCapexZeevRequesterFilter()">Marcar todos</button>
+        <span class="capex-zeev-pill">${opts.length} solicitante${opts.length!==1?'s':''}</span>
+      </div>
+      <div class="capex-zeev-requester-options">
+        ${opts.map(opt=>{
+          const checked=!capexZeevRequesterExcluded.has(opt.key);
+          const sub=[opt.email,opt.team].filter(Boolean).join(' - ');
+          return`<label class="capex-zeev-requester-option" title="${escHtml([opt.label,sub].filter(Boolean).join(' - '))}">
+            <input type="checkbox" data-zeev-requester-check="${escHtml(opt.key)}" ${checked?'checked':''} onchange="setCapexZeevRequesterVisible('${encodeURIComponent(opt.key)}',this.checked)">
+            <span><b>${escHtml(opt.label)}</b>${sub?`<small>${escHtml(sub)}</small>`:''}</span>
+            <span class="qty">${opt.count}</span>
+          </label>`;
+        }).join('')}
+      </div>
+    </div>
+  </details>`;
 }
 
 function capexZeevSearchKey(ev){
@@ -8345,9 +8444,10 @@ function capexZeevResultsHtml(pend,total){
   if(capexZeevLoadError){
     return`<div class="capex-zeev-empty" style="border-color:#C0392B;color:#7A1F18;background:#FFF7F4"><b>Falha ao carregar a fila do Ticket Raiz.</b><br>${escHtml(capexZeevLoadError)}<br>Os dados nao foram apagados; a plataforma apenas nao conseguiu carregar a lista completa agora. Tente atualizar ou acione a automacao novamente.</div>`;
   }
-  if(capexZeevHasSearch()||capexZeevTypeFilter!=='todos'){
+  if(capexZeevHasSearch()||capexZeevTypeFilter!=='todos'||capexZeevHasRequesterFilter()){
     const tipo=capexZeevTypeFilter!=='todos'?` em ${capexZeevTypeLabel(capexZeevTypeFilter).toLowerCase()}`:'';
-    return`<div class="capex-zeev-empty">Nenhum Ticket Raiz pendente encontrado${tipo} para os filtros atuais. Existem ${total} pendente${total!==1?'s':''} na fila.</div>`;
+    const solicitantes=capexZeevHasRequesterFilter()?' e solicitantes selecionados':'';
+    return`<div class="capex-zeev-empty">Nenhum Ticket Raiz pendente encontrado${tipo}${solicitantes} para os filtros atuais. Existem ${total} pendente${total!==1?'s':''} na fila.</div>`;
   }
   return`<div class="capex-zeev-empty">Nenhum Ticket Raiz pendente de aprovacao neste momento. Use Atualizar Zeev para buscar novos registros agora.</div>`;
 }
@@ -8402,6 +8502,8 @@ function renderCapexZeevResults(){
   if(list)list.innerHTML=capexZeevResultsHtml(pend,allPend.length);
   const count=document.getElementById('capex-zeev-visible-count');
   if(count)count.textContent=capexZeevCountText(pend.length,allPend.length);
+  const requesterCount=document.getElementById('capex-zeev-requester-count');
+  if(requesterCount)requesterCount.textContent=capexZeevRequesterFilterLabel(allPend);
   const clear=document.getElementById('capex-zeev-clear');
   if(clear)clear.style.display=capexZeevHasSearch()?'':'none';
   document.querySelectorAll('[data-zeev-type-filter]').forEach(btn=>{
@@ -8447,6 +8549,7 @@ function renderCapexZeevQueue(){
           <button class="btn btn-ghost btn-sm" id="capex-zeev-clear" style="${capexZeevHasSearch()?'':'display:none'}" onclick="setCapexZeevSearch('')">Limpar</button>
         </div>
       </div>
+      ${renderCapexZeevRequesterFilter(allPend)}
       ${renderCapexZeevTypeFilters(allPend)}
     </div>
     <div id="capex-zeev-results">${capexZeevResultsHtml(pend,allPend.length)}</div>
@@ -8466,6 +8569,7 @@ function renderCapexZeevCurrentView(){
   if(capexZeevReturnState){
     capexZeevSearchQuery=capexZeevReturnState.query||'';
     capexZeevTypeFilter=capexZeevReturnState.typeFilter||'todos';
+    capexZeevRequesterExcluded=new Set(Array.isArray(capexZeevReturnState.requesterExcluded)?capexZeevReturnState.requesterExcluded:[]);
   }
   const active=document.querySelector('.view.active')?.id;
   if(active==='view-registros')renderRegistrosPendentes();
