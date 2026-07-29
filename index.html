@@ -6648,8 +6648,21 @@ function openCapexItemFromSearch(id){
   openCapexItemModal(it.id);
 }
 
+function capexZeevIsHiddenFromPending(z){
+  const explicit=capexZeevNormField([
+    z?.flow_result,
+    z?.flowResult,
+    z?.ticket_status,
+    z?.ticketStatus,
+    capexZeevAnyField(z,['status','situacao','situação','resultado','parecer','decisao','decisão'])
+  ].filter(Boolean).join(' '));
+  const display=capexZeevNormField(capexZeevTicketStatus(z));
+  const statusText=`${explicit} ${display}`;
+  return statusText.includes('rejeit')||statusText.includes('reprov')||statusText.includes('cancelad');
+}
+
 function capexZeevPendingList(){
-  return(capexZeevSolicitacoes||[]).filter(z=>String(z.status||'pendente')==='pendente').sort((a,b)=>String(b.start_date_time||'').localeCompare(String(a.start_date_time||''))||(+b.zeev_instance_id||0)-(+a.zeev_instance_id||0));
+  return(capexZeevSolicitacoes||[]).filter(z=>String(z.status||'pendente')==='pendente'&&!capexZeevIsHiddenFromPending(z)).sort((a,b)=>String(b.start_date_time||'').localeCompare(String(a.start_date_time||''))||(+b.zeev_instance_id||0)-(+a.zeev_instance_id||0));
 }
 
 function capexZeevNotCapexList(){
@@ -6923,14 +6936,14 @@ function capexZeevTicketStatus(z){
   const result=String(z.flow_result||'').trim();
   const etapa=String(z.etapa_atual||'').trim();
   if(z.active===false&&result)return result;
-  if(result&&/cancel|reprov|conclu/i.test(result))return result;
+  if(result&&/cancel|reprov|rejeit|conclu/i.test(result))return result;
   return etapa||result||'Status nao informado';
 }
 
 function capexZeevTicketStatusClass(z){
   const s=capexZeevTicketStatus(z).toLowerCase();
   if(s.includes('conclu')||s.includes('aprov')||s.includes('entreg'))return'b-ok';
-  if(s.includes('cancel')||s.includes('reprov'))return'b-danger';
+  if(s.includes('cancel')||s.includes('reprov')||s.includes('rejeit'))return'b-danger';
   if(s.includes('pend')||s.includes('aguard')||s.includes('abert')||s.includes('andamento')||s.includes('analis')||s.includes('confer'))return'b-warn';
   return'b-info';
 }
