@@ -6860,11 +6860,14 @@ function capexZeevTypeCounts(list){
 }
 
 function capexZeevFilteredPendingList(list){
-  let pend=list||capexZeevPendingList();
-  if(capexZeevTypeFilter&&capexZeevTypeFilter!=='todos'){
+  const all=list||capexZeevPendingList();
+  const hasSearch=capexZeevHasSearch();
+  const trSearch=hasSearch&&capexZeevSearchDigits(capexZeevSearchQuery).length>=3;
+  let pend=all;
+  if(capexZeevTypeFilter&&capexZeevTypeFilter!=='todos'&&!trSearch){
     pend=pend.filter(z=>capexZeevType(z)===capexZeevTypeFilter);
   }
-  if(!capexZeevHasSearch())return pend;
+  if(!hasSearch)return pend;
   return pend.filter(z=>capexZeevSearchMatches(z,capexZeevSearchQuery));
 }
 
@@ -6882,7 +6885,7 @@ function setCapexZeevSearch(v){
 }
 
 function setCapexZeevTypeFilter(type){
-  capexZeevTypeFilter=['todos','compras','financeiras'].includes(type)?type:'todos';
+  capexZeevTypeFilter=['todos','compras','financeiras','outros'].includes(type)?type:'todos';
   capexZeevPage=0;
   renderCapexZeevResults();
 }
@@ -6895,7 +6898,7 @@ function setCapexZeevPage(page){
 function renderCapexZeevTypeFilters(allPend){
   const counts=capexZeevTypeCounts(allPend);
   return`<div class="capex-zeev-type-filter" role="group" aria-label="Filtrar registros pendentes por tipo">
-    ${['todos','compras','financeiras'].map(type=>`<button type="button" data-zeev-type-filter="${type}" class="${capexZeevTypeFilter===type?'active':''}" onclick="setCapexZeevTypeFilter('${type}')" title="Mostrar ${escHtml(capexZeevTypeLabel(type).toLowerCase())}">${escHtml(capexZeevTypeLabel(type))}<span>${counts[type]||0}</span></button>`).join('')}
+    ${['todos','compras','financeiras','outros'].map(type=>`<button type="button" data-zeev-type-filter="${type}" class="${capexZeevTypeFilter===type?'active':''}" onclick="setCapexZeevTypeFilter('${type}')" title="Mostrar ${escHtml(capexZeevTypeLabel(type).toLowerCase())}">${escHtml(capexZeevTypeLabel(type))}<span>${counts[type]||0}</span></button>`).join('')}
   </div>`;
 }
 
