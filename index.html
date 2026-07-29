@@ -4211,6 +4211,7 @@ const ESFERAS={capex:{label:'Capex de Melhorias',desc:'Obras de melhoria e retro
 let curEsfera='nova',esfBusca='',esfFiltroMarca='Todas',esfNfSearchQuery='';
 
 let capexItens=[],capexSaldos=[],capexZeevSolicitacoes=[],capexZeevSyncState=null,capexZeevLoadError=null,capexZeevLoaded=false,capexZeevLoading=null,capexDataLoaded=false,capexDataLoading=null,capexEditId=null,capexZeevApproveId=null,capexSaveInFlight=false,capexZeevDestinationId=null,capexZeevObraApproveId=null,capexZeevObraSaveInFlight=false,activePaymentDocs=null;
+let capexCompraLookupCache=new Map(),capexCompraLookupSeq=0,capexCompraLookupTimer=null;
 
 function setEsfBusca(v){esfBusca=v;renderEsfera();}
 
@@ -6925,20 +6926,86 @@ function capexCompraLinkFromZeev(z){
   return tr?{tr,descricao:'Sugerido pelo Ticket Raiz financeiro'}:null;
 }
 
+function capexCompraResultFromZeev(z){
+  if(!z||capexZeevType(z)!=='compras')return null;
+  return{
+    source:'zeev',
+    id:z.id,
+    zeevId:z.zeev_instance_id||z.id,
+    ticketLink:z.ticket_link||'',
+    pedido:capexZeevDescricaoLancamento(z)||z.pedido||'',
+    status:z.status==='aprovado'?'aprovado / registrado':capexZeevTicketStatus(z),
+    kind:capexZeevKind(z)
+  };
+}
+
+function capexCompraResultFromItem(it){
+  if(!it)return null;
+  return{
+    source:'capex',
+    id:it.id,
+    zeevId:it.ticket_raiz_instance_id||it.referencia,
+    ticketLink:it.ticket_raiz_url||'',
+    pedido:it.pedido||'',
+    status:_ciSit(it),
+    kind:'CAPEX registrado'
+  };
+}
+
 function capexFindCompraTicket(tr){
   const digits=capexZeevSearchDigits(tr);
   if(!digits)return null;
   const z=(capexZeevSolicitacoes||[]).find(row=>capexZeevSearchDigits(row.zeev_instance_id||row.id)===digits&&capexZeevType(row)==='compras');
-  if(z)return{source:'zeev',id:z.id,zeevId:z.zeev_instance_id||z.id,ticketLink:z.ticket_link||'',pedido:z.pedido||'',status:capexZeevTicketStatus(z),kind:capexZeevKind(z)};
+  if(z)return capexCompraResultFromZeev(z);
   const it=(capexItens||[]).find(row=>capexZeevSearchDigits(row.referencia||row.ticket_raiz_instance_id||'')===digits);
-  if(it)return{source:'capex',id:it.id,zeevId:it.ticket_raiz_instance_id||it.referencia,ticketLink:it.ticket_raiz_url||'',pedido:it.pedido||'',status:_ciSit(it),kind:'CAPEX registrado'};
+  if(it)return capexCompraResultFromItem(it);
   return null;
 }
 
-function capexCompraLinkPayload(tr,oldLink){
+function capexStoreCompraLookup(tr,found){
   const clean=capexZeevSearchDigits(tr);
   if(!clean)return null;
-  const found=capexFindCompraTicket(clean);
+  if(found)capexCompraLookupCache.set(clean,found);
+  return found||null;
+}
+
+async function capexFindCompraTicketLive(tr){
+  const clean=capexZeevSearchDigits(tr);
+  if(!clean)return null;
+  const local=capexFindCompraTicket(clean);
+  if(local)return capexStoreCompraLookup(clean,local);
+  const cached=capexCompraLookupCache.get(clean);
+  if(cached)return cached;
+  try{
+    const cols='id,zeev_instance_id,flow_id,flow_name,request_name,ticket_link,status,pedido,etapa_atual,flow_result,valor,valor_final,valor_status,setor,start_date_time,capex_item_id';
+    const{data,error}=await db.from('capex_zeev_solicitacoes').select(cols).eq('zeev_instance_id',+clean).limit(1);
+    if(error)throw error;
+    const found=capexCompraResultFromZeev((data||[])[0]);
+    if(found)return capexStoreCompraLookup(clean,found);
+  }catch(e){
+    console.warn('capexFindCompraTicketLive zeev:',e);
+  }
+  try{
+    const{data,error}=await db.from('capex_itens').select(CAPEX_ITEM_LIST_COLUMNS).or(`ticket_raiz_instance_id.eq.${clean},referencia.eq.${clean}`).limit(5);
+    if(error)throw error;
+    const row=(data||[]).find(r=>capexZeevSearchDigits(r.ticket_raiz_instance_id||r.referencia||'')===clean);
+    const found=capexCompraResultFromItem(row);
+    if(found){
+      const idx=(capexItens||[]).findIndex(i=>+i.id===+row.id);
+      const normalized=normalizeCapexRateioItem(row);
+      if(idx>=0)capexItens[idx]={...capexItens[idx],...normalized};
+      else capexItens.unshift(normalized);
+      return capexStoreCompraLookup(clean,found);
+    }
+  }catch(e){
+    console.warn('capexFindCompraTicketLive capex:',e);
+  }
+  return null;
+}
+
+function capexCompraLinkPayloadFromFound(tr,oldLink,found){
+  const clean=capexZeevSearchDigits(tr);
+  if(!clean)return null;
   return{
     tr:clean,
     encontrado:!!found,
@@ -6951,6 +7018,20 @@ function capexCompraLinkPayload(tr,oldLink){
     vinculado_em:(oldLink&&String(oldLink.tr||'')===clean&&oldLink.vinculado_em)?oldLink.vinculado_em:new Date().toISOString(),
     vinculado_por:currentUser?.email||''
   };
+}
+
+function capexCompraLinkPayload(tr,oldLink){
+  const clean=capexZeevSearchDigits(tr);
+  if(!clean)return null;
+  const found=capexFindCompraTicket(clean)||capexCompraLookupCache.get(clean)||null;
+  return capexCompraLinkPayloadFromFound(clean,oldLink,found);
+}
+
+async function capexCompraLinkPayloadAsync(tr,oldLink){
+  const clean=capexZeevSearchDigits(tr);
+  if(!clean)return null;
+  const found=await capexFindCompraTicketLive(clean);
+  return capexCompraLinkPayloadFromFound(clean,oldLink,found);
 }
 
 function setCapexCompraLinkForm(link){
@@ -6976,7 +7057,7 @@ function toggleCapexCompraLink(focus){
   if(focus!==false&&check.checked)setTimeout(()=>document.getElementById('ci-m-compra-tr')?.focus(),40);
 }
 
-function updateCapexCompraLinkHint(){
+function updateCapexCompraLinkHintLegacy(){
   const hint=document.getElementById('ci-m-compra-hint');
   const check=document.getElementById('ci-m-compra-vinculada');
   const input=document.getElementById('ci-m-compra-tr');
@@ -6992,6 +7073,50 @@ function updateCapexCompraLinkHint(){
   }else{
     hint.innerHTML=`<span style="color:var(--warn);font-weight:850">TR de compra ainda não encontrado na base sincronizada.</span> O número será salvo para vínculo e conferência manual.`;
   }
+}
+
+function renderCapexCompraLinkHint(hint,tr,found,state){
+  if(!hint)return;
+  if(state==='empty'){
+    hint.innerHTML='<span style="color:var(--muted)">Informe o numero do TR de compra para criar o vinculo.</span>';
+    return;
+  }
+  if(state==='loading'){
+    hint.innerHTML=`<span style="color:var(--brand-text);font-weight:850">Buscando TR ${escHtml(tr)} na base completa...</span>`;
+    return;
+  }
+  if(found){
+    const link=found.ticketLink?` &middot; <a href="${escHtml(found.ticketLink)}" target="_blank" rel="noopener" style="color:var(--brand-text);font-weight:800">visualizar ticket</a>`:'';
+    hint.innerHTML=`<span style="color:var(--ok);font-weight:850">Vinculo encontrado:</span> TR ${escHtml(found.zeevId||tr)} &middot; ${escHtml(found.kind||'Compra')} &middot; ${escHtml(found.status||'status nao informado')}${link}<br><span style="color:var(--muted)">${escHtml(found.pedido||'Sem descricao importada')}</span>`;
+    return;
+  }
+  hint.innerHTML=`<span style="color:var(--warn);font-weight:850">TR de compra nao encontrado.</span> O numero sera salvo para conferencia manual, mas vale confirmar se a solicitacao de compra ja foi sincronizada.`;
+}
+
+function updateCapexCompraLinkHint(){
+  const hint=document.getElementById('ci-m-compra-hint');
+  const check=document.getElementById('ci-m-compra-vinculada');
+  const input=document.getElementById('ci-m-compra-tr');
+  if(!hint||!check||!input)return;
+  if(!check.checked){hint.innerHTML='';return;}
+  const tr=capexZeevSearchDigits(input.value);
+  if(input.value!==tr)input.value=tr;
+  if(!tr){renderCapexCompraLinkHint(hint,tr,null,'empty');return;}
+  const found=capexFindCompraTicket(tr)||capexCompraLookupCache.get(tr)||null;
+  if(found){renderCapexCompraLinkHint(hint,tr,found,'found');return;}
+  renderCapexCompraLinkHint(hint,tr,null,'loading');
+  const seq=++capexCompraLookupSeq;
+  if(capexCompraLookupTimer)clearTimeout(capexCompraLookupTimer);
+  capexCompraLookupTimer=setTimeout(async()=>{
+    const inputNow=document.getElementById('ci-m-compra-tr');
+    const hintNow=document.getElementById('ci-m-compra-hint');
+    const checkNow=document.getElementById('ci-m-compra-vinculada');
+    const current=capexZeevSearchDigits(inputNow?.value||'');
+    if(seq!==capexCompraLookupSeq||!hintNow||!checkNow?.checked||current!==tr)return;
+    const live=await capexFindCompraTicketLive(tr);
+    if(seq!==capexCompraLookupSeq||capexZeevSearchDigits(inputNow?.value||'')!==tr)return;
+    renderCapexCompraLinkHint(hintNow,tr,live,live?'found':'missing');
+  },300);
 }
 
 function capexObraLinkFromDados(dados){
@@ -10764,7 +10889,7 @@ async function saveCapexItemLocked(options){if(['leitor','doc'].includes(current
   const obraEscopo=document.getElementById('ci-m-obra-escopo')?.value==='extra'?'extra':'obra';
   if(obraCheck&&!obraId){toast('Selecione a obra relacionada ao pagamento.');return;}
   const antigoDados=capexTicketDadosObj(antigo?.ticket_raiz_dados);
-  const compraVinculada=compraCheck?capexCompraLinkPayload(compraTr,capexCompraLinkFromDados(antigoDados)):null;
+  const compraVinculada=compraCheck?await capexCompraLinkPayloadAsync(compraTr,capexCompraLinkFromDados(antigoDados)):null;
   const obraVinculada=obraCheck?capexObraLinkPayload(obraId,obraEscopo,capexObraLinkFromDados(antigoDados)):null;
   const requester=zeevRow?capexZeevRequester(zeevRow):{nome:solicitanteNome,email:solicitanteEmail,equipe:''};
   const solicitanteDados={
