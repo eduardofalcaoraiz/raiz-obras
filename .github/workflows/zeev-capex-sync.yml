@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "incremental, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-payment-fiscal-fields ou refresh-payment-statuses"
+        description: "incremental, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-pending-fiscal-metadata, repair-fiscal-metadata, repair-payment-fiscal-fields ou refresh-payment-statuses"
         required: true
         default: "incremental"
       start:
@@ -106,7 +106,7 @@ jobs:
           SUPABASE_URL: https://hjccxfznojjosvanwztv.supabase.co
           ZEEV_BUSINESS_TIMEZONE: America/Sao_Paulo
           ZEEV_FLOW_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.flow_ids || '299,275,263,102,300' }}
-          ZEEV_SYNC_MODE: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && 'rescue-docs-loop' || github.event_name == 'schedule' && github.event.schedule == '35 5 * * *' && 'deep-incremental' || github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && 'repair-payment-fiscal-fields' || github.event_name == 'schedule' && github.event.schedule == '3,23,43 * * * *' && 'refresh-payment-statuses' || github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
+          ZEEV_SYNC_MODE: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && 'rescue-docs-loop' || github.event_name == 'schedule' && github.event.schedule == '35 5 * * *' && 'deep-incremental' || github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && 'repair-fiscal-metadata' || github.event_name == 'schedule' && github.event.schedule == '3,23,43 * * * *' && 'refresh-payment-statuses' || github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
           ZEEV_SYNC_START: ${{ github.event_name == 'workflow_dispatch' && inputs.start || '' }}
           ZEEV_SYNC_END: ${{ github.event_name == 'workflow_dispatch' && inputs.end || '' }}
           ZEEV_MAX_PAGES: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '2' || github.event_name == 'schedule' && github.event.schedule == '35 5 * * *' && '2' || github.event_name == 'workflow_dispatch' && inputs.max_pages || '1' }}
@@ -135,6 +135,12 @@ jobs:
           ZEEV_BACKFILL_STALE_HOURS: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && '12' || github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '720' }}
           ZEEV_DOC_RESCUE_CHECKED_BEFORE: ${{ github.event_name == 'workflow_dispatch' && inputs.checked_before || '' }}
           ZEEV_REPAIR_PAYMENT_VALUES: ${{ github.event_name == 'workflow_dispatch' && inputs.repair_values || 'false' }}
+          ZEEV_PENDING_FISCAL_REPAIR_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && '8' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '6' }}
+          ZEEV_PENDING_FISCAL_REPAIR_CYCLES: ${{ github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && '12' || '1' }}
+          ZEEV_PENDING_FISCAL_REPAIR_MAX_RUNTIME_MS: "105000"
+          ZEEV_PENDING_FISCAL_REPAIR_STALE_HOURS: "24"
+          ZEEV_PENDING_FISCAL_REPAIR_REFRESH: "true"
+          ZEEV_PENDING_FISCAL_REPAIR_VIA_EDGE: "false"
           ZEEV_BACKFILL_FILE_LIMIT: "4"
           ZEEV_ATTACH_ALL_TICKET_DOCS: "1"
           ZEEV_DOC_ATTACH_PER_TICKET_LIMIT: "6"

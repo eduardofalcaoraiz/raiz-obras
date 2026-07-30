@@ -512,6 +512,21 @@ def supabase_rest(path, method="GET", payload=None, timeout=60, prefer="return=m
     return request_json(method, url, headers=headers, payload=payload, timeout=timeout, retries=3)
 
 
+def supabase_rest_all(path, page_size=1000, timeout=90):
+    rows = []
+    offset = 0
+    page_size = max(1, min(int(page_size or 1000), 1000))
+    while True:
+        sep = "&" if "?" in path else "?"
+        page = supabase_rest(f"{path}{sep}limit={page_size}&offset={offset}", timeout=timeout, prefer="")
+        page_rows = page if isinstance(page, list) else []
+        rows.extend(page_rows)
+        if len(page_rows) < page_size:
+            break
+        offset += page_size
+    return rows
+
+
 FLOW_DESIGN_RELEVANT_CACHE = {}
 
 
@@ -668,23 +683,34 @@ def capex_fields(flow_id=None):
 
 def flow_text(row):
     flow = row.get("flow") or {}
+    raw = row.get("raw_instance") if isinstance(row.get("raw_instance"), dict) else {}
+    raw_flow = raw.get("flow") if isinstance(raw.get("flow"), dict) else {}
     return " ".join(str(x or "") for x in [
         flow.get("name"),
+        raw_flow.get("name"),
         row.get("flowName"),
+        row.get("flow_name"),
         row.get("requestName"),
+        row.get("request_name"),
+        raw.get("flowName"),
+        raw.get("requestName"),
         (row.get("service") or {}).get("name"),
     ])
 
 
 def is_finance_row(row):
     flow = row.get("flow") or {}
-    flow_id = int(flow.get("id") or row.get("flowId") or 0)
+    raw = row.get("raw_instance") if isinstance(row.get("raw_instance"), dict) else {}
+    raw_flow = raw.get("flow") if isinstance(raw.get("flow"), dict) else {}
+    flow_id = int(flow.get("id") or row.get("flowId") or row.get("flow_id") or raw_flow.get("id") or raw.get("flowId") or 0)
     return flow_id in FINANCE_FLOW_IDS or "financeir" in norm(flow_text(row))
 
 
 def is_purchase_row(row):
     flow = row.get("flow") or {}
-    flow_id = int(flow.get("id") or row.get("flowId") or 0)
+    raw = row.get("raw_instance") if isinstance(row.get("raw_instance"), dict) else {}
+    raw_flow = raw.get("flow") if isinstance(raw.get("flow"), dict) else {}
+    flow_id = int(flow.get("id") or row.get("flowId") or row.get("flow_id") or raw_flow.get("id") or raw.get("flowId") or 0)
     txt = norm(flow_text(row))
     return flow_id in PURCHASE_FLOW_IDS or "compra" in txt or "solicitacao de compras" in txt
 
@@ -2910,6 +2936,244 @@ def repair_payment_fiscal_fields():
     return out
 
 
+def pending_fiscal_repair_fields():
+    return unique_fields(
+        FISCAL_NUMBER_FIELDS,
+        GENERIC_FISCAL_NUMBER_FIELDS,
+        ISSUE_DATE_FIELDS,
+        DOCUMENT_FIELDS,
+        ["Outros gastos", "Outros gastos *", "Tipo de documento", "Tipo do documento"],
+    )
+
+
+def row_ticket_id(row):
+    digits = re.sub(r"\D+", "", str(row.get("zeev_instance_id") or row.get("ticket_raiz") or ""))
+    return int(digits or 0)
+
+
+def row_stored_fields(row):
+    fields = []
+    for key in ("raw_fields", "rawFields"):
+        if isinstance(row.get(key), list):
+            fields = merge_zeev_fields(fields, row.get(key))
+    raw = row.get("raw_instance") if isinstance(row.get("raw_instance"), dict) else {}
+    if isinstance(raw.get("formFields"), list):
+        fields = merge_zeev_fields(fields, raw.get("formFields"))
+    for source_key in ("campos_extraidos", "pagamento_json"):
+        data = row.get(source_key)
+        if isinstance(data, dict):
+            generated = [
+                {"name": str(k), "label": str(k), "value": v, "row": 1, "source": source_key}
+                for k, v in data.items()
+                if str(k or "").strip() and v not in (None, "")
+            ]
+            fields = merge_zeev_fields(fields, generated)
+    return fields
+
+
+def pending_fiscal_number_from_fields(fields):
+    nf_tipo = fiscal_doc_type_from_fields(fields)
+    number = fiscal_document_number(fields, financeiro=True)
+    if not number:
+        return nf_tipo, ""
+    if nf_tipo and ("NFS" in nf_tipo or re.match(r"^20\d{6,}$", str(number))):
+        match = re.match(r"^20\d{2}0+(\d{1,9})$", re.sub(r"\D+", "", str(number)))
+        if match:
+            number = match.group(1).lstrip("0") or "0"
+    return nf_tipo, str(number).strip()
+
+
+def pending_fiscal_recently_checked(row, stale_hours):
+    if stale_hours <= 0:
+        return False
+    campos = row.get("campos_extraidos") if isinstance(row.get("campos_extraidos"), dict) else {}
+    value = str(campos.get("numero_documento_fiscal_revisado_em") or campos.get("numero_documento_fiscal_nao_encontrado_em") or "").strip()
+    if not value:
+        return False
+    try:
+        checked = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    now = datetime.now(timezone.utc)
+    if checked.tzinfo is None:
+        checked = checked.replace(tzinfo=timezone.utc)
+    age = now - checked.astimezone(timezone.utc)
+    return age.total_seconds() >= 0 and age < timedelta(hours=stale_hours)
+
+
+def pending_fiscal_needs_repair(row, force=False, stale_hours=24):
+    if force:
+        return True
+    pagamento = row.get("pagamento_json") if isinstance(row.get("pagamento_json"), dict) else {}
+    current = str(pagamento.get("nota_fiscal") or "").strip()
+    if current and not suspicious_fiscal_number(current):
+        return False
+    if pending_fiscal_recently_checked(row, stale_hours):
+        return False
+    return True
+
+
+def patch_pending_fiscal_result(row, number="", nf_tipo="", source_fields=None, error=""):
+    pagamento = row.get("pagamento_json") if isinstance(row.get("pagamento_json"), dict) else {}
+    campos = row.get("campos_extraidos") if isinstance(row.get("campos_extraidos"), dict) else {}
+    now = datetime.now(timezone.utc).isoformat()
+    patch = {
+        "pagamento_json": dict(pagamento),
+        "campos_extraidos": {
+            **dict(campos),
+            "fonte_numero_documento_fiscal": "formulario_zeev",
+            "numero_documento_fiscal_revisado_em": now,
+        },
+    }
+    if number:
+        patch["pagamento_json"]["nota_fiscal"] = str(number)
+        if nf_tipo:
+            patch["pagamento_json"]["tipo_documento_fiscal"] = nf_tipo
+        patch["campos_extraidos"]["numero_documento_fiscal"] = str(number)
+        patch["campos_extraidos"]["tipo_documento_fiscal"] = nf_tipo or ""
+        patch["campos_extraidos"]["numero_documento_fiscal_atualizado_em"] = now
+        patch["campos_extraidos"].pop("numero_documento_fiscal_nao_encontrado_em", None)
+        patch["campos_extraidos"].pop("numero_documento_fiscal_erro_zeev", None)
+    else:
+        patch["campos_extraidos"]["numero_documento_fiscal_nao_encontrado_em"] = now
+        if error:
+            patch["campos_extraidos"]["numero_documento_fiscal_erro_zeev"] = str(error)[:500]
+    if source_fields:
+        raw_fields = merge_zeev_fields(row.get("raw_fields") or [], source_fields)
+        if raw_fields:
+            patch["raw_fields"] = raw_fields
+    supabase_rest(f"/capex_zeev_solicitacoes?id=eq.{int(row.get('id'))}", method="PATCH", payload=patch, timeout=90)
+    return patch
+
+
+def repair_pending_fiscal_metadata():
+    if os.environ.get("ZEEV_PENDING_FISCAL_REPAIR_VIA_EDGE", "false").lower() == "true":
+        if not ZEEV_SYNC_SECRET:
+            raise SystemExit("ZEEV_SYNC_SECRET e obrigatorio.")
+        payload = {
+            "mode": "repair-pending-fiscal-metadata",
+            "limit": max(1, int(os.environ.get("ZEEV_PENDING_FISCAL_REPAIR_LIMIT", os.environ.get("ZEEV_BACKFILL_LIMIT", "120")) or "120")),
+            "refresh": os.environ.get("ZEEV_PENDING_FISCAL_REPAIR_REFRESH", "true").lower() != "false",
+        }
+        ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
+        if ticket_ids:
+            payload["ticketIds"] = ticket_ids
+        if os.environ.get("ZEEV_PENDING_FISCAL_REPAIR_FORCE", "false").lower() == "true":
+            payload["force"] = True
+        return request_json(
+            "POST",
+            f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+            headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+            payload=payload,
+            timeout=240,
+            retries=1,
+        )
+    cycles = max(1, min(int(os.environ.get("ZEEV_PENDING_FISCAL_REPAIR_CYCLES", "1") or "1"), 20))
+    limit = max(1, int(os.environ.get("ZEEV_PENDING_FISCAL_REPAIR_LIMIT", os.environ.get("ZEEV_BACKFILL_LIMIT", "120")) or "120"))
+    max_runtime_ms = max(15000, int(os.environ.get("ZEEV_PENDING_FISCAL_REPAIR_MAX_RUNTIME_MS", "105000") or "105000"))
+    deadline = time.monotonic() + (max_runtime_ms / 1000)
+    stale_hours = max(0, int(os.environ.get("ZEEV_PENDING_FISCAL_REPAIR_STALE_HOURS", "24") or "24"))
+    refresh = os.environ.get("ZEEV_PENDING_FISCAL_REPAIR_REFRESH", "true").lower() != "false"
+    ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
+    force = os.environ.get("ZEEV_PENDING_FISCAL_REPAIR_FORCE", "false").lower() == "true"
+    target_ids = parse_ticket_ids(ticket_ids)
+    order = "asc" if os.environ.get("ZEEV_PENDING_FISCAL_REPAIR_ORDER", "").lower() in {"asc", "oldest", "antigos"} else "desc"
+    order_sql = "start_date_time.asc.nullsfirst,id.asc" if order == "asc" else "start_date_time.desc.nullslast,id.desc"
+    select = ",".join([
+        "id", "zeev_instance_id", "flow_id", "flow_name", "request_name", "status", "ticket_link",
+        "start_date_time", "pagamento_json", "campos_extraidos", "raw_fields", "raw_tasks", "raw_instance", "docs_json",
+    ])
+    if target_ids:
+        rows = supabase_rest_all(
+            f"/capex_zeev_solicitacoes?select={select}&zeev_instance_id=in.({','.join(map(str, target_ids))})&order={order_sql}",
+            page_size=1000,
+            timeout=90,
+        )
+    else:
+        rows = supabase_rest_all(
+            f"/capex_zeev_solicitacoes?select={select}&status=eq.pendente&order={order_sql}",
+            page_size=1000,
+            timeout=90,
+        )
+    candidates = [
+        row for row in rows
+        if row_ticket_id(row) and (not target_ids or row_ticket_id(row) in set(target_ids))
+        and is_finance_row(row)
+        and pending_fiscal_needs_repair(row, force=force, stale_hours=stale_hours)
+    ]
+    out = {
+        "ok": True,
+        "mode": "repair-pending-fiscal-metadata",
+        "implementation": "python-direct-zeev",
+        "scannedPending": len(rows),
+        "financeCandidatesTotal": len(candidates),
+        "cycles": [],
+        "totals": {"processed": 0, "updatedPending": 0, "missingAfterRefresh": 0, "errors": 0},
+    }
+    fields = pending_fiscal_repair_fields()
+    for cycle in range(1, cycles + 1):
+        batch = candidates[(cycle - 1) * limit: cycle * limit]
+        if not batch:
+            break
+        result = {"cycle": cycle, "processed": 0, "updatedPending": 0, "missingAfterRefresh": 0, "deadlineReached": False, "updated": [], "missing": [], "errors": []}
+        for row in batch:
+            if time.monotonic() >= deadline:
+                result["deadlineReached"] = True
+                break
+            tr = row_ticket_id(row)
+            try:
+                stored_fields = row_stored_fields(row)
+                nf_tipo, number = pending_fiscal_number_from_fields(stored_fields)
+                fetched_fields = []
+                fetch_error = ""
+                if refresh and (not number or suspicious_fiscal_number(number)):
+                    flow_id = int(row.get("flow_id") or 0)
+                    try:
+                        _, fetched_fields = instance_fields(tr, fields, timeout=25, retries=1)
+                        nf_tipo, number = pending_fiscal_number_from_fields(merge_zeev_fields(stored_fields, fetched_fields))
+                    except Exception as exc:
+                        fetch_error = str(exc)[:500]
+                result["processed"] += 1
+                if number and not suspicious_fiscal_number(number):
+                    before = (row.get("pagamento_json") or {}).get("nota_fiscal") if isinstance(row.get("pagamento_json"), dict) else ""
+                    patch_pending_fiscal_result(row, number=number, nf_tipo=nf_tipo, source_fields=fetched_fields)
+                    result["updatedPending"] += 1
+                    if len(result["updated"]) < 120:
+                        result["updated"].append({"tr": tr, "rowId": row.get("id"), "before": before or "", "after": {"nota_fiscal": number, "tipo_documento_fiscal": nf_tipo or ""}})
+                else:
+                    patch_pending_fiscal_result(row, source_fields=fetched_fields, error=fetch_error)
+                    result["missingAfterRefresh"] += 1
+                    if len(result["missing"]) < 80:
+                        result["missing"].append({"tr": tr, "rowId": row.get("id"), "reason": "numero_fiscal_nao_encontrado_no_formulario_zeev", "error": fetch_error})
+            except Exception as exc:
+                result["errors"].append({"tr": tr, "rowId": row.get("id"), "error": str(exc)[:700]})
+        if result["errors"]:
+            out["ok"] = False
+        out["cycles"].append(result)
+        out["totals"]["processed"] += int(result.get("processed") or 0)
+        out["totals"]["updatedPending"] += int(result.get("updatedPending") or 0)
+        out["totals"]["missingAfterRefresh"] += int(result.get("missingAfterRefresh") or 0)
+        out["totals"]["errors"] += len(result.get("errors") or [])
+        if result.get("errors"):
+            out["ok"] = False
+        if ticket_ids:
+            break
+        if result.get("deadlineReached") or (int(result.get("processed") or 0) == 0) or len(batch) < limit:
+            break
+    return out
+
+
+def repair_fiscal_metadata():
+    out = {"ok": True, "mode": "repair-fiscal-metadata"}
+    out["pending"] = repair_pending_fiscal_metadata()
+    try:
+        out["payments"] = repair_payment_fiscal_fields()
+    except Exception as exc:
+        out["ok"] = False
+        out["paymentRepairError"] = str(exc)[:700]
+    return out
+
+
 def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest=False, start_page=1):
     tickets = {}
     flow_counts = {}
@@ -3882,6 +4146,14 @@ def main():
         return
     if mode in {"extract-fiscal-numbers", "fiscal-numbers", "numeros-fiscais"}:
         result = extract_fiscal_numbers()
+        print(json.dumps(result, ensure_ascii=False))
+        return
+    if mode in {"repair-pending-fiscal-metadata", "repair-pending-fiscal", "repair-pending-fiscal-fields"}:
+        result = repair_pending_fiscal_metadata()
+        print(json.dumps(result, ensure_ascii=False))
+        return
+    if mode in {"repair-fiscal-metadata", "repair-all-fiscal-metadata", "repair-fiscal"}:
+        result = repair_fiscal_metadata()
         print(json.dumps(result, ensure_ascii=False))
         return
     if mode in {"repair-payment-fiscal-fields", "repair-payment-fiscal", "repair-fiscal-fields"}:

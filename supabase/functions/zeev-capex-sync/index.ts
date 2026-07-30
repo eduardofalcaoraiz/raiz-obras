@@ -6162,6 +6162,280 @@ async function runRepairPaymentFiscalMetadata(input: AnyRecord = {}) {
   return out
 }
 
+function fiscalMetadataRepairFields() {
+  return [...new Set([
+    ...FISCAL_NUMBER_FIELDS,
+    ...GENERIC_FISCAL_NUMBER_FIELDS,
+    ...ISSUE_DATE_FIELDS,
+    ...DOCUMENT_FIELDS,
+    'Outros gastos',
+    'Outros gastos *',
+    'Tipo de documento',
+    'Tipo do documento',
+  ])]
+}
+
+async function zeevFiscalFieldsQuick(instanceId: number, flow: number, fields: string[]) {
+  const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+  const fieldList = [...new Set((fields || []).map((field) => String(field || '').trim()).filter(Boolean))]
+  const errors: string[] = []
+  const getUrl = new URL(`${base}/api/2/instances/${instanceId}`)
+  for (const field of fieldList) getUrl.searchParams.append('formFieldNames', field)
+  getUrl.searchParams.set('useCache', 'false')
+  try {
+    const data = await zeevJsonRequest(getUrl.toString(), {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+      },
+    }, { needsFormFields: true, timeoutMs: 8000 })
+    if (hasFormFields(data)) return data
+    errors.push('GET instance sem formFields fiscais')
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500))
+  }
+
+  const baseBody: AnyRecord = {
+    instanceId,
+    recordsPerPage: 10,
+    pageNumber: 1,
+    useCache: false,
+    formFieldNames: fieldList,
+  }
+  const bodies = flow ? [{ ...baseBody, flowId: flow }, baseBody] : [baseBody]
+  for (const body of bodies) {
+    try {
+      const data = await zeevJsonRequest(`${base}/api/2/instances/report`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+        },
+        body: JSON.stringify(body),
+      }, { needsFormFields: true, mergeRows: true, timeoutMs: 9000 })
+      const rows = Array.isArray(data) ? data : [data]
+      const row = rows.find((item: AnyRecord) => Number(item?.id) === Number(instanceId)) || rows[0] || {}
+      if (hasFormFields(row)) return row
+      errors.push(`POST report${flow ? ` flow ${flow}` : ''} sem formFields fiscais`)
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500))
+    }
+  }
+  throw new Error(`Zeev fiscal fields ${instanceId}: ${errors.join(' | ')}`)
+}
+
+async function loadPendingTicketFiscalFieldsFromZeev(row: AnyRecord) {
+  const id = Number(row?.zeev_instance_id || row?.ticket_raiz || row?.ticket_raiz_instance_id || row?.referencia || row?.id || 0)
+  if (!id) return row
+  const stored = normalizeStoredTicketSnapshot(row, id)
+  const flow = Number(row?.flow_id || row?.flowId || row?.raw_instance?.flow?.id || row?.rawInstance?.flow?.id || 0) || 0
+  const fresh = await zeevFiscalFieldsQuick(id, flow, fiscalMetadataRepairFields())
+  const rawFields = mergeFields(stored.raw_fields || [], Array.isArray(fresh?.formFields) ? fresh.formFields : [])
+  return normalizeStoredTicketSnapshot({
+    ...row,
+    raw_fields: rawFields,
+    raw_tasks: Array.isArray(fresh?.instanceTasks) ? fresh.instanceTasks : stored.raw_tasks,
+    raw_instance: {
+      ...(stored.raw_instance || {}),
+      ...(fresh || {}),
+      formFields: rawFields,
+      __zeev_load_source: 'fiscal-fields-quick',
+    },
+  }, id)
+}
+
+function fiscalTypeFromTicketFields(ticket: AnyRecord, fallback = '') {
+  const text = norm([
+    ticketFirstField(ticket, ['Outros gastos', 'Outros gastos *', 'Tipo de documento', 'Tipo do documento']),
+    ticket?.pagamento_json?.tipo_documento_fiscal,
+    ticket?.pagamento_json?.tipo_documento,
+    ticket?.pagamento_json?.tipo,
+    fallback,
+  ].filter(Boolean).join(' '))
+  if (text.includes('fatura')) return 'Fatura'
+  if (text.includes('recibo')) return 'Recibo'
+  if (text.includes('boleto')) return 'Boleto'
+  if (text.includes('nf e') || text.includes('nfe') || text.includes('danfe') || text.includes('xml')) return 'NF-e'
+  if (text.includes('nfs') || text.includes('nfse') || text.includes('nota fiscal') || text.includes('nota')) return 'NFS-e'
+  return fallback || ''
+}
+
+function pendingFiscalNumberFromTicket(ticket: AnyRecord) {
+  const nfTipo = fiscalTypeFromTicketFields(ticket, fiscalTypeForTicket(ticket, normalizeStoredDocs(ticket)))
+  const direct = ticketFiscalDocumentNumber(ticket)
+    || String(ticket?.pagamento_json?.nota_fiscal || '').trim()
+    || fiscalDocNumberForTicket(ticket, normalizeStoredDocs(ticket), nfTipo)
+  const number = normalizeFiscalDocumentNumber(direct, nfTipo)
+  return { nfTipo, number }
+}
+
+function pendingFiscalNumberNeedsRepair(row: AnyRecord, force = false, staleHours = 24) {
+  if (force) return true
+  const current = String(row?.pagamento_json?.nota_fiscal || '').trim()
+  if (current && !suspiciousFiscalNumber(current)) return false
+  const checkedAt = String(row?.campos_extraidos?.numero_documento_fiscal_revisado_em || row?.campos_extraidos?.numero_documento_fiscal_nao_encontrado_em || '').trim()
+  const checkedTime = checkedAt ? Date.parse(checkedAt) : 0
+  if (checkedTime && Number.isFinite(checkedTime) && staleHours > 0) {
+    const ageMs = Date.now() - checkedTime
+    if (ageMs >= 0 && ageMs < staleHours * 60 * 60 * 1000) return false
+  }
+  return true
+}
+
+async function loadPendingTicketForFiscalRepair(row: AnyRecord, refresh: boolean) {
+  const tr = Number(ticketDigits(row?.zeev_instance_id))
+  const stored = normalizeStoredTicketSnapshot(row, tr)
+  if (!refresh) return stored
+  const current = pendingFiscalNumberFromTicket(stored)
+  if (current.number && !suspiciousFiscalNumber(current.number)) return stored
+  try {
+    const fresh = await loadPendingTicketFiscalFieldsFromZeev(row)
+    return normalizeStoredTicketSnapshot(fresh, tr)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return {
+      ...stored,
+      __zeev_load_error: message,
+      raw_instance: {
+        ...(stored.raw_instance || {}),
+        __pending_fiscal_repair_error: message,
+      },
+    }
+  }
+}
+
+async function runRepairPendingFiscalMetadata(input: AnyRecord = {}) {
+  const limit = Math.max(1, Math.min(Number(input.limit || input.backfillLimit || input.backfill_limit || 120), 400))
+  const refresh = input.refresh !== false
+  const force = input.force === true || input.forceRepair === true || input.force_repair === true
+  const staleHours = Math.max(0, Number(input.staleHours || input.stale_hours || 24))
+  const maxRuntimeMs = Math.max(15000, Math.min(Number(input.maxRuntimeMs || input.max_runtime_ms || 105000), 125000))
+  const deadline = Date.now() + maxRuntimeMs
+  const oldestFirst = ['asc', 'oldest', 'antigos'].includes(normKey(input.order || input.priority || ''))
+  const order = oldestFirst ? 'start_date_time.asc.nullsfirst,id.asc' : 'start_date_time.desc.nullslast,id.desc'
+  const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+  const targetSet = new Set(targetTicketIds.map((id) => String(id)))
+  const filter = targetTicketIds.length ? `zeev_instance_id=in.(${targetTicketIds.join(',')})` : 'status=eq.pendente'
+  const select = [
+    'id',
+    'zeev_instance_id',
+    'flow_id',
+    'flow_name',
+    'request_name',
+    'status',
+    'ticket_link',
+    'start_date_time',
+    'pagamento_json',
+    'campos_extraidos',
+    'raw_fields',
+    'raw_tasks',
+    'raw_instance',
+    'docs_json',
+  ].join(',')
+  const out: AnyRecord = {
+    ok: true,
+    mode: 'repair-pending-fiscal-metadata',
+    requested: targetTicketIds,
+    staleHours,
+    maxRuntimeMs,
+    order,
+    scannedPending: 0,
+    financeCandidates: 0,
+    processed: 0,
+    updatedPending: 0,
+    unchanged: 0,
+    missingAfterRefresh: 0,
+    deadlineReached: false,
+    updated: [],
+    missing: [],
+    errors: [],
+  }
+  const rows = await restAll(`/capex_zeev_solicitacoes?select=${select}&${filter}&order=${order}`, 500)
+  const candidates = (rows || [])
+    .filter((row: AnyRecord) => ticketDigits(row?.zeev_instance_id) && (!targetSet.size || targetSet.has(ticketDigits(row?.zeev_instance_id))))
+    .filter((row: AnyRecord) => isFinanceiro(row))
+    .filter((row: AnyRecord) => pendingFiscalNumberNeedsRepair(row, force, staleHours))
+    .slice(0, limit)
+  out.scannedPending = rows.length
+  out.financeCandidates = candidates.length
+
+  for (const row of candidates) {
+    if (Date.now() >= deadline) {
+      out.deadlineReached = true
+      break
+    }
+    const tr = Number(ticketDigits(row?.zeev_instance_id))
+    try {
+      const ticket = await loadPendingTicketForFiscalRepair(row, refresh)
+      const before = String(row?.pagamento_json?.nota_fiscal || '').trim()
+      const meta = pendingFiscalNumberFromTicket(ticket)
+      out.processed++
+      if (!meta.number || suspiciousFiscalNumber(meta.number)) {
+        const campos: AnyRecord = {
+          ...(row?.campos_extraidos && typeof row.campos_extraidos === 'object' ? row.campos_extraidos : {}),
+          fonte_numero_documento_fiscal: 'formulario_zeev',
+          numero_documento_fiscal_revisado_em: new Date().toISOString(),
+          numero_documento_fiscal_nao_encontrado_em: new Date().toISOString(),
+        }
+        if (ticket?.__zeev_load_error) campos.numero_documento_fiscal_erro_zeev = String(ticket.__zeev_load_error).slice(0, 500)
+        await rest(`/capex_zeev_solicitacoes?id=eq.${Number(row.id)}`, {
+          method: 'PATCH',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({ campos_extraidos: campos }),
+        })
+        out.unchanged++
+        out.missingAfterRefresh++
+        if (out.missing.length < 80) {
+          out.missing.push({
+            tr,
+            rowId: Number(row.id),
+            reason: 'numero_fiscal_nao_encontrado_no_formulario_zeev',
+            error: ticket?.__zeev_load_error || '',
+          })
+        }
+        continue
+      }
+      const pagamento = {
+        ...(row?.pagamento_json && typeof row.pagamento_json === 'object' ? row.pagamento_json : {}),
+        nota_fiscal: meta.number,
+      }
+      if (meta.nfTipo) pagamento.tipo_documento_fiscal = meta.nfTipo
+      const campos = {
+        ...(row?.campos_extraidos && typeof row.campos_extraidos === 'object' ? row.campos_extraidos : {}),
+        numero_documento_fiscal: meta.number,
+        tipo_documento_fiscal: meta.nfTipo || '',
+        fonte_numero_documento_fiscal: 'formulario_zeev',
+        numero_documento_fiscal_revisado_em: new Date().toISOString(),
+        numero_documento_fiscal_atualizado_em: new Date().toISOString(),
+      }
+      const patch: AnyRecord = {
+        pagamento_json: pagamento,
+        campos_extraidos: campos,
+      }
+      if (Array.isArray(ticket?.raw_fields) && ticket.raw_fields.length > (Array.isArray(row?.raw_fields) ? row.raw_fields.length : 0)) {
+        patch.raw_fields = ticket.raw_fields
+      }
+      if (Array.isArray(ticket?.raw_tasks) && ticket.raw_tasks.length > (Array.isArray(row?.raw_tasks) ? row.raw_tasks.length : 0)) {
+        patch.raw_tasks = ticket.raw_tasks
+      }
+      await rest(`/capex_zeev_solicitacoes?id=eq.${Number(row.id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify(patch),
+      })
+      out.updatedPending++
+      if (out.updated.length < 120) {
+        out.updated.push({ tr, rowId: Number(row.id), before, after: { nota_fiscal: meta.number, tipo_documento_fiscal: meta.nfTipo || '' } })
+      }
+    } catch (error) {
+      out.errors.push({ tr, rowId: Number(row.id), error: error instanceof Error ? error.message.slice(0, 700) : String(error).slice(0, 700) })
+    }
+  }
+  if (out.errors.length > 40) out.errors = out.errors.slice(0, 40)
+  return out
+}
+
 function ticketFormRows(ticket: AnyRecord) {
   const rows = Array.isArray(ticket?.raw_fields)
     ? [...ticket.raw_fields]
@@ -7169,6 +7443,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'repair-payment-fiscal-metadata') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await runRepairPaymentFiscalMetadata(input || {})
+      return json(out)
+    }
+    if (['repair-pending-fiscal-metadata', 'repair-pending-fiscal', 'repair-pending-fiscal-fields'].includes(String(input?.mode || ''))) {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await runRepairPendingFiscalMetadata(input || {})
       return json(out)
     }
     if (mode === 'webhook-ticket' || mode === 'webhook') {
