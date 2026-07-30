@@ -202,6 +202,16 @@ FISCAL_NUMBER_FIELDS = [
     "numeroRecibo",
     "numero do recibo",
 ]
+GENERIC_FISCAL_NUMBER_FIELDS = [
+    "N\u00famero",
+    "Numero",
+    "N\u00famero *",
+    "Numero *",
+    "N\u00ba",
+    "N\u00b0",
+    "N\u00ba *",
+    "N\u00b0 *",
+]
 ISSUE_DATE_FIELDS = ["dataEmissao", "data de emissao", "data de emiss\u00e3o", "Data de emiss\u00e3o", "Data de emiss\u00e3o *"]
 DESTINATION_UNIT_FIELDS = [
     "Unidade / Filial", "Unidade / Filial *", "Unidade / Filial de destino",
@@ -262,6 +272,7 @@ FINANCE_FIELDS = [
     "descricaoSolicitacao", "solicitacao", "pedido", "objeto", "resumo", "justificativa",
     "observacao", "observacoes", "categoria", "categoriaFinanceira", "setor", "departamento",
     "numeroTR", "ticket", "tr", "notaFiscal", "numeroNF", "numeroDaNF", "serieDaNF", "numeroNotaFiscal", *FISCAL_NUMBER_FIELDS,
+    *GENERIC_FISCAL_NUMBER_FIELDS,
     "valorNotaFiscal", "chaveAcesso", "chaveDeAcesso", "Informe a chave de acesso", *DOCUMENT_FIELDS,
     *FINANCE_DESCRIPTION_FIELDS,
     *DESTINATION_UNIT_FIELDS, *COMPANY_FIELDS,
@@ -489,7 +500,7 @@ def looks_like_relevant_design_field(field):
         r"(capex|documento|document|arquivo|anexo|nota|notafiscal|nfse|nfe|danfe|xml|pdf|"
         r"boleto|comprovante|recibo|fatura|download|file|upload|valor|pagamento|parcela|"
         r"fornecedor|favorecido|beneficiario|razaosocial|cnpj|cpf|cgc|chavedeacesso|"
-        r"numerodanf|numeronf|serie|dataemissao|vencimento|previsao|centrodecusto|"
+        r"numero|nro|numerodanf|numeronf|serie|dataemissao|vencimento|previsao|centrodecusto|"
         r"codigodocentrodecusto|coligada|unidade|filial|solicitante|email|informacoes|"
         r"justificativa|descricao|servico|item|produto|material|quantidade|frete)",
         key,
@@ -672,6 +683,71 @@ def field_value_by_priority(fields, names):
             if field_matches(field, [name]) and str(field.get("value") or "").strip():
                 return str(field.get("value")).strip()
     return ""
+
+
+def clean_fiscal_document_number(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if re.search(r"\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b", raw):
+        return ""
+    digits = re.sub(r"\D+", "", raw)
+    if not digits:
+        return ""
+    if len(digits) == 44:
+        return str(int(digits[25:34]))
+    if len(digits) > 14:
+        return ""
+    return digits.lstrip("0") or "0"
+
+
+def same_row_has_context(fields, row):
+    same = [field for field in fields or [] if int(field.get("row") or 1) == int(row or 1)]
+    if not same:
+        same = fields or []
+    return any(
+        field_matches(field, ISSUE_DATE_FIELDS + DOCUMENT_FIELDS + ["Outros gastos", "Tipo de documento", "Tipo do documento"])
+        for field in same
+    )
+
+
+def fiscal_document_number(fields, financeiro=False):
+    explicit = field_value_by_priority(fields, FISCAL_NUMBER_FIELDS)
+    cleaned = clean_fiscal_document_number(explicit)
+    if cleaned:
+        return cleaned
+    if not financeiro:
+        return ""
+
+    candidates = []
+    has_global_context = any(
+        field_matches(field, ISSUE_DATE_FIELDS + DOCUMENT_FIELDS + ["Outros gastos", "Tipo de documento", "Tipo do documento"])
+        for field in fields or []
+    )
+    for field in fields or []:
+        if not field_matches(field, GENERIC_FISCAL_NUMBER_FIELDS):
+            continue
+        value = str(field.get("value") or "").strip()
+        number = clean_fiscal_document_number(value)
+        if not number:
+            continue
+        score = 100
+        if same_row_has_context(fields, field.get("row") or 1):
+            score += 30
+        if has_global_context:
+            score += 10
+        if str(field.get("source") or "").lower() == "reportlink":
+            score += 5
+        candidates.append({
+            "number": number,
+            "score": score,
+            "name": field_display_name(field),
+            "row": int(field.get("row") or 1),
+        })
+    if not candidates:
+        return ""
+    candidates.sort(key=lambda item: (-item["score"], item["row"], item["name"]))
+    return candidates[0]["number"]
 
 
 def field_money_values(fields, names):
@@ -1605,7 +1681,7 @@ def build_ticket(row):
             "data_pagamento": field_value(fields, ["dataPagamento"]) or None,
             "previsao_pagamento": field_value_by_priority(fields, ["previsaoPagamento", "dataDeVencimento", "dataVencimento"]) or None,
             "data_entrega": field_value(fields, ["dataEntrega", "prazoEntrega"]) or None,
-            "nota_fiscal": field_value(fields, FISCAL_NUMBER_FIELDS) or None,
+            "nota_fiscal": fiscal_document_number(fields, financeiro=financeiro) or None,
             "chave_acesso": field_value(fields, ["chaveAcesso"]) or None,
             "valor_total": valor or None,
         },
@@ -1680,7 +1756,7 @@ def generic_ticket_from_instance(row, reason=""):
             "data_pagamento": field_value(fields, ["dataPagamento"]) or None,
             "previsao_pagamento": field_value_by_priority(fields, ["previsaoPagamento", "dataDeVencimento", "dataVencimento"]) or None,
             "data_entrega": field_value(fields, ["dataEntrega", "prazoEntrega"]) or None,
-            "nota_fiscal": field_value(fields, FISCAL_NUMBER_FIELDS) or None,
+            "nota_fiscal": fiscal_document_number(fields, financeiro=is_finance_row(row)) or None,
             "chave_acesso": field_value(fields, ["chaveAcesso"]) or None,
             "valor_total": valor or None,
         },
@@ -2563,6 +2639,126 @@ def inspect_docs():
         out["tickets"].append(entry)
     out["ok"] = not any(t.get("errors") for t in out["tickets"]) and not out["errors"]
     return out
+
+
+def fiscal_doc_type_from_fields(fields):
+    text = " ".join(
+        str(x or "")
+        for field in fields or []
+        for x in [field_display_name(field), field.get("value"), field.get("openUrl"), field.get("url")]
+    )
+    n = norm_key(text)
+    if "fatura" in n:
+        return "FATURA"
+    if "recibo" in n:
+        return "RECIBO"
+    if "nfse" in n or "notafiscaldeservico" in n or "servico" in n:
+        return "NFS-e"
+    if "nfe" in n or "danfe" in n or "notafiscal" in n:
+        return "NF-e"
+    return "NF/Fatura"
+
+
+def fiscal_number_source(fields, number):
+    wanted = str(number or "").strip()
+    if not wanted:
+        return {}
+    for group in (FISCAL_NUMBER_FIELDS, GENERIC_FISCAL_NUMBER_FIELDS):
+        for field in fields or []:
+            if not field_matches(field, group):
+                continue
+            if clean_fiscal_document_number(field.get("value")) == wanted:
+                return {
+                    "field": field_display_name(field),
+                    "row": int(field.get("row") or 1),
+                    "source": field.get("source") or "",
+                }
+    return {}
+
+
+def fiscal_number_extract_fields():
+    return unique_fields(
+        FISCAL_NUMBER_FIELDS,
+        GENERIC_FISCAL_NUMBER_FIELDS,
+        ISSUE_DATE_FIELDS,
+        DOCUMENT_FIELDS,
+        ["Outros gastos", "Outros gastos *", "Tipo de documento", "Tipo do documento"],
+    )
+
+
+def extract_fiscal_numbers():
+    if not has_zeev_token():
+        raise SystemExit("ZEEV_TOKEN e obrigatorio.")
+    ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
+    if not ids:
+        raise SystemExit("ZEEV_TICKET_IDS e obrigatorio para extract-fiscal-numbers.")
+    timeout = max(10, min(int(os.environ.get("ZEEV_FISCAL_NUMBER_TIMEOUT_SECONDS", "45") or "45"), 120))
+    query_fields = fiscal_number_extract_fields()
+    rows = []
+    errors = []
+    for instance_id in ids:
+        entry = {
+            "tr": instance_id,
+            "numero": "",
+            "tipo": "",
+            "flowId": 0,
+            "flowName": "",
+            "sourceField": "",
+            "source": "",
+            "status": "nao_encontrado",
+        }
+        fields = []
+        latest = {}
+        try:
+            latest, found = instance_fields(instance_id, query_fields, timeout=timeout, retries=2)
+            fields = merge_zeev_fields(fields, found)
+            flow = (latest or {}).get("flow") or {}
+            entry["flowId"] = int(flow.get("id") or (latest or {}).get("flowId") or 0)
+            entry["flowName"] = flow.get("name") or (latest or {}).get("flowName") or (latest or {}).get("requestName") or ""
+            financeiro = is_finance_row(latest or {})
+            number = fiscal_document_number(fields, financeiro=financeiro)
+            if not number:
+                try:
+                    detail, found_all = instance_fields(instance_id, [], timeout=timeout, retries=1)
+                    latest = detail or latest
+                    fields = merge_zeev_fields(fields, found_all)
+                    financeiro = financeiro or is_finance_row(latest or {})
+                    number = fiscal_document_number(fields, financeiro=financeiro)
+                except Exception as exc:
+                    errors.append({"tr": instance_id, "stage": "all-fields", "error": str(exc)[:300]})
+            if not number:
+                report_link = str((latest or {}).get("reportLink") or (latest or {}).get("reportUrl") or "").strip()
+                if report_link:
+                    try:
+                        report_fields, _ = fetch_report_link_fields(report_link)
+                        fields = merge_zeev_fields(fields, report_fields)
+                        number = fiscal_document_number(fields, financeiro=True)
+                    except Exception as exc:
+                        errors.append({"tr": instance_id, "stage": "report-link", "error": str(exc)[:300]})
+            if number:
+                source = fiscal_number_source(fields, number)
+                entry.update({
+                    "numero": number,
+                    "tipo": fiscal_doc_type_from_fields(fields),
+                    "sourceField": source.get("field") or "",
+                    "source": source.get("source") or "",
+                    "status": "encontrado",
+                })
+            else:
+                entry["tipo"] = fiscal_doc_type_from_fields(fields) if fields else ""
+        except Exception as exc:
+            entry["status"] = "erro"
+            entry["error"] = str(exc)[:500]
+        rows.append(entry)
+    return {
+        "ok": not any(row.get("status") == "erro" for row in rows),
+        "mode": "extract-fiscal-numbers",
+        "requested": len(ids),
+        "found": sum(1 for row in rows if row.get("numero")),
+        "missing": sum(1 for row in rows if not row.get("numero")),
+        "tickets": rows,
+        "errors": errors[:30],
+    }
 
 
 def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest=False, start_page=1):
@@ -3533,6 +3729,10 @@ def main():
         return
     if mode in {"inspect-docs", "doc-inspect", "inspect-documentos"}:
         result = inspect_docs()
+        print(json.dumps(result, ensure_ascii=False))
+        return
+    if mode in {"extract-fiscal-numbers", "fiscal-numbers", "numeros-fiscais"}:
+        result = extract_fiscal_numbers()
         print(json.dumps(result, ensure_ascii=False))
         return
     deep_mode = mode in {"deep", "deep-retro", "deep-incremental"} or os.environ.get("ZEEV_DEEP_SCAN", "0") == "1"

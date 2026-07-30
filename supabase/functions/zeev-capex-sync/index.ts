@@ -239,6 +239,7 @@ const FISCAL_NUMBER_FIELDS = [
   'numeroRecibo',
   'numero do recibo',
 ]
+const GENERIC_FISCAL_NUMBER_FIELDS = ['N\u00famero', 'Numero', 'N\u00famero *', 'Numero *', 'N\u00ba', 'N\u00b0', 'N\u00ba *', 'N\u00b0 *']
 const ISSUE_DATE_FIELDS = ['dataEmissao', 'data de emissao', 'data de emiss\u00e3o', 'Data de emiss\u00e3o', 'Data de emiss\u00e3o *']
 const DESTINATION_UNIT_FIELDS = [
   'Unidade / Filial',
@@ -502,6 +503,7 @@ const FINANCE_ENRICH_FIELDS = [
   'serieDaNF',
   'numeroNotaFiscal',
   ...FISCAL_NUMBER_FIELDS,
+  ...GENERIC_FISCAL_NUMBER_FIELDS,
   'valorNotaFiscal',
   'chaveAcesso',
   'chaveDeAcesso',
@@ -974,7 +976,7 @@ function parseListEnv(value: unknown) {
 
 function looksLikeRelevantDesignField(field: AnyRecord) {
   const hay = normKey([field?.name, field?.label, field?.typeName, field?.validationName, field?.groupName].filter(Boolean).join(' '))
-  return /(capex|notafiscal|nfse|nfe|nfs|danfe|xml|pdf|arquivo|anexo|documento|fatura|boleto|comprovante|recibo|pix|file|upload|visualizador|valor|pagamento|parcela|fornecedor|favorecido|beneficiario|razaosocial|cnpj|cpf|cgc|chavedeacesso|numerodanf|numeronf|serie|dataemissao|vencimento|previsao|centrodecusto|codigodocentrodecusto|coligada|unidade|filial|solicitante|email|informacoes|justificativa|descricao|servico|item|produto|material|quantidade|frete)/.test(hay)
+  return /(capex|notafiscal|nfse|nfe|nfs|danfe|xml|pdf|arquivo|anexo|documento|fatura|boleto|comprovante|recibo|pix|file|upload|visualizador|valor|pagamento|parcela|fornecedor|favorecido|beneficiario|razaosocial|cnpj|cpf|cgc|chavedeacesso|numero|nro|numerodanf|numeronf|serie|dataemissao|vencimento|previsao|centrodecusto|codigodocentrodecusto|coligada|unidade|filial|solicitante|email|informacoes|justificativa|descricao|servico|item|produto|material|quantidade|frete)/.test(hay)
 }
 
 function walkJsonObjects(value: unknown): AnyRecord[] {
@@ -1115,13 +1117,42 @@ function pickTicketValue(fmap: Map<string, AnyRecord[]>, items: AnyRecord[], fin
   return moneyByPriority(fmap, [...VALUE_TOTAL_FIELDS, ...ITEM_TOTAL_FIELDS])
 }
 
-function extractPagamento(fmap: Map<string, AnyRecord[]>) {
+function cleanFiscalDocumentNumber(value: unknown) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (/\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/.test(raw)) return ''
+  const digits = raw.replace(/\D+/g, '')
+  if (!digits) return ''
+  if (digits.length === 44) return String(Number(digits.slice(25, 34)) || '').replace(/^0+(?=\d)/, '')
+  if (digits.length > 14) return ''
+  return digits.replace(/^0+(?=\d)/, '') || '0'
+}
+
+function cleanedFirstFiscalField(fmap: Map<string, AnyRecord[]>, names: string[]) {
+  for (const name of names) {
+    const arr = fmap.get(norm(name)) || fmap.get(normKey(name))
+    for (const field of arr || []) {
+      const number = cleanFiscalDocumentNumber(field?.value)
+      if (number) return number
+    }
+  }
+  return ''
+}
+
+function fiscalDocumentNumber(fmap: Map<string, AnyRecord[]>, financeiro: boolean) {
+  const explicit = cleanedFirstFiscalField(fmap, FISCAL_NUMBER_FIELDS)
+  if (explicit) return explicit
+  if (!financeiro) return ''
+  return cleanedFirstFiscalField(fmap, GENERIC_FISCAL_NUMBER_FIELDS)
+}
+
+function extractPagamento(fmap: Map<string, AnyRecord[]>, financeiro = false) {
   return {
     forma: firstField(fmap, ['formaDePagamento', 'formaPagamento', 'condicaoPagamento']) || null,
     data_pagamento: firstField(fmap, ['dataPagamento']) || null,
     previsao_pagamento: firstField(fmap, ['previsaoPagamento', 'dataDeVencimento', 'dataVencimento']) || null,
     data_entrega: firstField(fmap, ['dataEntrega', 'prazoEntrega']) || null,
-    nota_fiscal: firstField(fmap, FISCAL_NUMBER_FIELDS) || null,
+    nota_fiscal: fiscalDocumentNumber(fmap, financeiro) || null,
     chave_acesso: firstField(fmap, ['chaveAcesso']) || null,
   }
 }
@@ -1570,7 +1601,7 @@ async function buildTicket(row: AnyRecord) {
   const unidade = firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto']))
   const marca = firstField(fmap, ['marca'])
   const categoria = firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra'])
-  const pagamento = extractPagamento(fmap)
+  const pagamento = extractPagamento(fmap, financeiro)
   const campos = fieldsObject(fields)
   const resumo = await cardSummaryCascade(desc || '', itens, compra, { skipAi: Boolean(row.__skipSummaryAi) })
   if (resumo.text) {
@@ -4608,7 +4639,7 @@ function genericZeevTicket(enriched: AnyRecord, fallback: AnyRecord = {}) {
   const financeiro = isFinanceiro(enriched)
   const compra = isCompra(enriched)
   const itens = extractItems(fields)
-  const pagamento = extractPagamento(fmap)
+  const pagamento = extractPagamento(fmap, financeiro)
   const valor = pickTicketValue(fmap, itens, financeiro)
   const desc = ticketDescription(fmap, itens, financeiro, compra)
   return {
@@ -6109,6 +6140,10 @@ function ticketFirstField(ticket: AnyRecord, names: string[]) {
   return firstField(ticketFieldMap(ticket), names)
 }
 
+function ticketFiscalDocumentNumber(ticket: AnyRecord) {
+  return fiscalDocumentNumber(ticketFieldMap(ticket), isFinanceiro(ticket))
+}
+
 function ticketValueForPayment(ticket: AnyRecord) {
   const direct = Number(ticket?.valor_final || ticket?.valor || ticket?.pagamento_json?.valor_total || 0)
   if (Number.isFinite(direct) && direct > 0) return direct
@@ -6221,7 +6256,7 @@ function invoiceFileNumberFromText(raw: unknown, kind: unknown, nfTipo = '') {
 
 function fiscalDocNumberForTicket(ticket: AnyRecord, storedDocs: AnyRecord[], nfTipo: string) {
   const direct = ticket?.pagamento_json?.nota_fiscal
-    || ticketFirstField(ticket, FISCAL_NUMBER_FIELDS)
+    || ticketFiscalDocumentNumber(ticket)
     || ''
   if (String(direct || '').trim()) return normalizeFiscalDocumentNumber(direct, nfTipo)
   const candidates = [...storedDocs, ...zeevDocsFromTicket(ticket)]
@@ -6237,7 +6272,7 @@ function paymentFiscalMetadataFromDocs(row: AnyRecord, ticket: AnyRecord = {}) {
   const storedDocs = normalizeStoredDocs(row)
   const context = { ...(ticket || {}), ...(ticket?.zeev_instance_id ? {} : { zeev_instance_id: ticketDigits(row?.ticket_raiz) }) }
   const invoiceDocs = storedDocs.filter((doc) => isInvoiceDocKind(fiscalDocKindWithContext(doc, context, row)))
-  if (!invoiceDocs.length && !String(ticketFirstField(context, FISCAL_NUMBER_FIELDS) || context?.pagamento_json?.nota_fiscal || '').trim()) return { nfTipo: '', nfNum: '' }
+  if (!invoiceDocs.length && !String(ticketFiscalDocumentNumber(context) || context?.pagamento_json?.nota_fiscal || '').trim()) return { nfTipo: '', nfNum: '' }
   const nfTipo = fiscalTypeForTicket(context, invoiceDocs)
   const nfNum = fiscalDocNumberForTicket(context, invoiceDocs, nfTipo)
   return { nfTipo, nfNum: String(nfNum || '').trim() }
@@ -6289,7 +6324,7 @@ function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: st
   const storedDocs = normalizeStoredDocs(ticket)
   const invoiceDocs = storedDocs.filter((doc) => isInvoiceDocKind(fiscalDocKindWithContext(doc, ticket, ticket)))
   const comprovantes = storedDocs.filter((doc) => isProofDocKind(fiscalDocKindWithContext(doc, ticket, ticket)))
-  const hasFiscalFieldNumber = Boolean(String(ticket?.pagamento_json?.nota_fiscal || ticketFirstField(ticket, FISCAL_NUMBER_FIELDS) || '').trim())
+  const hasFiscalFieldNumber = Boolean(String(ticket?.pagamento_json?.nota_fiscal || ticketFiscalDocumentNumber(ticket) || '').trim())
   const nfTipo = invoiceDocs.length || hasFiscalFieldNumber ? fiscalTypeForTicket(ticket, invoiceDocs) : 'Sem nota'
   const nfNum = invoiceDocs.length || hasFiscalFieldNumber ? fiscalDocNumberForTicket(ticket, invoiceDocs, nfTipo) : ''
   const venc = dateOnly(ticket?.pagamento_json?.previsao_pagamento || ticket?.pagamento_json?.dataVencimento)
@@ -6648,7 +6683,7 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
     raw_instance: {},
     raw_tasks: [],
     itens_json: itens,
-    pagamento_json: ticket?.pagamento_json || { ...extractPagamento(fmap), valor_total: valor || null },
+    pagamento_json: ticket?.pagamento_json || { ...extractPagamento(fmap, financeiro), valor_total: valor || null },
     campos_extraidos: campos,
     enrichment_errors: [
       ...(Array.isArray(ticket?.enrichment_errors) ? ticket.enrichment_errors : []),
