@@ -2699,6 +2699,17 @@ def suspicious_fiscal_number(value):
     return len(digits) > 13
 
 
+def ticket_numbers_from_value(value):
+    numbers = []
+    seen = set()
+    for raw in re.findall(r"(?<!\d)\d{4,7}(?!\d)", str(value or "")):
+        number = int(raw.lstrip("0") or "0")
+        if number and number not in seen:
+            numbers.append(number)
+            seen.add(number)
+    return numbers
+
+
 def fiscal_number_source(fields, number):
     wanted = str(number or "").strip()
     if not wanted:
@@ -2817,9 +2828,25 @@ def repair_payment_fiscal_fields():
         rows = supabase_rest(f"/pagamentos?select={select_cols}&ticket_raiz=not.is.null&order=id.asc&limit={scan_limit}", timeout=90, prefer="")
     target = []
     id_set = {str(x) for x in ids}
+    skipped = []
     for row in rows or []:
-        tr = re.sub(r"\D+", "", str(row.get("ticket_raiz") or ""))
-        if not tr or (id_set and tr not in id_set):
+        row_tickets = ticket_numbers_from_value(row.get("ticket_raiz"))
+        if id_set:
+            matched = [number for number in row_tickets if str(number) in id_set]
+            if not matched:
+                continue
+            row["_repair_tr"] = matched[0]
+        elif len(row_tickets) != 1:
+            if len(skipped) < 20:
+                skipped.append({
+                    "pagamento_id": row.get("id"),
+                    "ticket_raiz": str(row.get("ticket_raiz") or "")[:120],
+                    "reason": "nenhum TR unico" if not row_tickets else "multiplos TRs no mesmo pagamento",
+                })
+            continue
+        else:
+            row["_repair_tr"] = row_tickets[0]
+        if not row.get("_repair_tr"):
             continue
         current_num = str(row.get("nf_num") or "").strip()
         if ids or not current_num or suspicious_fiscal_number(current_num) or neutral_fiscal_type(row.get("nf_tipo")):
@@ -2838,13 +2865,14 @@ def repair_payment_fiscal_fields():
         "requestedTickets": ids,
         "loadedPayments": len(rows or []),
         "scannedPayments": len(target),
+        "skippedAmbiguous": skipped,
         "updatedPayments": 0,
         "unchanged": 0,
         "errors": [],
         "updated": [],
     }
     for row in target:
-        tr = int(re.sub(r"\D+", "", str(row.get("ticket_raiz") or "")) or "0")
+        tr = int(row.get("_repair_tr") or 0)
         try:
             latest, fields = instance_fields(tr, query_fields, timeout=60, retries=2)
             financeiro = is_finance_row(latest or {}) or True
