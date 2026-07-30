@@ -3443,7 +3443,7 @@ def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest
     return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
 
 
-def sync_ids(instance_ids, allow_non_capex=False, reason=""):
+def sync_ids(instance_ids, allow_non_capex=False, reason="", rescue_docs=True):
     ids = parse_ticket_ids(instance_ids)
     tickets = {}
 
@@ -3456,9 +3456,13 @@ def sync_ids(instance_ids, allow_non_capex=False, reason=""):
             ticket = build_ticket(enriched)
             if not ticket and allow_non_capex:
                 ticket = generic_ticket_from_instance(enriched, reason=reason)
-            if ticket:
+            if ticket and rescue_docs:
                 ticket = attach_rescued_docs(ticket, enriched)
-                return ticket
+            if ticket and not rescue_docs:
+                campos = ticket.get("campos_extraidos") if isinstance(ticket.get("campos_extraidos"), dict) else {}
+                campos["_zeev_doc_rescue"] = {"enabled": False, "reason": "force-pending-ticket usa leitura leve; anexos ficam para a varredura propria."}
+                ticket["campos_extraidos"] = campos
+            return ticket
         except Exception as exc:
             print(json.dumps({"ticketId": instance_id, "error": str(exc)[:500]}, ensure_ascii=False), file=sys.stderr)
         return None
@@ -4115,7 +4119,7 @@ def register_capex_items():
 def force_pending_ticket():
     ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     reason = os.environ.get("ZEEV_FORCE_PENDING_REASON") or "Erro da solicitante: ticket deve ser tratado como CAPEX."
-    tickets = sync_ids(ids, allow_non_capex=True, reason=reason)
+    tickets = sync_ids(ids, allow_non_capex=True, reason=reason, rescue_docs=False)
     fetched = {int(t.get("zeev_instance_id") or 0) for t in tickets if t.get("zeev_instance_id")}
     missing = [ticket_id for ticket_id in ids if ticket_id not in fetched]
     payload = {
@@ -4125,6 +4129,7 @@ def force_pending_ticket():
         "tickets": tickets,
         "directZeevRead": True,
         "directReadMissingIds": missing,
+        "fileLimit": 0,
     }
     if ZEEV_TOKEN:
         payload["zeevToken"] = ZEEV_TOKEN

@@ -2505,10 +2505,18 @@ async function zeevMessages(instanceId: number) {
   return Array.isArray(data) ? data : []
 }
 
-async function collectInstanceFields(instanceId: number, flow: number, fields: string[], chunkSize = 8) {
+async function collectInstanceFields(
+  instanceId: number,
+  flow: number,
+  fields: string[],
+  chunkSize = 8,
+  options: { collectAll?: boolean; maxChunks?: number } = {},
+) {
   const found: AnyRecord[] = []
   const errors: AnyRecord[] = []
   let last: AnyRecord | null = null
+  let queriedChunks = 0
+  const maxChunks = Number.isFinite(Number(options.maxChunks)) ? Math.max(1, Number(options.maxChunks)) : Infinity
 
   const collectFrom = async (fieldSet: string[], label: string) => {
     let ok = false
@@ -2529,10 +2537,15 @@ async function collectInstanceFields(instanceId: number, flow: number, fields: s
     return ok
   }
 
-  await collectFrom([], '__all__')
+  if (options.collectAll !== false) await collectFrom([], '__all__')
 
   const queryChunk = async (chunk: string[]) => {
     if (!chunk.length) return
+    if (queriedChunks >= maxChunks) {
+      errors.push({ field: chunk.join(',').slice(0, 220), error: 'limite_local_de_blocos_atingido' })
+      return
+    }
+    queriedChunks++
     const ok = await collectFrom(chunk, chunk.join(','))
     if (!ok && chunk.length > 1) {
       const mid = Math.ceil(chunk.length / 2)
@@ -4527,6 +4540,85 @@ function leanFieldsForFlow(flow: number) {
   const base = FINANCE_FLOW_IDS.has(flow) ? FINANCE_ENRICH_FIELDS : PURCHASE_ENRICH_FIELDS
   const docs = parseListEnv([env('ZEEV_EXTRA_DOCUMENT_FIELDS'), REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS].filter(Boolean).join(','))
   return [...new Set([...capexFieldsForFlow(flow), ...base, ...docs])]
+}
+
+function forcedPendingFieldsForFlow(flow: number) {
+  const base = [
+    ...capexFieldsForFlow(flow),
+    ...EXTRA_FIELDS,
+    ...VALUE_TOTAL_FIELDS,
+    ...PAYMENT_TOTAL_FIELDS,
+    ...FISCAL_NUMBER_FIELDS,
+    ...GENERIC_FISCAL_NUMBER_FIELDS,
+    ...ISSUE_DATE_FIELDS,
+    ...DESTINATION_UNIT_FIELDS,
+    ...COMPANY_FIELDS,
+    ...FINANCE_DESCRIPTION_FIELDS,
+    ...PURCHASE_JUSTIFICATION_FIELDS,
+    ...PURCHASE_SERVICE_DESCRIPTION_FIELDS,
+    ...PURCHASE_ITEM_DESCRIPTION_FIELDS,
+    ...ITEM_DESC_FIELDS,
+    ...ITEM_QTY_FIELDS,
+    ...ITEM_TOTAL_FIELDS,
+  ]
+  const limit = Math.max(24, Math.min(Number(env('ZEEV_FORCE_PENDING_FIELD_LIMIT', '90')) || 90, 140))
+  return [...new Set(base.map((field) => String(field || '').trim()).filter(Boolean))].slice(0, limit)
+}
+
+async function loadForcedPendingTicketFromZeev(row: AnyRecord) {
+  const id = Number(row?.zeev_instance_id || row?.ticket_raiz || row?.ticket_raiz_instance_id || row?.referencia || row?.id || 0)
+  if (!id) return row
+  let base: AnyRecord = row?.raw_instance && typeof row.raw_instance === 'object' ? { ...row.raw_instance } : {}
+  let flowForLookup = Number(row?.flow_id || row?.flowId || row?.flow?.id || row?.raw_instance?.flow?.id || row?.rawInstance?.flow?.id || 0) || 0
+  const errors: AnyRecord[] = []
+  try {
+    const probe = await zeevInstance(id, flowForLookup, [])
+    if (probe && typeof probe === 'object') {
+      base = { ...base, ...probe }
+      flowForLookup = Number(probe?.flow?.id || probe?.flowId || flowForLookup || 0) || 0
+    }
+  } catch (error) {
+    errors.push({ phase: 'minimal-instance', error: error instanceof Error ? error.message.slice(0, 400) : String(error).slice(0, 400) })
+  }
+  if (!flowForLookup || !base.reportLink) {
+    const found = await findZeevInstanceAcrossFlows(id, flowForLookup)
+    if (found.row && typeof found.row === 'object') {
+      base = { ...base, ...found.row }
+      flowForLookup = Number(found.row?.flow?.id || found.row?.flowId || found.flow || flowForLookup || 0) || 0
+    } else if (found.errors.length) {
+      errors.push(...found.errors.slice(0, 5).map((item) => ({ ...item, phase: 'flow-lookup' })))
+    }
+  }
+  if (flowForLookup) {
+    try {
+      const chunkSize = Math.max(6, Math.min(Number(env('ZEEV_FORCE_PENDING_FIELD_CHUNK_SIZE', '12')) || 12, 18))
+      const maxChunks = Math.max(2, Math.min(Number(env('ZEEV_FORCE_PENDING_MAX_CHUNKS', '5')) || 5, 10))
+      const enriched = await collectInstanceFields(id, flowForLookup, forcedPendingFieldsForFlow(flowForLookup), chunkSize, { collectAll: false, maxChunks })
+      base = { ...base, ...(enriched.last || {}) }
+      base.formFields = mergeFields(
+        Array.isArray(base.formFields) ? base.formFields : Array.isArray(row.raw_fields) ? row.raw_fields : Array.isArray(row.rawFields) ? row.rawFields : [],
+        enriched.fields,
+      )
+      if (enriched.errors.length) errors.push(...enriched.errors.slice(0, 8))
+    } catch (error) {
+      errors.push({ phase: 'essential-fields', error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500) })
+    }
+  }
+  base.id = base.id || id
+  base.flow = base.flow || { id: row.flow_id || row.flowId || base.flow?.id || flowForLookup || null, name: row.flow_name || row.flowName || row.request_name || base.flow?.name || '', version: row.flow_version || row.flowVersion || base.flow?.version || null }
+  base.flowId = base.flowId || row.flow_id || row.flowId || base.flow?.id || flowForLookup || null
+  base.flowName = base.flowName || row.flow_name || row.flowName || base.flow?.name || ''
+  base.requestName = base.requestName || row.request_name || row.requestName || ''
+  base.formFields = Array.isArray(base.formFields) ? base.formFields : Array.isArray(row.raw_fields) ? row.raw_fields : Array.isArray(row.rawFields) ? row.rawFields : []
+  base.instanceTasks = Array.isArray(base.instanceTasks) ? base.instanceTasks : Array.isArray(row.raw_tasks) ? row.raw_tasks : Array.isArray(row.rawTasks) ? row.rawTasks : []
+  base.__skipSummaryAi = true
+  if (errors.length) base.__enrichmentErrors = errors.slice(0, 8)
+  const built = await buildTicket(base)
+  if (built) {
+    await upsertTickets([built])
+    return built
+  }
+  return genericZeevTicket(base, row)
 }
 
 async function loadWebhookTicketFromZeev(row: AnyRecord) {
@@ -7063,7 +7155,7 @@ async function forcePendingTickets(input: AnyRecord = {}) {
         if (directZeevRead && !hasStored) {
           throw new Error('Ticket nao veio enriquecido do GitHub/Zeev; inclusao sem link foi bloqueada para evitar placeholder.')
         }
-        ticket = await loadGenericTicketFromZeev(ticket)
+        ticket = await loadForcedPendingTicketFromZeev(ticket)
       }
       const payload = forcedPendingPayloadFromTicket({ ...ticket, zeev_instance_id: Number(ticket?.zeev_instance_id || id) }, reason)
       if (!payload.zeev_instance_id) throw new Error('Ticket sem ID valido apos leitura do Zeev.')
