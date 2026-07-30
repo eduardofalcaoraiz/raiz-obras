@@ -815,6 +815,58 @@ def clean_fiscal_document_number(value):
     return digits.lstrip("0") or "0"
 
 
+def looks_like_compact_date_number(digits):
+    text = str(digits or "")
+    if len(text) != 8 or not text.startswith(("19", "20")):
+        return False
+    try:
+        month = int(text[4:6])
+        day = int(text[6:8])
+    except ValueError:
+        return False
+    return 1 <= month <= 12 and 1 <= day <= 31
+
+
+def fiscal_number_from_attachment_text(raw):
+    text = urllib.parse.unquote(str(raw or ""))
+    if not text:
+        return "", ""
+    parsed = urllib.parse.urlparse(text)
+    candidates = [text]
+    if parsed.path:
+        candidates.append(os.path.basename(parsed.path))
+    for candidate in candidates:
+        label = urllib.parse.unquote(str(candidate or ""))
+        if not label:
+            continue
+        patterns = [
+            ("NF-e", r"(?i)(?:^|[^a-z0-9])(?:danfe|nf(?:s[\s_.-]*e|se|e)?)(?:[^0-9]{0,30})(?<!\d)(\d{1,9})(?!\d)"),
+            ("NF-e", r"(?i)(?:^|[^a-z0-9])boleto[^0-9a-z]{0,20}da[^0-9a-z]{0,20}nf(?:[^0-9]{0,30})(?<!\d)(\d{1,9})(?!\d)"),
+            ("FATURA", r"(?i)(?:^|[^a-z0-9])fatura(?:[^0-9]{0,45})(?<!\d)(\d{1,9})(?!\d)"),
+            ("RECIBO", r"(?i)(?:^|[^a-z0-9])recibo(?:[^0-9]{0,45})(?<!\d)(\d{1,9})(?!\d)"),
+        ]
+        for doc_type, pattern in patterns:
+            match = re.search(pattern, label)
+            if not match:
+                continue
+            number = clean_fiscal_document_number(match.group(1))
+            if not number or looks_like_compact_date_number(number):
+                continue
+            return doc_type, number
+    return "", ""
+
+
+def fiscal_number_from_attachment_fields(fields):
+    for field in fields or []:
+        if not field_matches(field, DOCUMENT_FIELDS + ["anexarNotaFiscal", "anexarBoletoAVista", "anexarBoletoParcelado"]):
+            continue
+        for key in ("openUrl", "url", "downloadUrl", "value"):
+            doc_type, number = fiscal_number_from_attachment_text(field.get(key))
+            if number:
+                return doc_type, number
+    return "", ""
+
+
 def same_row_has_context(fields, row):
     same = [field for field in fields or [] if int(field.get("row") or 1) == int(row or 1)]
     if not same:
@@ -3035,6 +3087,11 @@ def row_stored_fields(row):
 def pending_fiscal_number_from_fields(fields):
     nf_tipo = fiscal_doc_type_from_fields(fields)
     number = fiscal_document_number(fields, financeiro=True)
+    if (not number) or suspicious_fiscal_number(number):
+        attachment_tipo, attachment_number = fiscal_number_from_attachment_fields(fields)
+        if attachment_number:
+            nf_tipo = attachment_tipo or nf_tipo
+            number = attachment_number
     if not number:
         return nf_tipo, ""
     if nf_tipo and ("NFS" in nf_tipo or re.match(r"^20\d{6,}$", str(number))):
