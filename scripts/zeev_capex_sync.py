@@ -37,7 +37,7 @@ def parse_flow_ids_env(value):
 
 
 FLOW_IDS = parse_flow_ids_env(os.environ.get("ZEEV_FLOW_IDS", "299,275,263,102,300"))
-FINANCE_FLOW_IDS = {299, 275, 263, 110}
+FINANCE_FLOW_IDS = {299, 275, 263, 220, 152, 151, 110}
 PURCHASE_FLOW_IDS = {102, 300}
 BUSINESS_TIMEZONE = os.environ.get("ZEEV_BUSINESS_TIMEZONE", "America/Sao_Paulo")
 
@@ -815,6 +815,33 @@ def clean_fiscal_document_number(value):
     return digits.lstrip("0") or "0"
 
 
+def fiscal_year_prefixed_number(value):
+    digits = re.sub(r"\D+", "", str(value or ""))
+    if not re.match(r"^20\d{2}\d{1,9}$", digits):
+        return ""
+    suffix = digits[4:].lstrip("0")
+    return suffix or "0"
+
+
+def explicit_fiscal_field(field):
+    hay = norm_key(" ".join(field_name_candidates(field)))
+    return bool(re.search(r"(numerodanf|numeronf|numeronotafiscal|numerofatura|numerorecibo|notafiscal|nota|nf)", hay))
+
+
+def clean_fiscal_document_number_for_field(field, value):
+    number = clean_fiscal_document_number(value)
+    if not number:
+        return ""
+    # Legacy Zeev finance flows stored NF numbers as YYYY + document number
+    # in explicit fiscal fields such as numeroDaNF. Do not apply this to
+    # generic "Numero" fields, because those can also be dates or unrelated ids.
+    if explicit_fiscal_field(field):
+        prefixed = fiscal_year_prefixed_number(value)
+        if prefixed:
+            return prefixed
+    return number
+
+
 def looks_like_compact_date_number(digits):
     text = str(digits or "")
     if len(text) != 8 or not text.startswith(("19", "20")):
@@ -880,10 +907,16 @@ def same_row_has_context(fields, row):
 
 
 def fiscal_document_number(fields, financeiro=False):
-    explicit = field_value_by_priority(fields, FISCAL_NUMBER_FIELDS)
-    cleaned = clean_fiscal_document_number(explicit)
-    if cleaned:
-        return cleaned
+    for name in FISCAL_NUMBER_FIELDS:
+        for field in fields or []:
+            if not field_matches(field, [name]):
+                continue
+            value = str(field.get("value") or "").strip()
+            if not value:
+                continue
+            cleaned = clean_fiscal_document_number_for_field(field, value)
+            if cleaned:
+                return cleaned
     if not financeiro:
         return ""
 
@@ -2662,6 +2695,17 @@ def inspect_docs():
                 "taskCount": len(data.get("instanceTasks") or []),
             })
             entry["fiscalNumberFieldNames"] = flow_design_fiscal_number_fields(int(entry.get("flowId") or 0))[:40]
+            design_limit = max(0, min(int(os.environ.get("ZEEV_INSPECT_FLOW_DESIGN_LIMIT", "80") or "80"), 200))
+            if design_limit and entry.get("flowId"):
+                entry["flowDesignFields"] = [
+                    {
+                        "name": str(obj.get("name") or "").strip(),
+                        "label": str(obj.get("label") or obj.get("title") or obj.get("caption") or "").strip(),
+                        "group": str(obj.get("groupName") or obj.get("integrationName") or obj.get("typeName") or "").strip(),
+                        "type": str(obj.get("type") or obj.get("fieldType") or "").strip(),
+                    }
+                    for obj in flow_design_form_fields(int(entry.get("flowId") or 0))[:design_limit]
+                ]
             for field in fields or []:
                 name = field_display_name(field)
                 value = field.get("value")
@@ -2818,7 +2862,7 @@ def fiscal_doc_type_from_fields(fields):
         return "FATURA"
     if "recibo" in n:
         return "RECIBO"
-    if "nfse" in n or "notafiscaldeservico" in n or "servico" in n:
+    if "nfse" in n or "nfs" in n or "notafiscaldeservico" in n:
         return "NFS-e"
     if "nfe" in n or "danfe" in n or "notafiscal" in n:
         return "NF-e"
@@ -2858,7 +2902,12 @@ def fiscal_number_source(fields, number):
         for field in fields or []:
             if not field_matches(field, group):
                 continue
-            if clean_fiscal_document_number(field.get("value")) == wanted:
+            cleaned = (
+                clean_fiscal_document_number_for_field(field, field.get("value"))
+                if group == FISCAL_NUMBER_FIELDS
+                else clean_fiscal_document_number(field.get("value"))
+            )
+            if cleaned == wanted:
                 return {
                     "field": field_display_name(field),
                     "row": int(field.get("row") or 1),
@@ -2908,6 +2957,14 @@ def extract_fiscal_numbers():
             entry["flowName"] = flow.get("name") or (latest or {}).get("flowName") or (latest or {}).get("requestName") or ""
             financeiro = is_finance_row(latest or {})
             number = fiscal_document_number(fields, financeiro=financeiro)
+            if not number and entry["flowId"]:
+                try:
+                    flow_fields = unique_fields(query_fields, pending_fiscal_repair_fields(entry["flowId"]))
+                    _, found_flow = instance_fields(instance_id, flow_fields, timeout=timeout, retries=1)
+                    fields = merge_zeev_fields(fields, found_flow)
+                    number = fiscal_document_number(fields, financeiro=financeiro)
+                except Exception as exc:
+                    errors.append({"tr": instance_id, "stage": "flow-design-fields", "error": str(exc)[:300]})
             if not number:
                 try:
                     detail, found_all = instance_fields(instance_id, [], timeout=timeout, retries=1)
