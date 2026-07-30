@@ -8535,7 +8535,6 @@ function renderCapexZeevResults(){
 
 function renderCapexZeevQueue(){
   capexZeevRestorePersistedState();
-  if(!capexZeevLoaded&&(capexZeevSolicitacoes||[]).length)capexZeevLoaded=true;
   if(!capexZeevLoaded&&!capexZeevLoadError){
     if(!capexZeevLoading)refreshCapexZeevQueue().then(()=>{if(isRegistrosViewActive())renderRegistrosPendentes();}).catch(()=>{});
     return`<section class="capex-zeev-panel">
@@ -9354,7 +9353,6 @@ function showCapexTab(tab){
 
 function renderCapexView(){
   applyBrandVars(document.getElementById('view-esfera'),capexDrillMarca||'RAIZ');
-  if(!capexDataLoaded&&(capexItens.length||capexSaldos.length))capexDataLoaded=true;
   if(!capexDataLoaded){
     const el=document.getElementById('esf-capex-drill');
     clearCapexLooseKpis();
@@ -15921,6 +15919,8 @@ async function loadFromDB(){
     capexDataLoaded=false;
     capexZeevLoaded=false;
     refreshCapexZeevSyncState().then(()=>updateNavBadge()).catch(()=>{});
+    scheduleCapexDataWarmLoad(80);
+    scheduleCapexZeevWarmLoad(160);
 
   }catch(e){console.error('[loadFromDB] Erro:',e);throw e;}
 
