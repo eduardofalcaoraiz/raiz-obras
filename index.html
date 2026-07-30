@@ -124,7 +124,7 @@ button{font-family:inherit;cursor:pointer}
 /* Modo de rolagem leve: reduz custo de pintura em listas longas sem alterar layout. */
 .card,.kpi,.pcard,.obra-card,.unicard,.uni-card,.pag-row,.esc-card,.tablewrap,.capex-overview-card,.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-status-card,.capex-expander-card,.capex-control-card,.capex-tr-result,.capex-zeev-panel,.capex-form-card,.zeev-destination-card,.obra-fase-card,.dash-alert,.obra-dashboard-kpi{contain:layout paint;backface-visibility:hidden}
 @supports (content-visibility:auto){
-  .main :where(.pcard,.obra-card,.unicard,.uni-card,.pag-row,.esc-card,.capex-overview-card,.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-status-card,.obra-fase-card){
+  .main :where(.pcard,.obra-card,.unicard,.uni-card,.pag-row,.esc-card,.capex-overview-card,.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-status-card,.capex-expander-card,.capex-zeev-card,.obra-fase-card){
     content-visibility:auto;
     contain-intrinsic-size:auto 240px;
   }
@@ -722,9 +722,29 @@ html.is-fast-scrolling #side-color-layer::before{filter:none!important}
 .capex-zeev-fact b{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
 .capex-zeev-fact span{display:block;font-size:12.3px;line-height:1.4;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-zeev-empty{font-size:12.5px;color:var(--muted);border:1px dashed var(--line-2);background:rgba(255,255,255,.55);border-radius:10px;padding:12px}
+.capex-soft-state{border:1px dashed color-mix(in srgb,var(--brand-cur,var(--accent)) 22%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.72),color-mix(in srgb,var(--brand-cur-light,var(--raiz-soft)) 18%,#fff));border-radius:14px;padding:14px 16px;color:var(--muted);font-size:12.6px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.capex-soft-state b{display:block;color:var(--ink);font-size:13.5px;margin-bottom:2px}
+.capex-soft-state span{line-height:1.4}
+.capex-soft-state:after{content:"";width:38px;height:5px;border-radius:999px;background:linear-gradient(90deg,var(--brand-cur,var(--accent)),color-mix(in srgb,var(--brand-cur-light,var(--raiz-soft)) 70%,#fff));opacity:.75}
 .capex-zeev-card.not-capex{--card-accent:var(--muted);--card-soft:var(--surface-2)}
 .capex-zeev-card.not-capex .capex-summary-code{color:var(--muted)}
 .capex-zeev-card.not-capex .capex-zeev-money-value{color:var(--muted)}
+.admin-zeev-ops{display:grid;grid-template-columns:1.05fr .95fr;gap:12px;margin-bottom:12px}
+.admin-zeev-status-card{border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 18%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.82),color-mix(in srgb,var(--brand-cur-light,var(--raiz-soft)) 24%,#fff));border-radius:14px;padding:13px 14px;min-width:0}
+.admin-zeev-status-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+.admin-zeev-status-top b{font-size:14px;color:var(--ink)}
+.admin-zeev-status-pill{border-radius:999px;border:1px solid currentColor;padding:4px 8px;font-size:11px;font-weight:950}
+.admin-zeev-status-pill.ok{color:var(--ok);background:var(--ok-bg)}
+.admin-zeev-status-pill.warn{color:var(--warn);background:var(--warn-bg)}
+.admin-zeev-status-pill.danger{color:var(--danger);background:#FFF7F4}
+.admin-zeev-status-list{display:grid;gap:6px;font-size:12.4px;color:var(--muted)}
+.admin-zeev-status-list div{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid color-mix(in srgb,var(--line) 56%,transparent);padding-bottom:5px}
+.admin-zeev-status-list div:last-child{border-bottom:0;padding-bottom:0}
+.admin-zeev-status-list strong{font-family:"Geist",system-ui,sans-serif;color:var(--ink)}
+.admin-zeev-action-list{display:grid;gap:7px}
+.admin-zeev-action{border:1px solid var(--line);background:rgba(255,255,255,.68);border-left:4px solid var(--brand-cur,var(--accent));border-radius:11px;padding:9px 10px;font-size:12.2px;color:var(--muted);line-height:1.35}
+.admin-zeev-action b{display:block;color:var(--ink);font-size:12.7px;margin-bottom:2px}
+@media(max-width:860px){.admin-zeev-ops{grid-template-columns:1fr}}
 .capex-notcapex-modal-list{display:grid;grid-template-columns:1fr;gap:9px;max-height:62vh;overflow:auto;padding:1px 2px 1px 1px}
 .capex-context.zeev{display:block}
 .capex-item-modal{max-width:1180px!important;width:min(1180px,calc(100vw - 28px))}
@@ -3755,7 +3775,7 @@ function scheduleCapexDataWarmLoad(delay){
 }
 
 function capexLoadingPanel(title,sub){
-  return '';
+  return `<div class="capex-soft-state" role="status"><div><b>${escHtml(title||'Carregando')}</b><span>${escHtml(sub||'Aguardando resposta da nuvem.')}</span></div></div>`;
 }
 
 // FONTES removido — pagantes são escolas e investidores cadastrados na plataforma
@@ -6242,8 +6262,11 @@ let capexZeevRequesterExcluded=new Set();
 let capexZeevPage=0;
 const CAPEX_ZEEV_PAGE_SIZE=80;
 let capexZeevReturnState=null;
+let capexZeevStateRestored=false;
 let capexCardDescriptionOpen=new Set();
 let capexAutoFinalizeSyncing={};
+const CAPEX_ZEEV_VIEW_STATE_KEY='raiz-obraviva:capex-zeev-view:v2';
+const CAPEX_ZEEV_RETURN_STATE_KEY='raiz-obraviva:capex-zeev-return:v2';
 
 const CAPEX_UNIT_EXCEPTIONS=[
   {nome:'QI Metropolitano',marca:'QI',tipo:'Agregado CAPEX'}
@@ -6828,10 +6851,12 @@ function capexCaptureZeevReturnState(id){
     anchorId:anchor?.dataset?.zeevCardId||'',
     anchorTop:anchor?capexZeevVisualTop(anchor,scroller):null
   };
+  capexZeevPersistViewState({lastTicketId:String(id||'')});
+  capexZeevPersistReturnState();
 }
 
 function capexRestoreZeevReturnState(){
-  const state=capexZeevReturnState;
+  const state=capexZeevReturnState||capexZeevTakeStoredReturnState();
   capexZeevReturnState=null;
   if(!state)return;
   capexZeevSearchQuery=state.query||'';
@@ -6940,9 +6965,55 @@ function capexZeevCountText(visible,total){
   return `${total} pendente${total!==1?'s':''}`;
 }
 
+function capexZeevPersistViewState(extra){
+  try{
+    const state={
+      query:capexZeevSearchQuery||'',
+      typeFilter:capexZeevTypeFilter||'todos',
+      requesterExcluded:[...capexZeevRequesterExcluded],
+      page:capexZeevPage||0,
+      ts:Date.now(),
+      ...(extra||{})
+    };
+    sessionStorage.setItem(CAPEX_ZEEV_VIEW_STATE_KEY,JSON.stringify(state));
+  }catch(e){}
+}
+
+function capexZeevRestorePersistedState(){
+  if(capexZeevStateRestored)return;
+  capexZeevStateRestored=true;
+  try{
+    const raw=sessionStorage.getItem(CAPEX_ZEEV_VIEW_STATE_KEY);
+    if(!raw)return;
+    const state=JSON.parse(raw);
+    if(!state||Date.now()-(+state.ts||0)>12*60*60*1000)return;
+    capexZeevSearchQuery=String(state.query||'').slice(0,120);
+    capexZeevTypeFilter=['todos','compras','financeiras','facilities','outros'].includes(state.typeFilter)?state.typeFilter:'todos';
+    capexZeevRequesterExcluded=new Set(Array.isArray(state.requesterExcluded)?state.requesterExcluded:[]);
+    capexZeevPage=Math.max(0,+state.page||0);
+  }catch(e){}
+}
+
+function capexZeevPersistReturnState(){
+  if(!capexZeevReturnState)return;
+  try{sessionStorage.setItem(CAPEX_ZEEV_RETURN_STATE_KEY,JSON.stringify({...capexZeevReturnState,ts:Date.now()}));}catch(e){}
+}
+
+function capexZeevTakeStoredReturnState(){
+  try{
+    const raw=sessionStorage.getItem(CAPEX_ZEEV_RETURN_STATE_KEY);
+    if(!raw)return null;
+    sessionStorage.removeItem(CAPEX_ZEEV_RETURN_STATE_KEY);
+    const state=JSON.parse(raw);
+    if(!state||Date.now()-(+state.ts||0)>30*60*1000)return null;
+    return state;
+  }catch(e){return null;}
+}
+
 function setCapexZeevSearch(v){
   capexZeevSearchQuery=String(v||'').slice(0,120);
   capexZeevPage=0;
+  capexZeevPersistViewState();
   const input=document.getElementById('capex-zeev-ticket-search');
   if(input&&input.value!==capexZeevSearchQuery)input.value=capexZeevSearchQuery;
   renderCapexZeevResults();
@@ -6951,6 +7022,7 @@ function setCapexZeevSearch(v){
 function setCapexZeevTypeFilter(type){
   capexZeevTypeFilter=['todos','compras','financeiras','facilities','outros'].includes(type)?type:'todos';
   capexZeevPage=0;
+  capexZeevPersistViewState();
   renderCapexZeevResults();
 }
 
@@ -6960,6 +7032,7 @@ function setCapexZeevRequesterVisible(encodedKey,visible){
   if(visible)capexZeevRequesterExcluded.delete(key);
   else capexZeevRequesterExcluded.add(key);
   capexZeevPage=0;
+  capexZeevPersistViewState();
   renderCapexZeevResults();
 }
 
@@ -6967,11 +7040,13 @@ function resetCapexZeevRequesterFilter(){
   capexZeevRequesterExcluded.clear();
   document.querySelectorAll('[data-zeev-requester-check]').forEach(el=>{el.checked=true;});
   capexZeevPage=0;
+  capexZeevPersistViewState();
   renderCapexZeevResults();
 }
 
 function setCapexZeevPage(page){
   capexZeevPage=Math.max(0,+page||0);
+  capexZeevPersistViewState();
   renderCapexZeevResults();
 }
 
@@ -7550,7 +7625,7 @@ function capexZeevPagamentoDate(z,names){
 function capexBuildPagamentoFromZeev(z,obra,escopo){
   const valor=+z?.valor_final||+z?.valor||+(z?.pagamento_json?.valor_total||0)||0;
   const storedDocs=capexZeevStoredDocs(z);
-  const candidateDocs=[...storedDocs,...capexZeevFiscalDocuments(z)];
+  const candidateDocs=[...storedDocs,...capexZeevFiscalDocuments(z)].map(d=>({...d,kind:paymentDocKindLabel(d)||capexZeevDocKind(d,z)}));
   const fiscalDoc=candidateDocs.find(paymentIsFiscalDoc)||null;
   const fiscalKind=paymentDocDisplayType(fiscalDoc,{nfTipo:''});
   const fiscalType=fiscalDoc?(fiscalKind==='FATURA'?'Fatura':fiscalKind==='RECIBO'?'Recibo':'NFS-e'):'Sem nota';
@@ -7825,13 +7900,14 @@ function paymentDocsCount(p){
   return paymentAllDocs(p).length;
 }
 
-function capexZeevDocKind(doc){
+function capexZeevDocKind(doc,z){
   const original=capexZeevNormField([doc?.name,paymentDocUrlFileName(doc)].filter(Boolean).join(' '));
   const stored=capexZeevNormField([doc?.storagePath,doc?.path].filter(Boolean).join(' '));
   const n=capexZeevNormField([doc?.name,paymentDocUrlFileName(doc),doc?.source,doc?.type,doc?.storagePath,doc?.path].filter(Boolean).join(' '));
   const source=capexZeevNormField(doc?.source||'');
   const fromMessage=/(messages|comentario|comment|instancetasks|rawtasks)/.test(source);
   const explicitFiscalOrCharge=/(notafiscal|notasfiscais|anexarnota|anexarnf|danfe|xml|nfe|nfse|nfs-e|nf-e|fatura|boleto|recibo)/.test(original);
+  const nonFiscal=/cotacao|orcamento|orcamento|proposta|contrato|comprovante|pgfor|liquidado|liquidacao|pix/.test(`${original} ${stored} ${source}`);
   if(/pgfor|comprovante|pix|liquidado|liquidacao|pago/.test(original))return'COMPROVANTE';
   if(/boleto/.test(original))return'BOLETO';
   if(/fatura/.test(original))return'FATURA';
@@ -7847,7 +7923,8 @@ function capexZeevDocKind(doc){
   if(/fatura/.test(n))return'FATURA';
   if(/recibo/.test(n))return'RECIBO';
   if(/comprovante|pix/.test(n))return'COMPROVANTE';
-  return'NF';
+  if(z&&capexZeevType(z)==='financeiras'&&/documento/.test(source)&&!fromMessage&&!nonFiscal)return'FATURA';
+  return'DOCUMENTO';
 }
 
 async function capexImportAllZeevDocsToPayment(obra,pag,z){
@@ -7866,7 +7943,7 @@ async function capexImportAllZeevDocsToPayment(obra,pag,z){
       if(pag.docs.some(d=>String(d.url||'')&&String(d.url)===String(doc.url)))continue;
       const file=await capexDownloadZeevDoc(doc);
       if(!file)continue;
-      const kind=capexZeevDocKind(doc);
+      const kind=capexZeevDocKind(doc,z);
       const path=await uploadPagDoc(obra.id,file,kind.toLowerCase());
       const item={name:file.name,storagePath:path,type:file.type||inferType(file.name),bucket:'pagamentos',kind,origin:'ZEEV',source:doc.source||'',url:doc.url||'',ticketRaiz:String(z?.zeev_instance_id||'')};
       addPaymentDoc(pag,item,kind);
@@ -8496,6 +8573,7 @@ function renderCapexZeevSyncStatus(){
 }
 
 function renderCapexZeevResults(){
+  capexZeevRestorePersistedState();
   const allPend=capexZeevPendingList();
   const pend=capexZeevFilteredPendingList(allPend);
   const list=document.getElementById('capex-zeev-results');
@@ -8512,6 +8590,8 @@ function renderCapexZeevResults(){
 }
 
 function renderCapexZeevQueue(){
+  capexZeevRestorePersistedState();
+  if(!capexZeevLoaded&&(capexZeevSolicitacoes||[]).length)capexZeevLoaded=true;
   if(!capexZeevLoaded&&!capexZeevLoadError){
     if(!capexZeevLoading)refreshCapexZeevQueue().then(()=>{if(isRegistrosViewActive())renderRegistrosPendentes();}).catch(()=>{});
     return`<section class="capex-zeev-panel">
@@ -8522,7 +8602,7 @@ function renderCapexZeevQueue(){
         </div>
       </div>
       ${renderCapexZeevSyncStatus()}
-      ${capexLoadingPanel('Carregando registros pendentes','Buscando a fila completa de Tickets Raiz na nuvem.')}
+      ${capexLoadingPanel('Preparando fila do Ticket Raiz','A plataforma esta conferindo a nuvem e mantem a tela leve enquanto isso.')}
     </section>`;
   }
   const allPend=capexZeevPendingList();
@@ -8557,6 +8637,7 @@ function renderCapexZeevQueue(){
 }
 
 function renderRegistrosPendentes(){
+  capexZeevRestorePersistedState();
   const view=document.getElementById('view-registros');
   applyBrandVars(view,'RAIZ');
   const body=document.getElementById('registros-pendentes-body');
@@ -9329,6 +9410,7 @@ function showCapexTab(tab){
 
 function renderCapexView(){
   applyBrandVars(document.getElementById('view-esfera'),capexDrillMarca||'RAIZ');
+  if(!capexDataLoaded&&(capexItens.length||capexSaldos.length))capexDataLoaded=true;
   if(!capexDataLoaded){
     const el=document.getElementById('esf-capex-drill');
     clearCapexLooseKpis();
@@ -19099,6 +19181,27 @@ function adminZeevSampleHtml(title,rows){
   return `<div style="margin-top:10px"><div style="font-size:11px;text-transform:uppercase;font-weight:850;color:var(--muted);letter-spacing:.45px;margin-bottom:5px">${escHtml(title)}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${rows.slice(0,18).map(tr=>`<span class="badge b-neutral">TR ${escHtml(tr)}</span>`).join('')}</div></div>`;
 }
 
+function adminZeevHealth(out){
+  const docs=out?.docs||{},queue=out?.queue||{},audit=out?.audit||{};
+  const blocked=+audit.blocked||0,partial=+audit.partial||0,queueTotal=+queue.total||0;
+  if(blocked>0)return{label:'Atencao',cls:'danger',title:'Downloads bloqueados',sub:`${adminZeevNum(blocked)} TRs precisam de permissao ou rechecagem tecnica.`};
+  if(partial>0||queueTotal>0)return{label:'Em acompanhamento',cls:'warn',title:'Fila ativa',sub:`${adminZeevNum(queueTotal)} TRs continuam em rechecagem leve.`};
+  if((+docs.withAnyDocs||0)>0)return{label:'Estavel',cls:'ok',title:'Automacao online',sub:'Sem bloqueios relevantes na leitura atual.'};
+  return{label:'Sem leitura',cls:'warn',title:'Aguardando dados',sub:'Use a auditoria para confirmar a saude dos anexos.'};
+}
+
+function adminZeevActionItems(out){
+  const docs=out?.docs||{},queue=out?.queue||{},audit=out?.audit||{},checked=out?.checked||{};
+  const items=[];
+  if((+audit.blocked||0)>0)items.push({t:'Resolver bloqueios de arquivo',s:`${adminZeevNum(audit.blocked)} TRs tiveram restricao ao baixar anexos. Prioridade para permissao/token Zeev.`});
+  if((+audit.partial||0)>0)items.push({t:'Rechecar anexos parciais',s:`${adminZeevNum(audit.partial)} TRs tem algum documento, mas ainda podem faltar NF, fatura, boleto ou comprovante.`});
+  if((+queue.total||0)>0)items.push({t:'Manter ciclo leve',s:`${adminZeevNum(queue.total)} TRs estao na fila. Evitar varredura pesada enquanto o Supabase estiver sensivel.`});
+  if((+docs.withoutFiscalDocs||0)>0)items.push({t:'Documentos fiscais pendentes',s:`${adminZeevNum(docs.withoutFiscalDocs)} TRs monitorados ainda nao tem NF, fatura ou recibo salvo.`});
+  if(!items.length&&((+checked.fresh||0)>0||(+docs.withAnyDocs||0)>0))items.push({t:'Rotina saudavel',s:'A automacao pode seguir em modo incremental, sem intervencao manual agora.'});
+  if(!items.length)items.push({t:'Aguardando primeira auditoria',s:'Atualize a auditoria para medir fila, anexos e excecoes.'});
+  return items.slice(0,4).map(i=>`<div class="admin-zeev-action"><b>${escHtml(i.t)}</b>${escHtml(i.s)}</div>`).join('');
+}
+
 function renderAdminZeevAuditBox(out){
   const el=document.getElementById('admin-zeev-audit');
   if(!el)return;
@@ -19107,11 +19210,25 @@ function renderAdminZeevAuditBox(out){
     return;
   }
   const docs=out.docs||{},queue=out.queue||{},audit=out.audit||{},checked=out.checked||{},recent=out.recentAttached||{};
+  const health=adminZeevHealth(out);
   const statusCounts=audit.statusCounts||{};
   const statusLine=Object.keys(statusCounts).length
     ? Object.entries(statusCounts).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))).map(([k,v])=>`${escHtml(k)}: <b>${adminZeevNum(v)}</b>`).join(' &nbsp;|&nbsp; ')
     :'Sem auditoria gravada ainda';
   el.innerHTML=`
+    <div class="admin-zeev-ops">
+      <div class="admin-zeev-status-card">
+        <div class="admin-zeev-status-top"><b>${escHtml(health.title)}</b><span class="admin-zeev-status-pill ${escHtml(health.cls)}">${escHtml(health.label)}</span></div>
+        <div style="font-size:12.5px;color:var(--muted);line-height:1.42;margin-bottom:10px">${escHtml(health.sub)}</div>
+        <div class="admin-zeev-status-list">
+          <div><span>Fila de rechecagem</span><strong>${adminZeevNum(queue.total)}</strong></div>
+          <div><span>Documentos fiscais salvos</span><strong>${adminZeevNum(docs.withFiscalDocs)}</strong></div>
+          <div><span>Boletos/faturas salvos</span><strong>${adminZeevNum(docs.withChargeDocs)}</strong></div>
+          <div><span>Comprovantes salvos</span><strong>${adminZeevNum(docs.withProofDocs)}</strong></div>
+        </div>
+      </div>
+      <div class="admin-zeev-action-list">${adminZeevActionItems(out)}</div>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px">
       <div class="mini"><div class="nm">Tickets monitorados</div><div class="v">${adminZeevNum(out.uniqueTickets)}</div></div>
       <div class="mini"><div class="nm">Fila de rechecagem</div><div class="v">${adminZeevNum(queue.total)}</div></div>
