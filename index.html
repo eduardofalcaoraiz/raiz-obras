@@ -121,14 +121,8 @@ button{font-family:inherit;cursor:pointer}
 /* Firefox */
 .main{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.22) transparent}
 
-/* Modo de rolagem leve: reduz custo de pintura em listas longas sem alterar layout. */
+/* Modo de rolagem leve: reduz custo de pintura sem virtualizar cards visiveis. */
 .card,.kpi,.pcard,.obra-card,.unicard,.uni-card,.pag-row,.esc-card,.tablewrap,.capex-overview-card,.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-status-card,.capex-expander-card,.capex-control-card,.capex-tr-result,.capex-zeev-panel,.capex-form-card,.zeev-destination-card,.obra-fase-card,.dash-alert,.obra-dashboard-kpi{contain:layout paint;backface-visibility:hidden}
-@supports (content-visibility:auto){
-  .main :where(.pcard,.obra-card,.unicard,.uni-card,.pag-row,.esc-card,.capex-overview-card,.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-status-card,.capex-expander-card,.capex-zeev-card,.obra-fase-card){
-    content-visibility:auto;
-    contain-intrinsic-size:auto 240px;
-  }
-}
 html.is-fast-scrolling .main :where(.interactive-card,.kpi-action,.pcard,.obra-card,.cyear-card,.capex-overview-card,.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-status-card,.capex-expander-card,.capex-control-card,.capex-tr-result,.zeev-destination-card,.esc-card,.unicard,.uni-card,.pag-row,.btn,.chip,.tabbtn,.page-jump-btn){
   transition:none!important;
   animation:none!important;
