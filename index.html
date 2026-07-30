@@ -121,23 +121,6 @@ button{font-family:inherit;cursor:pointer}
 /* Firefox */
 .main{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.22) transparent}
 
-/* Modo de rolagem leve: reduz custo de pintura sem virtualizar cards visiveis. */
-.card,.kpi,.pcard,.obra-card,.unicard,.uni-card,.pag-row,.esc-card,.tablewrap,.capex-overview-card,.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-status-card,.capex-expander-card,.capex-control-card,.capex-tr-result,.capex-zeev-panel,.capex-form-card,.zeev-destination-card,.obra-fase-card,.dash-alert,.obra-dashboard-kpi{contain:layout paint;backface-visibility:hidden}
-html.is-fast-scrolling .main :where(.interactive-card,.kpi-action,.pcard,.obra-card,.cyear-card,.capex-overview-card,.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-status-card,.capex-expander-card,.capex-control-card,.capex-tr-result,.zeev-destination-card,.esc-card,.unicard,.uni-card,.pag-row,.btn,.chip,.tabbtn,.page-jump-btn){
-  transition:none!important;
-  animation:none!important;
-}
-html.is-fast-scrolling .main :where(.bar>i,.cprog-bar,.capex-status-track i){
-  transition:none!important;
-}
-html.is-fast-scrolling .main :where(.interactive-card,.kpi-action,.pcard,.obra-card,.cyear-card,.capex-overview-card,.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-status-card,.capex-expander-card,.capex-control-card,.capex-tr-result,.zeev-destination-card,.esc-card,.unicard,.uni-card,.pag-row):hover{
-  transform:none!important;
-  box-shadow:none!important;
-  filter:none!important;
-}
-html.is-fast-scrolling :where(.brand,.capex-card-arrow,#login-screen .lcard){backdrop-filter:none!important}
-html.is-fast-scrolling #side-color-layer::before{filter:none!important}
-
 .wrap{width:100%;max-width:none;min-height:100%;margin:0;padding:0 24px 80px;position:relative}
 #view-obra #o-kpis,#view-obra .bar{display:none!important}
 
@@ -5855,39 +5838,6 @@ function toggleSideCollapse(){
 function toggleSidebar(){document.querySelector('.side').classList.toggle('mobile-open');document.getElementById('side-backdrop').classList.toggle('show');}
 
 function closeSidebar(){document.querySelector('.side').classList.remove('mobile-open');document.getElementById('side-backdrop').classList.remove('show');}
-
-
-let scrollPerfTimer=null,scrollPerfRaf=0,scrollPerfInstalled=false;
-function markFastScrolling(){
-  const root=document.documentElement;
-  if(!root.classList.contains('is-fast-scrolling'))root.classList.add('is-fast-scrolling');
-  if(scrollPerfTimer)clearTimeout(scrollPerfTimer);
-  scrollPerfTimer=setTimeout(()=>root.classList.remove('is-fast-scrolling'),180);
-}
-function installScrollPerformanceMode(){
-  if(scrollPerfInstalled)return;
-  scrollPerfInstalled=true;
-  const onScrollPerf=()=>{
-    if(scrollPerfRaf)return;
-    scrollPerfRaf=requestAnimationFrame(()=>{
-      scrollPerfRaf=0;
-      markFastScrolling();
-    });
-  };
-  const opts={passive:true};
-  const main=document.querySelector('.main');
-  if(main)main.addEventListener('scroll',onScrollPerf,opts);
-  window.addEventListener('scroll',onScrollPerf,opts);
-  window.addEventListener('wheel',onScrollPerf,opts);
-  window.addEventListener('touchmove',onScrollPerf,opts);
-  document.addEventListener('visibilitychange',()=>{
-    if(!document.hidden)return;
-    document.documentElement.classList.remove('is-fast-scrolling');
-    if(scrollPerfTimer)clearTimeout(scrollPerfTimer);
-    scrollPerfTimer=null;
-  });
-}
-
 
 
 function pageJumpScrollTarget(){
@@ -19889,7 +19839,6 @@ async function onLogin(user){
 (async()=>{
   try{
     applySideCollapsePreference();
-    installScrollPerformanceMode();
     window.addEventListener('resize',applySideCollapsePreference);
     const{data:{session},error}=await db.auth.getSession();
     if(error)throw error;
