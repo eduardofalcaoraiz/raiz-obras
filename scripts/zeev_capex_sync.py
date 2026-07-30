@@ -527,7 +527,9 @@ def supabase_rest_all(path, page_size=1000, timeout=90):
     return rows
 
 
+FLOW_DESIGN_FORM_CACHE = {}
 FLOW_DESIGN_RELEVANT_CACHE = {}
+FLOW_DESIGN_FISCAL_NUMBER_CACHE = {}
 
 
 def looks_like_relevant_design_field(field):
@@ -559,12 +561,12 @@ def walk_json_objects(value):
             yield from walk_json_objects(item)
 
 
-def flow_design_relevant_fields(flow_id):
+def flow_design_form_fields(flow_id):
     flow = int(flow_id or 0)
     if not flow or not has_zeev_token():
         return []
-    if flow in FLOW_DESIGN_RELEVANT_CACHE:
-        return FLOW_DESIGN_RELEVANT_CACHE[flow]
+    if flow in FLOW_DESIGN_FORM_CACHE:
+        return FLOW_DESIGN_FORM_CACHE[flow]
     try:
         data = request_json(
             "GET",
@@ -573,22 +575,78 @@ def flow_design_relevant_fields(flow_id):
             timeout=120,
             retries=2,
         )
-        names = []
+        fields = []
+        seen = set()
         for obj in walk_json_objects(data):
-            if not isinstance(obj, dict) or not looks_like_relevant_design_field(obj):
+            if not isinstance(obj, dict):
                 continue
             name = str(obj.get("name") or "").strip()
-            label = str(obj.get("label") or "").strip()
-            if name:
-                names.append(name)
-            # Labels are kept only as fallback; technical names are the primary filters.
-            if label and not name:
-                names.append(label)
-        result = unique_fields(names)
+            label = str(obj.get("label") or obj.get("title") or obj.get("caption") or "").strip()
+            if not name and not label:
+                continue
+            key = "|".join([name, label, str(obj.get("rowOrder") or ""), str(obj.get("columnOrder") or "")])
+            if key in seen:
+                continue
+            seen.add(key)
+            fields.append(obj)
     except Exception as exc:
         print(json.dumps({"flowDesignError": flow, "error": str(exc)[:300]}, ensure_ascii=False), file=sys.stderr)
-        result = []
+        fields = []
+    FLOW_DESIGN_FORM_CACHE[flow] = fields
+    return fields
+
+
+def flow_design_relevant_fields(flow_id):
+    flow = int(flow_id or 0)
+    if not flow or not has_zeev_token():
+        return []
+    if flow in FLOW_DESIGN_RELEVANT_CACHE:
+        return FLOW_DESIGN_RELEVANT_CACHE[flow]
+    names = []
+    for obj in flow_design_form_fields(flow):
+        if not looks_like_relevant_design_field(obj):
+            continue
+        name = str(obj.get("name") or "").strip()
+        label = str(obj.get("label") or "").strip()
+        if name:
+            names.append(name)
+        # Labels are kept only as fallback; technical names are the primary filters.
+        if label and not name:
+            names.append(label)
+    result = unique_fields(names)
     FLOW_DESIGN_RELEVANT_CACHE[flow] = result
+    return result
+
+
+def flow_design_fiscal_number_fields(flow_id):
+    flow = int(flow_id or 0)
+    if not flow or not has_zeev_token():
+        return []
+    if flow in FLOW_DESIGN_FISCAL_NUMBER_CACHE:
+        return FLOW_DESIGN_FISCAL_NUMBER_CACHE[flow]
+    names = []
+    for obj in flow_design_form_fields(flow):
+        name = str(obj.get("name") or "").strip()
+        label = str(obj.get("label") or obj.get("title") or obj.get("caption") or "").strip()
+        group = str(obj.get("groupName") or obj.get("integrationName") or obj.get("typeName") or "").strip()
+        if not name and not label:
+            continue
+        name_key = norm_key(name)
+        label_key = norm_key(label)
+        context_key = norm_key(" ".join([name, label, group]))
+        looks_fiscal = bool(re.search(r"(nota|notafiscal|nfse|nfe|nf|fatura|recibo|documento|danfe)", context_key))
+        looks_number = (
+            label_key in {"numero", "n", "nro", "num"}
+            or name_key in {"numero", "nro", "num", "numerodocumento", "numeronotafiscal", "numeronf", "numerofatura", "numerorecibo"}
+            or ("numero" in name_key and looks_fiscal)
+        )
+        if looks_number or (looks_fiscal and "numero" in context_key):
+            if name:
+                names.append(name)
+            elif label:
+                names.append(label)
+    result = unique_fields(names)
+    FLOW_DESIGN_FISCAL_NUMBER_CACHE[flow] = result
     return result
 
 
@@ -2549,6 +2607,7 @@ def inspect_docs():
                 "fieldCountAll": len(fields or []),
                 "taskCount": len(data.get("instanceTasks") or []),
             })
+            entry["fiscalNumberFieldNames"] = flow_design_fiscal_number_fields(int(entry.get("flowId") or 0))[:40]
             for field in fields or []:
                 name = field_display_name(field)
                 value = field.get("value")
@@ -2588,6 +2647,7 @@ def inspect_docs():
         try:
             direct_tests = []
             direct_field_sets = [
+                pending_fiscal_repair_fields(flow_for_report)[:30],
                 ["Documento"],
                 ["documento"],
                 ["Documento", "documento", "danfe", "arquivo", "notaFiscal", "nota fiscal"],
@@ -2936,10 +2996,11 @@ def repair_payment_fiscal_fields():
     return out
 
 
-def pending_fiscal_repair_fields():
+def pending_fiscal_repair_fields(flow_id=0):
     return unique_fields(
         FISCAL_NUMBER_FIELDS,
         GENERIC_FISCAL_NUMBER_FIELDS,
+        flow_design_fiscal_number_fields(flow_id),
         ISSUE_DATE_FIELDS,
         DOCUMENT_FIELDS,
         ["Outros gastos", "Outros gastos *", "Tipo de documento", "Tipo do documento"],
@@ -3110,7 +3171,7 @@ def repair_pending_fiscal_metadata():
         "cycles": [],
         "totals": {"processed": 0, "updatedPending": 0, "missingAfterRefresh": 0, "errors": 0},
     }
-    fields = pending_fiscal_repair_fields()
+    base_fields = pending_fiscal_repair_fields()
     for cycle in range(1, cycles + 1):
         batch = candidates[(cycle - 1) * limit: cycle * limit]
         if not batch:
@@ -3128,6 +3189,7 @@ def repair_pending_fiscal_metadata():
                 fetch_error = ""
                 if refresh and (not number or suspicious_fiscal_number(number)):
                     flow_id = int(row.get("flow_id") or 0)
+                    fields = unique_fields(base_fields, pending_fiscal_repair_fields(flow_id))
                     try:
                         _, fetched_fields = instance_fields(tr, fields, timeout=25, retries=1)
                         nf_tipo, number = pending_fiscal_number_from_fields(merge_zeev_fields(stored_fields, fetched_fields))
