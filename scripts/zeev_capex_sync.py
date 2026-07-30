@@ -839,20 +839,22 @@ def fiscal_number_from_attachment_text(raw):
         label = urllib.parse.unquote(str(candidate or ""))
         if not label:
             continue
+        labels = [label, re.sub(r"(?i)(?:^|[_-])20(?=[A-Za-z])", " ", label).replace("_20", " ")]
         patterns = [
             ("NF-e", r"(?i)(?:^|[^a-z0-9])(?:danfe|nf(?:s[\s_.-]*e|se|e)?)(?:[^0-9]{0,30})(?<!\d)(\d{1,9})(?!\d)"),
             ("NF-e", r"(?i)(?:^|[^a-z0-9])boleto[^0-9a-z]{0,20}da[^0-9a-z]{0,20}nf(?:[^0-9]{0,30})(?<!\d)(\d{1,9})(?!\d)"),
             ("FATURA", r"(?i)(?:^|[^a-z0-9])fatura(?:[^0-9]{0,45})(?<!\d)(\d{1,9})(?!\d)"),
             ("RECIBO", r"(?i)(?:^|[^a-z0-9])recibo(?:[^0-9]{0,45})(?<!\d)(\d{1,9})(?!\d)"),
         ]
-        for doc_type, pattern in patterns:
-            match = re.search(pattern, label)
-            if not match:
-                continue
-            number = clean_fiscal_document_number(match.group(1))
-            if not number or looks_like_compact_date_number(number):
-                continue
-            return doc_type, number
+        for candidate_label in labels:
+            for doc_type, pattern in patterns:
+                match = re.search(pattern, candidate_label)
+                if not match:
+                    continue
+                number = clean_fiscal_document_number(match.group(1))
+                if not number or looks_like_compact_date_number(number):
+                    continue
+                return doc_type, number
     return "", ""
 
 
