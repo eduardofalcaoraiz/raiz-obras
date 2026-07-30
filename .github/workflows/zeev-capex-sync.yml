@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "incremental, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket ou refresh-payment-statuses"
+        description: "incremental, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-payment-fiscal-fields ou refresh-payment-statuses"
         required: true
         default: "incremental"
       start:
@@ -94,6 +94,7 @@ jobs:
           ZEEV_TOKEN: ${{ secrets.ZEEV_TOKEN }}
           ZEEV_EXTRA_TOKENS: ${{ secrets.ZEEV_EXTRA_TOKENS }}
           ZEEV_SYNC_SECRET: ${{ secrets.ZEEV_SYNC_SECRET }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ZEEV_AUTOMATION_PAUSED: "false"
           ZEEV_TOTAL_SCAN_LOCK: "0"
           ZEEV_BASE_URL: https://raizeducacao.zeev.it

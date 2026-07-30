@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 ZEEV_BASE_URL = os.environ.get("ZEEV_BASE_URL", "https://raizeducacao.zeev.it").rstrip("/")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://hjccxfznojjosvanwztv.supabase.co").rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 ZEEV_TOKEN = os.environ.get("ZEEV_TOKEN", "")
 ZEEV_EXTRA_TOKENS = os.environ.get("ZEEV_EXTRA_TOKENS", "")
 ZEEV_SYNC_SECRET = os.environ.get("ZEEV_SYNC_SECRET", "")
@@ -493,6 +494,22 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
     if isinstance(last_error, BaseException):
         raise last_error
     raise RuntimeError(f"{method} {url} falhou sem resposta detalhada.")
+
+
+def supabase_rest(path, method="GET", payload=None, timeout=60, prefer="return=minimal"):
+    if not SUPABASE_SERVICE_ROLE_KEY:
+        raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY e obrigatorio para gravar direto no Supabase.")
+    headers = {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Accept": "application/json",
+    }
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+    if prefer:
+        headers["Prefer"] = prefer
+    url = f"{SUPABASE_URL}/rest/v1{path}"
+    return request_json(method, url, headers=headers, payload=payload, timeout=timeout, retries=3)
 
 
 FLOW_DESIGN_RELEVANT_CACHE = {}
@@ -2668,6 +2685,20 @@ def fiscal_doc_type_from_fields(fields):
     return "NF/Fatura"
 
 
+def neutral_fiscal_type(value):
+    text = norm_key(value)
+    return not text or text in {"semnota", "documento", "boleto"}
+
+
+def suspicious_fiscal_number(value):
+    digits = re.sub(r"\D+", "", str(value or ""))
+    if not digits:
+        return False
+    if re.match(r"^20\d{6,}$", digits):
+        return True
+    return len(digits) > 13
+
+
 def fiscal_number_source(fields, number):
     wanted = str(number or "").strip()
     if not wanted:
@@ -2768,6 +2799,85 @@ def extract_fiscal_numbers():
         "tickets": rows,
         "errors": errors[:30],
     }
+
+
+def repair_payment_fiscal_fields():
+    if not has_zeev_token():
+        raise SystemExit("ZEEV_TOKEN e obrigatorio.")
+    if not SUPABASE_SERVICE_ROLE_KEY:
+        raise SystemExit("SUPABASE_SERVICE_ROLE_KEY e obrigatorio.")
+    ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
+    limit = max(1, min(int(os.environ.get("ZEEV_REPAIR_PAYMENT_LIMIT", os.environ.get("ZEEV_BACKFILL_LIMIT", "40")) or "40"), 300))
+    repair_values = os.environ.get("ZEEV_REPAIR_PAYMENT_VALUES", "0").strip().lower() in {"1", "true", "sim", "yes", "on"}
+    select_cols = "id,obra_id,ticket_raiz,nf_num,nf_tipo,v"
+    if ids:
+        rows = supabase_rest(f"/pagamentos?select={select_cols}&ticket_raiz=in.({','.join(str(x) for x in ids)})&order=id.asc", timeout=90, prefer="")
+    else:
+        rows = supabase_rest(f"/pagamentos?select={select_cols}&ticket_raiz=not.is.null&order=id.asc&limit={limit * 4}", timeout=90, prefer="")
+    target = []
+    id_set = {str(x) for x in ids}
+    for row in rows or []:
+        tr = re.sub(r"\D+", "", str(row.get("ticket_raiz") or ""))
+        if not tr or (id_set and tr not in id_set):
+            continue
+        current_num = str(row.get("nf_num") or "").strip()
+        if ids or not current_num or suspicious_fiscal_number(current_num) or neutral_fiscal_type(row.get("nf_tipo")):
+            target.append(row)
+        if not ids and len(target) >= limit:
+            break
+
+    query_fields = unique_fields(
+        PAYMENT_TOTAL_FIELDS,
+        fiscal_number_extract_fields(),
+        ["valorTotalDoPagamento01", "valorTotalDoPagamento", "anexarNotaFiscal"],
+    )
+    out = {
+        "ok": True,
+        "mode": "repair-payment-fiscal-fields",
+        "requestedTickets": ids,
+        "scannedPayments": len(target),
+        "updatedPayments": 0,
+        "unchanged": 0,
+        "errors": [],
+        "updated": [],
+    }
+    for row in target:
+        tr = int(re.sub(r"\D+", "", str(row.get("ticket_raiz") or "")) or "0")
+        try:
+            latest, fields = instance_fields(tr, query_fields, timeout=60, retries=2)
+            financeiro = is_finance_row(latest or {}) or True
+            number = fiscal_document_number(fields, financeiro=financeiro)
+            doc_type = fiscal_doc_type_from_fields(fields)
+            items = extract_items(fields)
+            value = pick_ticket_value(fields, items, financeiro=financeiro)
+            patch = {}
+            current_num = str(row.get("nf_num") or "").strip()
+            current_type = str(row.get("nf_tipo") or "").strip()
+            if number and number != current_num and (ids or not current_num or suspicious_fiscal_number(current_num) or neutral_fiscal_type(current_type)):
+                patch["nf_num"] = number
+            if number and doc_type and doc_type != current_type and (ids or neutral_fiscal_type(current_type)):
+                patch["nf_tipo"] = doc_type
+            if repair_values and value and abs(float(row.get("v") or 0) - float(value)) >= 0.01:
+                patch["v"] = round(float(value), 2)
+            if patch:
+                supabase_rest(f"/pagamentos?id=eq.{int(row.get('id'))}", method="PATCH", payload=patch, timeout=90)
+                out["updatedPayments"] += 1
+                if len(out["updated"]) < 120:
+                    out["updated"].append({
+                        "tr": tr,
+                        "pagamento_id": row.get("id"),
+                        "obra_id": row.get("obra_id"),
+                        "before": {"nf_num": current_num, "nf_tipo": current_type, "v": row.get("v")},
+                        "after": patch,
+                    })
+            else:
+                out["unchanged"] += 1
+        except Exception as exc:
+            out["errors"].append({"tr": tr, "pagamento_id": row.get("id"), "error": str(exc)[:500]})
+    if out["errors"]:
+        out["ok"] = False
+        out["errors"] = out["errors"][:30]
+    return out
 
 
 def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest=False, start_page=1):
@@ -3742,6 +3852,10 @@ def main():
         return
     if mode in {"extract-fiscal-numbers", "fiscal-numbers", "numeros-fiscais"}:
         result = extract_fiscal_numbers()
+        print(json.dumps(result, ensure_ascii=False))
+        return
+    if mode in {"repair-payment-fiscal-fields", "repair-payment-fiscal", "repair-fiscal-fields"}:
+        result = repair_payment_fiscal_fields()
         print(json.dumps(result, ensure_ascii=False))
         return
     deep_mode = mode in {"deep", "deep-retro", "deep-incremental"} or os.environ.get("ZEEV_DEEP_SCAN", "0") == "1"
