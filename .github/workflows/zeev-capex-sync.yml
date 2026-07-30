@@ -105,11 +105,11 @@ jobs:
           ZEEV_SYNC_END: ${{ github.event_name == 'workflow_dispatch' && inputs.end || '' }}
           ZEEV_MAX_PAGES: ${{ github.event_name == 'schedule' && github.event.schedule == '*/10 * * * *' && '2' || github.event_name == 'schedule' && github.event.schedule == '35 5 * * *' && '2' || github.event_name == 'workflow_dispatch' && inputs.max_pages || '1' }}
           ZEEV_START_PAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.start_page || '1' }}
-          ZEEV_RECORDS_PER_PAGE: "20"
+          ZEEV_RECORDS_PER_PAGE: "25"
           ZEEV_DEEP_SCAN: ${{ github.event_name == 'schedule' && github.event.schedule == '35 5 * * *' && '1' || github.event_name == 'workflow_dispatch' && inputs.mode != 'incremental' && '1' || '0' }}
           ZEEV_INCREMENTAL_MAX_PAGES_CAP: "2"
-          ZEEV_INCREMENTAL_EXTRA_TICKET_CAP: "10"
-          ZEEV_ENRICH_CONCURRENCY: "2"
+          ZEEV_INCREMENTAL_EXTRA_TICKET_CAP: "20"
+          ZEEV_ENRICH_CONCURRENCY: "3"
           ZEEV_SYNC_OVERLAP_HOURS: "36"
           ZEEV_NOTIFY: ${{ github.event_name == 'workflow_dispatch' && inputs.notify || 'false' }}
           ZEEV_TICKET_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.ticket_ids || '' }}
@@ -121,8 +121,8 @@ jobs:
           ZEEV_FORCE_PENDING_REASON: ${{ github.event_name == 'workflow_dispatch' && inputs.force_reason || '' }}
           ZEEV_AI_SUMMARY_ENABLED: "1"
           ZEEV_BACKFILL_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '17 */2 * * *' && '6' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '1' }}
-          ZEEV_STATUS_REFRESH_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '5,35 * * * *' && '20' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '8' }}
-          ZEEV_STATUS_REFRESH_BATCH: ${{ github.event_name == 'schedule' && github.event.schedule == '5,35 * * * *' && '4' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
+          ZEEV_STATUS_REFRESH_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '5,35 * * * *' && '32' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '8' }}
+          ZEEV_STATUS_REFRESH_BATCH: ${{ github.event_name == 'schedule' && github.event.schedule == '5,35 * * * *' && '6' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
           ZEEV_STATUS_ONLY_OVERDUE: ${{ github.event_name == 'schedule' && github.event.schedule == '5,35 * * * *' && 'false' || 'true' }}
           ZEEV_STATUS_REFRESH_PAUSE_SECONDS: "1"
           ZEEV_BACKFILL_BATCH: ${{ github.event_name == 'schedule' && github.event.schedule == '17 */2 * * *' && '2' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}

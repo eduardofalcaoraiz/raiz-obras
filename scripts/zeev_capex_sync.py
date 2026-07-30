@@ -143,9 +143,16 @@ CAPEX_FIELD_CANDIDATES = [
     "É CAPEX?", "E CAPEX?", "É investimento?", "E investimento?",
 ]
 
-VALUE_TOTAL_FIELDS = [
+PAYMENT_TOTAL_FIELDS = [
     "valorTotalDoPagamento", "valor total do pagamento", "Valor total do pagamento", "Valor total do pagamento *",
-    "valorTotalPagamento", "valor total pagamento",
+    "valorTotalDoPagamento01", "valorTotalPagamento", "valor total pagamento",
+    "totalPagamento", "total do pagamento", "totalAPagar", "total a pagar",
+    "valorPagamento", "valor do pagamento", "valor pagamento", "valorAPagar",
+    "valor a pagar",
+]
+
+VALUE_TOTAL_FIELDS = [
+    *PAYMENT_TOTAL_FIELDS,
     "valorFinal", "valor final", "valor final da compra", "valor final do pedido",
     "valorTotal", "valor total", "valor total da compra", "valor total do pedido",
     "valor total da solicitacao", "valor total da solicitação", "valorDaCompra",
@@ -160,9 +167,12 @@ VALUE_TOTAL_FIELDS = [
     "preço negociado", "valor negociado", "valor contratado", "valor da proposta",
     "valorTitulo", "valor do titulo", "valor do título", "valorDocumento",
     "valor do documento", "valorLancamento", "valor lancamento", "valor do lançamento",
-    "valorBruto", "valor bruto", "valorLiquido", "valor liquido",
-    "totalPagamento", "total do pagamento", "totalAPagar", "total a pagar",
-    "Total dos itens", "Total dos itens *", "Total das parcelas", "Total das parcelas *", "Total do pag.",
+    "valorBruto", "valor bruto",
+    "Total dos itens", "Total dos itens *", "Total do pag.",
+]
+
+INSTALLMENT_VALUE_FIELDS = [
+    "Total das parcelas", "Total das parcelas *",
     "valorParcela", "valor da parcela",
 ]
 
@@ -189,9 +199,9 @@ ITEM_DESC_FIELDS = [
 ITEM_QTY_FIELDS = ["quantidade", "quantidade solicitada", "quantidadeSolicitada", "qtd", "qtde"]
 ITEM_UNIT_MEASURE_FIELDS = ["unidadeMedida", "unidade medida", "unidade", "un"]
 FISCAL_NUMBER_FIELDS = [
+    "numeroDaNF",
     "notaFiscal",
     "numeroNF",
-    "numeroDaNF",
     "numeroNotaFiscal",
     "numero da nota fiscal",
     "numero da nf",
@@ -688,6 +698,9 @@ def field_value_by_priority(fields, names):
 def clean_fiscal_document_number(value):
     raw = str(value or "").strip()
     if not raw:
+        return ""
+    lowered = raw.lower()
+    if re.search(r"\.(pdf|xml|docx?|xlsx?|xls|csv|png|jpe?g)\b", lowered) or "/" in raw or "\\" in raw or "http" in lowered:
         return ""
     if re.search(r"\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b", raw):
         return ""
@@ -1238,13 +1251,9 @@ def item_total_sum(items):
 
 
 def pick_ticket_value(fields, items, financeiro=False):
-    explicit = money_by_priority(fields, VALUE_TOTAL_FIELDS)
+    explicit = money_by_priority(fields, PAYMENT_TOTAL_FIELDS)
     if explicit:
         return explicit
-    if financeiro:
-        finance_fallback = money_by_priority(fields, ["precoUnitario", "preço unitário", "preco unitario", "valorUnitario", "valor unitario"])
-        if finance_fallback:
-            return finance_fallback
     items_total = item_total_sum(items)
     if items_total:
         return items_total
