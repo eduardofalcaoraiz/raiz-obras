@@ -73,6 +73,10 @@ on:
       force_reason:
         description: "Motivo para force-pending-ticket"
         required: false
+      repair_values:
+        description: "Permitir que repair-payment-fiscal-fields corrija tambem o valor total do pagamento"
+        required: false
+        default: "false"
 
 concurrency:
   group: zeev-capex-sync-${{ github.event_name == 'schedule' && 'scheduled' || github.run_id }}
@@ -129,6 +133,7 @@ jobs:
           ZEEV_BACKFILL_BATCH: ${{ github.event_name == 'schedule' && github.event.schedule == '17 */2 * * *' && '2' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
           ZEEV_BACKFILL_STALE_HOURS: ${{ github.event_name == 'schedule' && github.event.schedule == '17 */2 * * *' && '12' || github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '720' }}
           ZEEV_DOC_RESCUE_CHECKED_BEFORE: ${{ github.event_name == 'workflow_dispatch' && inputs.checked_before || '' }}
+          ZEEV_REPAIR_PAYMENT_VALUES: ${{ github.event_name == 'workflow_dispatch' && inputs.repair_values || 'false' }}
           ZEEV_BACKFILL_FILE_LIMIT: "4"
           ZEEV_ATTACH_ALL_TICKET_DOCS: "1"
           ZEEV_DOC_ATTACH_PER_TICKET_LIMIT: "6"
