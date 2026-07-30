@@ -2808,12 +2808,13 @@ def repair_payment_fiscal_fields():
         raise SystemExit("SUPABASE_SERVICE_ROLE_KEY e obrigatorio.")
     ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     limit = max(1, min(int(os.environ.get("ZEEV_REPAIR_PAYMENT_LIMIT", os.environ.get("ZEEV_BACKFILL_LIMIT", "40")) or "40"), 300))
+    scan_limit = max(limit, min(int(os.environ.get("ZEEV_REPAIR_PAYMENT_SCAN_LIMIT", str(limit * 12)) or str(limit * 12)), 3000))
     repair_values = os.environ.get("ZEEV_REPAIR_PAYMENT_VALUES", "0").strip().lower() in {"1", "true", "sim", "yes", "on"}
     select_cols = "id,obra_id,ticket_raiz,nf_num,nf_tipo,v"
     if ids:
         rows = supabase_rest(f"/pagamentos?select={select_cols}&ticket_raiz=in.({','.join(str(x) for x in ids)})&order=id.asc", timeout=90, prefer="")
     else:
-        rows = supabase_rest(f"/pagamentos?select={select_cols}&ticket_raiz=not.is.null&order=id.asc&limit={limit * 4}", timeout=90, prefer="")
+        rows = supabase_rest(f"/pagamentos?select={select_cols}&ticket_raiz=not.is.null&order=id.asc&limit={scan_limit}", timeout=90, prefer="")
     target = []
     id_set = {str(x) for x in ids}
     for row in rows or []:
@@ -2835,6 +2836,7 @@ def repair_payment_fiscal_fields():
         "ok": True,
         "mode": "repair-payment-fiscal-fields",
         "requestedTickets": ids,
+        "loadedPayments": len(rows or []),
         "scannedPayments": len(target),
         "updatedPayments": 0,
         "unchanged": 0,
