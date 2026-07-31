@@ -3053,7 +3053,9 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
   const lockTtlMinutes = positiveNumber(input.lockTtlMinutes || input.lock_ttl_minutes || env('ZEEV_GITHUB_LOCK_TTL_MINUTES') || (requestedMaxPages > 2 ? '75' : '25'), requestedMaxPages > 2 ? 75 : 25)
   const requestedStart = String(input.start || '')
   const requestedEnd = String(input.end || '')
-  const lock = await claimSyncLock(lockTtlMinutes, requestedStart || null, requestedEnd || null)
+  const requestedStartDate = /^\d{4}-\d{2}-\d{2}/.test(requestedStart) ? requestedStart : null
+  const requestedEndDate = /^\d{4}-\d{2}-\d{2}/.test(requestedEnd) ? requestedEnd : null
+  const lock = await claimSyncLock(lockTtlMinutes, requestedStartDate, requestedEndDate)
   if (!lock.claimed) {
     return {
       ok: true,
