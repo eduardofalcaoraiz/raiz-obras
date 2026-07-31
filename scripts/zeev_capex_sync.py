@@ -1776,7 +1776,7 @@ def id_sweep_capex():
     limit = env_int("ZEEV_ID_SWEEP_LIMIT", env_int("ZEEV_BACKFILL_LIMIT", 120, 0), 0, 5000)
     sweep = collect_id_sweep_tickets(limit=limit, update_state=True)
     tickets = sweep.pop("tickets", [])
-    result = ingest(tickets, notify=os.environ.get("ZEEV_NOTIFY", "false").lower() == "true", backfill_limit=0) if tickets else {"ok": True, "new": 0, "updated": 0, "skipped": 0}
+    result = ingest(tickets, notify=os.environ.get("ZEEV_NOTIFY", "false").lower() == "true", backfill_limit=0)
     sweep["imported"] = len(tickets)
     sweep["ingest"] = result
     return sweep
