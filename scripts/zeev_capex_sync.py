@@ -1552,7 +1552,7 @@ def platform_existing_ticket_ids(instance_ids):
     for chunk in chunked(ids, 80):
         joined = ",".join(str(x) for x in chunk)
         checks = (
-            (f"/capex_zeev_solicitacoes?select=zeev_instance_id&zeev_instance_id=in.({joined})", ("zeev_instance_id",)),
+            (f"/capex_zeev_solicitacoes?select=zeev_instance_id&zeev_instance_id=in.({joined})&status=in.(pendente,aprovado)", ("zeev_instance_id",)),
             (f"/pagamentos?select=ticket_raiz&ticket_raiz=in.({joined})", ("ticket_raiz",)),
             (f"/capex_itens?select=referencia,ticket_raiz_instance_id&or=(referencia.in.({joined}),ticket_raiz_instance_id.in.({joined}))", ("referencia", "ticket_raiz_instance_id")),
         )
