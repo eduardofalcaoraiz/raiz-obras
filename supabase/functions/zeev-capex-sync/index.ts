@@ -741,20 +741,45 @@ async function zeevBinaryRequest(url: string, init: RequestInit = {}, options: {
   if (!tokens.length) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const errors: string[] = []
   const maxTokens = Math.max(1, Math.min(Number(options.maxTokens || tokens.length) || tokens.length, tokens.length))
-  for (const token of tokens.slice(0, maxTokens)) {
+  const parsedUrl = new URL(url)
+  const baseHost = new URL(env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it')).hostname
+  const isZeevHost = parsedUrl.hostname === baseHost || parsedUrl.hostname.endsWith('.zeev.it')
+  const signedZeevDownload = isZeevHost && (/\/document\/download\//i.test(parsedUrl.pathname) || parsedUrl.searchParams.has('c'))
+  const urlWithParam = (key: string, token: string) => {
+    const next = new URL(url)
+    if (!next.searchParams.has(key)) next.searchParams.set(key, token)
+    return next.toString()
+  }
+  const attempts: Array<{ url: string; token?: string; auth: 'none' | 'bearer' }> = []
+  if (!isZeevHost) {
+    attempts.push({ url, auth: 'none' })
+  } else {
+    for (const token of tokens.slice(0, maxTokens)) {
+      attempts.push({ url, token, auth: 'bearer' })
+      attempts.push({ url: urlWithParam('token', token), auth: 'none' })
+      attempts.push({ url: urlWithParam('access_token', token), auth: 'none' })
+      attempts.push({ url: urlWithParam('api_token', token), auth: 'none' })
+    }
+    if (signedZeevDownload) attempts.unshift({ url, auth: 'none' })
+  }
+  const seen = new Set<string>()
+  for (const attempt of attempts) {
+    const key = `${attempt.auth}|${attempt.url}`
+    if (seen.has(key)) continue
+    seen.add(key)
     const headers = new Headers(init.headers || {})
-    headers.set('Authorization', `Bearer ${token}`)
+    if (attempt.auth === 'bearer' && attempt.token) headers.set('Authorization', `Bearer ${attempt.token}`)
     if (!headers.has('Accept')) headers.set('Accept', '*/*')
     let res: Response
     try {
-      res = await zeevFetchWithTimeout(url, { ...init, headers }, options.timeoutMs)
+      res = await zeevFetchWithTimeout(attempt.url, { ...init, headers }, options.timeoutMs)
     } catch (error) {
       errors.push(`timeout/fetch: ${error instanceof Error ? error.message : String(error)}`.slice(0, 260))
       continue
     }
     if (res.ok) return res
     const text = await res.text()
-    if (res.status === 401) BAD_ZEEV_TOKENS.add(token)
+    if (res.status === 401 && attempt.auth === 'bearer' && attempt.token) BAD_ZEEV_TOKENS.add(attempt.token)
     errors.push(`HTTP ${res.status}: ${text.slice(0, 220)}`)
     if (![401, 403].includes(res.status) && res.status < 500) break
   }

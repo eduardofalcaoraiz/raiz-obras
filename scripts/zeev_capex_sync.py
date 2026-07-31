@@ -2629,6 +2629,15 @@ def normalize_doc_url(url):
     return raw
 
 
+def doc_url_with_token_param(url, key, token):
+    parsed = urllib.parse.urlparse(url)
+    qs = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    if any(k == key for k, _ in qs):
+        return url
+    qs.append((key, token))
+    return urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(qs)))
+
+
 def looks_like_download_path(value):
     text = str(value or "").strip()
     if not text:
@@ -2750,17 +2759,36 @@ def fetch_binary_for_rescue(url):
     max_bytes = direct_doc_rescue_max_bytes()
     parsed = urllib.parse.urlparse(clean)
     zeev_host = urllib.parse.urlparse(ZEEV_BASE_URL).netloc
-    token_list = zeev_tokens() if parsed.netloc == zeev_host or parsed.netloc.endswith(".zeev.it") else [""]
+    is_zeev_host = parsed.netloc == zeev_host or parsed.netloc.endswith(".zeev.it")
+    signed_zeev_download = is_zeev_host and ("/document/download/" in parsed.path.lower() or "c=" in parsed.query.lower())
+    token_list = zeev_tokens() if is_zeev_host else [""]
     token_limit = max(1, min(int(os.environ.get("ZEEV_FILE_TOKEN_ATTEMPT_LIMIT", "2") or "2"), len(token_list or [""])))
     last_error = None
-    for token in (token_list or [""])[:token_limit]:
+    attempts = []
+    if not is_zeev_host:
+        attempts.append((clean, "none", ""))
+    else:
+        for token in (token_list or [""])[:token_limit]:
+            attempts.append((clean, "bearer", token))
+            if token:
+                attempts.append((doc_url_with_token_param(clean, "token", token), "none", ""))
+                attempts.append((doc_url_with_token_param(clean, "access_token", token), "none", ""))
+                attempts.append((doc_url_with_token_param(clean, "api_token", token), "none", ""))
+        if signed_zeev_download:
+            attempts.insert(0, (clean, "none", ""))
+    seen = set()
+    for attempt_url, auth_mode, token in attempts:
+        key = f"{auth_mode}|{attempt_url}"
+        if key in seen:
+            continue
+        seen.add(key)
         headers = {
             "Accept": "application/pdf,application/xml,text/xml,image/*,application/octet-stream,application/json,text/html,*/*",
             "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
         }
-        if token and (parsed.netloc == zeev_host or parsed.netloc.endswith(".zeev.it")):
+        if token and auth_mode == "bearer":
             headers["Authorization"] = f"Bearer {token}"
-        req = urllib.request.Request(clean, headers=headers, method="GET")
+        req = urllib.request.Request(attempt_url, headers=headers, method="GET")
         try:
             with urllib.request.urlopen(req, timeout=max(5, min(int(os.environ.get("ZEEV_DIRECT_DOC_TIMEOUT_SECONDS", "12")), 60))) as res:
                 length = int(res.headers.get("Content-Length") or "0")
@@ -4013,6 +4041,52 @@ def backfill_docs_for_ticket_ids(ticket_ids, file_limit=None):
     )
 
 
+def direct_docs_from_result(result):
+    if not isinstance(result, dict):
+        return {}
+    backfill = result.get("backfill") if isinstance(result.get("backfill"), dict) else result
+    if isinstance(backfill, dict) and isinstance(backfill.get("directDocs"), dict):
+        return backfill.get("directDocs") or {}
+    return backfill if isinstance(backfill, dict) else {}
+
+
+def merge_direct_doc_results(primary, fallback):
+    merged = dict(primary or {})
+    fallback = fallback or {}
+    for key in ["filesAttached", "checkedWithoutFiscal", "updatedPending", "updatedPayments", "updatedCapex", "paidUpdated"]:
+        merged[key] = int(merged.get(key, 0) or 0) + int(fallback.get(key, 0) or 0)
+    for key in ["attachedTickets", "checkedWithoutFiscalTickets", "errors", "debugDocs", "obraDoneEmails"]:
+        values = []
+        if isinstance(merged.get(key), list):
+            values.extend(merged.get(key))
+        if isinstance(fallback.get(key), list):
+            values.extend(fallback.get(key))
+        if values:
+            merged[key] = values[:120]
+    return merged
+
+
+def merge_doc_backfill_results(edge_result, fallback_result):
+    fallback_direct = direct_docs_from_result(fallback_result)
+    if not fallback_direct:
+        return edge_result
+    if not isinstance(edge_result, dict):
+        return {"directDocs": fallback_direct}
+    merged = dict(edge_result)
+    edge_direct = direct_docs_from_result(edge_result)
+    merged["directDocs"] = merge_direct_doc_results(edge_direct, fallback_direct)
+    if isinstance(fallback_result, dict):
+        merged["pythonFallback"] = {
+            "ingested": int(fallback_result.get("ingested", 0) or 0),
+            "tickets": int(fallback_result.get("tickets", 0) or 0),
+        }
+    return merged
+
+
+def doc_rescue_python_fallback_enabled():
+    return os.environ.get("ZEEV_DOC_RESCUE_PY_FALLBACK_ENABLED", "1").strip().lower() not in {"0", "false", "nao", "no", "off"}
+
+
 def rescue_block_report(result):
     if os.environ.get("ZEEV_RESCUE_BLOCK_EMAIL", "true").strip().lower() in {"0", "false", "nao", "no", "off"}:
         return {"ok": True, "skipped": True, "reason": "ZEEV_RESCUE_BLOCK_EMAIL desativado"}
@@ -4076,7 +4150,29 @@ def rescue_docs():
             if doc_rescue_fast_edge_enabled():
                 tickets = []
                 downloaded = 0
-                result = {"backfill": backfill_docs_for_ticket_ids(chunk)}
+                edge_backfill = backfill_docs_for_ticket_ids(chunk)
+                result = {"backfill": edge_backfill}
+                edge_direct = direct_docs_from_result(edge_backfill)
+                edge_attached = int(edge_direct.get("filesAttached", 0) or 0)
+                edge_errors = edge_direct.get("errors") if isinstance(edge_direct.get("errors"), list) else []
+                should_fallback = (
+                    doc_rescue_python_fallback_enabled()
+                    and direct_doc_rescue_enabled()
+                    and direct_doc_rescue_file_limit() > 0
+                    and edge_attached <= 0
+                    and (edge_errors or int(edge_direct.get("checkedWithoutFiscal", 0) or 0) > 0 or not edge_direct)
+                )
+                if should_fallback:
+                    tickets = sync_ids(chunk, allow_non_capex=True, reason="Fallback direto para resgate de documentos Zeev")
+                    for ticket in tickets:
+                        raw = ticket.get("raw_instance") if isinstance(ticket, dict) else {}
+                        docs = raw.get("__downloaded_docs") if isinstance(raw, dict) else []
+                        if isinstance(docs, list):
+                            downloaded += len(docs)
+                    if downloaded > 0:
+                        fallback_result = ingest(tickets, notify=False, backfill_limit=0, fanout_targets=True)
+                        result["backfill"] = merge_doc_backfill_results(edge_backfill, fallback_result)
+                        result["pythonFallback"] = {"downloadedDocs": downloaded, "tickets": len(tickets)}
             else:
                 tickets = sync_ids(chunk, allow_non_capex=True, reason="Resgate automatico de documentos Zeev")
                 downloaded = 0
