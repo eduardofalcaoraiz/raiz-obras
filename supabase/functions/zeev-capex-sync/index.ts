@@ -3073,6 +3073,7 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
     const normalizedMode = normalizedSyncMode
     const directWorkflowModes = new Set([
       'incremental',
+      'id-sweep',
       'retro',
       'deep-incremental',
       'deep-retro',
