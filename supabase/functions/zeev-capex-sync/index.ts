@@ -3124,11 +3124,13 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
       })
       throw new Error(`GitHub workflow dispatch ${res.status}: ${text}`)
     }
+    const stateStartDate = /^\d{4}-\d{2}-\d{2}/.test(workflowInputs.start || '') ? workflowInputs.start : null
+    const stateEndDate = /^\d{4}-\d{2}-\d{2}/.test(workflowInputs.end || '') ? workflowInputs.end : null
     await saveState('zeev-capex', {
       running: true,
       last_error: null,
-      last_start_date: workflowInputs.start || null,
-      last_end_date: workflowInputs.end || null,
+      last_start_date: stateStartDate,
+      last_end_date: stateEndDate,
     })
     return {
       ok: true,
