@@ -4120,6 +4120,22 @@ def force_pending_ticket():
     ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     reason = os.environ.get("ZEEV_FORCE_PENDING_REASON") or "Erro da solicitante: ticket deve ser tratado como CAPEX."
     tickets = sync_ids(ids, allow_non_capex=True, reason=reason, rescue_docs=False)
+    print(json.dumps({
+        "progress": "force-pending-preview",
+        "tickets": [
+            {
+                "tr": ticket.get("zeev_instance_id"),
+                "capexFieldName": ticket.get("capex_field_name") or "",
+                "capexFieldValue": ticket.get("capex_field_value") or "",
+                "flowId": ticket.get("flow_id"),
+                "flowName": ticket.get("flow_name") or "",
+                "requester": ticket.get("requester_name") or "",
+                "valor": ticket.get("valor") or ticket.get("valor_final"),
+                "manualForced": ticket.get("capex_field_name") == "manual_codex",
+            }
+            for ticket in tickets
+        ],
+    }, ensure_ascii=False), flush=True)
     fetched = {int(t.get("zeev_instance_id") or 0) for t in tickets if t.get("zeev_instance_id")}
     missing = [ticket_id for ticket_id in ids if ticket_id not in fetched]
     payload = {
