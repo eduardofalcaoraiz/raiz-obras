@@ -1600,7 +1600,8 @@ def save_id_sweep_state(cursor, scanned, found, imported, error=""):
 
 
 def id_sweep_candidates(limit=None):
-    limit = max(0, min(int(limit or env_int("ZEEV_ID_SWEEP_LIMIT", 120, 0, 5000)), 5000))
+    hard_limit = env_int("ZEEV_ID_SWEEP_HARD_LIMIT", 300, 25, 2000)
+    limit = max(0, min(int(limit or env_int("ZEEV_ID_SWEEP_LIMIT", 120, 0, hard_limit)), hard_limit))
     if not limit:
         return [], {"limit": 0, "reason": "disabled"}
 
@@ -1660,42 +1661,113 @@ def id_sweep_candidates(limit=None):
     }
 
 
+def probe_capex_ticket_id(instance_id):
+    timeout = env_int("ZEEV_ID_SWEEP_PROBE_TIMEOUT_SECONDS", 10, 4, 45)
+    retries = env_int("ZEEV_ID_SWEEP_PROBE_RETRIES", 1, 1, 2)
+    try:
+        latest, fields = instance_fields(instance_id, capex_fields(None), timeout=timeout, retries=retries)
+        flow_id = int((latest.get("flow") or {}).get("id") or latest.get("flowId") or latest.get("flow_id") or 0)
+        capex = has_capex(fields, flow_id)
+        return {
+            "tr": int(instance_id),
+            "ok": True,
+            "isCapex": bool(capex),
+            "field": field_display_name(capex) if capex else "",
+            "value": str((capex or {}).get("value") or ""),
+            "flowId": flow_id,
+        }
+    except Exception as exc:
+        return {"tr": int(instance_id), "ok": False, "isCapex": False, "error": str(exc)[:350]}
+
+
+def probe_capex_ticket_ids(instance_ids):
+    ids = parse_ticket_ids(instance_ids)
+    if not ids:
+        return []
+    workers = env_int("ZEEV_ID_SWEEP_PROBE_CONCURRENCY", 6, 1, 12)
+    if workers <= 1 or len(ids) <= 1:
+        return [probe_capex_ticket_id(tr) for tr in ids]
+    out = []
+    with ThreadPoolExecutor(max_workers=min(workers, len(ids))) as executor:
+        futures = {executor.submit(probe_capex_ticket_id, tr): tr for tr in ids}
+        for future in as_completed(futures):
+            out.append(future.result())
+    order = {tr: index for index, tr in enumerate(ids)}
+    return sorted(out, key=lambda item: order.get(item.get("tr"), 999999))
+
+
 def collect_id_sweep_tickets(limit=None, update_state=True):
     ids, meta = id_sweep_candidates(limit)
     if not ids:
         return {"ok": True, "mode": "id-sweep", "scanned": 0, "skippedExisting": 0, "tickets": [], **meta}
 
     existing = platform_existing_ticket_ids(ids)
-    scan_ids = [tr for tr in ids if tr not in existing]
     tickets = []
+    scanned = 0
+    probed = 0
+    errors = []
+    cursor_after = meta.get("nextCursor")
+    partial = False
     batch_size = env_int("ZEEV_ID_SWEEP_BATCH", 24, 1, 80)
     pause = float(os.environ.get("ZEEV_ID_SWEEP_PAUSE_SECONDS", "0.35") or "0")
-    for index, chunk in enumerate(chunked(scan_ids, batch_size), start=1):
-        found = sync_ids(chunk, allow_non_capex=False, reason="Varredura token por ID CAPEX", rescue_docs=False)
+    max_runtime = env_int("ZEEV_ID_SWEEP_MAX_RUNTIME_SECONDS", 180, 30, 1800)
+    started_at = time.monotonic()
+    for index, candidate_chunk in enumerate(chunked(ids, batch_size), start=1):
+        if time.monotonic() - started_at >= max_runtime:
+            partial = True
+            break
+        cursor_after = max(0, min(candidate_chunk) - 1) if candidate_chunk else cursor_after
+        chunk = [tr for tr in candidate_chunk if tr not in existing]
+        if not chunk:
+            print(json.dumps({
+                "progress": "id-sweep-batch",
+                "batch": index,
+                "candidates": len(candidate_chunk),
+                "skippedExisting": len(candidate_chunk),
+                "probed": 0,
+                "capexCandidates": 0,
+                "found": 0,
+                "ticketIds": [],
+            }, ensure_ascii=False), flush=True)
+            continue
+
+        probes = probe_capex_ticket_ids(chunk)
+        probed += len(probes)
+        scanned += len(chunk)
+        capex_ids = [item["tr"] for item in probes if item.get("isCapex")]
+        errors.extend([item for item in probes if not item.get("ok")][: max(0, 20 - len(errors))])
+        found = sync_ids(capex_ids, allow_non_capex=False, reason="Varredura token por ID CAPEX", rescue_docs=False) if capex_ids else []
         tickets.extend(found)
         print(json.dumps({
             "progress": "id-sweep-batch",
             "batch": index,
-            "scanned": len(chunk),
+            "candidates": len(candidate_chunk),
+            "skippedExisting": len(candidate_chunk) - len(chunk),
+            "probed": len(probes),
+            "capexCandidates": len(capex_ids),
             "found": len(found),
             "ticketIds": [t.get("zeev_instance_id") for t in found],
         }, ensure_ascii=False), flush=True)
-        if pause and index * batch_size < len(scan_ids):
+        if pause and index * batch_size < len(ids):
             time.sleep(pause)
 
-    if update_state and meta.get("nextCursor"):
-        save_id_sweep_state(meta.get("nextCursor"), len(scan_ids), len(tickets), 0)
+    if update_state and cursor_after:
+        save_id_sweep_state(cursor_after, scanned, len(tickets), 0)
 
     out = {
         "ok": True,
         "mode": "id-sweep",
-        "scanned": len(scan_ids),
+        "scanned": scanned,
+        "probed": probed,
         "candidateIds": len(ids),
         "skippedExisting": len(existing),
         "found": len(tickets),
         "ticketIds": [t.get("zeev_instance_id") for t in tickets],
+        "partial": partial,
+        "errors": errors[:20],
         **meta,
     }
+    out["nextCursor"] = cursor_after
     out["tickets"] = tickets
     return out
 
@@ -3662,10 +3734,12 @@ def deep_sync(start, end, max_pages, page_size, notify=False, progressive_ingest
 def sync_ids(instance_ids, allow_non_capex=False, reason="", rescue_docs=True):
     ids = parse_ticket_ids(instance_ids)
     tickets = {}
+    read_timeout = env_int("ZEEV_SYNC_IDS_TIMEOUT_SECONDS", 90, 8, 120)
+    read_retries = env_int("ZEEV_SYNC_IDS_RETRIES", 3, 1, 3)
 
     def load_one(instance_id):
         try:
-            base, _ = instance_fields(instance_id, [])
+            base, _ = instance_fields(instance_id, [], timeout=read_timeout, retries=read_retries)
             row = base if isinstance(base, dict) and base else {"id": instance_id}
             row.setdefault("id", instance_id)
             enriched = enrich_instance(row)

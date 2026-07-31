@@ -3069,7 +3069,7 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
   }
   let extraTicketIds = String(input.extraTicketIds || input.extra_ticket_ids || '')
   try {
-    if (!extraTicketIds && syncMode !== 'retro' && input.refreshKnownTickets !== false) {
+    if (!extraTicketIds && !['retro', 'id-sweep'].includes(syncMode) && input.refreshKnownTickets !== false) {
       extraTicketIds = (await knownTicketRefreshIds(input.refreshLimit || input.backfillLimit || env('ZEEV_GITHUB_REFRESH_LIMIT', '40'), parseFlowIds(flowIds))).join(',')
     }
     const normalizedMode = normalizedSyncMode
