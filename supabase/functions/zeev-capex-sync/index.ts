@@ -919,9 +919,19 @@ function ticketResultKind(row: AnyRecord) {
   return ''
 }
 
-function hasConferirEntrega(tasks: AnyRecord[]) {
+function hasConferirEntrega(tasks: AnyRecord[], row: AnyRecord = {}) {
   const t = currentTask(tasks)
-  const hay = norm([t?.task?.name, t?.alias, t?.result].filter(Boolean).join(' '))
+  const hay = norm([
+    t?.task?.name,
+    t?.alias,
+    t?.result,
+    row?.etapa_atual,
+    row?.currentTaskName,
+    row?.taskName,
+    row?.raw_instance?.etapa_atual,
+    row?.raw_instance?.currentTaskName,
+    row?.raw_instance?.taskName,
+  ].filter(Boolean).join(' '))
   return hay.includes('conferir entrega') || hay.includes('comunicar entrega') || hay.includes('receber entrega') || hay.includes('conferencia de entrega')
 }
 
@@ -931,7 +941,7 @@ function valueIsFinalForPurchase(row: AnyRecord, tasks: AnyRecord[]) {
   if (row?.active === false || Boolean(row?.endDateTime)) {
     return true
   }
-  return hasConferirEntrega(tasks)
+  return hasConferirEntrega(tasks, row)
 }
 
 function suggestedCapexStatus(row: AnyRecord, ready: boolean) {
@@ -1952,6 +1962,25 @@ function ticketDataPatch(ticket: AnyRecord, previous: AnyRecord = {}) {
   }
 }
 
+function ticketHasReliableFinalValue(ticket: AnyRecord) {
+  const value = ticketValueForPayment(ticket)
+  if (!Number.isFinite(value) || value <= 0) return false
+  if (Number(ticket?.valor_final || 0) > 0) return true
+  if (String(ticket?.valor_status || '').toLowerCase() === 'final') return true
+  if (isFinanceiro(ticket)) return true
+  const tasks = Array.isArray(ticket?.raw_tasks) ? ticket.raw_tasks : Array.isArray(ticket?.raw_instance?.instanceTasks) ? ticket.raw_instance.instanceTasks : []
+  return isCompra(ticket) && valueIsFinalForPurchase(ticket?.raw_instance || ticket, tasks)
+}
+
+function capexRegisteredSyncPatch(ticket: AnyRecord, row: AnyRecord = {}) {
+  const patch: AnyRecord = capexRegisteredPatchFromTicket(ticket, row)
+  const value = ticketValueForPayment(ticket)
+  if (!ticketHasReliableFinalValue(ticket) || !Number.isFinite(value) || value <= 0) {
+    delete patch.orcamento
+  }
+  return patch
+}
+
 async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
   if (!tickets.length) return { capexLinked: 0, paymentMatched: 0, paymentLinked: 0 }
   const byTicket = new Map<string, AnyRecord>()
@@ -1970,14 +1999,15 @@ async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
     if (!ticket) continue
     capexLinked++
     capexMatchedKeys.add(key)
+    const patch = capexRegisteredSyncPatch(ticket, row)
     await rest(`/capex_itens?id=eq.${Number(row.id)}`, {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
       body: JSON.stringify({
+        ...patch,
         ticket_raiz_url: ticket.ticket_link || null,
         ticket_raiz_instance_id: Number(ticket.zeev_instance_id),
         origem: 'ZEEV',
-        ticket_raiz_dados: ticketDataPatch(ticket, row.ticket_raiz_dados || {}),
       }),
     })
     await rest(`/capex_zeev_solicitacoes?zeev_instance_id=eq.${Number(ticket.zeev_instance_id)}`, {
@@ -2040,14 +2070,15 @@ async function reconcileRegisteredTicketsTargeted(tickets: AnyRecord[]) {
     if (!ticket) continue
     capexLinked++
     capexMatchedKeys.add(key)
+    const patch = capexRegisteredSyncPatch(ticket, row)
     await rest(`/capex_itens?id=eq.${Number(row.id)}`, {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
       body: JSON.stringify({
+        ...patch,
         ticket_raiz_url: ticket.ticket_link || null,
         ticket_raiz_instance_id: Number(ticket.zeev_instance_id),
         origem: 'ZEEV',
-        ticket_raiz_dados: ticketDataPatch(ticket, row.ticket_raiz_dados || {}),
       }),
     })
     await rest(`/capex_zeev_solicitacoes?zeev_instance_id=eq.${Number(ticket.zeev_instance_id)}`, {
@@ -2113,14 +2144,15 @@ async function reconcilePendingTicketsAlreadyRegistered() {
     const key = ticketDigits(row.ticket_raiz_instance_id || row.referencia)
     const ticket = pendingByTicket.get(key)
     if (!ticket) continue
+    const patch = capexRegisteredSyncPatch(ticket, row)
     await rest(`/capex_itens?id=eq.${Number(row.id)}`, {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
       body: JSON.stringify({
+        ...patch,
         ticket_raiz_url: ticket.ticket_link || null,
         ticket_raiz_instance_id: Number(ticket.zeev_instance_id),
         origem: 'ZEEV',
-        ticket_raiz_dados: ticketDataPatch(ticket, row.ticket_raiz_dados || {}),
       }),
     })
     await rest(`/capex_zeev_solicitacoes?id=eq.${Number(ticket.id)}&status=eq.pendente`, {
@@ -6146,6 +6178,15 @@ function paymentIsOverdue(row: AnyRecord) {
   return venc < new Date().toISOString().slice(0, 10)
 }
 
+function paymentStatusCanStillChange(row: AnyRecord) {
+  const st = norm(String(row?.st || ''))
+  if (!st) return true
+  if (st === 'pago') return false
+  if (st.includes('cancelado') || st.includes('cancelada')) return false
+  if (st.includes('rejeitado') || st.includes('rejeitada') || st.includes('reprovado') || st.includes('reprovada')) return false
+  return true
+}
+
 async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
   const limit = Math.max(1, Math.min(Number(input.limit || input.backfillLimit || input.backfill_limit || 150), 350))
   const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || input.file_limit || env('ZEEV_BACKFILL_FILE_LIMIT', '12')), 40))
@@ -6160,7 +6201,7 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
   const candidates = (rows || [])
     .filter((row: AnyRecord) => ticketDigits(row.ticket_raiz) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz))))
     .filter((row: AnyRecord) => !onlyOverdue || paymentIsOverdue(row))
-    .filter((row: AnyRecord) => targetSet.size || String(row.st || '').toUpperCase() !== 'PAGO')
+    .filter((row: AnyRecord) => targetSet.size || paymentStatusCanStillChange(row))
     .filter((row: AnyRecord) => targetSet.size || docsCheckIsStale(row, staleHours))
     .sort((a: AnyRecord, b: AnyRecord) => Number(paymentIsOverdue(b)) - Number(paymentIsOverdue(a)) || docsCandidateScore(a) - docsCandidateScore(b) || String(a.venc || '').localeCompare(String(b.venc || '')) || Number(a.id) - Number(b.id))
     .slice(0, limit)

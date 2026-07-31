@@ -4171,6 +4171,7 @@ def refresh_payment_statuses():
         total_limit = len(target_ids)
     base_batch = max(1, min(int(os.environ.get("ZEEV_STATUS_REFRESH_BATCH", os.environ.get("ZEEV_BACKFILL_BATCH", "6"))), 12))
     base_file_limit = max(1, min(int(os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "12")), 40))
+    stale_hours = int(os.environ.get("ZEEV_STATUS_REFRESH_STALE_HOURS", os.environ.get("ZEEV_BACKFILL_STALE_HOURS", "8")))
     out = {
         "ok": True,
         "mode": "refresh-payment-statuses",
@@ -4200,7 +4201,7 @@ def refresh_payment_statuses():
             "ticketIds": current_ticket_ids,
             "limit": current_limit,
             "fileLimit": file_limit,
-            "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", "8")),
+            "staleHours": stale_hours,
             "onlyOverdue": os.environ.get("ZEEV_STATUS_ONLY_OVERDUE", "true").lower() != "false",
         }
         if ZEEV_TOKEN:
