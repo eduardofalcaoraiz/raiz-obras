@@ -2940,7 +2940,8 @@ async function runWebhookTicketSync(input: AnyRecord) {
 async function runIngest(input: AnyRecord) {
   const tickets = Array.isArray(input.tickets) ? input.tickets : []
   const finalIngest = input.final !== false && input.partial !== true
-  const ingestBackfillLimit = Math.max(0, Math.min(Number(input.backfillLimit || env('ZEEV_INGEST_BACKFILL_LIMIT', '2')), 8))
+  const requestedBackfillLimit = input.backfillLimit ?? input.backfill_limit ?? env('ZEEV_INGEST_BACKFILL_LIMIT', '2')
+  const ingestBackfillLimit = Math.max(0, Math.min(Number(requestedBackfillLimit), 8))
   if (!tickets.length) {
     const backfill = finalIngest && ingestBackfillLimit ? await runBackfillDocs({ limit: ingestBackfillLimit, fileLimit: 2, refresh: false, includePayments: true, includeCapex: true }) : null
     await saveState('zeev-capex', {
