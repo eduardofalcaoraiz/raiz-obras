@@ -12,11 +12,11 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "incremental, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-pending-fiscal-metadata, repair-fiscal-metadata, repair-payment-fiscal-fields ou refresh-payment-statuses"
+        description: "incremental, id-sweep, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-pending-fiscal-metadata, repair-fiscal-metadata, repair-payment-fiscal-fields ou refresh-payment-statuses"
         required: true
         default: "incremental"
       start:
-        description: "Inicio ISO para retro"
+        description: "Inicio ISO para retro; no modo id-sweep pode ser o numero inicial do TR"
         required: false
       end:
         description: "Fim ISO para retro"
@@ -115,6 +115,13 @@ jobs:
           ZEEV_DEEP_SCAN: ${{ github.event_name == 'schedule' && github.event.schedule == '35 5 * * *' && '1' || github.event_name == 'workflow_dispatch' && inputs.mode != 'incremental' && '1' || '0' }}
           ZEEV_INCREMENTAL_MAX_PAGES_CAP: "2"
           ZEEV_INCREMENTAL_EXTRA_TICKET_CAP: "20"
+          ZEEV_INCREMENTAL_ID_SWEEP_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '32' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && inputs.backfill_limit || '0' }}
+          ZEEV_ID_SWEEP_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '120' }}
+          ZEEV_ID_SWEEP_START_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'id-sweep' && inputs.start || '' }}
+          ZEEV_ID_SWEEP_HEAD_LIMIT: "16"
+          ZEEV_ID_SWEEP_MAX_LOOKBACK: "6000"
+          ZEEV_ID_SWEEP_BATCH: "24"
+          ZEEV_ID_SWEEP_PAUSE_SECONDS: "0.35"
           ZEEV_ENRICH_CONCURRENCY: "3"
           ZEEV_SYNC_OVERLAP_HOURS: "36"
           ZEEV_NOTIFY: ${{ github.event_name == 'workflow_dispatch' && inputs.notify || 'false' }}
