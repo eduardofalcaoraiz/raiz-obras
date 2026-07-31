@@ -677,6 +677,27 @@ button{font-family:inherit;cursor:pointer}
 .capex-zeev-type-filter button:hover{border-color:color-mix(in srgb,var(--brand-cur,var(--accent)) 28%,var(--line));background:rgba(255,255,255,.86);color:var(--ink);transform:translateY(-1px)}
 .capex-zeev-type-filter button.active{border-color:color-mix(in srgb,var(--brand-cur,var(--accent)) 48%,var(--line));background:color-mix(in srgb,var(--brand-cur,var(--accent)) 12%,#fff);color:var(--brand-text,var(--accent-text))}
 .capex-zeev-type-filter span{min-width:20px;height:20px;border-radius:999px;background:rgba(255,255,255,.72);border:1px solid color-mix(in srgb,currentColor 18%,transparent);display:inline-flex;align-items:center;justify-content:center;font-family:"Geist",system-ui,sans-serif;font-size:11px;font-weight:900;padding:0 6px}
+.capex-zeev-notify-wrap{position:relative;z-index:12}
+.capex-zeev-notify-btn{height:36px;border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 28%,var(--line));background:rgba(255,255,255,.78);color:var(--ink);border-radius:999px;padding:0 12px;display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:900;cursor:pointer;transition:background .15s,border-color .15s,transform .12s,box-shadow .15s}
+.capex-zeev-notify-btn:hover,.capex-zeev-notify-wrap.open .capex-zeev-notify-btn{background:color-mix(in srgb,var(--brand-cur,var(--accent)) 10%,#fff);border-color:color-mix(in srgb,var(--brand-cur,var(--accent)) 44%,var(--line));transform:translateY(-1px);box-shadow:0 10px 22px -22px rgba(0,0,0,.5)}
+.capex-zeev-notify-icon{width:22px;height:22px;border-radius:999px;background:color-mix(in srgb,var(--brand-cur,var(--accent)) 12%,#fff);display:inline-flex;align-items:center;justify-content:center;color:var(--brand-text,var(--accent-text));font-size:13px;line-height:1}
+.capex-zeev-notify-count{min-width:20px;height:20px;border-radius:999px;background:var(--accent);color:var(--accent-readable);display:inline-flex;align-items:center;justify-content:center;font-family:"Geist",system-ui,sans-serif;font-size:11px;font-weight:950;padding:0 6px}
+.capex-zeev-notify-popover{position:absolute;right:0;top:43px;width:min(460px,calc(100vw - 28px));max-height:min(560px,calc(100vh - 180px));overflow:auto;border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 24%,var(--line));background:rgba(255,255,255,.98);border-radius:15px;box-shadow:0 26px 52px -28px rgba(0,0,0,.46);padding:12px;display:none}
+.capex-zeev-notify-wrap.open .capex-zeev-notify-popover{display:block}
+.capex-zeev-notify-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:2px 2px 10px;border-bottom:1px solid var(--line)}
+.capex-zeev-notify-head b{display:block;font-size:13.5px;color:var(--ink);line-height:1.2}
+.capex-zeev-notify-head span{display:block;font-size:11.5px;color:var(--muted);line-height:1.35;margin-top:2px}
+.capex-zeev-notify-head button{border:0;background:transparent;color:var(--brand-text,var(--accent-text));font-size:11.5px;font-weight:900;cursor:pointer;padding:2px 0;white-space:nowrap}
+.capex-zeev-notify-list{display:grid;gap:8px;padding-top:10px}
+.capex-zeev-notify-item{width:100%;text-align:left;font:inherit;cursor:pointer;border:1px solid var(--line);background:linear-gradient(135deg,rgba(255,255,255,.9),color-mix(in srgb,var(--brand-cur-light,var(--raiz-soft)) 16%,#fff));border-left:4px solid var(--brand-cur,var(--accent));border-radius:12px;padding:9px 10px;display:grid;gap:5px;color:var(--ink)}
+.capex-zeev-notify-item.unread{border-left-color:var(--accent);box-shadow:0 10px 24px -26px rgba(0,0,0,.45)}
+.capex-zeev-notify-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.capex-zeev-notify-row strong{font-size:12.8px;line-height:1.28;color:var(--ink)}
+.capex-zeev-notify-row time{font-size:10.8px;font-weight:800;color:var(--muted);white-space:nowrap}
+.capex-zeev-notify-item p{margin:0;font-size:12px;line-height:1.38;color:var(--muted);overflow-wrap:anywhere}
+.capex-zeev-notify-tags{display:flex;gap:5px;flex-wrap:wrap}
+.capex-zeev-notify-tags span{border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 18%,var(--line));background:rgba(255,255,255,.72);border-radius:999px;padding:3px 7px;font-size:10.8px;font-weight:850;color:var(--brand-text,var(--accent-text))}
+.capex-zeev-notify-empty{border:1px dashed var(--line-2);background:rgba(255,255,255,.6);border-radius:12px;padding:13px;font-size:12.2px;line-height:1.42;color:var(--muted)}
 .capex-zeev-list{display:grid;grid-template-columns:1fr;gap:9px;max-height:calc(100vh - 352px);overflow:auto;padding:1px}
 .capex-zeev-card{--card-accent:var(--brand-cur,var(--accent));--card-soft:var(--brand-cur-light,var(--raiz-soft))}
 .capex-zeev-card.ready{--card-accent:var(--ok);--card-soft:var(--ok-bg)}
@@ -3697,6 +3718,8 @@ async function refreshCapexZeevQueue(opts){
     const{data,error}=await loadCapexZeevSolicitacoes();
     if(error)throw error;
     capexZeevSolicitacoes=data||[];
+    capexZeevLastSyncStamp=capexZeevSyncStamp(capexZeevSyncState)||capexZeevLastSyncStamp;
+    capexZeevRecordQueueNotifications(capexZeevSolicitacoes);
     capexZeevLoaded=true;
     updateNavBadge();
     return capexZeevSolicitacoes;
@@ -6211,6 +6234,13 @@ let capexCardDescriptionOpen=new Set();
 let capexAutoFinalizeSyncing={};
 const CAPEX_ZEEV_VIEW_STATE_KEY='raiz-obraviva:capex-zeev-view:v2';
 const CAPEX_ZEEV_RETURN_STATE_KEY='raiz-obraviva:capex-zeev-return:v2';
+const CAPEX_ZEEV_NOTIFY_KEY='raiz-obraviva:capex-zeev-notify:v1';
+const CAPEX_ZEEV_NOTIFY_SNAPSHOT_KEY='raiz-obraviva:capex-zeev-notify-snapshot:v1';
+let capexZeevNotifications=[];
+let capexZeevNotificationsLoaded=false;
+let capexZeevNotificationOpen=false;
+let capexZeevLiveRefreshTimer=null;
+let capexZeevLastSyncStamp='';
 
 const CAPEX_UNIT_EXCEPTIONS=[
   {nome:'QI Metropolitano',marca:'QI',tipo:'Agregado CAPEX'}
@@ -7024,6 +7054,254 @@ function renderCapexZeevRequesterFilter(allPend){
       </div>
     </div>
   </details>`;
+}
+
+function capexZeevNotifyLoad(){
+  if(capexZeevNotificationsLoaded)return;
+  capexZeevNotificationsLoaded=true;
+  try{
+    const raw=localStorage.getItem(CAPEX_ZEEV_NOTIFY_KEY);
+    const parsed=raw?JSON.parse(raw):[];
+    capexZeevNotifications=Array.isArray(parsed)?parsed.filter(Boolean).slice(0,120):[];
+  }catch(e){capexZeevNotifications=[];}
+}
+
+function capexZeevNotifySave(){
+  capexZeevNotifyLoad();
+  try{localStorage.setItem(CAPEX_ZEEV_NOTIFY_KEY,JSON.stringify(capexZeevNotifications.slice(0,120)));}catch(e){}
+}
+
+function capexZeevSnapshotLoad(){
+  try{
+    const raw=localStorage.getItem(CAPEX_ZEEV_NOTIFY_SNAPSHOT_KEY);
+    const parsed=raw?JSON.parse(raw):null;
+    return parsed&&typeof parsed==='object'?parsed:{};
+  }catch(e){return{};}
+}
+
+function capexZeevSnapshotSave(snapshot){
+  try{localStorage.setItem(CAPEX_ZEEV_NOTIFY_SNAPSHOT_KEY,JSON.stringify(snapshot||{}));}catch(e){}
+}
+
+function capexZeevMoneySignature(v){
+  const n=Number(v||0);
+  return Number.isFinite(n)&&Math.abs(n)>0.004?n.toFixed(2):'';
+}
+
+function capexZeevMoneyText(sig){
+  return sig?fmt(Number(sig)):'sem valor';
+}
+
+function capexZeevFiscalNumber(z){
+  return String(z?.pagamento_json?.nota_fiscal||capexZeevAnyField(z,CAPEX_ZEEV_FISCAL_NUMBER_FIELDS)||'').trim();
+}
+
+function capexZeevNotifyDocKey(doc){
+  return paymentDocKey(doc)||[doc?.kind,doc?.name,doc?.storagePath,doc?.path,doc?.url].filter(Boolean).join('|');
+}
+
+function capexZeevNotifySignature(z){
+  const docs=capexZeevStoredDocs(z);
+  const docKeys=docs.map(capexZeevNotifyDocKey).filter(Boolean).sort().join('||');
+  return{
+    rowId:String(z?.id||''),
+    tr:String(z?.zeev_instance_id||z?.id||''),
+    kind:capexZeevTypeLabel(capexZeevType(z)),
+    rowStatus:String(z?.status||''),
+    ticketStatus:String(capexZeevTicketStatus(z)||''),
+    stage:String(capexZeevStageLabel(z)||''),
+    value:capexZeevMoneySignature(z?.valor),
+    valueFinal:capexZeevMoneySignature(z?.valor_final),
+    valueStatus:String(z?.valor_status||''),
+    vendor:String(capexZeevVendor(z)||''),
+    requester:String(capexZeevRequesterMeta(z).label||''),
+    fiscalNumber:capexZeevFiscalNumber(z),
+    docs:String(docs.length||0),
+    docKeys,
+    capexItem:String(z?.capex_item_id||''),
+    updatedAt:String(z?.updated_at||z?.last_seen_at||'')
+  };
+}
+
+function capexZeevNotifyChange(label,from,to,fmtFn){
+  const a=String(from||'').trim(),b=String(to||'').trim();
+  if(a===b)return null;
+  if(!a&&b)return `${label}: ${fmtFn?fmtFn(b):b}`;
+  if(a&&!b)return `${label}: removido`;
+  return `${label}: ${fmtFn?fmtFn(a):a} -> ${fmtFn?fmtFn(b):b}`;
+}
+
+function capexZeevNotificationDiff(prev,next){
+  const changes=[];
+  [
+    ['ticketStatus','Status Zeev'],
+    ['stage','Etapa'],
+    ['valueStatus','Tipo de valor'],
+    ['vendor','Fornecedor'],
+    ['requester','Solicitante'],
+    ['fiscalNumber','Doc. fiscal'],
+    ['rowStatus','Fila']
+  ].forEach(([key,label])=>{
+    const ch=capexZeevNotifyChange(label,prev?.[key],next?.[key]);
+    if(ch)changes.push(ch);
+  });
+  const finalChange=capexZeevNotifyChange('Valor final',prev?.valueFinal,next?.valueFinal,capexZeevMoneyText);
+  const valueChange=capexZeevNotifyChange('Valor',prev?.value,next?.value,capexZeevMoneyText);
+  if(finalChange)changes.unshift(finalChange);
+  else if(valueChange)changes.unshift(valueChange);
+  if(String(prev?.docs||'0')!==String(next?.docs||'0')){
+    changes.push(`Arquivos: ${prev?.docs||0} -> ${next?.docs||0}`);
+  }else if(String(prev?.docKeys||'')!==String(next?.docKeys||'')&&String(next?.docs||'0')!=='0'){
+    changes.push('Arquivos atualizados');
+  }
+  if(!prev?.capexItem&&next?.capexItem)changes.push('Registrado na plataforma');
+  return changes.filter(Boolean);
+}
+
+function capexZeevNotificationTime(v){
+  return capexZeevSyncDate(v)||capexZeevSyncDate(new Date().toISOString());
+}
+
+function capexZeevRecordQueueNotifications(rows){
+  capexZeevNotifyLoad();
+  const list=Array.isArray(rows)?rows:[];
+  const prev=capexZeevSnapshotLoad();
+  const next={};
+  const hasPrev=Object.keys(prev).length>0;
+  const existing=new Set(capexZeevNotifications.map(n=>String(n.id||'')));
+  const created=[];
+  list.forEach(z=>{
+    const sig=capexZeevNotifySignature(z);
+    if(!sig.tr)return;
+    next[sig.tr]=sig;
+    if(!hasPrev)return;
+    const old=prev[sig.tr];
+    const at=sig.updatedAt||new Date().toISOString();
+    if(!old){
+      const id=`new|${sig.tr}|${at}`;
+      if(existing.has(id))return;
+      existing.add(id);
+      created.push({id,tr:sig.tr,rowId:sig.rowId,type:'new',title:`TR ${sig.tr} entrou na fila`,summary:[sig.kind,sig.ticketStatus,capexZeevMoneyText(sig.valueFinal||sig.value)].filter(Boolean).join(' | '),tags:['Novo',sig.kind].filter(Boolean),at,read:false});
+      return;
+    }
+    const changes=capexZeevNotificationDiff(old,sig);
+    if(!changes.length)return;
+    const id=`upd|${sig.tr}|${changes.join('||')}|${at}`;
+    if(existing.has(id))return;
+    existing.add(id);
+    created.push({id,tr:sig.tr,rowId:sig.rowId,type:'update',title:`TR ${sig.tr} atualizado`,summary:changes.slice(0,5).join(' | '),tags:[sig.kind,sig.valueStatus==='final'?'Valor final':''].filter(Boolean),at,read:false});
+  });
+  capexZeevSnapshotSave(next);
+  if(created.length){
+    capexZeevNotifications=[...created,...capexZeevNotifications]
+      .sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')))
+      .slice(0,120);
+    capexZeevNotifySave();
+  }
+  renderCapexZeevNotificationBell();
+}
+
+function capexZeevUnreadNotifications(){
+  capexZeevNotifyLoad();
+  return capexZeevNotifications.filter(n=>!n.read).length;
+}
+
+function capexZeevNotificationItemsHtml(){
+  capexZeevNotifyLoad();
+  const rows=capexZeevNotifications.slice(0,40);
+  if(!rows.length)return'<div class="capex-zeev-notify-empty">Nenhuma atualizacao nova registrada neste navegador ainda. O sininho vai mostrar novos TRs e mudancas de status, etapa, valor, fornecedor, documento fiscal e anexos assim que a fila for atualizada.</div>';
+  return`<div class="capex-zeev-notify-list">${rows.map(n=>`<button type="button" class="capex-zeev-notify-item ${n.read?'':'unread'}" onclick="focusCapexZeevNotification('${escHtml(n.rowId||'')}','${escHtml(n.tr||'')}')">
+    <div class="capex-zeev-notify-row"><strong>${escHtml(n.title||'Atualizacao')}</strong><time>${escHtml(capexZeevNotificationTime(n.at))}</time></div>
+    <p>${escHtml(n.summary||'Ticket atualizado pela automacao Zeev.')}</p>
+    <div class="capex-zeev-notify-tags">${(n.tags||[]).slice(0,3).map(t=>`<span>${escHtml(t)}</span>`).join('')}</div>
+  </button>`).join('')}</div>`;
+}
+
+function renderCapexZeevNotificationBellHtml(){
+  capexZeevNotifyLoad();
+  const unread=capexZeevUnreadNotifications();
+  const total=capexZeevNotifications.length;
+  return`<div class="capex-zeev-notify-wrap ${capexZeevNotificationOpen?'open':''}">
+    <button type="button" class="capex-zeev-notify-btn" onclick="toggleCapexZeevNotifications(event)" title="Ver atualizacoes dos Tickets Raiz">
+      <span class="capex-zeev-notify-icon">&#128276;</span><span>Atualizacoes</span>${unread?`<span class="capex-zeev-notify-count">${unread>99?'99+':unread}</span>`:''}
+    </button>
+    <div class="capex-zeev-notify-popover" onclick="event.stopPropagation()">
+      <div class="capex-zeev-notify-head">
+        <div><b>Atualizacoes dos TRs</b><span>${total?`${total} registro${total!==1?'s':''} recentes da fila Zeev`:'Aguardando mudancas da automacao'}</span></div>
+        <button type="button" onclick="clearCapexZeevNotifications()">Limpar</button>
+      </div>
+      ${capexZeevNotificationItemsHtml()}
+    </div>
+  </div>`;
+}
+
+function renderCapexZeevNotificationBell(){
+  const host=document.getElementById('capex-zeev-notification-host');
+  if(host)host.innerHTML=renderCapexZeevNotificationBellHtml();
+}
+
+function toggleCapexZeevNotifications(ev){
+  if(ev)ev.stopPropagation();
+  capexZeevNotificationOpen=!capexZeevNotificationOpen;
+  if(capexZeevNotificationOpen){
+    capexZeevNotifyLoad();
+    capexZeevNotifications=capexZeevNotifications.map(n=>({...n,read:true}));
+    capexZeevNotifySave();
+  }
+  renderCapexZeevNotificationBell();
+}
+
+function clearCapexZeevNotifications(){
+  capexZeevNotifications=[];
+  capexZeevNotifySave();
+  renderCapexZeevNotificationBell();
+}
+
+function focusCapexZeevNotification(rowId,tr){
+  capexZeevNotificationOpen=false;
+  renderCapexZeevNotificationBell();
+  setCapexZeevSearch(tr||rowId||'');
+  setTimeout(()=>{
+    const card=Array.from(document.querySelectorAll('#capex-zeev-results [data-zeev-card-id]')).find(el=>String(el.dataset.zeevCardId||'')===String(rowId||''));
+    if(card){
+      card.open=true;
+      card.scrollIntoView({block:'center',behavior:'smooth'});
+    }else{
+      toast('TR filtrado. Se nao aparecer, ele ja saiu da fila pendente.');
+    }
+  },90);
+}
+
+function capexZeevSyncStamp(s){
+  if(!s)return'';
+  return[String(s.last_success_at||''),String(s.updated_at||''),String(s.last_run_found||''),String(s.last_run_new||''),String(s.last_run_updated||''),String(s.running||''),String(s.last_error||'')].join('|');
+}
+
+function scheduleCapexZeevLiveRefresh(delay){
+  if(capexZeevLiveRefreshTimer)clearTimeout(capexZeevLiveRefreshTimer);
+  if(!isRegistrosViewActive())return;
+  capexZeevLiveRefreshTimer=setTimeout(capexZeevLiveRefreshTick,delay||60000);
+}
+
+async function capexZeevLiveRefreshTick(){
+  capexZeevLiveRefreshTimer=null;
+  if(!isRegistrosViewActive())return;
+  try{
+    const before=capexZeevSyncStamp(capexZeevSyncState)||capexZeevLastSyncStamp;
+    await refreshCapexZeevSyncState();
+    const after=capexZeevSyncStamp(capexZeevSyncState);
+    if(after&&after!==before){
+      capexZeevLastSyncStamp=after;
+      await refreshCapexZeevQueue({force:true});
+      if(isRegistrosViewActive())renderRegistrosPendentes();
+    }else{
+      renderCapexZeevNotificationBell();
+    }
+  }catch(e){
+    console.warn('capexZeevLiveRefreshTick:',e);
+  }finally{
+    scheduleCapexZeevLiveRefresh();
+  }
 }
 
 function capexZeevSearchKey(ev){
@@ -8531,6 +8809,7 @@ function renderCapexZeevResults(){
   document.querySelectorAll('[data-zeev-type-filter]').forEach(btn=>{
     btn.classList.toggle('active',btn.getAttribute('data-zeev-type-filter')===capexZeevTypeFilter);
   });
+  renderCapexZeevNotificationBell();
 }
 
 function renderCapexZeevQueue(){
@@ -8541,6 +8820,7 @@ function renderCapexZeevQueue(){
       <div class="capex-zeev-head">
         <div><div class="capex-zeev-title">Registros pendentes do Ticket Raiz</div><div class="capex-zeev-sub">Solicitacoes marcadas como CAPEX no Zeev. A fila esta sendo carregada sem travar a plataforma.</div></div>
         <div class="capex-zeev-kpis">
+          <div id="capex-zeev-notification-host">${renderCapexZeevNotificationBellHtml()}</div>
           <button class="btn btn-ghost btn-sm" onclick="syncZeevCapexNow()">Atualizar Zeev</button>
         </div>
       </div>
@@ -8557,6 +8837,7 @@ function renderCapexZeevQueue(){
     <div class="capex-zeev-head">
       <div><div class="capex-zeev-title">Registros pendentes do Ticket Raiz</div><div class="capex-zeev-sub">Solicitacoes marcadas como CAPEX no Zeev. Revise os dados e escolha a unidade manualmente antes de registrar.</div></div>
       <div class="capex-zeev-kpis">
+        <div id="capex-zeev-notification-host">${renderCapexZeevNotificationBellHtml()}</div>
         <span class="capex-zeev-pill" id="capex-zeev-visible-count">${capexZeevCountText(pend.length,allPend.length)}</span>
         <span class="capex-zeev-pill">${ready} pronto${ready!==1?'s':''}</span>
         <button class="btn btn-ghost btn-sm" onclick="openCapexNotCapexModal()">NÃO É CAPEX (${ignored})</button>
@@ -8586,6 +8867,7 @@ function renderRegistrosPendentes(){
   const body=document.getElementById('registros-pendentes-body');
   if(body)body.innerHTML=renderCapexZeevQueue();
   updateNavBadge();
+  scheduleCapexZeevLiveRefresh();
   scheduleActivePageArt(['RAIZ']);
 }
 
@@ -19840,6 +20122,12 @@ async function onLogin(user){
   try{
     applySideCollapsePreference();
     window.addEventListener('resize',applySideCollapsePreference);
+    document.addEventListener('click',ev=>{
+      if(!capexZeevNotificationOpen)return;
+      if(ev.target&&ev.target.closest&&ev.target.closest('.capex-zeev-notify-wrap'))return;
+      capexZeevNotificationOpen=false;
+      renderCapexZeevNotificationBell();
+    });
     const{data:{session},error}=await db.auth.getSession();
     if(error)throw error;
     if(session){
