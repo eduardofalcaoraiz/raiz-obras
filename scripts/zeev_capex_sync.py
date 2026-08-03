@@ -4298,7 +4298,7 @@ def doc_rescue_fast_edge_enabled():
     return os.environ.get("ZEEV_DOC_RESCUE_FAST_EDGE", "1").strip().lower() not in {"0", "false", "nao", "no", "off"}
 
 
-def backfill_docs_for_ticket_ids(ticket_ids, file_limit=None):
+def backfill_docs_for_ticket_ids(ticket_ids, file_limit=None, timeout=None):
     parsed_ticket_ids = parse_ticket_ids(ticket_ids)
     edge_limit = int(os.environ.get("ZEEV_DOC_RESCUE_EDGE_LIMIT", "6") or "6")
     payload = {
@@ -4317,12 +4317,19 @@ def backfill_docs_for_ticket_ids(ticket_ids, file_limit=None):
         payload["zeevToken"] = ZEEV_TOKEN
     add_doc_rescue_marker(payload)
     add_document_options(payload)
+    request_timeout = max(
+        30,
+        min(
+            int(timeout or os.environ.get("ZEEV_DOC_RESCUE_EDGE_TIMEOUT_SECONDS", "120") or "120"),
+            240,
+        ),
+    )
     return request_json(
         "POST",
         f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
         headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
         payload=payload,
-        timeout=300,
+        timeout=request_timeout,
         retries=1,
     )
 
@@ -4390,17 +4397,21 @@ def rescue_block_report(result):
         "recentHours": int(os.environ.get("ZEEV_RESCUE_BLOCK_RECENT_HOURS", "24")),
     }
     add_doc_rescue_marker(payload)
+    report_timeout = max(
+        20,
+        min(int(os.environ.get("ZEEV_RESCUE_BLOCK_EMAIL_TIMEOUT_SECONDS", "60") or "60"), 120),
+    )
     return request_json(
         "POST",
         f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
         headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
         payload=payload,
-        timeout=240,
-        retries=2,
+        timeout=report_timeout,
+        retries=1,
     )
 
 
-def rescue_docs():
+def rescue_docs(deadline=None):
     requested_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     if requested_ids:
         candidate_result = {
@@ -4431,12 +4442,24 @@ def rescue_docs():
         "errors": [],
     }
     for start in range(0, len(ids), limit):
+        if deadline and time.time() >= deadline:
+            out["timeLimitReached"] = True
+            out["partial"] = out["processed"] > 0
+            break
         chunk = ids[start:start + limit]
         try:
             if doc_rescue_fast_edge_enabled():
                 tickets = []
                 downloaded = 0
-                edge_backfill = backfill_docs_for_ticket_ids(chunk)
+                edge_timeout = None
+                if deadline:
+                    remaining = max(0, deadline - time.time())
+                    if remaining < 30:
+                        out["timeLimitReached"] = True
+                        out["partial"] = out["processed"] > 0
+                        break
+                    edge_timeout = max(30, min(120, int(remaining - 10)))
+                edge_backfill = backfill_docs_for_ticket_ids(chunk, timeout=edge_timeout)
                 result = {"backfill": edge_backfill}
                 edge_direct = direct_docs_from_result(edge_backfill)
                 edge_attached = int(edge_direct.get("filesAttached", 0) or 0)
@@ -4447,6 +4470,7 @@ def rescue_docs():
                     and direct_doc_rescue_file_limit() > 0
                     and edge_attached <= 0
                     and (edge_errors or int(edge_direct.get("checkedWithoutFiscal", 0) or 0) > 0 or not edge_direct)
+                    and (not deadline or deadline - time.time() >= 90)
                 )
                 if should_fallback:
                     tickets = sync_ids(chunk, allow_non_capex=True, reason="Fallback direto para resgate de documentos Zeev")
@@ -4503,7 +4527,8 @@ def rescue_docs():
                 out["partial"] = out["processed"] > 0
                 break
             raise
-        time.sleep(float(os.environ.get("ZEEV_DOC_RESCUE_PAUSE_SECONDS", "1")))
+        if not deadline or time.time() < deadline:
+            time.sleep(float(os.environ.get("ZEEV_DOC_RESCUE_PAUSE_SECONDS", "1")))
     if len(out["errors"]) > 25:
         out["errors"] = out["errors"][:25]
     if len(out["obraDoneEmails"]) > 80:
@@ -4518,6 +4543,7 @@ def rescue_docs():
 
 def rescue_docs_loop():
     started = time.time()
+    deadline = started + max(60, min(int(os.environ.get("ZEEV_DOC_RESCUE_LOOP_SECONDS", "900")), 1200))
     max_seconds = max(60, min(int(os.environ.get("ZEEV_DOC_RESCUE_LOOP_SECONDS", "900")), 1200))
     max_rounds = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_LOOP_ROUNDS", "6")), 20))
     max_transient_retries = max(1, min(int(os.environ.get("ZEEV_DOC_RESCUE_MAX_TRANSIENT_RETRIES", "2")), 6))
@@ -4542,7 +4568,7 @@ def rescue_docs_loop():
             out["timeLimitReached"] = True
             break
         try:
-            result = rescue_docs()
+            result = rescue_docs(deadline=deadline)
         except Exception as exc:
             msg = str(exc)
             out["errors"].append({"round": round_idx + 1, "transient": is_transient_http_error(msg), "error": msg[:700]})
@@ -4589,7 +4615,8 @@ def rescue_docs_loop():
         if not result.get("ok", True):
             out["ok"] = False
             break
-        time.sleep(float(os.environ.get("ZEEV_DOC_RESCUE_LOOP_PAUSE_SECONDS", "2")))
+        if time.time() < deadline:
+            time.sleep(float(os.environ.get("ZEEV_DOC_RESCUE_LOOP_PAUSE_SECONDS", "2")))
     if len(out["errors"]) > 30:
         out["errors"] = out["errors"][:30]
     if len(out["obraDoneEmails"]) > 120:
@@ -4600,10 +4627,13 @@ def rescue_docs_loop():
         out["attachedTickets"] = out["attachedTickets"][:300]
     out["elapsedSeconds"] = round(time.time() - started, 1)
     out["completed"] = out.get("completed", False)
-    try:
-        out["blockEmail"] = rescue_block_report(out)
-    except Exception as exc:
-        out["blockEmail"] = {"ok": False, "error": str(exc)[:700]}
+    if time.time() >= deadline:
+        out["blockEmail"] = {"ok": True, "skipped": True, "reason": "limite_do_ciclo_atingido"}
+    else:
+        try:
+            out["blockEmail"] = rescue_block_report(out)
+        except Exception as exc:
+            out["blockEmail"] = {"ok": False, "error": str(exc)[:700]}
     return out
 
 
