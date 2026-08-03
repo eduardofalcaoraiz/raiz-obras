@@ -1948,9 +1948,7 @@ async function runZeevTokenHealth(input: AnyRecord = {}) {
     if (instanceId) {
       const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
       const fieldAttempts = [
-        ['numeroDaNF', 'valorTotalDoPagamento', 'valorTotalDoPagamento01', 'anexarNotaFiscal'],
         ['numeroDaNF'],
-        ['valorTotalDoPagamento'],
         [],
       ]
       for (const fieldsToRequest of fieldAttempts) {
@@ -1962,7 +1960,7 @@ async function runZeevTokenHealth(input: AnyRecord = {}) {
               Accept: 'application/json',
               'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
             },
-          }, { timeoutMs: 9000, needsFormFields: fieldsToRequest.length > 0 })
+          }, { timeoutMs: 5000, needsFormFields: fieldsToRequest.length > 0 })
           const fields = Array.isArray(data?.formFields) ? data.formFields : []
           if (fieldsToRequest.length && !fields.length) {
             throw new Error(`instance ${instanceId}: sem formFields para ${fieldsToRequest.join(',')}`)
@@ -1993,17 +1991,39 @@ async function runZeevTokenHealth(input: AnyRecord = {}) {
   const begin = new Date(now.getTime() - 48 * 3600 * 1000).toISOString().replace(/\.\d{3}Z$/, '+00:00')
   const finish = now.toISOString().replace(/\.\d{3}Z$/, '+00:00')
   const reportErrors: string[] = []
-  for (const flow of flowIds.slice(0, 10)) {
+  const healthFlowLimit = Math.max(1, Math.min(Number(input.healthFlowLimit || input.health_flow_limit || env('ZEEV_HEALTH_FLOW_LIMIT', '3')) || 3, 10))
+  for (const flow of flowIds.slice(0, healthFlowLimit)) {
     try {
-      const report = await zeevReport(flow, 1, begin, finish)
-      const rows = report.rows || []
+      const fields = capexFieldsForFlow(flow).slice(0, 2)
+      const rows = await zeevJsonRequest(`${env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')}/api/2/instances/report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: '*/*',
+          'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
+        },
+        body: JSON.stringify({
+          flowId: flow,
+          startDateIntervalBegin: begin,
+          startDateIntervalEnd: finish,
+          recordsPerPage: 1,
+          pageNumber: 1,
+          useCache: false,
+          formFieldNames: fields,
+          showPendingInstanceTasks: true,
+          showFinishedInstanceTasks: true,
+          showPendingAssignees: true,
+          allowOpenUrlsForFilesInForm: true,
+        }),
+      }, { mergeRows: true, timeoutMs: 5000 })
       return {
         ok: true,
         status: 'ok',
         probe: 'report',
         flowId: flow,
         flowIds,
-        fieldAttempt: report.fieldAttempt || '',
+        healthFlowLimit,
+        fieldAttempt: fields.join(','),
         rows: Array.isArray(rows) ? rows.length : 0,
         instanceProbeError: instanceErrors[0] || '',
         tokenInfo,
@@ -2019,6 +2039,7 @@ async function runZeevTokenHealth(input: AnyRecord = {}) {
     status: 'unhealthy',
     instanceId: instanceId || '',
     flowIds,
+    healthFlowLimit,
     error: [...instanceErrors.map((e) => `instance: ${e}`), ...reportErrors].join(' | ').slice(0, 900),
     tokenInfo,
     elapsedMs: Date.now() - started,
