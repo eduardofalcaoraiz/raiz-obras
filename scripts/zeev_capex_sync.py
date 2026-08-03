@@ -1247,6 +1247,27 @@ def instance_fields(instance_id, fields, timeout=90, retries=3):
             break
         except Exception as exc:
             errors.append(f"{label}: {str(exc)[:450]}")
+    if fields and not found:
+        fallback_errors = []
+        try:
+            latest_all, found_all = instance_fields(instance_id, [], timeout=timeout, retries=max(1, retries - 1))
+            latest = latest_all or latest
+            found = merge_zeev_fields(found, found_all)
+        except Exception as exc:
+            fallback_errors.append(f"fallback sem formFieldNames: {str(exc)[:300]}")
+        if len(fields) > 1 and not found:
+            for field_name in unique_fields(fields):
+                try:
+                    latest_one, found_one = instance_fields(instance_id, [field_name], timeout=timeout, retries=max(1, retries - 1))
+                    latest = latest_one or latest
+                    found = merge_zeev_fields(found, found_one)
+                    if has_capex(found, int((latest.get("flow") or {}).get("id") or latest.get("flowId") or latest.get("flow_id") or 0)):
+                        break
+                except Exception as exc:
+                    fallback_errors.append(f"{field_name}: {str(exc)[:220]}")
+        if found or latest:
+            return latest, found
+        errors.extend(fallback_errors)
     if not latest and errors:
         raise RuntimeError(" | ".join(errors))
     return latest, found
@@ -1800,6 +1821,15 @@ def probe_capex_ticket_id(instance_id):
         latest, fields = instance_fields(instance_id, capex_fields(None), timeout=timeout, retries=retries)
         flow_id = int((latest.get("flow") or {}).get("id") or latest.get("flowId") or latest.get("flow_id") or 0)
         capex = has_capex(fields, flow_id)
+        if not capex:
+            report_link = latest.get("reportLink") or latest.get("reportUrl") or ""
+            if report_link:
+                try:
+                    report_fields, _ = fetch_report_link_fields(report_link)
+                    fields = merge_zeev_fields(fields, report_fields)
+                    capex = has_capex(fields, flow_id)
+                except Exception:
+                    pass
         return {
             "tr": int(instance_id),
             "ok": True,
