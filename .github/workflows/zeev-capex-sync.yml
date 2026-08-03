@@ -84,8 +84,8 @@ on:
         default: "false"
 
 concurrency:
-  group: zeev-capex-sync-${{ github.event_name == 'schedule' && 'scheduled' || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'schedule' }}
+  group: zeev-capex-sync-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   sync:
