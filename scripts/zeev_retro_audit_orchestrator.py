@@ -50,7 +50,7 @@ class Github:
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "RaizObraViva-RetroAudit/1.0",
+            "User-Agent": "ObrasRealEstate-RetroAudit/1.0",
         }
         self.api = f"https://api.github.com/repos/{REPO}"
 
@@ -149,7 +149,7 @@ class Github:
             if not location:
                 raise
             with urllib.request.urlopen(
-                urllib.request.Request(location, headers={"User-Agent": "RaizObraViva-RetroAudit/1.0"}),
+                urllib.request.Request(location, headers={"User-Agent": "ObrasRealEstate-RetroAudit/1.0"}),
                 timeout=180,
             ) as resp:
                 return resp.read()

@@ -46,7 +46,7 @@ def _auth_user(handler: BaseHTTPRequestHandler) -> bool:
             "apikey": SUPABASE_ANON,
             "Authorization": f"Bearer {token}",
             "Accept": "application/json",
-            "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
+            "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
         },
     )
     try:
@@ -103,7 +103,7 @@ class handler(BaseHTTPRequestHandler):
                 headers={
                     "Authorization": f"Bearer {token}",
                     "Accept": "*/*",
-                    "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
+                    "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
                 },
             )
             with urllib.request.urlopen(req, timeout=45) as resp:

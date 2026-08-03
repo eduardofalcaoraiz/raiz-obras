@@ -23,7 +23,7 @@ $url = "https://github.com/supabase/cli/releases/download/v$version/supabase_$ve
 New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
 New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
 
-Invoke-WebRequest -Uri $url -OutFile $zipPath -Headers @{ 'User-Agent' = 'RaizObraViva-Codex' } -TimeoutSec 180
+Invoke-WebRequest -Uri $url -OutFile $zipPath -Headers @{ 'User-Agent' = 'ObrasRealEstate-Codex' } -TimeoutSec 180
 Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
 
 $downloadedExe = Get-ChildItem -Path $extractDir -Recurse -Filter 'supabase.exe' | Select-Object -First 1

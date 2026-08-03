@@ -1,6 +1,6 @@
-# Raiz Educação — Gestão de Obras e Documentos
+# Raiz Educação — Obras e Real Estate
 
-Plataforma interna de gestão financeira de obras (CAPEX) e documentação das unidades escolares do grupo Raiz Educação.
+Plataforma interna da Raiz Educação para gestão de obras, CAPEX, documentos das unidades escolares e Real Estate.
 
 ## 🚀 App em produção
 **https://raiz-obras.vercel.app**

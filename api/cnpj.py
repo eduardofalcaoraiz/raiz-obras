@@ -29,7 +29,7 @@ def _fetch_json(url: str, timeout: float = 12.0) -> dict[str, Any]:
         url,
         headers={
             "Accept": "application/json",
-            "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
+            "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
         },
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:

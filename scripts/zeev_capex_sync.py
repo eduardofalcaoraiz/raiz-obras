@@ -426,7 +426,7 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
     merged = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
+        "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
         **(headers or {}),
     }
     is_zeev = str(url).startswith(ZEEV_BASE_URL) and str(merged.get("Authorization") or "").lower().startswith("bearer ")
@@ -680,7 +680,7 @@ def supabase_healthcheck(timeout=12):
         "x-cron-secret": ZEEV_SYNC_SECRET,
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "User-Agent": "RaizObraViva/healthcheck",
+        "User-Agent": "ObrasRealEstate/healthcheck",
     }
     try:
         req = urllib.request.Request(url, data=body, method="POST", headers=headers)
@@ -2377,7 +2377,7 @@ def http_probe(url, method="GET", payload=None):
     base_headers = {
         "Accept": "application/json,text/html,*/*",
         "Content-Type": "application/json",
-        "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
+        "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
     }
     raw = b""
     status = 0
@@ -2473,7 +2473,7 @@ def fetch_text_for_source(url):
     timeout = max(5, min(int(os.environ.get("ZEEV_INSPECT_HTTP_TIMEOUT_SECONDS", "15")), 45))
     base_headers = {
         "Accept": "text/html,application/javascript,text/javascript,application/json,*/*",
-        "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
+        "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
     }
     last = (0, "", "")
     for token in zeev_tokens() or [""]:
@@ -2784,7 +2784,7 @@ def fetch_binary_for_rescue(url):
         seen.add(key)
         headers = {
             "Accept": "application/pdf,application/xml,text/xml,image/*,application/octet-stream,application/json,text/html,*/*",
-            "User-Agent": "RaizObraViva/1.0 (+https://raiz-obras.vercel.app)",
+            "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
         }
         if token and auth_mode == "bearer":
             headers["Authorization"] = f"Bearer {token}"

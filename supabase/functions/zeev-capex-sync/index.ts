@@ -1050,7 +1050,7 @@ async function zeewFlowDesignDocumentFields(flow: number) {
     const data = await zeevJsonRequest(`${base}/api/2/flows/${flow}/design/form`, {
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+        'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
       },
     })
     const fields = walkJsonObjects(data)
@@ -1376,7 +1376,7 @@ async function fetchReportLinkFields(reportLink: unknown) {
   const { res, text } = await zeevTextRequest(url, {
     headers: {
       Accept: 'text/html,application/xhtml+xml,application/json,*/*',
-      'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+      'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
     },
   })
   return { fields: reportFieldsFromHtml(text), error: '', length: text.length, contentType: res.headers.get('Content-Type') || '' }
@@ -1825,7 +1825,7 @@ async function runZeevTokenHealth() {
     const data = await zeevJsonRequest(url.toString(), {
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+        'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
       },
     }, { timeoutMs: 9000, needsFormFields: true })
     const fields = Array.isArray(data?.formFields) ? data.formFields : []
@@ -2377,7 +2377,7 @@ async function zeevReport(flow: number, page: number, start: string, end: string
       headers: {
         'Content-Type': 'application/json',
         'Accept': '*/*',
-        'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+        'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
       },
       body: JSON.stringify(body),
     }, { needsFormFields: true, mergeRows: true })
@@ -2440,7 +2440,7 @@ async function zeevInstance(instanceId: number, flow: number, fields: string[]) 
       const data = await zeevJsonRequest(url, {
         headers: {
           Accept: 'application/json',
-          'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+          'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
         },
       }, { needsFormFields: fieldList.length > 0 })
       if (data && typeof data === 'object' && !fallback) fallback = data
@@ -2503,7 +2503,7 @@ async function zeevInstanceReport(instanceId: number, flow: number, fields: stri
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+          'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
         },
         body: JSON.stringify(body),
       }, { needsFormFields: fieldList.length > 0, mergeRows: true })
@@ -2556,7 +2556,7 @@ async function zeevMessages(instanceId: number) {
   const data = await zeevJsonRequest(url.toString(), {
     headers: {
       Accept: 'application/json',
-      'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+      'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
     },
   })
   return Array.isArray(data) ? data : []
@@ -2715,7 +2715,7 @@ async function sendHtmlEmail(subject: string, html: string, toValue?: string) {
   const recipients = notifyRecipients(toValue)
   if (!recipients.length) return { sent: false, reason: 'ZEEV_NOTIFY_EMAIL ausente' }
   const resend = env('RESEND_API_KEY')
-  const from = env('ZEEV_EMAIL_FROM', 'Raiz ObraViva <onboarding@resend.dev>')
+  const from = env('ZEEV_EMAIL_FROM', 'Obras e Real Estate - Raiz Educacao <onboarding@resend.dev>')
   if (resend) {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -2732,7 +2732,7 @@ async function sendHtmlEmail(subject: string, html: string, toValue?: string) {
   const brevo = env('BREVO_API_KEY')
   if (brevo) {
     const senderEmail = env('BREVO_SENDER_EMAIL') || env('ZEEV_EMAIL_FROM_ADDRESS')
-    const senderName = env('BREVO_SENDER_NAME', 'Raiz ObraViva')
+    const senderName = env('BREVO_SENDER_NAME', 'Obras e Real Estate - Raiz Educacao')
     if (!senderEmail) return { sent: false, reason: 'BREVO_SENDER_EMAIL ausente' }
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
@@ -2766,7 +2766,7 @@ async function sendEmail(ticket: AnyRecord) {
       <p><b>Solicitante:</b> ${htmlEscape(ticket.requester_name || '')}</p>
       <p><b>Etapa atual:</b> ${htmlEscape(ticket.etapa_atual || 'Nao informada')}</p>
       ${link ? `<p><a href="${htmlEscape(link)}">Abrir Ticket Raiz</a></p>` : ''}
-      <p>O ticket ja esta aguardando analise na fila de CAPEX da Raiz ObraViva.</p>
+      <p>O ticket ja esta aguardando analise na fila de CAPEX da plataforma Obras e Real Estate.</p>
     </div>`
   return await sendHtmlEmail(subject, html)
 }
@@ -3140,7 +3140,7 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
         Accept: 'application/vnd.github+json',
         'Content-Type': 'application/json',
         'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'RaizObraViva-ZeevSync',
+        'User-Agent': 'ObrasRealEstate-ZeevSync',
       },
       body: JSON.stringify({ ref, inputs: workflowInputs }),
     })
@@ -3227,7 +3227,7 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
       'x-zeev-token': token,
       ...(extraTokens ? { 'x-zeev-extra-tokens': extraTokens } : {}),
       'Content-Type': 'application/json',
-      'User-Agent': 'RaizObraViva-SupabaseDispatcher',
+      'User-Agent': 'ObrasRealEstate-SupabaseDispatcher',
     },
     body: JSON.stringify(body),
   })
@@ -4231,7 +4231,7 @@ async function downloadZeevDocFromUrl(doc: AnyRecord, url: string, depth = 0): P
   const res = await zeevBinaryRequest(url, {
     headers: {
       Accept: '*/*',
-      'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+      'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
     },
   }, {
     timeoutMs: Math.max(4000, Math.min(Number(env('ZEEV_FILE_DOWNLOAD_TIMEOUT_MS', '8000')) || 8000, 30000)),
@@ -5423,7 +5423,7 @@ async function sendObraDocScanEmail(summary: AnyRecord) {
       <p style="margin:4px 0 0"><b>Resultado:</b> todos os pagamentos com TR desta obra foram checados pela varredura controlada. ${summary.missingFiscalRows ? `${htmlEscape(summary.missingFiscalRows)} lancamento(s) continuam sem documento fiscal localizado no Zeev.` : 'Nao ha documento fiscal faltante nos lancamentos checados.'}</p>
       ${missingHtml}
     </div>`
-  return await sendHtmlEmail(`Raiz ObraViva - varredura concluida: ${nome}`, html)
+  return await sendHtmlEmail(`Obras e Real Estate - varredura concluida: ${nome}`, html)
 }
 
 async function notifyCompletedObraDocScans(obraIds: number[], staleHours: number) {
@@ -5603,7 +5603,7 @@ async function runRescueBlockReport(input: AnyRecord = {}) {
   const checkedWithoutFiscalTickets = Array.isArray(result.checkedWithoutFiscalTickets) ? result.checkedWithoutFiscalTickets : []
   const rounds = Number(result.rounds || 0)
   const queueTotal = Number(audit?.queue?.total || 0)
-  const subject = `Raiz ObraViva - bloco Zeev finalizado: fila ${queueTotal}`
+  const subject = `Obras e Real Estate - bloco Zeev finalizado: fila ${queueTotal}`
   const runLink = runId ? `https://github.com/eduardofalcaoraiz/raiz-obras/actions/runs/${encodeURIComponent(runId)}` : ''
   const html = `
     <div style="font-family:Arial,sans-serif;color:#173C34;line-height:1.5;background:#fffaf3;padding:20px;border-radius:12px">
@@ -6350,7 +6350,7 @@ async function zeevFiscalFieldsQuick(instanceId: number, flow: number, fields: s
     const data = await zeevJsonRequest(getUrl.toString(), {
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+        'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
       },
     }, { needsFormFields: true, timeoutMs: 8000 })
     if (hasFormFields(data)) return data
@@ -6374,7 +6374,7 @@ async function zeevFiscalFieldsQuick(instanceId: number, flow: number, fields: s
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+          'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
         },
         body: JSON.stringify(body),
       }, { needsFormFields: true, mergeRows: true, timeoutMs: 9000 })
@@ -7460,7 +7460,7 @@ async function runFileProxy(input: AnyRecord) {
     res = await zeevBinaryRequest(url, {
       headers: {
         Accept: '*/*',
-        'User-Agent': 'RaizObraViva/1.0 (+https://raiz-obras.vercel.app)',
+        'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
       },
     })
   } catch (error) {
