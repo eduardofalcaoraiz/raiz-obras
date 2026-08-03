@@ -24,7 +24,7 @@ on:
       flow_ids:
         description: "Fluxos Zeev separados por virgula"
         required: false
-        default: "299,275,263,102,300"
+        default: "299,275,263,220,110,102,300,365,152,151"
       max_pages:
         description: "Paginas da varredura"
         required: false
@@ -109,7 +109,7 @@ jobs:
           ZEEV_BASE_URL: https://raizeducacao.zeev.it
           SUPABASE_URL: https://hjccxfznojjosvanwztv.supabase.co
           ZEEV_BUSINESS_TIMEZONE: America/Sao_Paulo
-          ZEEV_FLOW_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.flow_ids || '299,275,263,102,300' }}
+          ZEEV_FLOW_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.flow_ids || '299,275,263,220,110,102,300,365,152,151' }}
           ZEEV_SYNC_MODE: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && 'rescue-docs-loop' || github.event_name == 'schedule' && github.event.schedule == '35 5 * * *' && 'deep-incremental' || github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && 'repair-fiscal-metadata' || github.event_name == 'schedule' && github.event.schedule == '3,23,43 * * * *' && 'refresh-payment-statuses' || github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
           ZEEV_SYNC_START: ${{ github.event_name == 'workflow_dispatch' && inputs.start || '' }}
           ZEEV_SYNC_END: ${{ github.event_name == 'workflow_dispatch' && inputs.end || '' }}

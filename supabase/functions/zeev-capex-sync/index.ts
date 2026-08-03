@@ -6,9 +6,9 @@ const CORS = {
 
 type AnyRecord = Record<string, any>
 
-const DEFAULT_FLOW_IDS = [299, 275, 263, 102, 300]
-const FINANCE_FLOW_IDS = new Set([299, 275, 263, 110])
-const PURCHASE_FLOW_IDS = new Set([102, 300])
+const DEFAULT_FLOW_IDS = [299, 275, 263, 220, 110, 102, 300, 365, 152, 151]
+const FINANCE_FLOW_IDS = new Set([299, 275, 263, 220, 152, 151, 110])
+const PURCHASE_FLOW_IDS = new Set([102, 300, 365])
 const CAPEX_FIELDS = ['investimentoCAPEX', 'cAPEX', 'CAPEX', 'capex']
 const FINANCE_DESCRIPTION_FIELDS = [
   'informacoesReferentesASolicitacao',
@@ -1115,7 +1115,7 @@ function flowVersion(row: AnyRecord) {
 
 function capexFieldsForFlow(flow: number) {
   if (FINANCE_FLOW_IDS.has(flow)) return ['investimentoCAPEX', 'É um investimento (CAPEX)?', 'E um investimento (CAPEX)?', 'CAPEX']
-  if (flow === 102 || flow === 300) return ['cAPEX', 'CAPEX', 'Investimento CAPEX']
+  if (PURCHASE_FLOW_IDS.has(flow)) return ['cAPEX', 'CAPEX', 'Investimento CAPEX']
   return CAPEX_FIELDS
 }
 
@@ -1938,7 +1938,7 @@ async function zeevTokenDiagnostics() {
   return out
 }
 
-async function runZeevTokenHealth() {
+async function runZeevTokenHealth(input: AnyRecord = {}) {
   const started = Date.now()
   const tokenInfo = await zeevTokenDiagnostics()
   if (!zeevToken()) return { ok: false, status: 'missing_token', error: 'ZEEV_TOKEN ausente.', tokenInfo }
@@ -1947,26 +1947,40 @@ async function runZeevTokenHealth() {
   try {
     if (instanceId) {
       const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
-      const url = new URL(`${base}/api/2/instances/${encodeURIComponent(instanceId)}`)
-      for (const field of ['numeroDaNF', 'valorTotalDoPagamento', 'valorTotalDoPagamento01', 'anexarNotaFiscal']) {
-        url.searchParams.append('formFieldNames', field)
-      }
-      const data = await zeevJsonRequest(url.toString(), {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
-        },
-      }, { timeoutMs: 9000, needsFormFields: true })
-      const fields = Array.isArray(data?.formFields) ? data.formFields : []
-      return {
-        ok: true,
-        status: 'ok',
-        probe: 'instance',
-        instanceId,
-        hasReportLink: Boolean(data?.reportLink),
-        formFields: fields.length,
-        tokenInfo,
-        elapsedMs: Date.now() - started,
+      const fieldAttempts = [
+        ['numeroDaNF', 'valorTotalDoPagamento', 'valorTotalDoPagamento01', 'anexarNotaFiscal'],
+        ['numeroDaNF'],
+        ['valorTotalDoPagamento'],
+        [],
+      ]
+      for (const fieldsToRequest of fieldAttempts) {
+        try {
+          const url = new URL(`${base}/api/2/instances/${encodeURIComponent(instanceId)}`)
+          for (const field of fieldsToRequest) url.searchParams.append('formFieldNames', field)
+          const data = await zeevJsonRequest(url.toString(), {
+            headers: {
+              Accept: 'application/json',
+              'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
+            },
+          }, { timeoutMs: 9000, needsFormFields: fieldsToRequest.length > 0 })
+          const fields = Array.isArray(data?.formFields) ? data.formFields : []
+          if (fieldsToRequest.length && !fields.length) {
+            throw new Error(`instance ${instanceId}: sem formFields para ${fieldsToRequest.join(',')}`)
+          }
+          return {
+            ok: true,
+            status: fieldsToRequest.length ? 'ok' : 'ok_basic_instance',
+            probe: 'instance',
+            instanceId,
+            fieldAttempt: fieldsToRequest.join(',') || '__no_formFieldNames__',
+            hasReportLink: Boolean(data?.reportLink),
+            formFields: fields.length,
+            tokenInfo,
+            elapsedMs: Date.now() - started,
+          }
+        } catch (error) {
+          instanceErrors.push(error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300))
+        }
       }
     }
   } catch (error) {
@@ -1974,41 +1988,22 @@ async function runZeevTokenHealth() {
     instanceErrors.push(msg.slice(0, 500))
   }
 
-  const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
-  const flowIds = parseFlowIds(env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','))
+  const flowIds = parseFlowIds(input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','))
   const now = new Date()
   const begin = new Date(now.getTime() - 48 * 3600 * 1000).toISOString().replace(/\.\d{3}Z$/, '+00:00')
   const finish = now.toISOString().replace(/\.\d{3}Z$/, '+00:00')
   const reportErrors: string[] = []
-  for (const flow of flowIds.slice(0, 5)) {
+  for (const flow of flowIds.slice(0, 10)) {
     try {
-      const fields = capexFieldsForFlow(flow).slice(0, 8)
-      const rows = await zeevJsonRequest(`${base}/api/2/instances/report`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: '*/*',
-          'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
-        },
-        body: JSON.stringify({
-          flowId: flow,
-          startDateIntervalBegin: begin,
-          startDateIntervalEnd: finish,
-          recordsPerPage: 1,
-          pageNumber: 1,
-          useCache: false,
-          formFieldNames: fields,
-          showPendingInstanceTasks: true,
-          showFinishedInstanceTasks: true,
-          showPendingAssignees: true,
-          allowOpenUrlsForFilesInForm: true,
-        }),
-      }, { mergeRows: true, timeoutMs: 9000 })
+      const report = await zeevReport(flow, 1, begin, finish)
+      const rows = report.rows || []
       return {
         ok: true,
         status: 'ok',
         probe: 'report',
         flowId: flow,
+        flowIds,
+        fieldAttempt: report.fieldAttempt || '',
         rows: Array.isArray(rows) ? rows.length : 0,
         instanceProbeError: instanceErrors[0] || '',
         tokenInfo,
@@ -2023,6 +2018,7 @@ async function runZeevTokenHealth() {
     ok: false,
     status: 'unhealthy',
     instanceId: instanceId || '',
+    flowIds,
     error: [...instanceErrors.map((e) => `instance: ${e}`), ...reportErrors].join(' | ').slice(0, 900),
     tokenInfo,
     elapsedMs: Date.now() - started,
@@ -2036,7 +2032,7 @@ async function runHealth(input: AnyRecord = {}) {
   }
   try {
     await rest('/zeev_sync_state?select=id&limit=1', {}, { retries: 0, timeoutMs: 6000 })
-    const zeev = input.skipZeev === true || input.skip_zeev === true ? { ok: true, status: 'skipped' } : await runZeevTokenHealth()
+    const zeev = input.skipZeev === true || input.skip_zeev === true ? { ok: true, status: 'skipped' } : await runZeevTokenHealth(input)
     const requireZeev = input.requireZeev === true || input.require_zeev === true
     return { ok: requireZeev ? Boolean(zeev.ok) : true, mode: 'health', rest: 'ok', zeev, zeevWarning: !zeev.ok, elapsedMs: Date.now() - started }
   } catch (error) {
@@ -2580,22 +2576,25 @@ async function zeevReport(flow: number, page: number, start: string, end: string
     if (Number.isNaN(d.getTime())) return cleanDate(value)
     return d.toISOString().replace(/\.\d{3}Z$/, '')
   }
-  const makeBody = (formFieldNames: string[], pageSize: number, begin: string, finish: string) => ({
-    flowId: flow,
-    startDateIntervalBegin: begin,
-    startDateIntervalEnd: finish,
-    recordsPerPage: pageSize,
-    pageNumber: page,
-    useCache: false,
-    formFieldNames,
-    showPendingInstanceTasks: true,
-    showFinishedInstanceTasks: true,
-    showPendingAssignees: true,
-    allowOpenUrlsForFilesInForm: true,
-  })
+  const makeBody = (formFieldNames: string[], pageSize: number, begin: string, finish: string) => {
+    const body: AnyRecord = {
+      flowId: flow,
+      startDateIntervalBegin: begin,
+      startDateIntervalEnd: finish,
+      recordsPerPage: pageSize,
+      pageNumber: page,
+      useCache: false,
+      showPendingInstanceTasks: true,
+      showFinishedInstanceTasks: true,
+      showPendingAssignees: true,
+      allowOpenUrlsForFilesInForm: true,
+    }
+    if (formFieldNames.length) body.formFieldNames = formFieldNames
+    return body
+  }
   const request = async (formFieldNames: string[], pageSize: number, begin: string, finish: string) => {
     const body = makeBody(formFieldNames, pageSize, begin, finish)
-    return await zeevJsonRequest(`${base}/api/2/instances/report`, {
+    const data = await zeevJsonRequest(`${base}/api/2/instances/report`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2603,8 +2602,22 @@ async function zeevReport(flow: number, page: number, start: string, end: string
         'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
       },
       body: JSON.stringify(body),
-    }, { needsFormFields: true, mergeRows: true })
+    }, { needsFormFields: formFieldNames.length > 0, mergeRows: true })
+    const rows = Array.isArray(data) ? data : [data]
+    if (formFieldNames.length && rows.length && !hasFormFields(rows)) {
+      throw new Error(`flow=${flow} page=${page}: Zeev retornou pagina sem formFields para ${formFieldNames.join(',')}`)
+    }
+    return rows
   }
+  const fieldAttempts: string[][] = []
+  const addFieldAttempt = (fields: string[]) => {
+    const clean = [...new Set((fields || []).map((field) => String(field || '').trim()).filter(Boolean))]
+    const key = clean.join('|') || '__no_formFieldNames__'
+    if (!fieldAttempts.some((item) => (item.join('|') || '__no_formFieldNames__') === key)) fieldAttempts.push(clean)
+  }
+  addFieldAttempt(flowCapexFields)
+  for (const field of flowCapexFields) addFieldAttempt([field])
+  addFieldAttempt([])
   const attempts = [
     { begin: offsetDate(start), finish: offsetDate(end) },
     { begin: start, finish: end },
@@ -2615,12 +2628,19 @@ async function zeevReport(flow: number, page: number, start: string, end: string
   const errors: string[] = []
   for (const dates of attempts) {
     for (const pageSize of pageSizes) {
-      try {
-        const data = await request(flowCapexFields, pageSize, dates.begin, dates.finish)
-        const rows = Array.isArray(data) ? data : [data]
-        return { rows, pageSize }
-      } catch (error) {
-        errors.push(`size=${pageSize} begin=${dates.begin}: ${error instanceof Error ? error.message : String(error)}`)
+      for (const fields of fieldAttempts) {
+        try {
+          const rows = await request(fields, pageSize, dates.begin, dates.finish)
+          return {
+            rows,
+            pageSize,
+            needsCandidateEnrichment: fields.length === 0,
+            fieldAttempt: fields.join(',') || '__no_formFieldNames__',
+          }
+        } catch (error) {
+          const fieldLabel = fields.join(',') || '__no_formFieldNames__'
+          errors.push(`fields=${fieldLabel} size=${pageSize} begin=${dates.begin}: ${error instanceof Error ? error.message : String(error)}`)
+        }
       }
     }
   }
@@ -3107,7 +3127,7 @@ async function runSync(input: AnyRecord) {
     for (const flow of flows) {
       let flowHadSuccessfulPage = false
       for (let page = 1; page <= maxPages; page++) {
-        let report: { rows: AnyRecord[]; pageSize: number }
+        let report: { rows: AnyRecord[]; pageSize: number; needsCandidateEnrichment?: boolean; fieldAttempt?: string }
         try {
           report = await zeevReport(flow, page, start, end)
           flowHadSuccessfulPage = true
@@ -3118,8 +3138,22 @@ async function runSync(input: AnyRecord) {
         }
         const rows = report.rows
         for (const row of rows) {
-          if (!capexField(Array.isArray(row?.formFields) ? row.formFields : [])) continue
-          const enriched = await enrichRow(row)
+          let source = row
+          let fields = Array.isArray(source?.formFields) ? source.formFields : []
+          let enriched: AnyRecord | null = null
+          if (!capexField(fields) && report.needsCandidateEnrichment) {
+            try {
+              enriched = await enrichRow(row)
+              source = enriched
+              fields = Array.isArray(source?.formFields) ? source.formFields : []
+            } catch (error) {
+              const id = Number(row?.id || row?.instanceId || 0) || 'sem-id'
+              errors.push(`Fluxo ${flow} TR ${id}: detalhe Zeev indisponivel apos fallback sem campos (${error instanceof Error ? error.message : String(error)})`)
+              continue
+            }
+          }
+          if (!capexField(fields)) continue
+          if (!enriched) enriched = await enrichRow(row)
           const ticket = await buildTicket(enriched)
           if (ticket) allTickets.push(ticket)
         }
