@@ -4503,6 +4503,113 @@ def reconcile_registered():
     )
 
 
+def money_from_mapping_by_priority(mapping, names):
+    if not isinstance(mapping, dict):
+        return 0.0
+    entries = [(norm_key(key), value, str(key or "")) for key, value in mapping.items()]
+    for name in names:
+        wanted = norm_key(name)
+        if not wanted:
+            continue
+        for key, value, _raw_key in entries:
+            if key == wanted:
+                amount = parse_money(value)
+                if amount:
+                    return amount
+    for wanted in ("valortotaldopagamento", "valortotalpagamento", "totaldopagamento", "valorpagamento", "valorapagar"):
+        for key, value, _raw_key in entries:
+            if key == wanted or wanted in key:
+                amount = parse_money(value)
+                if amount:
+                    return amount
+    return 0.0
+
+
+def stored_capex_registered_value(row):
+    data = row.get("ticket_raiz_dados") or {}
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except Exception:
+            data = {}
+    if not isinstance(data, dict):
+        return 0.0, ""
+
+    campos = data.get("campos") if isinstance(data.get("campos"), dict) else {}
+    value = money_from_mapping_by_priority(campos, PAYMENT_TOTAL_FIELDS)
+    if value:
+        return value, "ticket_raiz_dados.campos.valorTotalDoPagamento"
+
+    pagamento = data.get("pagamento") if isinstance(data.get("pagamento"), dict) else {}
+    for key in ("valor_total", "valorTotal", "valorTotalPagamento", "valorTotalDoPagamento", "total_pagamento", "totalPagamento", "valor", "valor_pagamento"):
+        value = parse_money(pagamento.get(key))
+        if value:
+            return value, f"ticket_raiz_dados.pagamento.{key}"
+
+    itens = data.get("itens") if isinstance(data.get("itens"), list) else []
+    value = item_total_sum([item for item in itens if isinstance(item, dict)])
+    if value:
+        return value, "ticket_raiz_dados.itens.valor_total"
+
+    value = money_from_mapping_by_priority(data, PAYMENT_TOTAL_FIELDS)
+    if value:
+        return value, "ticket_raiz_dados.valorTotalDoPagamento"
+
+    return 0.0, ""
+
+
+def repair_capex_registered_values():
+    ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
+    limit = env_int("ZEEV_REPAIR_CAPEX_VALUES_LIMIT", 250, 1, 5000)
+    force = os.environ.get("ZEEV_REPAIR_CAPEX_VALUES_FORCE", "").strip().lower() in {"1", "true", "sim", "yes", "on"}
+    select = "id,referencia,ticket_raiz_instance_id,orcamento,ticket_raiz_dados"
+    if ids:
+        joined = ",".join(str(x) for x in ids)
+        path = f"/capex_itens?select={select}&or=(referencia.in.({joined}),ticket_raiz_instance_id.in.({joined}))&order=id.asc"
+        requested = ids
+    else:
+        path = f"/capex_itens?select={select}&or=(orcamento.is.null,orcamento.eq.0)&order=id.asc&limit={limit}"
+        requested = []
+    rows = supabase_rest(path, timeout=120, prefer="")
+    if not isinstance(rows, list):
+        rows = []
+
+    out = {
+        "ok": True,
+        "mode": "repair-capex-registered-values",
+        "requested": requested,
+        "scanned": len(rows),
+        "updated": [],
+        "skipped": [],
+        "errors": [],
+    }
+    for row in rows:
+        current = parse_money(row.get("orcamento"))
+        tr = row.get("ticket_raiz_instance_id") or row.get("referencia")
+        if current > 0 and not force:
+            out["skipped"].append({"tr": tr, "reason": "orcamento_ja_preenchido", "orcamento": current})
+            continue
+        value, source = stored_capex_registered_value(row)
+        if not value:
+            out["skipped"].append({"tr": tr, "reason": "valor_total_nao_encontrado_no_payload_salvo"})
+            continue
+        try:
+            supabase_rest(
+                f"/capex_itens?id=eq.{int(row.get('id'))}",
+                method="PATCH",
+                payload={"orcamento": round(float(value), 2)},
+                timeout=90,
+            )
+            out["updated"].append({"tr": tr, "id": row.get("id"), "orcamento": round(float(value), 2), "source": source})
+        except Exception as exc:
+            out["ok"] = False
+            out["errors"].append({"tr": tr, "id": row.get("id"), "error": str(exc)[:700]})
+    for key in ("updated", "skipped", "errors"):
+        if len(out[key]) > 120:
+            out[key] = out[key][:120]
+    return out
+
+
 def register_obra_payments():
     ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     obra = os.environ.get("ZEEV_TARGET_OBRA") or os.environ.get("ZEEV_OBRA_DESTINO") or ""
@@ -4855,6 +4962,10 @@ def main():
         result = reconcile_registered()
         print(json.dumps(result, ensure_ascii=False))
         return
+    if mode in {"repair-capex-registered-values", "repair-capex-values", "repair-registered-values"}:
+        result = repair_capex_registered_values()
+        print(json.dumps(result, ensure_ascii=False))
+        return
     if mode in {"register-obra-payments", "register-obra", "obra-payments"}:
         result = register_obra_payments()
         print(json.dumps(result, ensure_ascii=False))
@@ -4994,7 +5105,14 @@ def main():
                 correction_sweep_result = {k: v for k, v in correction_sweep_result.items() if k != "tickets"}
         tickets = sorted(merged.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
     result = ingest(tickets, notify=notify)
-    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "deep": deep_mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "lastTaskScan": last_task_scan_result, "idSweep": id_sweep_result, "correctionSweep": correction_sweep_result, "ingest": result}, ensure_ascii=False))
+    value_repair = None
+    if os.environ.get("ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST", "1").strip().lower() not in {"0", "false", "nao", "não", "no"}:
+        try:
+            os.environ.setdefault("ZEEV_REPAIR_CAPEX_VALUES_LIMIT", "80")
+            value_repair = repair_capex_registered_values()
+        except Exception as exc:
+            value_repair = {"ok": False, "mode": "repair-capex-registered-values", "error": str(exc)[:700]}
+    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "deep": deep_mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "lastTaskScan": last_task_scan_result, "idSweep": id_sweep_result, "correctionSweep": correction_sweep_result, "ingest": result, "capexValueRepair": value_repair}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

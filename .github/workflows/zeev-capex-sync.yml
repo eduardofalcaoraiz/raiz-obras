@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "incremental, id-sweep, correction-sweep, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-pending-fiscal-metadata, repair-fiscal-metadata, repair-payment-fiscal-fields ou refresh-payment-statuses"
+        description: "incremental, id-sweep, correction-sweep, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, repair-capex-registered-values, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-pending-fiscal-metadata, repair-fiscal-metadata, repair-payment-fiscal-fields ou refresh-payment-statuses"
         required: true
         default: "incremental"
       start:
@@ -162,6 +162,8 @@ jobs:
           ZEEV_BACKFILL_STALE_HOURS: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && '12' || github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '720' }}
           ZEEV_DOC_RESCUE_CHECKED_BEFORE: ${{ github.event_name == 'workflow_dispatch' && inputs.checked_before || '' }}
           ZEEV_REPAIR_PAYMENT_VALUES: ${{ github.event_name == 'workflow_dispatch' && inputs.repair_values || 'false' }}
+          ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST: "1"
+          ZEEV_REPAIR_CAPEX_VALUES_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'repair-capex-registered-values' && inputs.backfill_limit || '80' }}
           ZEEV_PENDING_FISCAL_REPAIR_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && '8' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '6' }}
           ZEEV_PENDING_FISCAL_REPAIR_CYCLES: ${{ github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && '12' || '1' }}
           ZEEV_PENDING_FISCAL_REPAIR_MAX_RUNTIME_MS: "105000"
