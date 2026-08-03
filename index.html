@@ -111,7 +111,7 @@ button{font-family:inherit;cursor:pointer}
 .side.collapsed .nav button .pill{font-size:10px}
 .side.collapsed .side-collapse-btn span{transform:rotate(180deg)}
 
-.main{flex:1;min-width:0;min-height:0;overflow-x:hidden;overflow-y:auto;overflow-y:overlay;height:100vh;height:100dvh;background:var(--paper);overscroll-behavior:contain;-webkit-overflow-scrolling:touch;transform:translateZ(0)}
+.main{flex:1;min-width:0;min-height:0;overflow-x:hidden;overflow-y:auto;height:100vh;height:100dvh;background:var(--paper);overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}
 
 /* Scrollbar fina flutuante — não ocupa espaço no layout */
 .main::-webkit-scrollbar{width:5px}
@@ -124,7 +124,7 @@ button{font-family:inherit;cursor:pointer}
 .wrap{width:100%;max-width:none;min-height:100%;margin:0;padding:0 24px 80px;position:relative}
 #view-obra #o-kpis,#view-obra .bar{display:none!important}
 
-.view{display:none;animation:fade .4s ease both}.view.active{display:block}
+.view{display:none}.view.active{display:block}
 
 .page-jump{position:absolute;left:24px;right:24px;z-index:4;display:flex;justify-content:center;margin:0;padding:0;height:0;pointer-events:auto}
 .page-jump-top{top:10px}
@@ -204,7 +204,7 @@ button{font-family:inherit;cursor:pointer}
 
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
 
-.pcard{background:var(--raiz-card-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px 22px;cursor:pointer;transition:transform .14s,box-shadow .16s;animation:fade .45s ease both}
+.pcard{background:var(--raiz-card-gradient);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px 22px;cursor:pointer;transition:transform .14s,box-shadow .16s}
 
 .pcard:hover{transform:translateY(-3px);box-shadow:0 10px 28px -16px rgba(23,60,52,.4)}
 
@@ -273,7 +273,7 @@ button{font-family:inherit;cursor:pointer}
 
 .cyear-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:4px;align-items:stretch}
 
-.cyear-card{--cyear-accent:var(--accent);--cyear-soft:var(--surface-2);background:linear-gradient(180deg,var(--surface) 0%,color-mix(in srgb,var(--cyear-soft) 30%,var(--surface)) 100%);border:1px solid color-mix(in srgb,var(--cyear-accent) 18%,var(--line));border-radius:18px;padding:0;cursor:pointer;transition:transform .14s,box-shadow .16s,border-color .16s;animation:fade .4s ease both;overflow:hidden;min-height:286px;display:flex;flex-direction:column;box-shadow:0 10px 26px -24px rgba(15,42,36,.4)}
+.cyear-card{--cyear-accent:var(--accent);--cyear-soft:var(--surface-2);background:linear-gradient(180deg,var(--surface) 0%,color-mix(in srgb,var(--cyear-soft) 30%,var(--surface)) 100%);border:1px solid color-mix(in srgb,var(--cyear-accent) 18%,var(--line));border-radius:18px;padding:0;cursor:pointer;transition:transform .14s,box-shadow .16s,border-color .16s;overflow:hidden;min-height:286px;display:flex;flex-direction:column;box-shadow:0 10px 26px -24px rgba(15,42,36,.4)}
 
 .cyear-card:hover{transform:translateY(-2px);box-shadow:0 16px 34px -24px rgba(15,42,36,.5);border-color:color-mix(in srgb,var(--cyear-accent) 45%,var(--line))}
 
@@ -930,7 +930,7 @@ button{font-family:inherit;cursor:pointer}
 
 .tabbtn:hover{color:var(--ink)}.tabbtn.active{color:var(--ink);border-bottom-color:var(--accent)}
 
-.tabpane{display:none;animation:fade .3s ease both}.tabpane.active{display:block}
+.tabpane{display:none}.tabpane.active{display:block}
 
 .obra-fases-head{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.8fr);gap:14px;margin-bottom:16px;align-items:stretch}
 .obra-fases-hero{padding:18px 20px;border:1px solid var(--line);border-radius:var(--r-lg);background:linear-gradient(135deg,var(--surface) 0%,var(--brand-cur-light) 150%)}
@@ -8436,20 +8436,23 @@ function paymentDocKindLabel(doc){
   const source=capexZeevNormField([doc?.source,doc?.origin,doc?.copiedFromTarget].filter(Boolean).join(' '));
   const fromMessage=/(messages|comentario|comment|instancetasks|rawtasks)/.test(source);
   const explicitFiscalOrCharge=/(notafiscal|notasfiscais|anexarnota|anexarnf|danfe|xml|nfe|nfse|nfs-e|nf-e|fatura|boleto|recibo)/.test(original);
-  if(/pgfor|comprovante|pix|liquidado|liquidacao|pago/.test(original))return'COMPROVANTE';
+  const proofCue=/(pgfor|comprovantedopagamento|comprovante.*pagamento|pagamento.*comprovante|pix|liquidado|liquidacao|pago)/;
+  if(proofCue.test(original))return'COMPROVANTE';
   if(/boleto/.test(original))return'BOLETO';
   if(/fatura/.test(original))return'FATURA';
   if(/recibo/.test(original))return'RECIBO';
   if(/xml|danfe|nfe|nfse|nota|nf/.test(original))return'NF';
+  if(/comprovante/.test(original))return'COMPROVANTE';
   if(fromMessage&&!explicitFiscalOrCharge)return'COMPROVANTE';
   const explicit=String(doc?.kind||'').toUpperCase().trim();
   if(['FATURA','RECIBO','BOLETO','COMPROVANTE'].includes(explicit))return explicit;
   if(['NF','NFE','NF-E','NFSE','NFS-E','DANFE','XML'].includes(explicit))return'NF';
-  if(/pgfor|comprovante|pix|liquidado|liquidacao|pago/.test(stored))return'COMPROVANTE';
+  if(proofCue.test(stored))return'COMPROVANTE';
   if(/boleto/.test(stored))return'BOLETO';
   if(/fatura/.test(stored))return'FATURA';
   if(/recibo/.test(stored))return'RECIBO';
   if(/xml|danfe|nfe|nfse|nota|nf/.test(stored))return'NF';
+  if(/comprovante|pix/.test(stored))return'COMPROVANTE';
   const n=paymentDocNorm(doc);
   if(/fatura/.test(n))return'FATURA';
   if(/recibo/.test(n))return'RECIBO';
@@ -8604,17 +8607,20 @@ function capexZeevDocKind(doc,z){
   const fromMessage=/(messages|comentario|comment|instancetasks|rawtasks)/.test(source);
   const explicitFiscalOrCharge=/(notafiscal|notasfiscais|anexarnota|anexarnf|danfe|xml|nfe|nfse|nfs-e|nf-e|fatura|boleto|recibo)/.test(original);
   const nonFiscal=/cotacao|orcamento|orcamento|proposta|contrato|comprovante|pgfor|liquidado|liquidacao|pix/.test(`${original} ${stored} ${source}`);
-  if(/pgfor|comprovante|pix|liquidado|liquidacao|pago/.test(original))return'COMPROVANTE';
+  const proofCue=/(pgfor|comprovantedopagamento|comprovante.*pagamento|pagamento.*comprovante|pix|liquidado|liquidacao|pago)/;
+  if(proofCue.test(original))return'COMPROVANTE';
   if(/boleto/.test(original))return'BOLETO';
   if(/fatura/.test(original))return'FATURA';
   if(/recibo/.test(original))return'RECIBO';
   if(/xml|danfe|nfe|nfse|nota|nf/.test(original))return'NF';
+  if(/comprovante/.test(original))return'COMPROVANTE';
   if(fromMessage&&!explicitFiscalOrCharge)return'COMPROVANTE';
-  if(/pgfor|comprovante|pix|liquidado|liquidacao|pago/.test(stored))return'COMPROVANTE';
+  if(proofCue.test(stored))return'COMPROVANTE';
   if(/boleto/.test(stored))return'BOLETO';
   if(/fatura/.test(stored))return'FATURA';
   if(/recibo/.test(stored))return'RECIBO';
   if(/xml|danfe|nfe|nfse|nota|nf/.test(stored))return'NF';
+  if(/comprovante|pix/.test(stored))return'COMPROVANTE';
   if(/boleto/.test(n))return'BOLETO';
   if(/fatura/.test(n))return'FATURA';
   if(/recibo/.test(n))return'RECIBO';

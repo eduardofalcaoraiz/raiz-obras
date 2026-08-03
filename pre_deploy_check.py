@@ -132,6 +132,6 @@ else:
     print('\nAPROVADO - pode fazer deploy')
 if warnings:
     print(f'\nAVISO: {len(warnings)} aviso(s) menores')
-print(f'\nBacsticks: {bt} ({bt//2} pares) | JS: {len(lines_js)} linhas')
+print(f'\nBackticks: {bt} ({bt//2} pares) | JS: {len(lines_js)} linhas')
 print('='*60)
 sys.exit(1 if errors else 0)

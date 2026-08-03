@@ -50,6 +50,52 @@ def business_tz():
             return timezone(timedelta(hours=-3), BUSINESS_TIMEZONE)
         return timezone.utc
 
+
+def text_quality_penalty(text):
+    value = str(text or "")
+    penalty = value.count("\ufffd") * 12
+    penalty += len(re.findall(r"(?:Ã.|Â.|â[€œ€�˜™“”‘’\-]|ï¼)", value)) * 4
+    return penalty
+
+
+def charset_from_content_type(content_type):
+    match = re.search(r"charset\s*=\s*['\"]?([^;'\"]+)", str(content_type or ""), re.I)
+    if not match:
+        return ""
+    charset = match.group(1).strip().lower()
+    aliases = {
+        "latin1": "iso-8859-1",
+        "latin-1": "iso-8859-1",
+        "cp1252": "windows-1252",
+        "win-1252": "windows-1252",
+    }
+    return aliases.get(charset, charset)
+
+
+def decode_http_text(raw, content_type=""):
+    if isinstance(raw, str):
+        return raw
+    body = raw or b""
+    declared = charset_from_content_type(content_type)
+    candidates = []
+    for charset in [declared, "utf-8", "windows-1252", "iso-8859-1"]:
+        if charset and charset not in candidates:
+            candidates.append(charset)
+    best = ""
+    best_score = 10**9
+    for charset in candidates:
+        try:
+            text = body.decode(charset, errors="replace")
+        except LookupError:
+            continue
+        score = text_quality_penalty(text)
+        if declared and charset == declared:
+            score -= 1
+        if score < best_score:
+            best = text
+            best_score = score
+    return best if best or not body else body.decode("utf-8", errors="replace")
+
 FINANCE_DESCRIPTION_FIELDS = [
     "informacoesReferentesASolicitacao",
     "informacoesReferentesSolicitacao",
@@ -352,6 +398,19 @@ def zeev_tokens():
     return out
 
 
+def zeev_auth_attempts(token):
+    token = str(token or "").strip()
+    if not token:
+        return [("none", {})]
+    return [
+        ("authorization-bearer", {"Authorization": f"Bearer {token}"}),
+        ("authorization-raw", {"Authorization": token}),
+        ("x-api-key", {"X-API-Key": token}),
+        ("api-key", {"api-key": token}),
+        ("x-access-token", {"X-Access-Token": token}),
+    ]
+
+
 def has_zeev_token():
     return bool(zeev_tokens())
 
@@ -429,11 +488,13 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
         "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
         **(headers or {}),
     }
-    is_zeev = str(url).startswith(ZEEV_BASE_URL) and str(merged.get("Authorization") or "").lower().startswith("bearer ")
+    is_zeev = str(url).startswith(ZEEV_BASE_URL) and (bool(zeev_tokens()) or bool(merged.get("Authorization")))
     is_supabase = str(url).startswith(SUPABASE_URL)
     requested_fields = is_zeev and zeev_fields_requested(url, payload)
     merge_token_rows = is_zeev and requested_fields and str(url).rstrip("/").endswith("/api/2/instances/report")
     token_candidates = [t for t in zeev_tokens() if t and t not in BAD_ZEEV_TOKENS] if is_zeev else [None]
+    if is_zeev and not token_candidates and merged.get("Authorization"):
+        token_candidates = [""]
     if is_zeev and not token_candidates:
         raise RuntimeError("ZEEV_TOKEN e obrigatorio.")
 
@@ -446,47 +507,49 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
     fallback_data = None
     fallback_set = False
     for token_index, token in enumerate(token_candidates):
-        current_headers = dict(merged)
-        if token:
-            current_headers["Authorization"] = f"Bearer {token}"
-        for attempt in range(attempts):
-            retry_delay = None
-            req = urllib.request.Request(url, data=body, method=method, headers=current_headers)
-            try:
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    raw = resp.read().decode("utf-8", errors="replace")
-                    data = json.loads(raw) if raw else {}
-                    if merge_token_rows:
-                        collected_rows_success = True
-                        collected_rows.extend(data if isinstance(data, list) else [data])
-                        last_error = None
+        auth_attempts = zeev_auth_attempts(token) if is_zeev else [("none", {})]
+        for auth_label, auth_headers in auth_attempts:
+            current_headers = dict(merged)
+            current_headers.update(auth_headers)
+            for attempt in range(attempts):
+                retry_delay = None
+                req = urllib.request.Request(url, data=body, method=method, headers=current_headers)
+                try:
+                    with urllib.request.urlopen(req, timeout=timeout) as resp:
+                        raw = resp.read()
+                        text = decode_http_text(raw, resp.headers.get("Content-Type", ""))
+                        data = json.loads(text) if text.strip() else {}
+                        if merge_token_rows:
+                            collected_rows_success = True
+                            collected_rows.extend(data if isinstance(data, list) else [data])
+                            last_error = None
+                            break
+                        if requested_fields and not form_fields_present(data) and token_index < len(token_candidates) - 1:
+                            if not fallback_set:
+                                fallback_data = data
+                                fallback_set = True
+                            last_error = None
+                            break
+                        return data
+                except urllib.error.HTTPError as exc:
+                    raw = exc.read()
+                    text = decode_http_text(raw, exc.headers.get("Content-Type", ""))
+                    suffix = f" [{auth_label}]" if is_zeev else ""
+                    last_error = RuntimeError(f"{method} {url}{suffix} -> HTTP {exc.code}: {text}")
+                    if is_zeev and exc.code in (401, 403):
                         break
-                    if requested_fields and not form_fields_present(data) and token_index < len(token_candidates) - 1:
-                        if not fallback_set:
-                            fallback_data = data
-                            fallback_set = True
-                        last_error = None
-                        break
-                    return data
-            except urllib.error.HTTPError as exc:
-                text = exc.read().decode("utf-8", errors="replace")
-                last_error = RuntimeError(f"{method} {url} -> HTTP {exc.code}: {text}")
-                if is_zeev and exc.code == 401 and token:
-                    BAD_ZEEV_TOKENS.add(token)
-                if is_zeev and exc.code in (401, 403):
-                    break
-                if exc.code in (520, 522, 524):
-                    retry_delay = 60
-                if is_supabase and is_transient_http_error(f"HTTP {exc.code}: {text}"):
-                    retry_delay = min(20 + attempt * 10, 75)
-                if exc.code not in (429, 500, 502, 503, 504, 520, 522, 524, 546):
-                    raise last_error
-            except Exception as exc:
-                last_error = exc
-                if is_supabase and is_transient_http_error(str(exc)):
-                    retry_delay = min(20 + attempt * 10, 75)
-            if attempt < attempts - 1:
-                time.sleep(retry_delay or (2 + attempt * 3))
+                    if exc.code in (520, 522, 524):
+                        retry_delay = 60
+                    if is_supabase and is_transient_http_error(f"HTTP {exc.code}: {text}"):
+                        retry_delay = min(20 + attempt * 10, 75)
+                    if exc.code not in (429, 500, 502, 503, 504, 520, 522, 524, 546):
+                        raise last_error
+                except Exception as exc:
+                    last_error = exc
+                    if is_supabase and is_transient_http_error(str(exc)):
+                        retry_delay = min(20 + attempt * 10, 75)
+                if attempt < attempts - 1:
+                    time.sleep(retry_delay or (2 + attempt * 3))
     if merge_token_rows and (collected_rows_success or collected_rows):
         return merge_zeev_rows_by_id(collected_rows)
     if fallback_set:
@@ -668,6 +731,10 @@ def supabase_automation_mode(mode):
         "docsbackfill", "backfill", "refreshpaymentstatuses", "refreshpayments",
         "paymentstatuses", "docrescueaudit", "rescuedocsaudit", "auditdocs",
     }
+
+
+def allow_transient_success():
+    return os.environ.get("ZEEV_ALLOW_TRANSIENT_SUCCESS", "").strip().lower() in {"1", "true", "sim", "yes", "on"}
 
 
 def supabase_healthcheck(timeout=12):
@@ -2648,19 +2715,21 @@ def fetch_text_for_source(url):
     }
     last = (0, "", "")
     for token in zeev_tokens() or [""]:
-        headers = dict(base_headers)
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
-        req = urllib.request.Request(url, headers=headers, method="GET")
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as res:
-                raw = res.read()
-                return res.status, res.headers.get("Content-Type", ""), raw.decode("utf-8", errors="replace")
-        except urllib.error.HTTPError as exc:
-            raw = exc.read()
-            last = (exc.code, exc.headers.get("Content-Type", ""), raw.decode("utf-8", errors="replace"))
-            if exc.code not in (401, 403):
-                return last
+        for _, auth_headers in zeev_auth_attempts(token):
+            headers = dict(base_headers)
+            headers.update(auth_headers)
+            req = urllib.request.Request(url, headers=headers, method="GET")
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as res:
+                    raw = res.read()
+                    ctype = res.headers.get("Content-Type", "")
+                    return res.status, ctype, decode_http_text(raw, ctype)
+            except urllib.error.HTTPError as exc:
+                raw = exc.read()
+                ctype = exc.headers.get("Content-Type", "")
+                last = (exc.code, ctype, decode_http_text(raw, ctype))
+                if exc.code not in (401, 403):
+                    return last
     return last
 
 
@@ -2941,6 +3010,10 @@ def fetch_binary_for_rescue(url):
     else:
         for token in (token_list or [""])[:token_limit]:
             attempts.append((clean, "bearer", token))
+            attempts.append((clean, "raw", token))
+            attempts.append((clean, "x-api-key", token))
+            attempts.append((clean, "api-key", token))
+            attempts.append((clean, "x-access-token", token))
             if token:
                 attempts.append((doc_url_with_token_param(clean, "token", token), "none", ""))
                 attempts.append((doc_url_with_token_param(clean, "access_token", token), "none", ""))
@@ -2959,6 +3032,14 @@ def fetch_binary_for_rescue(url):
         }
         if token and auth_mode == "bearer":
             headers["Authorization"] = f"Bearer {token}"
+        elif token and auth_mode == "raw":
+            headers["Authorization"] = token
+        elif token and auth_mode == "x-api-key":
+            headers["X-API-Key"] = token
+        elif token and auth_mode == "api-key":
+            headers["api-key"] = token
+        elif token and auth_mode == "x-access-token":
+            headers["X-Access-Token"] = token
         req = urllib.request.Request(attempt_url, headers=headers, method="GET")
         try:
             with urllib.request.urlopen(req, timeout=max(5, min(int(os.environ.get("ZEEV_DIRECT_DOC_TIMEOUT_SECONDS", "12")), 60))) as res:
@@ -2977,7 +3058,7 @@ def fetch_binary_for_rescue(url):
                     "body": raw,
                 }
         except urllib.error.HTTPError as exc:
-            body = exc.read(500).decode("utf-8", errors="replace")
+            body = decode_http_text(exc.read(500), exc.headers.get("Content-Type", ""))
             last_error = RuntimeError(f"HTTP {exc.code}: {redact_debug_text(body)[:220]}")
             if exc.code not in (401, 403):
                 break
@@ -2989,11 +3070,11 @@ def fetch_binary_for_rescue(url):
 def downloaded_doc_from_response(candidate, response, depth=0):
     body = response["body"]
     ctype = str(response.get("contentType") or candidate.get("type") or "").lower()
-    text_head = body[:300].decode("utf-8", errors="ignore").strip()
+    text_head = decode_http_text(body[:300], response.get("contentType") or "").strip()
     if ("json" in ctype or text_head.startswith(("{", "["))) and depth < 2:
         try:
             nested = []
-            collect_doc_candidates_from_value(nested, candidate.get("name") or "documento-fiscal.pdf", json.loads(body.decode("utf-8", errors="replace")), "download-json", 0)
+            collect_doc_candidates_from_value(nested, candidate.get("name") or "documento-fiscal.pdf", json.loads(decode_http_text(body, response.get("contentType") or "")), "download-json", 0)
             for item in nested:
                 found = download_doc_candidate(item, depth + 1)
                 if found:
@@ -3001,7 +3082,7 @@ def downloaded_doc_from_response(candidate, response, depth=0):
         except Exception:
             pass
     if "html" in ctype or text_head.lower().startswith("<!doctype") or text_head.lower().startswith("<html"):
-        html = body.decode("utf-8", errors="replace")
+        html = decode_http_text(body, response.get("contentType") or "")
         nested = []
         if depth < 2:
             for link in re.findall(r"""(?i)(?:href|src)=["']([^"']+)["']""", html) + re.findall(r"https?://[^\s\"'<>),;]+", html):
@@ -4879,6 +4960,13 @@ def probe_zeev_ticket():
     )
 
 
+def require_ok(result, context):
+    if isinstance(result, dict) and result.get("ok") is False:
+        detail = result.get("error") or result.get("reason") or "resultado ok=false"
+        raise SystemExit(f"{context} falhou: {detail}")
+    return result
+
+
 def refresh_payment_statuses():
     ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
     target_ids = parse_ticket_ids(ticket_ids)
@@ -5015,7 +5103,7 @@ def main():
         print(json.dumps(result, ensure_ascii=False))
         return
     if mode in {"probe-zeev-ticket", "probe-zeev", "probe-ticket"}:
-        result = probe_zeev_ticket()
+        result = require_ok(probe_zeev_ticket(), "probe-zeev-ticket")
         print(json.dumps(result, ensure_ascii=False))
         return
     if mode in {"refresh-payment-statuses", "refresh-payments", "payment-statuses"}:
@@ -5156,7 +5244,7 @@ if __name__ == "__main__":
         main()
     except Exception as exc:
         mode = os.environ.get("ZEEV_SYNC_MODE", "incremental")
-        if supabase_automation_mode(mode) and is_transient_http_error(str(exc)):
+        if allow_transient_success() and supabase_automation_mode(mode) and is_transient_http_error(str(exc)):
             print(json.dumps({
                 "ok": True,
                 "mode": mode,

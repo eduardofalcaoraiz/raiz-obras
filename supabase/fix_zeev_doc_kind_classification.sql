@@ -31,13 +31,6 @@ as $$
       coalesce(doc->>'url','') || ' ' ||
       coalesce(doc->>'storagePath','') || ' ' ||
       coalesce(doc->>'path','')
-    ) ~ '(comprovante|pix|liquidado|liquidacao|pago)'
-      then 'COMPROVANTE'
-    when lower(
-      coalesce(doc->>'name','') || ' ' ||
-      coalesce(doc->>'url','') || ' ' ||
-      coalesce(doc->>'storagePath','') || ' ' ||
-      coalesce(doc->>'path','')
     ) ~ '(boleto|boletoparcelado|boletoavista)'
       then 'BOLETO'
     when lower(
@@ -54,6 +47,13 @@ as $$
       coalesce(doc->>'path','')
     ) ~ 'recibo'
       then 'RECIBO'
+    when lower(
+      coalesce(doc->>'name','') || ' ' ||
+      coalesce(doc->>'url','') || ' ' ||
+      coalesce(doc->>'storagePath','') || ' ' ||
+      coalesce(doc->>'path','')
+    ) ~ '(pgfor|comprovantedopagamento|comprovante.*pagamento|pagamento.*comprovante|pix|liquidado|liquidacao|pago|comprovante)'
+      then 'COMPROVANTE'
     else upper(coalesce(nullif(doc->>'kind',''), 'DOCUMENTO'))
   end
 $$;
@@ -102,4 +102,5 @@ set
   nf_doc_path = ''
 where nf_doc_path is not null
   and nf_doc_path <> ''
-  and lower(nf_doc_path) ~ '(boleto|comprovante|pix)';
+  and lower(nf_doc_path) ~ '(pgfor|comprovantedopagamento|comprovante.*pagamento|pagamento.*comprovante|pix|liquidado|liquidacao|pago)'
+  and lower(nf_doc_path) !~ '(fatura|recibo|danfe|nfse|nfe|nota)';

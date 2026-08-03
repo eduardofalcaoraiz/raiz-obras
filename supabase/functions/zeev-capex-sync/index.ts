@@ -625,6 +625,16 @@ function zeevToken() {
   return zeevTokens()[0] || ''
 }
 
+function zeevAuthAttempts(token: string) {
+  return [
+    { label: 'authorization-bearer', apply: (headers: Headers) => headers.set('Authorization', `Bearer ${token}`) },
+    { label: 'authorization-raw', apply: (headers: Headers) => headers.set('Authorization', token) },
+    { label: 'x-api-key', apply: (headers: Headers) => headers.set('X-API-Key', token) },
+    { label: 'api-key', apply: (headers: Headers) => headers.set('api-key', token) },
+    { label: 'x-access-token', apply: (headers: Headers) => headers.set('X-Access-Token', token) },
+  ]
+}
+
 function hasFormFields(data: unknown) {
   if (Array.isArray(data)) return data.some((row) => Array.isArray(row?.formFields) && row.formFields.length > 0)
   return !!(data && typeof data === 'object' && Array.isArray((data as AnyRecord).formFields) && (data as AnyRecord).formFields.length > 0)
@@ -663,6 +673,53 @@ async function zeevFetchWithTimeout(url: string, init: RequestInit = {}, timeout
   }
 }
 
+function textQualityPenalty(text: string) {
+  const value = String(text || '')
+  const replacement = (value.match(/\uFFFD/g) || []).length * 12
+  const mojibake = (value.match(/(?:Ã.|Â.|â[€œ€�˜™“”‘’-]|ï¼)/g) || []).length * 4
+  return replacement + mojibake
+}
+
+function charsetFromContentType(contentType: string | null) {
+  const match = String(contentType || '').match(/charset\s*=\s*['"]?([^;'"]+)/i)
+  const raw = (match?.[1] || '').trim().toLowerCase()
+  if (!raw) return ''
+  const aliases: Record<string, string> = {
+    latin1: 'iso-8859-1',
+    'latin-1': 'iso-8859-1',
+    cp1252: 'windows-1252',
+    'win-1252': 'windows-1252',
+  }
+  return aliases[raw] || raw
+}
+
+function decodeHttpText(body: ArrayBuffer, contentType: string | null) {
+  const declared = charsetFromContentType(contentType)
+  const candidates = [declared, 'utf-8', 'windows-1252', 'iso-8859-1'].filter(Boolean)
+  const unique = [...new Set(candidates)]
+  let best = ''
+  let bestScore = Number.POSITIVE_INFINITY
+  for (const charset of unique) {
+    try {
+      const text = new TextDecoder(charset, { fatal: false }).decode(body)
+      let score = textQualityPenalty(text)
+      if (declared && charset === declared) score -= 1
+      if (score < bestScore) {
+        best = text
+        bestScore = score
+      }
+    } catch {
+      // Unsupported encoding in this runtime. Keep trying the safe fallbacks.
+    }
+  }
+  return best || new TextDecoder('utf-8', { fatal: false }).decode(body)
+}
+
+async function responseText(res: Response) {
+  const body = await res.arrayBuffer()
+  return decodeHttpText(body, res.headers.get('Content-Type'))
+}
+
 async function zeevJsonRequest(url: string, init: RequestInit = {}, options: { needsFormFields?: boolean; mergeRows?: boolean; timeoutMs?: number } = {}): Promise<any> {
   const tokens = zeevTokens().filter((token) => token && !BAD_ZEEV_TOKENS.has(token))
   if (!tokens.length) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
@@ -672,39 +729,40 @@ async function zeevJsonRequest(url: string, init: RequestInit = {}, options: { n
   let fallbackSet = false
 
   for (const token of tokens) {
-    const headers = new Headers(init.headers || {})
-    headers.set('Authorization', `Bearer ${token}`)
-    if (!headers.has('Accept')) headers.set('Accept', 'application/json')
-    if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+    for (const authAttempt of zeevAuthAttempts(token)) {
+      const headers = new Headers(init.headers || {})
+      authAttempt.apply(headers)
+      if (!headers.has('Accept')) headers.set('Accept', 'application/json')
+      if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
 
-    let res: Response
-    try {
-      res = await zeevFetchWithTimeout(url, { ...init, headers }, options.timeoutMs)
-    } catch (error) {
-      errors.push(`timeout/fetch: ${error instanceof Error ? error.message : String(error)}`.slice(0, 260))
-      continue
-    }
-    const text = await res.text()
-    if (!res.ok) {
-      if (res.status === 401) BAD_ZEEV_TOKENS.add(token)
-      errors.push(`HTTP ${res.status}: ${text.slice(0, 220)}`)
-      if ([401, 403].includes(res.status) || res.status >= 500) continue
-      throw new Error(`Zeev API ${res.status}: ${text.slice(0, 500)}`)
-    }
-
-    const data = text ? JSON.parse(text) : {}
-    if (options.mergeRows) {
-      rows.push(...(Array.isArray(data) ? data : [data]))
-      continue
-    }
-    if (options.needsFormFields && !hasFormFields(data)) {
-      if (!fallbackSet) {
-        fallback = data
-        fallbackSet = true
+      let res: Response
+      try {
+        res = await zeevFetchWithTimeout(url, { ...init, headers }, options.timeoutMs)
+      } catch (error) {
+        errors.push(`timeout/fetch: ${error instanceof Error ? error.message : String(error)}`.slice(0, 260))
+        continue
       }
-      continue
+      const text = await responseText(res)
+      if (!res.ok) {
+        errors.push(`${authAttempt.label} HTTP ${res.status}: ${text.slice(0, 220)}`)
+        if ([401, 403].includes(res.status) || res.status >= 500) continue
+        throw new Error(`Zeev API ${res.status}: ${text.slice(0, 500)}`)
+      }
+
+      const data = text ? JSON.parse(text) : {}
+      if (options.mergeRows) {
+        rows.push(...(Array.isArray(data) ? data : [data]))
+        continue
+      }
+      if (options.needsFormFields && !hasFormFields(data)) {
+        if (!fallbackSet) {
+          fallback = data
+          fallbackSet = true
+        }
+        continue
+      }
+      return data
     }
-    return data
   }
 
   if (options.mergeRows && rows.length) return mergeZeevRows(rows)
@@ -717,21 +775,22 @@ async function zeevTextRequest(url: string, init: RequestInit = {}): Promise<{ r
   if (!tokens.length) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const errors: string[] = []
   for (const token of tokens) {
-    const headers = new Headers(init.headers || {})
-    headers.set('Authorization', `Bearer ${token}`)
-    if (!headers.has('Accept')) headers.set('Accept', '*/*')
-    let res: Response
-    try {
-      res = await zeevFetchWithTimeout(url, { ...init, headers })
-    } catch (error) {
-      errors.push(`timeout/fetch: ${error instanceof Error ? error.message : String(error)}`.slice(0, 260))
-      continue
+    for (const authAttempt of zeevAuthAttempts(token)) {
+      const headers = new Headers(init.headers || {})
+      authAttempt.apply(headers)
+      if (!headers.has('Accept')) headers.set('Accept', '*/*')
+      let res: Response
+      try {
+        res = await zeevFetchWithTimeout(url, { ...init, headers })
+      } catch (error) {
+        errors.push(`timeout/fetch: ${error instanceof Error ? error.message : String(error)}`.slice(0, 260))
+        continue
+      }
+      const text = await responseText(res)
+      if (res.ok) return { res, text }
+      errors.push(`${authAttempt.label} HTTP ${res.status}: ${text.slice(0, 220)}`)
+      if (![401, 403].includes(res.status) && res.status < 500) break
     }
-    const text = await res.text()
-    if (res.ok) return { res, text }
-    if (res.status === 401) BAD_ZEEV_TOKENS.add(token)
-    errors.push(`HTTP ${res.status}: ${text.slice(0, 220)}`)
-    if (![401, 403].includes(res.status) && res.status < 500) break
   }
   throw new Error(`Zeev API sem resposta autorizada: ${errors.join(' | ')}`)
 }
@@ -750,12 +809,16 @@ async function zeevBinaryRequest(url: string, init: RequestInit = {}, options: {
     if (!next.searchParams.has(key)) next.searchParams.set(key, token)
     return next.toString()
   }
-  const attempts: Array<{ url: string; token?: string; auth: 'none' | 'bearer' }> = []
+  const attempts: Array<{ url: string; token?: string; auth: 'none' | 'bearer' | 'raw' | 'x-api-key' | 'api-key' | 'x-access-token' }> = []
   if (!isZeevHost) {
     attempts.push({ url, auth: 'none' })
   } else {
     for (const token of tokens.slice(0, maxTokens)) {
       attempts.push({ url, token, auth: 'bearer' })
+      attempts.push({ url, token, auth: 'raw' })
+      attempts.push({ url, token, auth: 'x-api-key' })
+      attempts.push({ url, token, auth: 'api-key' })
+      attempts.push({ url, token, auth: 'x-access-token' })
       attempts.push({ url: urlWithParam('token', token), auth: 'none' })
       attempts.push({ url: urlWithParam('access_token', token), auth: 'none' })
       attempts.push({ url: urlWithParam('api_token', token), auth: 'none' })
@@ -769,6 +832,10 @@ async function zeevBinaryRequest(url: string, init: RequestInit = {}, options: {
     seen.add(key)
     const headers = new Headers(init.headers || {})
     if (attempt.auth === 'bearer' && attempt.token) headers.set('Authorization', `Bearer ${attempt.token}`)
+    if (attempt.auth === 'raw' && attempt.token) headers.set('Authorization', attempt.token)
+    if (attempt.auth === 'x-api-key' && attempt.token) headers.set('X-API-Key', attempt.token)
+    if (attempt.auth === 'api-key' && attempt.token) headers.set('api-key', attempt.token)
+    if (attempt.auth === 'x-access-token' && attempt.token) headers.set('X-Access-Token', attempt.token)
     if (!headers.has('Accept')) headers.set('Accept', '*/*')
     let res: Response
     try {
@@ -778,9 +845,8 @@ async function zeevBinaryRequest(url: string, init: RequestInit = {}, options: {
       continue
     }
     if (res.ok) return res
-    const text = await res.text()
-    if (res.status === 401 && attempt.auth === 'bearer' && attempt.token) BAD_ZEEV_TOKENS.add(attempt.token)
-    errors.push(`HTTP ${res.status}: ${text.slice(0, 220)}`)
+    const text = await responseText(res)
+    errors.push(`${attempt.auth} HTTP ${res.status}: ${text.slice(0, 220)}`)
     if (![401, 403].includes(res.status) && res.status < 500) break
   }
   throw new Error(`Zeev arquivo sem resposta autorizada: ${errors.join(' | ')}`)
@@ -1806,6 +1872,23 @@ async function restAll(path: string, pageSize = 1000) {
   return rows
 }
 
+async function forEachRestPage(path: string, handler: (row: AnyRecord) => void | Promise<void>, pageSize = 500) {
+  let from = 0
+  let total = 0
+  while (true) {
+    const sep = path.includes('?') ? '&' : '?'
+    const page = await rest(`${path}${sep}limit=${pageSize}&offset=${from}`)
+    const list = Array.isArray(page) ? page : []
+    for (const row of list) {
+      total++
+      await handler(row)
+    }
+    if (list.length < pageSize) break
+    from += pageSize
+  }
+  return total
+}
+
 async function tokenFingerprint(value: string) {
   const bytes = new TextEncoder().encode(String(value || ''))
   const digest = await crypto.subtle.digest('SHA-256', bytes)
@@ -1831,32 +1914,89 @@ async function runZeevTokenHealth() {
   const tokenInfo = await zeevTokenDiagnostics()
   if (!zeevToken()) return { ok: false, status: 'missing_token', error: 'ZEEV_TOKEN ausente.', tokenInfo }
   const instanceId = String(env('ZEEV_HEALTH_INSTANCE_ID', '130521') || '').replace(/\D+/g, '')
-  if (!instanceId) return { ok: true, status: 'skipped', reason: 'ZEEV_HEALTH_INSTANCE_ID ausente', tokenInfo }
+  const instanceErrors: string[] = []
   try {
-    const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
-    const url = new URL(`${base}/api/2/instances/${encodeURIComponent(instanceId)}`)
-    for (const field of ['numeroDaNF', 'valorTotalDoPagamento', 'valorTotalDoPagamento01', 'anexarNotaFiscal']) {
-      url.searchParams.append('formFieldNames', field)
-    }
-    const data = await zeevJsonRequest(url.toString(), {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
-      },
-    }, { timeoutMs: 9000, needsFormFields: true })
-    const fields = Array.isArray(data?.formFields) ? data.formFields : []
-    return {
-      ok: true,
-      status: 'ok',
-      instanceId,
-      hasReportLink: Boolean(data?.reportLink),
-      formFields: fields.length,
-      tokenInfo,
-      elapsedMs: Date.now() - started,
+    if (instanceId) {
+      const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+      const url = new URL(`${base}/api/2/instances/${encodeURIComponent(instanceId)}`)
+      for (const field of ['numeroDaNF', 'valorTotalDoPagamento', 'valorTotalDoPagamento01', 'anexarNotaFiscal']) {
+        url.searchParams.append('formFieldNames', field)
+      }
+      const data = await zeevJsonRequest(url.toString(), {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
+        },
+      }, { timeoutMs: 9000, needsFormFields: true })
+      const fields = Array.isArray(data?.formFields) ? data.formFields : []
+      return {
+        ok: true,
+        status: 'ok',
+        probe: 'instance',
+        instanceId,
+        hasReportLink: Boolean(data?.reportLink),
+        formFields: fields.length,
+        tokenInfo,
+        elapsedMs: Date.now() - started,
+      }
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
-    return { ok: false, status: 'unhealthy', instanceId, error: msg.slice(0, 700), tokenInfo, elapsedMs: Date.now() - started }
+    instanceErrors.push(msg.slice(0, 500))
+  }
+
+  const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+  const flowIds = parseFlowIds(env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','))
+  const now = new Date()
+  const begin = new Date(now.getTime() - 48 * 3600 * 1000).toISOString().replace(/\.\d{3}Z$/, '+00:00')
+  const finish = now.toISOString().replace(/\.\d{3}Z$/, '+00:00')
+  const reportErrors: string[] = []
+  for (const flow of flowIds.slice(0, 5)) {
+    try {
+      const fields = capexFieldsForFlow(flow).slice(0, 8)
+      const rows = await zeevJsonRequest(`${base}/api/2/instances/report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: '*/*',
+          'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
+        },
+        body: JSON.stringify({
+          flowId: flow,
+          startDateIntervalBegin: begin,
+          startDateIntervalEnd: finish,
+          recordsPerPage: 1,
+          pageNumber: 1,
+          useCache: false,
+          formFieldNames: fields,
+          showPendingInstanceTasks: true,
+          showFinishedInstanceTasks: true,
+          showPendingAssignees: true,
+          allowOpenUrlsForFilesInForm: true,
+        }),
+      }, { mergeRows: true, timeoutMs: 9000 })
+      return {
+        ok: true,
+        status: 'ok',
+        probe: 'report',
+        flowId: flow,
+        rows: Array.isArray(rows) ? rows.length : 0,
+        instanceProbeError: instanceErrors[0] || '',
+        tokenInfo,
+        elapsedMs: Date.now() - started,
+      }
+    } catch (error) {
+      reportErrors.push(`flow=${flow}: ${error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300)}`)
+    }
+  }
+  if (!instanceId && !reportErrors.length) return { ok: true, status: 'skipped', reason: 'sem probe Zeev configurado', tokenInfo }
+  return {
+    ok: false,
+    status: 'unhealthy',
+    instanceId: instanceId || '',
+    error: [...instanceErrors.map((e) => `instance: ${e}`), ...reportErrors].join(' | ').slice(0, 900),
+    tokenInfo,
+    elapsedMs: Date.now() - started,
   }
 }
 
@@ -1967,7 +2107,7 @@ function docTicketRefs(value: unknown, options: AnyRecord = {}) {
     refs.push(id)
   }
   if (/^\d{1,7}$/.test(raw)) add(raw)
-  const explicit = /\b(?:TR|TICKET(?:\s+RAIZ)?|TICKET\s+DE\s+COMPRAS|SOLICITA(?:C|Ç)[AÃ]O(?:\s+DE\s+COMPRAS)?)\s*[:#-]?\s*(\d{1,7})\b/gi
+  const explicit = /\b(?:TR|TICKET(?:\s+RAIZ)?|TICKET\s+DE\s+COMPRAS|SOLICITA(?:CAO|ÇÃO)(?:\s+DE\s+COMPRAS)?)\s*[:#-]?\s*(\d{1,7})\b/giu
   let match: RegExpExecArray | null
   while ((match = explicit.exec(raw))) add(match[1])
   if (!strict) {
@@ -2515,6 +2655,18 @@ async function zeevInstanceReport(instanceId: number, flow: number, fields: stri
   if (!zeevToken()) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
   const fieldList = [...new Set((fields || []).map((field) => String(field || '').trim()).filter(Boolean))]
+  const reportUrlFromBody = (body: AnyRecord) => {
+    const url = new URL(`${base}/api/2/instances/report`)
+    for (const [key, value] of Object.entries(body || {})) {
+      if (value === undefined || value === null || value === '') continue
+      if (Array.isArray(value)) {
+        for (const item of value) if (item !== undefined && item !== null && item !== '') url.searchParams.append(key, String(item))
+      } else {
+        url.searchParams.set(key, String(value))
+      }
+    }
+    return url.toString()
+  }
   const baseBody: AnyRecord = {
     instanceId,
     recordsPerPage: 10,
@@ -2551,26 +2703,46 @@ async function zeevInstanceReport(instanceId: number, flow: number, fields: stri
   const errors: string[] = []
   let fallback: AnyRecord | null = null
   for (const body of bodies) {
-    try {
-      const data = await zeevJsonRequest(`${base}/api/2/instances/report`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
+    const attempts = [
+      {
+        label: 'POST /api/2/instances/report',
+        url: `${base}/api/2/instances/report`,
+        init: {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      }, { needsFormFields: fieldList.length > 0, mergeRows: true })
-      const rows = Array.isArray(data) ? data : [data]
-      const row = rows.find((item: AnyRecord) => Number(item?.id) === Number(instanceId)) || rows[0] || {}
-      if (row && typeof row === 'object' && Object.keys(row).length && !fallback) fallback = row
-      if (fieldList.length && !hasFormFields(row)) {
-        errors.push('report sem formFields para campos solicitados')
-        continue
+      },
+      {
+        label: 'GET /api/2/instances/report',
+        url: reportUrlFromBody(body),
+        init: {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
+          },
+        },
+      },
+    ]
+    for (const attempt of attempts) {
+      try {
+        const data = await zeevJsonRequest(attempt.url, attempt.init, { needsFormFields: fieldList.length > 0, mergeRows: true })
+        const rows = Array.isArray(data) ? data : [data]
+        const row = rows.find((item: AnyRecord) => Number(item?.id) === Number(instanceId)) || rows[0] || {}
+        if (row && typeof row === 'object' && Object.keys(row).length && !fallback) fallback = row
+        if (fieldList.length && !hasFormFields(row)) {
+          errors.push(`${attempt.label} sem formFields para campos solicitados`)
+          continue
+        }
+        return row
+      } catch (error) {
+        errors.push(`${attempt.label}: ${error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500)}`)
       }
-      return row
-    } catch (error) {
-      errors.push(error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500))
     }
   }
   if (fallback) return fallback
@@ -3198,7 +3370,7 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
       },
       body: JSON.stringify({ ref, inputs: workflowInputs }),
     })
-    const text = await res.text()
+    const text = await responseText(res)
     if (res.status !== 204) {
       await saveState('zeev-capex', {
         running: false,
@@ -3485,21 +3657,24 @@ function explicitDocKindFromFileContext(doc: AnyRecord) {
   const storageText = norm([doc?.storagePath, doc?.path].filter(Boolean).join(' '))
   const fromMessage = /(messages|comentario|comment|instancetasks|rawtasks)/.test(sourceKey)
   const explicitFiscalOrChargeFile = /(notafiscal|notasfiscais|anexarnota|anexarnf|danfe|xml|nfe|nfse|nfs-e|nf-e|fatura|boleto|recibo)/.test(originalKey)
-  if (/(pgfor|comprovante|comprovantedopagamento|pix|liquidado|liquidacao|pago)/.test(originalKey)) return 'COMPROVANTE'
+  const proofCue = /(pgfor|comprovantedopagamento|comprovante.*pagamento|pagamento.*comprovante|pix|liquidado|liquidacao|pago)/
+  if (proofCue.test(originalKey)) return 'COMPROVANTE'
   if (/(boleto|boletoparcelado|boletoavista)/.test(originalKey)) return 'BOLETO'
   if (/(fatura)/.test(originalKey) || /(?:^|\s)ft\s*0*\d{2,}(?:\s|$)/.test(originalText) || /^ft0*\d{2,}/.test(originalKey)) return 'FATURA'
   if (/(recibo)/.test(originalKey)) return 'RECIBO'
   if (/(xml|danfe|nfe|nfse|nfs-e|nf-e|notafiscal|notasfiscais)/.test(originalKey) || /(^|[^a-z])nf([^a-z]|$)/.test(originalText)) return 'NF'
+  if (/(comprovante)/.test(originalKey)) return 'COMPROVANTE'
   if (fromMessage && !explicitFiscalOrChargeFile) return 'COMPROVANTE'
   if (/(comprovante|comprovantedopagamento|arquivocomprovante|documentocomprovante|pix)/.test(sourceKey)) return 'COMPROVANTE'
   if (/(anexarboleto|boletoparcelado|boletoavista|boleto)/.test(sourceKey)) return 'BOLETO'
   if (/(fatura)/.test(sourceKey)) return 'FATURA'
   if (/(recibo)/.test(sourceKey)) return 'RECIBO'
-  if (/(comprovante|pix|liquidado|liquidacao|pago)/.test(storageKey)) return 'COMPROVANTE'
+  if (proofCue.test(storageKey)) return 'COMPROVANTE'
   if (/(boleto|boletoparcelado|boletoavista)/.test(storageKey)) return 'BOLETO'
   if (/(fatura)/.test(storageKey) || /(?:^|\s)ft\s*0*\d{2,}(?:\s|$)/.test(storageText) || /^ft0*\d{2,}/.test(storageKey)) return 'FATURA'
   if (/(recibo)/.test(storageKey)) return 'RECIBO'
   if (/(xml|danfe|nfe|nfse|nfs-e|nf-e|notafiscal|notasfiscais)/.test(storageKey) || /(^|[^a-z])nf([^a-z]|$)/.test(storageText)) return 'NF'
+  if (/(comprovante|pix)/.test(storageKey)) return 'COMPROVANTE'
   return ''
 }
 
@@ -4293,7 +4468,7 @@ async function downloadZeevDocFromUrl(doc: AnyRecord, url: string, depth = 0): P
   })
   const type = res.headers.get('content-type') || doc.type || 'application/octet-stream'
   if (depth < 2 && /application\/json|text\/json/i.test(type)) {
-    const text = await res.text()
+    const text = await responseText(res)
     try {
       const nested = docFromJsonPayload(JSON.parse(text), doc)
       if (nested) return await downloadZeevDoc(nested, depth + 1)
@@ -4304,7 +4479,7 @@ async function downloadZeevDocFromUrl(doc: AnyRecord, url: string, depth = 0): P
     return { body: bytes.buffer, name: ensureStorageExtension(doc.name || fileNameFromResponse(url, res.headers) || 'zeev-metadata.json', 'application/json'), type: 'application/json' }
   }
   if (/text\/html/i.test(type)) {
-    const text = await res.text()
+    const text = await responseText(res)
     const confirmMatch = depth < 2 ? text.match(/href="([^"]*(?:uc\?export=download|download\?id=)[^"]+)"/i) : null
     if (confirmMatch) {
       const nestedUrl = new URL(confirmMatch[1].replace(/&amp;/g, '&'), url).toString()
@@ -5916,6 +6091,26 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     return { ok: true, mode: 'doc-rescue-candidates', strategy: 'trs-explicitos-com-fanout', explicit: true, ticketIds: [...ids].map(Number), sources }
   }
 
+  if (input.forceEdgeCandidates !== true && input.force_edge_candidates !== true) {
+    const audit = await runDocRescueAudit({ ...input, sampleLimit: limit, sample_limit: limit })
+    const sample = Array.isArray(audit?.queue?.sample) ? audit.queue.sample : []
+    for (const id of sample) add(id, 'pending')
+    if (ids.size) {
+      return {
+        ok: true,
+        mode: 'doc-rescue-candidates',
+        strategy: 'postgres-rpc-doc-state',
+        ticketIds: [...ids].map(Number),
+        sources,
+        limit,
+        staleHours,
+        checkedBefore: checkedBefore ? new Date(checkedBefore).toISOString() : '',
+        auditQueueTotal: Number(audit?.queue?.total || 0),
+        paymentFiscal: Number(audit?.queue?.paymentFiscal || 0),
+      }
+    }
+  }
+
   if (includePayments && ids.size < limit) {
     const rows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=obra_id.asc.nullslast,id.asc')
     for (const row of (rows || []).sort(comparePaymentDocCandidates)) {
@@ -5970,12 +6165,23 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
   const checkedBefore = readDocCheckedBefore(input)
   const sampleLimit = Math.max(10, Math.min(Number(input.sampleLimit || input.sample_limit || 80), 300))
   const recentHours = Math.max(1, Math.min(Number(input.recentHours || input.recent_hours || 24), 168))
+  if (input.forceEdgeAudit !== true && input.force_edge_audit !== true) {
+    const rpcAudit = await rest('/rpc/raiz_doc_rescue_audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recent_hours: recentHours,
+        sample_limit: sampleLimit,
+        stale_hours: staleHours,
+      }),
+    })
+    if (rpcAudit && typeof rpcAudit === 'object' && !Array.isArray(rpcAudit)) return rpcAudit as AnyRecord
+  }
   const recentSince = Date.now() - recentHours * 3600 * 1000
   const recentAttached: AnyRecord[] = []
   const recentSeen = new Set<string>()
-  const payments = await restAll('/pagamentos?select=id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=id.asc')
-  const pending = await restAll('/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=id.asc')
-  const capex = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at&order=id.asc')
+  const pageSize = Math.max(100, Math.min(Number(input.pageSize || input.page_size || 400), 800))
+  const rows = { payments: 0, pending: 0, capex: 0 }
 
   const all = new Set<string>()
   const paymentIds = new Set<string>()
@@ -6059,9 +6265,9 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
     recentAttached.push({ tr: Number(key), target, rowId: row?.id || null, attachments, invoiceDocs, chargeDocs, proofDocs, fiscalDocs: invoiceDocs })
   }
 
-  for (const row of payments || []) {
+  rows.payments = await forEachRestPage('/pagamentos?select=id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=id.asc', (row: AnyRecord) => {
     const keys = paymentTicketRefs(row)
-    if (!keys.length) continue
+    if (!keys.length) return
     for (const key of keys) {
       addAll(key)
       paymentIds.add(key)
@@ -6072,19 +6278,21 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
         if (!hasStoredFiscalDoc(row)) paymentFiscalQueue.add(key)
       }
     }
-  }
-  for (const row of pending || []) {
+  }, pageSize)
+
+  rows.pending = await forEachRestPage('/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=not.is.null&order=id.asc', (row: AnyRecord) => {
     const key = addAll(row.zeev_instance_id)
-    if (!key) continue
+    if (!key) return
     pendingIds.add(key)
     if (isFinancialZeevRow(row)) financialPendingIds.add(key)
     markDocState(key, row)
     collectRecentAttached(key, 'pending', row)
     if (shouldRescueDocs(row, staleHours, 'pending', checkedBefore)) rescueQueue.add(key)
-  }
-  for (const row of capex || []) {
+  }, pageSize)
+
+  rows.capex = await forEachRestPage('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at&order=id.asc', (row: AnyRecord) => {
     const keys = capexTicketRefs(row)
-    if (!keys.length) continue
+    if (!keys.length) return
     for (const key of keys) {
       addAll(key)
       capexIds.add(key)
@@ -6092,14 +6300,14 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
       collectRecentAttached(key, 'capex', row)
       if (shouldRescueDocs(row, staleHours, 'capex', checkedBefore)) rescueQueue.add(key)
     }
-  }
+  }, pageSize)
 
   return {
     ok: true,
     mode: 'doc-rescue-audit',
     staleHours,
     checkedBefore: checkedBefore ? new Date(checkedBefore).toISOString() : '',
-    rows: { payments: payments.length, pending: pending.length, capex: capex.length },
+    rows,
     uniqueTickets: all.size,
     uniqueBySource: { payments: paymentIds.size, pending: pendingIds.size, financialPending: financialPendingIds.size, capex: capexIds.size },
     docs: { withAnyDocs: withAnyDocs.size, withFiscalDocs: withFiscalDocs.size, withChargeDocs: withChargeDocs.size, withProofDocs: withProofDocs.size, withoutAnyDocs: Math.max(0, all.size - withAnyDocs.size), withoutFiscalDocs: Math.max(0, all.size - withFiscalDocs.size) },
@@ -6243,12 +6451,13 @@ async function runDocRescueDetail(input: AnyRecord = {}) {
   const out: AnyRecord = { ok: true, mode: 'doc-rescue-detail', ticketIds, rows: [] }
   const pending = await rest(`/capex_zeev_solicitacoes?select=id,zeev_instance_id,flow_id,flow_name,request_name,docs_json,zeev_docs_checked_at,status&zeev_instance_id=in.(${ticketIds.join(',')})&limit=${Math.max(20, ticketIds.length * 4)}`)
   for (const row of pending || []) out.rows.push(docRescueDetailRow('pending', row, row.zeev_instance_id))
-  const payments = await restAll('/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=not.is.null&order=id.asc')
+  const payments = await rest(`/pagamentos?select=id,obra_id,ticket_raiz,nf_doc_path,comp_doc_path,docs_json,zeev_docs_checked_at,st,paga_em&ticket_raiz=in.(${ticketIds.join(',')})&limit=${Math.max(20, ticketIds.length * 4)}`)
   for (const row of payments || []) {
     const refs = paymentTicketRefs(row)
     if (refs.some((ref) => idSet.has(ref))) out.rows.push(docRescueDetailRow('payment', row, matchedTicketRef(refs, idSet) || refs[0]))
   }
-  const capex = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at,situacao,realizado&order=id.asc')
+  const joined = ticketIds.join(',')
+  const capex = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at,situacao,realizado&or=(referencia.in.(${joined}),ticket_raiz_instance_id.in.(${joined}))&limit=${Math.max(20, ticketIds.length * 4)}`)
   for (const row of capex || []) {
     const refs = capexTicketRefs(row)
     if (refs.some((ref) => idSet.has(ref))) out.rows.push(docRescueDetailRow('capex', row, matchedTicketRef(refs, idSet) || refs[0]))
@@ -7353,6 +7562,12 @@ async function probeZeevTicket(input: AnyRecord = {}) {
     } catch (error) {
       out.probes.push(zeevProbeSummary('POST /api/2/instances/report sem campos', {}, flow, error instanceof Error ? error.message : String(error)))
     }
+  }
+  const successful = out.probes.filter((probe: AnyRecord) => probe?.ok === true)
+  const useful = successful.filter((probe: AnyRecord) => Boolean(probe.hasReportLink || probe.fields || probe.tasks || probe.flowId || probe.requestName))
+  if (!useful.length) {
+    out.ok = false
+    out.error = 'Nenhum endpoint Zeev retornou dados uteis para o TR solicitado.'
   }
   return out
 }

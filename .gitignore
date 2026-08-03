@@ -49,5 +49,6 @@ __pycache__/
 
 # Runtime local e artefatos temporarios
 tmp/
+outputs/
 .venv/
 services/advanced-ocr/.venv/

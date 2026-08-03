@@ -11,58 +11,118 @@ security definer
 set search_path = public, cron
 as $$
 declare
+  batch_limit integer := 250;
   cleaned_raw_payloads integer := 0;
   cleaned_treated_fields integer := 0;
   cleaned_capex_payloads integer := 0;
   deleted_cron_logs integer := 0;
+  more_work boolean := false;
 begin
-  update public.capex_zeev_solicitacoes
+  with targets as (
+    select ctid
+      from public.capex_zeev_solicitacoes
+     where coalesce(raw_instance, '{}'::jsonb) <> '{}'::jsonb
+        or coalesce(raw_tasks, '[]'::jsonb) <> '[]'::jsonb
+        or (
+          jsonb_typeof(coalesce(enrichment_errors, '[]'::jsonb)) = 'array'
+          and jsonb_array_length(coalesce(enrichment_errors, '[]'::jsonb)) > 5
+        )
+     order by updated_at asc nulls first
+     limit batch_limit
+  )
+  update public.capex_zeev_solicitacoes c
      set raw_instance = '{}'::jsonb,
          raw_tasks = '[]'::jsonb,
          enrichment_errors = case
-           when jsonb_array_length(coalesce(enrichment_errors, '[]'::jsonb)) > 5
+           when jsonb_typeof(coalesce(c.enrichment_errors, '[]'::jsonb)) = 'array'
+            and jsonb_array_length(coalesce(c.enrichment_errors, '[]'::jsonb)) > 5
              then (
                select coalesce(jsonb_agg(value), '[]'::jsonb)
                from (
                  select value
-                 from jsonb_array_elements(enrichment_errors)
+                 from jsonb_array_elements(c.enrichment_errors)
                  limit 5
                ) limited
              )
-           else coalesce(enrichment_errors, '[]'::jsonb)
+           when jsonb_typeof(coalesce(c.enrichment_errors, '[]'::jsonb)) = 'array'
+             then coalesce(c.enrichment_errors, '[]'::jsonb)
+           else '[]'::jsonb
          end
-   where coalesce(raw_instance, '{}'::jsonb) <> '{}'::jsonb
-      or coalesce(raw_tasks, '[]'::jsonb) <> '[]'::jsonb
-      or jsonb_array_length(coalesce(enrichment_errors, '[]'::jsonb)) > 5;
+    from targets
+   where c.ctid = targets.ctid;
   get diagnostics cleaned_raw_payloads = row_count;
 
-  update public.capex_zeev_solicitacoes
+  with targets as (
+    select ctid
+      from public.capex_zeev_solicitacoes
+     where status in ('aprovado', 'ignorado', 'erro')
+       and coalesce(raw_fields, '[]'::jsonb) <> '[]'::jsonb
+     order by updated_at asc nulls first
+     limit batch_limit
+  )
+  update public.capex_zeev_solicitacoes c
      set raw_fields = '[]'::jsonb
-   where status in ('aprovado', 'ignorado', 'erro')
-     and coalesce(raw_fields, '[]'::jsonb) <> '[]'::jsonb;
+    from targets
+   where c.ctid = targets.ctid;
   get diagnostics cleaned_treated_fields = row_count;
 
-  update public.capex_itens
+  with targets as (
+    select ctid
+      from public.capex_itens
+     where ticket_raiz_dados ?| array['rawFields', 'rawInstance', 'rawTasks']
+     order by updated_at asc nulls first
+     limit batch_limit
+  )
+  update public.capex_itens c
      set ticket_raiz_dados = jsonb_strip_nulls(
-       ticket_raiz_dados - 'rawFields' - 'rawInstance' - 'rawTasks'
+       c.ticket_raiz_dados - 'rawFields' - 'rawInstance' - 'rawTasks'
      )
-   where ticket_raiz_dados ?| array['rawFields', 'rawInstance', 'rawTasks'];
+    from targets
+   where c.ctid = targets.ctid;
   get diagnostics cleaned_capex_payloads = row_count;
 
-  delete from cron.job_run_details
-   where start_time < now() - interval '2 days';
+  with targets as (
+    select ctid
+      from cron.job_run_details
+     where start_time < now() - interval '2 days'
+     order by start_time asc
+     limit batch_limit
+  )
+  delete from cron.job_run_details d
+   using targets
+   where d.ctid = targets.ctid;
   get diagnostics deleted_cron_logs = row_count;
 
-  analyze public.capex_zeev_solicitacoes;
-  analyze public.capex_itens;
-  analyze cron.job_run_details;
+  more_work := exists (
+    select 1
+      from public.capex_zeev_solicitacoes
+     where coalesce(raw_instance, '{}'::jsonb) <> '{}'::jsonb
+        or coalesce(raw_tasks, '[]'::jsonb) <> '[]'::jsonb
+        or (
+          status in ('aprovado', 'ignorado', 'erro')
+          and coalesce(raw_fields, '[]'::jsonb) <> '[]'::jsonb
+        )
+     limit 1
+  ) or exists (
+    select 1
+      from public.capex_itens
+     where ticket_raiz_dados ?| array['rawFields', 'rawInstance', 'rawTasks']
+     limit 1
+  ) or exists (
+    select 1
+      from cron.job_run_details
+     where start_time < now() - interval '2 days'
+     limit 1
+  );
 
   return jsonb_build_object(
     'ok', true,
+    'batchLimit', batch_limit,
     'cleanedRawPayloads', cleaned_raw_payloads,
     'cleanedTreatedFields', cleaned_treated_fields,
     'cleanedCapexPayloads', cleaned_capex_payloads,
     'deletedCronLogs', deleted_cron_logs,
+    'moreWork', more_work,
     'ranAt', now()
   );
 end;
