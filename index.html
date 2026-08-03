@@ -769,7 +769,7 @@ button{font-family:inherit;cursor:pointer}
 .capex-context-fact b{display:block;font-size:9.8px;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
 .capex-context-fact span{display:block;font-size:12.5px;color:var(--ink);font-family:"Geist",system-ui,sans-serif;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .capex-context-fact.missing span{font-family:"Geist",system-ui,sans-serif;font-weight:750;color:var(--muted)}
-.zeev-destination-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.zeev-destination-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:14px}
 .zeev-destination-card{border:1px solid color-mix(in srgb,var(--brand-cur,var(--accent)) 18%,var(--line));background:linear-gradient(135deg,rgba(255,255,255,.9),color-mix(in srgb,var(--brand-cur-light,var(--raiz-soft)) 42%,#fff));border-radius:14px;padding:15px;text-align:left;cursor:pointer;min-height:146px;display:flex;flex-direction:column;gap:8px;transition:border-color .15s,box-shadow .15s,transform .12s;color:var(--ink);font-family:inherit}
 .zeev-destination-card:hover{border-color:var(--brand-cur,var(--accent));box-shadow:0 12px 26px -24px rgba(0,0,0,.55);transform:translateY(-1px)}
 .zeev-destination-card b{font-size:15px;line-height:1.18;color:var(--ink)}
@@ -1540,7 +1540,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 @media(max-width:768px){
   #overlay,#viewer-overlay,#contr-overlay,#forn-detail-overlay,
   #csv-overlay,#aditivo-overlay,#aporte-overlay,#aporteContr-overlay,
-  #cat-overlay,#confirm-overlay,#invest-overlay,#obra-overlay,#capex-item-overlay,#capex-tr-dup-overlay,#capex-notcapex-overlay,#capex-zeev-destination-overlay,#capex-zeev-obra-overlay,#payment-docs-overlay{
+  #cat-overlay,#confirm-overlay,#invest-overlay,#obra-overlay,#capex-item-overlay,#capex-tr-dup-overlay,#capex-notcapex-overlay,#capex-zeev-destination-overlay,#capex-zeev-obra-overlay,#capex-zeev-realestate-overlay,#realestate-overlay,#payment-docs-overlay{
     max-width:100%!important;
     width:100%!important;
   }
@@ -1788,6 +1788,48 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 @supports not (backdrop-filter:blur(10px)){
   #login-screen .lcard{background:#FFFCF6}
 }
+.realestate-toolbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:14px 0 18px}
+.realestate-toolbar .fi{max-width:360px}
+.realestate-grid{display:grid;grid-template-columns:1fr;gap:14px}
+.realestate-card{--re-color:var(--accent);background:linear-gradient(135deg,rgba(255,255,255,.86),rgba(255,252,246,.94));border:1px solid color-mix(in srgb,var(--re-color) 32%,var(--line));border-left:5px solid var(--re-color);border-radius:16px;box-shadow:0 18px 42px -34px rgba(22,42,36,.48);overflow:hidden}
+.realestate-card summary{list-style:none;cursor:pointer;padding:18px 18px 16px;display:grid;grid-template-columns:minmax(240px,1.1fr) minmax(210px,.7fr) minmax(260px,1fr) auto;gap:16px;align-items:center}
+.realestate-card summary::-webkit-details-marker{display:none}
+.realestate-card h3{font-size:18px;margin:0 0 6px;color:var(--ink);line-height:1.25}
+.realestate-muted{font-size:12.5px;color:var(--muted);line-height:1.45}
+.realestate-brandline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.realestate-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb,var(--re-color) 28%,var(--line));background:color-mix(in srgb,var(--re-color) 11%,#fff);color:var(--ink);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:850;line-height:1}
+.realestate-status{justify-self:end;text-align:center;border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:12px;font-weight:900;color:var(--ink);background:rgba(255,255,255,.78);white-space:nowrap}
+.realestate-status.ok{color:var(--ok);background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 28%,var(--line))}
+.realestate-status.warn{color:var(--warn);background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 28%,var(--line))}
+.realestate-status.danger{color:var(--danger);background:var(--danger-bg);border-color:color-mix(in srgb,var(--danger) 28%,var(--line))}
+.realestate-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.realestate-fact{border:1px solid rgba(15,42,36,.12);border-radius:10px;background:rgba(255,255,255,.62);padding:9px 10px;min-height:56px}
+.realestate-fact b{display:block;font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em;margin-bottom:4px}
+.realestate-fact span{display:block;font-size:13px;color:var(--ink);font-weight:850;line-height:1.25;overflow-wrap:anywhere}
+.realestate-ob-preview{display:flex;flex-direction:column;gap:7px}
+.realestate-ob-line{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:12.5px;color:var(--ink)}
+.realestate-ob-line small{color:var(--muted);font-weight:750}
+.realestate-card-body{border-top:1px solid color-mix(in srgb,var(--re-color) 18%,var(--line));padding:0 18px 18px;background:linear-gradient(180deg,rgba(255,255,255,.38),rgba(255,255,255,.72))}
+.realestate-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:16px 0 9px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:900}
+.realestate-obligations{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.realestate-ob-card{border:1px solid rgba(15,42,36,.12);border-radius:12px;background:rgba(255,255,255,.76);padding:11px 12px}
+.realestate-ob-card .top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.realestate-ob-card b{font-size:13.5px;color:var(--ink);line-height:1.25}
+.realestate-docs{display:flex;gap:8px;flex-wrap:wrap}
+.realestate-doc-btn{border:1px solid color-mix(in srgb,var(--re-color) 25%,var(--line));background:rgba(255,255,255,.72);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:850;color:var(--ink);cursor:pointer;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.realestate-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:14px}
+.realestate-editor-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.realestate-editor-wide{grid-column:1/-1}
+.realestate-editor-row{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px;margin-top:10px}
+.realestate-editor-row .row-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.realestate-editor-row .row-head b{font-size:13px;color:var(--ink)}
+.realestate-file-note{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.35;overflow-wrap:anywhere}
+@media(max-width:980px){
+  .realestate-card summary{grid-template-columns:1fr;gap:12px}
+  .realestate-status{justify-self:start}
+  .realestate-facts{grid-template-columns:1fr}
+  .realestate-editor-grid{grid-template-columns:1fr}
+}
 @media(max-width:500px){
   #login-screen{padding:14px;align-items:flex-start;overflow-y:auto}
   #login-screen .lcard{padding:22px 18px;border-radius:14px;margin:18px auto}
@@ -1916,6 +1958,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <button data-nav="registros" onclick="go('registros')"><span class="ic">TR</span> Registros pendentes <span class="pill" id="nav-registros"></span></button>
 
+      <button data-nav="realestate" onclick="go('realestate')"><span class="ic">RE</span> Real Estate</button>
+
       <button data-nav="expansao" onclick="go('expansao')"><span class="ic">🏗</span> Expansões de Unidades</button>
 
       <button data-nav="nova" onclick="go('nova')"><span class="ic">🏢</span> Novas Unidades</button>
@@ -1973,6 +2017,42 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       </div>
 
       <div id="registros-pendentes-body"></div>
+
+    </section>
+
+
+    <!-- REAL ESTATE -->
+
+    <section id="view-realestate" class="view">
+
+      <div class="phead">
+
+        <div><div class="eyebrow">Real Estate</div><h1>Im&oacute;veis das Escolas</h1><p>Gest&atilde;o independente dos contratos de loca&ccedil;&atilde;o, obriga&ccedil;&otilde;es e documentos dos im&oacute;veis da Raiz Educa&ccedil;&atilde;o.</p></div>
+
+        <div class="acts"><button class="btn btn-primary" onclick="openRealEstateModal(null)"><span class="ic">+</span> Novo im&oacute;vel</button></div>
+
+      </div>
+
+      <div class="kpis" id="realestate-kpis"></div>
+
+      <div class="realestate-toolbar">
+        <div style="flex:1;min-width:260px">
+          <label class="fl">Buscar im&oacute;vel, locador, unidade ocupante ou contrato</label>
+          <input class="fi" id="realestate-search" placeholder="Digite para filtrar..." oninput="renderRealEstate()">
+        </div>
+        <div style="min-width:210px">
+          <label class="fl">Status contratual</label>
+          <select class="fi" id="realestate-status-filter" onchange="renderRealEstate()">
+            <option value="">Todos</option>
+            <option value="Ativo">Ativos</option>
+            <option value="Em renovacao">Em renova&ccedil;&atilde;o</option>
+            <option value="Aten&ccedil;&atilde;o">Aten&ccedil;&atilde;o</option>
+            <option value="Encerrado">Encerrados</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="realestate-body"></div>
 
     </section>
 
@@ -3306,6 +3386,87 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 </div></div>
 
+<div class="overlay" id="realestate-overlay"><div class="modal" style="max-width:1080px;width:100%">
+
+  <div class="mhead"><h2 id="realestate-modal-title" style="font-size:18px">Novo im&oacute;vel</h2><button class="x" onclick="closeRealEstateModal()">&times;</button></div>
+
+  <div class="mbody" style="max-height:82vh;overflow:auto">
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Contrato de loca&ccedil;&atilde;o e identifica&ccedil;&atilde;o do im&oacute;vel</div>
+      <div class="realestate-editor-grid">
+        <div class="frow"><label class="fl">Nome do im&oacute;vel / contrato</label><input class="fi" id="re-nome" placeholder="Ex.: Col&eacute;gio X - Unidade Barra"></div>
+        <div class="frow"><label class="fl">Unidade ocupante <span style="font-weight:500;color:var(--muted)">(texto livre)</span></label><input class="fi" id="re-unidade-ocupante" placeholder="Escola, unidade ou opera&ccedil;&atilde;o ocupante"></div>
+        <div class="frow"><label class="fl">Marca / bandeira</label><input class="fi" id="re-marca" placeholder="Raiz, Cubo, QI, Uni&atilde;o..."></div>
+        <div class="realestate-editor-wide frow"><label class="fl">Endere&ccedil;o do im&oacute;vel</label><input class="fi" id="re-endereco" placeholder="Rua, n&uacute;mero, complemento, bairro, cidade/UF"></div>
+        <div class="frow"><label class="fl">Status contratual</label><select class="fi" id="re-status"><option>Ativo</option><option>Em renovacao</option><option>Aten&ccedil;&atilde;o</option><option>Encerrado</option></select></div>
+        <div class="frow"><label class="fl">N&ordm; do contrato</label><input class="fi" id="re-contrato-numero" placeholder="N&uacute;mero ou refer&ecirc;ncia interna"></div>
+        <div class="frow"><label class="fl">&Aacute;rea locada (m&sup2;)</label><input class="fi num" id="re-area" inputmode="decimal" placeholder="0,00"></div>
+      </div>
+    </div>
+
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Partes, vig&ecirc;ncia e reajuste</div>
+      <div class="realestate-editor-grid">
+        <div class="frow"><label class="fl">Locador</label><input class="fi" id="re-locador" placeholder="Propriet&aacute;rio / administradora"></div>
+        <div class="frow"><label class="fl">Locat&aacute;ria</label><input class="fi" id="re-locataria" placeholder="Empresa Raiz respons&aacute;vel pelo contrato"></div>
+        <div class="frow"><label class="fl">CNPJ da locat&aacute;ria</label><input class="fi mono" id="re-cnpj-locataria" placeholder="00.000.000/0000-00"></div>
+        <div class="frow"><label class="fl">In&iacute;cio da vig&ecirc;ncia</label><input class="fi" id="re-inicio" type="date"></div>
+        <div class="frow"><label class="fl">Fim da vig&ecirc;ncia</label><input class="fi" id="re-fim" type="date"></div>
+        <div class="frow"><label class="fl">Valor mensal do aluguel</label><input class="fi num" id="re-aluguel" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div>
+        <div class="frow"><label class="fl">&Iacute;ndice de reajuste</label><input class="fi" id="re-indice" placeholder="IPCA, IGP-M, fixo..."></div>
+        <div class="frow"><label class="fl">Pr&oacute;ximo reajuste</label><input class="fi" id="re-reajuste" type="date"></div>
+        <div class="frow"><label class="fl">Centro de custo / observa&ccedil;&atilde;o financeira</label><input class="fi" id="re-centro-custo" placeholder="Opcional"></div>
+        <div class="frow"><label class="fl">Garantia contratual</label><input class="fi" id="re-garantia" placeholder="Cau&ccedil;&atilde;o, seguro fian&ccedil;a, fiador..."></div>
+        <div class="frow"><label class="fl">Aviso / multa rescis&oacute;ria</label><input class="fi" id="re-multa" placeholder="Prazo de aviso, multa, car&ecirc;ncia..."></div>
+      </div>
+    </div>
+
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Contrato principal</div>
+      <div class="realestate-docs" id="re-contrato-docs"></div>
+      <div style="margin-top:10px"><input class="fi" id="re-contrato-file" type="file" multiple onchange="realEstateContractFilesSelected(this)"><div class="realestate-file-note" id="re-contrato-file-note">Anexe contrato de loca&ccedil;&atilde;o, termo inicial ou documento equivalente.</div></div>
+    </div>
+
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Obriga&ccedil;&otilde;es do im&oacute;vel</div>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Cadastre aluguel, IPTU, taxa de inc&ecirc;ndio/bombeiro, condom&iacute;nio, seguro e demais obriga&ccedil;&otilde;es. Cada item pode ter documento pr&oacute;prio.</p>
+      <div id="re-obrigacoes-editor"></div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="realEstateAddObrigacao()"><span class="ic">+</span> Adicionar obriga&ccedil;&atilde;o</button>
+    </div>
+
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Aditivos e renova&ccedil;&otilde;es</div>
+      <div id="re-aditivos-editor"></div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="realEstateAddAditivo()"><span class="ic">+</span> Adicionar aditivo</button>
+    </div>
+
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Restitui&ccedil;&atilde;o / devolu&ccedil;&atilde;o do im&oacute;vel</div>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Use quando o im&oacute;vel precisar ser devolvido ao locador, incluindo reparos, manuten&ccedil;&otilde;es, pintura, laudos e TRs vinculados aos gastos de devolu&ccedil;&atilde;o.</p>
+      <div class="realestate-editor-grid">
+        <div class="frow"><label class="fl">Status da devolu&ccedil;&atilde;o</label><select class="fi" id="re-dev-status"><option>Sem devolu&ccedil;&atilde;o prevista</option><option>Em planejamento</option><option>Em execu&ccedil;&atilde;o</option><option>Conclu&iacute;da</option></select></div>
+        <div class="frow"><label class="fl">Previs&atilde;o de devolu&ccedil;&atilde;o</label><input class="fi" id="re-dev-prevista" type="date"></div>
+        <div class="frow"><label class="fl">Custo estimado / provisionado</label><input class="fi num" id="re-dev-estimado" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div>
+        <div class="realestate-editor-wide frow"><label class="fl">TRs vinculados &agrave; devolu&ccedil;&atilde;o</label><input class="fi" id="re-dev-trs" placeholder="Ex.: 188999, 190217"></div>
+        <div class="realestate-editor-wide frow"><label class="fl">Notas da devolu&ccedil;&atilde;o</label><textarea class="fi" id="re-dev-obs" rows="2" style="height:auto;resize:vertical" placeholder="Descreva reparos, manuten&ccedil;&otilde;es, exig&ecirc;ncias do locador, pend&ecirc;ncias e hist&oacute;rico."></textarea></div>
+      </div>
+      <div class="realestate-docs" id="re-dev-docs" style="margin-top:10px"></div>
+      <div style="margin-top:10px"><input class="fi" id="re-dev-files" type="file" multiple onchange="realEstateDevolucaoFilesSelected(this)"><div class="realestate-file-note" id="re-dev-file-note">Anexe laudos, fotos, or&ccedil;amentos, comprovantes ou documentos relacionados &agrave; devolu&ccedil;&atilde;o.</div></div>
+    </div>
+
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Observa&ccedil;&otilde;es de gest&atilde;o</div>
+      <textarea class="fi" id="re-obs" rows="3" style="height:auto;resize:vertical" placeholder="Pontos de aten&ccedil;&atilde;o, negocia&ccedil;&otilde;es, pend&ecirc;ncias, hist&oacute;rico relevante..."></textarea>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--line);padding-top:16px">
+      <button class="btn btn-ghost" onclick="closeRealEstateModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveRealEstateImovel()"><span class="ic">&#10003;</span> Salvar im&oacute;vel</button>
+    </div>
+  </div>
+
+</div></div>
+
 <div class="overlay" id="viewer-overlay"><div class="modal" style="max-width:940px;width:100%">
 
   <div class="mhead"><h2 id="viewer-name" style="font-size:17px;line-height:1.25;overflow-wrap:anywhere;max-width:68%">Documento</h2><div style="display:flex;gap:10px;align-items:center"><button class="btn btn-sm" id="viewer-download" onclick="downloadFromViewer()"><span class="ic">↓</span> Baixar</button><button class="x" onclick="closeViewer()">×</button></div></div>
@@ -3504,6 +3665,41 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
         <span>Registra o ticket como pagamento de uma obra existente. Use para notas fiscais, faturas e pagamentos ligados a expansões ou novas unidades.</span>
         <em>Aprovar como pagamento da obra</em>
       </button>
+      <button type="button" class="zeev-destination-card" onclick="chooseCapexZeevDestination('realestate')">
+        <b>REAL ESTATE</b>
+        <span>Registra o ticket dentro do contrato de loca&ccedil;&atilde;o de um im&oacute;vel, inclusive restitui&ccedil;&atilde;o/devolu&ccedil;&atilde;o ao locador.</span>
+        <em>Aprovar como lan&ccedil;amento imobili&aacute;rio</em>
+      </button>
+    </div>
+  </div>
+
+</div></div>
+
+
+<div class="overlay" id="capex-zeev-realestate-overlay"><div class="modal" style="max-width:920px;width:100%">
+
+  <div class="mhead"><h2 id="zr-title" style="font-size:18px">Registrar Ticket Raiz em Real Estate</h2><button class="x" onclick="closeCapexZeevRealEstateApproval()">&times;</button></div>
+
+  <div class="mbody">
+    <div id="zr-context" class="capex-context zeev" style="display:block"></div>
+
+    <div class="capex-form-card priority">
+      <div class="capex-form-title">Destino imobili&aacute;rio</div>
+      <div class="capex-form-sub">Escolha o contrato/im&oacute;vel e indique se o gasto pertence &agrave; restitui&ccedil;&atilde;o/devolu&ccedil;&atilde;o ou a uma obriga&ccedil;&atilde;o do im&oacute;vel.</div>
+      <div class="fgrid">
+        <div class="frow"><label class="fl">Im&oacute;vel / contrato de loca&ccedil;&atilde;o</label><select class="fi" id="zr-imovel-id"></select></div>
+        <div class="frow"><label class="fl">Lan&ccedil;ar como</label><select class="fi" id="zr-destino"><option value="devolucao">Restitui&ccedil;&atilde;o / devolu&ccedil;&atilde;o do im&oacute;vel</option><option value="obrigacao">Obriga&ccedil;&atilde;o do im&oacute;vel</option></select></div>
+      </div>
+      <div class="fgrid">
+        <div class="frow"><label class="fl">Valor total</label><input class="fi num" id="zr-valor" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div>
+        <div class="frow"><label class="fl">Vencimento / previs&atilde;o</label><input class="fi" id="zr-vencimento" type="date"></div>
+      </div>
+      <div class="frow"><label class="fl">Descri&ccedil;&atilde;o do lan&ccedil;amento</label><textarea class="fi" id="zr-descricao" rows="3" style="height:auto;resize:vertical"></textarea></div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeCapexZeevRealEstateApproval()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCapexZeevRealEstateApproval()"><span class="ic">&#10003;</span> Registrar em Real Estate</button>
     </div>
   </div>
 
@@ -4277,9 +4473,11 @@ const ESFERAS={capex:{label:'Capex de Melhorias',desc:'Obras de melhoria e retro
 
 let curEsfera='nova',esfBusca='',esfFiltroMarca='Todas',esfNfSearchQuery='';
 
-let capexItens=[],capexSaldos=[],capexZeevSolicitacoes=[],capexZeevSyncState=null,capexZeevLoadError=null,capexZeevLoaded=false,capexZeevLoading=null,capexDataLoaded=false,capexDataLoading=null,capexEditId=null,capexZeevApproveId=null,capexSaveInFlight=false,capexZeevDestinationId=null,capexZeevObraApproveId=null,capexZeevObraSaveInFlight=false,activePaymentDocs=null;
+let capexItens=[],capexSaldos=[],capexZeevSolicitacoes=[],capexZeevSyncState=null,capexZeevLoadError=null,capexZeevLoaded=false,capexZeevLoading=null,capexDataLoaded=false,capexDataLoading=null,capexEditId=null,capexZeevApproveId=null,capexSaveInFlight=false,capexZeevDestinationId=null,capexZeevObraApproveId=null,capexZeevObraSaveInFlight=false,capexZeevRealEstateApproveId=null,capexZeevRealEstateSaveInFlight=false,activePaymentDocs=null;
 let capexCompraLookupCache=new Map(),capexCompraLookupSeq=0,capexCompraLookupTimer=null;
 let zeevObraCompraLookupSeq=0,zeevObraCompraLookupTimer=null;
+
+let realEstateImoveis=[],realEstateLoadError=null,realEstateEditId=null,realEstateContractFiles=[],realEstateDevolucaoFiles=[],realEstateDraftObrigacoes=[],realEstateDraftAditivos=[];
 
 function setEsfBusca(v){esfBusca=v;renderEsfera();}
 
@@ -5362,6 +5560,281 @@ function statusBadge(s){const m={"Em andamento":"b-info","Planejamento":"b-neutr
 
 function stPag(p){const s=pagStatus(p);const m={"PAGO":"b-ok","PENDENTE":"b-warn","ATRASADO":"b-danger","Cancelado":"b-neutral"};return `<span class="badge ${m[s]||'b-neutral'}">${s}</span>`;}
 
+/* ===== REAL ESTATE ===== */
+
+const REAL_ESTATE_OBRIGACAO_TIPOS=['Aluguel','IPTU','Taxa de incendio / bombeiro','Condominio','Seguro','Manutencao','Restituicao / devolucao','Outros'];
+const REAL_ESTATE_PERIODICIDADES=['Mensal','Bimestral','Trimestral','Semestral','Anual','Unica','Eventual'];
+const REAL_ESTATE_OB_STATUS=['Aberto','A vencer','Pago','Em negociacao','Dispensado'];
+
+function realEstateUuid(){
+  try{if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();}catch(e){}
+  return'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,c=>(+c^Math.random()*16>>+c/4).toString(16));
+}
+function realEstateNorm(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();}
+function realEstateJs(v){return String(v||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+function realEstateSafeName(name){return String(name||'arquivo').replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,140)||'arquivo';}
+function realEstateOptions(list,value){return(list||[]).map(x=>`<option ${String(x)===String(value)?'selected':''}>${escHtml(x)}</option>`).join('');}
+
+function realEstateNormalizeDoc(d){
+  if(!d)return null;
+  if(typeof d==='string')return{name:d.split('/').pop()||'Documento',storagePath:d,bucket:'contratos',type:inferType(d)};
+  const storagePath=d.storagePath||d.storage_path||d.path||'';
+  return{name:d.name||d.nome||String(storagePath).split('/').pop()||'Documento',storagePath,bucket:d.bucket||'contratos',type:d.type||inferType(d.name||storagePath||''),kind:d.kind||d.tipo||''};
+}
+
+function realEstateNormalizeDocs(arr){return(Array.isArray(arr)?arr:[]).map(realEstateNormalizeDoc).filter(Boolean);}
+
+function realEstateNormalizeTr(t){
+  if(!t)return null;
+  if(typeof t==='object'){
+    const tr=capexZeevSearchDigits(t.tr||t.ticket||t.ticketRaiz||t.zeev_instance_id||t.numero||'');
+    if(!tr)return null;
+    return{tr,descricao:t.descricao||t.pedido||'',valor:+t.valor||0,status:t.status||'Aberto',ticketLink:t.ticketLink||t.ticket_link||'',registradoEm:t.registradoEm||t.createdAt||t.created_at||''};
+  }
+  const tr=capexZeevSearchDigits(t);
+  return tr?{tr,descricao:'',valor:0,status:'Aberto',ticketLink:'',registradoEm:''}:null;
+}
+
+function realEstateNormalizeDevolucao(d){
+  d=d&&typeof d==='object'?d:{};
+  return{status:d.status||'Sem devolucao prevista',previsao:normalizeDateISO(d.previsao||d.data_prevista||''),valor_estimado:+d.valor_estimado||0,observacoes:d.observacoes||'',trs:(Array.isArray(d.trs)?d.trs:[]).map(realEstateNormalizeTr).filter(Boolean),docs:realEstateNormalizeDocs(d.docs||d.documentos||[])};
+}
+
+function realEstateNormalizeImovel(r){
+  r=r||{};
+  return{
+    id:r.id||realEstateUuid(),nome:r.nome||'Imovel sem nome',unidade_ocupante:r.unidade_ocupante||r.unidade_nome||'',marca:r.marca||'RAIZ',endereco:r.endereco||'',status:r.status||'Ativo',contrato_numero:r.contrato_numero||'',area_m2:+r.area_m2||0,locador:r.locador||'',locataria:r.locataria||'',cnpj_locataria:r.cnpj_locataria||'',centro_custo:r.centro_custo||'',contrato_inicio:normalizeDateISO(r.contrato_inicio||''),contrato_fim:normalizeDateISO(r.contrato_fim||''),valor_aluguel:+r.valor_aluguel||0,indice_reajuste:r.indice_reajuste||'',data_reajuste:normalizeDateISO(r.data_reajuste||''),garantia:r.garantia||'',multa_aviso:r.multa_aviso||'',contrato_docs:realEstateNormalizeDocs(r.contrato_docs),
+    obrigacoes:(Array.isArray(r.obrigacoes)?r.obrigacoes:[]).map(o=>({id:o.id||realEstateUuid(),tipo:o.tipo||'Outros',descricao:o.descricao||'',valor:+o.valor||0,periodicidade:o.periodicidade||'Mensal',competencia:o.competencia||'',vencimento:normalizeDateISO(o.vencimento||''),status:o.status||'Aberto',ticketRaiz:capexZeevSearchDigits(o.ticketRaiz||o.ticket_raiz||''),ticketLink:o.ticketLink||o.ticket_link||'',docs:realEstateNormalizeDocs(o.docs||o.documentos||[])})),
+    aditivos:(Array.isArray(r.aditivos)?r.aditivos:[]).map(a=>({id:a.id||realEstateUuid(),titulo:a.titulo||a.nome||'Aditivo',data:normalizeDateISO(a.data||''),resumo:a.resumo||a.observacoes||'',valor:+a.valor||0,docs:realEstateNormalizeDocs(a.docs||a.documentos||[])})),
+    devolucao:realEstateNormalizeDevolucao(r.devolucao),observacoes:r.observacoes||'',created_at:r.created_at||'',updated_at:r.updated_at||''
+  };
+}
+
+function realEstateToDbRow(i){
+  return{id:i.id,nome:i.nome,unidade_ocupante:i.unidade_ocupante||'',marca:i.marca||'RAIZ',endereco:i.endereco||'',status:i.status||'Ativo',contrato_numero:i.contrato_numero||'',area_m2:+i.area_m2||0,locador:i.locador||'',locataria:i.locataria||'',cnpj_locataria:i.cnpj_locataria||'',centro_custo:i.centro_custo||'',contrato_inicio:i.contrato_inicio||null,contrato_fim:i.contrato_fim||null,valor_aluguel:+i.valor_aluguel||0,indice_reajuste:i.indice_reajuste||'',data_reajuste:i.data_reajuste||null,garantia:i.garantia||'',multa_aviso:i.multa_aviso||'',contrato_docs:i.contrato_docs||[],obrigacoes:i.obrigacoes||[],aditivos:i.aditivos||[],devolucao:i.devolucao||realEstateNormalizeDevolucao({}),observacoes:i.observacoes||'',updated_at:new Date().toISOString()};
+}
+
+async function loadRealEstate(){
+  realEstateLoadError=null;
+  try{const{data,error}=await selectAllRows('real_estate_imoveis',{order:'nome'});if(error)throw error;realEstateImoveis=(data||[]).map(realEstateNormalizeImovel);}
+  catch(e){console.warn('[loadRealEstate]',e);realEstateLoadError=e?.message||String(e);realEstateImoveis=[];}
+}
+
+function realEstateStatusClass(status){const s=realEstateNorm(status);if(s.includes('encerr'))return'';if(s.includes('atenc')||s.includes('renov'))return'warn';if(s.includes('ativo'))return'ok';return'';}
+function realEstatePeriodMonthly(value,period){const v=+value||0,p=realEstateNorm(period);if(!v)return 0;if(p.includes('mensal'))return v;if(p.includes('bimestral'))return v/2;if(p.includes('trimestral'))return v/3;if(p.includes('semestral'))return v/6;if(p.includes('anual'))return v/12;return 0;}
+function realEstateMonthlyCost(i){const hasRent=(i.obrigacoes||[]).some(o=>realEstateNorm(o.tipo).includes('aluguel'));const base=hasRent?0:(+i.valor_aluguel||0);return money2(base+(i.obrigacoes||[]).filter(o=>!['Pago','Dispensado'].includes(o.status)).reduce((a,o)=>a+realEstatePeriodMonthly(o.valor,o.periodicidade),0));}
+function realEstateDaysTo(v){const d=dateObj(v);if(!d)return null;return Math.ceil((d-HOJE)/86400000);}
+function realEstateSplitTrs(v){const seen=new Set();return String(v||'').split(/[,\s;|/]+/).map(capexZeevSearchDigits).filter(Boolean).filter(t=>{if(seen.has(t))return false;seen.add(t);return true;}).map(t=>({tr:t,descricao:'',valor:0,status:'Aberto',ticketLink:'',registradoEm:''}));}
+
+function realEstateDocButtons(docs,id,kind,parentIdx){
+  docs=realEstateNormalizeDocs(docs);
+  if(!docs.length)return'<span class="realestate-muted">Sem arquivo anexado.</span>';
+  return docs.map((d,idx)=>`<button type="button" class="realestate-doc-btn" onclick="realEstateViewDoc('${realEstateJs(id)}','${kind}',${idx},${parentIdx==null?-1:parentIdx})" title="${escHtml(d.name||'Documento')}">${escHtml(d.name||'Documento')}</button>`).join('');
+}
+
+function realEstateViewDoc(id,kind,idx,parentIdx){
+  const im=realEstateImoveis.find(x=>String(x.id)===String(id));if(!im)return;
+  let doc=null;
+  if(kind==='contrato')doc=(im.contrato_docs||[])[idx];
+  if(kind==='devolucao')doc=(im.devolucao?.docs||[])[idx];
+  if(kind==='obrigacao')doc=(im.obrigacoes?.[parentIdx]?.docs||[])[idx];
+  if(kind==='aditivo')doc=(im.aditivos?.[parentIdx]?.docs||[])[idx];
+  if(doc)viewFile(realEstateNormalizeDoc(doc));
+}
+
+function realEstateViewModalDoc(kind,idx,parentIdx){
+  const current=realEstateEditId?realEstateImoveis.find(x=>String(x.id)===String(realEstateEditId)):null;let doc=null;
+  if(kind==='contrato')doc=(current?.contrato_docs||[])[idx];
+  if(kind==='devolucao')doc=(current?.devolucao?.docs||[])[idx];
+  if(kind==='obrigacao')doc=(realEstateDraftObrigacoes?.[parentIdx]?.docs||[])[idx];
+  if(kind==='aditivo')doc=(realEstateDraftAditivos?.[parentIdx]?.docs||[])[idx];
+  if(doc)viewFile(realEstateNormalizeDoc(doc));
+}
+
+function realEstateModalDocButtons(docs,kind,parentIdx){
+  docs=realEstateNormalizeDocs(docs);
+  if(!docs.length)return'<span class="realestate-muted">Nenhum arquivo salvo ainda.</span>';
+  return docs.map((d,idx)=>`<button type="button" class="realestate-doc-btn" onclick="realEstateViewModalDoc('${kind}',${idx},${parentIdx==null?-1:parentIdx})" title="${escHtml(d.name||'Documento')}">${escHtml(d.name||'Documento')}</button>`).join('');
+}
+
+function realEstateBrandLabel(i){return String(i.marca||'RAIZ').trim()||'RAIZ';}
+
+function realEstateCardHtml(i,idx){
+  const marca=realEstateBrandLabel(i);
+  const color=brandColor(marca)||brandColor('RAIZ');
+  const endDays=realEstateDaysTo(i.contrato_fim);
+  const ending=endDays!==null&&endDays>=0&&endDays<=180;
+  const overdueOb=(i.obrigacoes||[]).filter(o=>!['Pago','Dispensado'].includes(o.status)&&realEstateDaysTo(o.vencimento)!==null&&realEstateDaysTo(o.vencimento)<0);
+  const nextObs=(i.obrigacoes||[]).filter(o=>!['Pago','Dispensado'].includes(o.status)).slice().sort((a,b)=>String(a.vencimento||'9999').localeCompare(String(b.vencimento||'9999'))).slice(0,3);
+  const dev=i.devolucao||realEstateNormalizeDevolucao({});
+  const devActive=!realEstateNorm(dev.status).includes('sem devolucao');
+  const statusCls=overdueOb.length?'danger':(ending?'warn':realEstateStatusClass(i.status));
+  const statusText=overdueOb.length?`${overdueOb.length} obrigacao${overdueOb.length!==1?'oes':''} em atraso`:(ending?'Vigencia vencendo':i.status);
+  const preview=nextObs.length?nextObs.map(o=>`<div class="realestate-ob-line"><span>${escHtml(o.tipo)} <small>${fmtD(o.vencimento)}</small></span><b>${fmt(o.valor)}</b></div>`).join(''):'<div class="realestate-muted">Nenhuma obrigacao aberta cadastrada.</div>';
+  const obCards=(i.obrigacoes||[]).length?(i.obrigacoes||[]).map((o,oi)=>`<div class="realestate-ob-card">
+    <div class="top"><b>${escHtml(o.tipo)}</b><span class="badge ${o.status==='Pago'?'b-ok':o.status==='Dispensado'?'b-neutral':'b-warn'}">${escHtml(o.status||'Aberto')}</span></div>
+    <div class="realestate-muted">${escHtml(o.descricao||'Sem descricao.')}</div>
+    <div class="realestate-facts" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:9px">
+      <div class="realestate-fact"><b>Valor</b><span>${fmt(o.valor)}</span></div>
+      <div class="realestate-fact"><b>Vencimento</b><span>${fmtD(o.vencimento)}</span></div>
+    </div>
+    ${o.ticketRaiz?`<div class="realestate-muted" style="margin-top:8px"><b>TR ${escHtml(o.ticketRaiz)}</b>${o.ticketLink?` &middot; <a href="${escHtml(o.ticketLink)}" target="_blank" rel="noopener">Visualizar Ticket</a>`:''}</div>`:''}
+    <div class="realestate-docs" style="margin-top:9px">${realEstateDocButtons(o.docs,i.id,'obrigacao',oi)}</div>
+  </div>`).join(''):'<div class="realestate-muted">Nenhuma obrigacao cadastrada ainda.</div>';
+  const aditivos=(i.aditivos||[]).length?(i.aditivos||[]).map((a,ai)=>`<div class="realestate-ob-card"><div class="top"><b>${escHtml(a.titulo||'Aditivo')}</b><span class="badge b-neutral">${fmtD(a.data)}</span></div><div class="realestate-muted">${escHtml(a.resumo||'Sem resumo.')}</div>${a.valor?`<div class="realestate-muted" style="margin-top:6px"><b>Impacto:</b> ${fmt(a.valor)}</div>`:''}<div class="realestate-docs" style="margin-top:9px">${realEstateDocButtons(a.docs,i.id,'aditivo',ai)}</div></div>`).join(''):'<div class="realestate-muted">Nenhum aditivo cadastrado.</div>';
+  const devTrs=(dev.trs||[]).length?dev.trs.map(t=>`<div class="realestate-ob-line"><span><b>TR ${escHtml(t.tr)}</b> ${escHtml(t.descricao||'')}</span><b>${t.valor?fmt(t.valor):escHtml(t.status||'Aberto')}</b></div>`).join(''):'<div class="realestate-muted">Nenhum TR vinculado a devolucao.</div>';
+  return`<details class="realestate-card" style="--re-color:${color}" ${idx===0?'open':''}>
+    <summary>
+      <div>
+        <div class="realestate-brandline"><span class="realestate-chip">${brandLogoImg(marca,'height:16px;width:28px;object-fit:contain')} ${escHtml(marca)}</span>${i.contrato_numero?`<span class="realestate-chip">Contrato ${escHtml(i.contrato_numero)}</span>`:''}</div>
+        <h3>${escHtml(i.nome)}</h3>
+        <div class="realestate-muted">${escHtml(i.unidade_ocupante||'Unidade ocupante nao informada')}</div>
+        <div class="realestate-muted">${escHtml(i.endereco||'Endereco nao informado')}</div>
+      </div>
+      <div class="realestate-facts">
+        <div class="realestate-fact"><b>Locador</b><span>${escHtml(i.locador||'Nao informado')}</span></div>
+        <div class="realestate-fact"><b>Vigencia</b><span>${fmtD(i.contrato_inicio)} - ${fmtD(i.contrato_fim)}</span></div>
+        <div class="realestate-fact"><b>Custo mensal ref.</b><span>${fmt(realEstateMonthlyCost(i))}</span></div>
+      </div>
+      <div class="realestate-ob-preview">${preview}${devActive?`<div class="realestate-ob-line"><span><b>Devolucao</b> <small>${fmtD(dev.previsao)}</small></span><b>${fmt(dev.valor_estimado)}</b></div>`:''}</div>
+      <div class="realestate-status ${statusCls}">${escHtml(statusText)}</div>
+    </summary>
+    <div class="realestate-card-body">
+      <div class="realestate-section-title"><span>Obrigacoes do imovel</span><span>${(i.obrigacoes||[]).length} item${(i.obrigacoes||[]).length!==1?'s':''}</span></div>
+      <div class="realestate-obligations">${obCards}</div>
+      <div class="realestate-section-title"><span>Restituicao / devolucao</span><span>${escHtml(dev.status)}</span></div>
+      <div class="realestate-ob-card">
+        <div class="realestate-facts"><div class="realestate-fact"><b>Previsao</b><span>${fmtD(dev.previsao)}</span></div><div class="realestate-fact"><b>Estimado</b><span>${fmt(dev.valor_estimado)}</span></div><div class="realestate-fact"><b>TRs</b><span>${(dev.trs||[]).length}</span></div></div>
+        <div class="realestate-muted" style="margin-top:9px">${escHtml(dev.observacoes||'Sem observacoes de devolucao.')}</div>
+        <div style="margin-top:9px">${devTrs}</div>
+        <div class="realestate-docs" style="margin-top:9px">${realEstateDocButtons(dev.docs,i.id,'devolucao')}</div>
+      </div>
+      <div class="realestate-section-title"><span>Contrato e aditivos</span></div>
+      <div class="realestate-docs">${realEstateDocButtons(i.contrato_docs,i.id,'contrato')}</div>
+      <div class="realestate-obligations" style="margin-top:10px">${aditivos}</div>
+      ${i.observacoes?`<div class="realestate-section-title"><span>Observacoes</span></div><div class="realestate-muted">${escHtml(i.observacoes)}</div>`:''}
+      <div class="realestate-actions"><button class="btn btn-ghost btn-sm" onclick="openRealEstateModal('${realEstateJs(i.id)}')">Editar</button><button class="btn btn-ghost btn-sm" onclick="deleteRealEstateImovel('${realEstateJs(i.id)}')">Excluir</button></div>
+    </div>
+  </details>`;
+}
+
+function renderRealEstate(){
+  const view=document.getElementById('view-realestate');
+  applyBrandVars(view,'RAIZ');
+  const k=document.getElementById('realestate-kpis'),body=document.getElementById('realestate-body');
+  if(!k||!body)return;
+  const rows=(realEstateImoveis||[]).slice();
+  const ativos=rows.filter(i=>realEstateNorm(i.status).includes('ativo')).length;
+  const mensal=rows.reduce((a,i)=>a+realEstateMonthlyCost(i),0);
+  const vencendo=rows.filter(i=>{const d=realEstateDaysTo(i.contrato_fim);return d!==null&&d>=0&&d<=180;}).length;
+  const devs=rows.filter(i=>!realEstateNorm(i.devolucao?.status).includes('sem devolucao')).length;
+  k.innerHTML=`<div class="kpi"><div class="lab">Contratos de locacao</div><div class="val">${rows.length}</div><div class="sub">${ativos} ativo${ativos!==1?'s':''}</div></div><div class="kpi"><div class="lab">Custo mensal referencial</div><div class="val acc">${fmt(mensal)}</div><div class="sub">Aluguel e obrigacoes recorrentes</div></div><div class="kpi"><div class="lab">Vigencias vencendo</div><div class="val ${vencendo?'dg':''}">${vencendo}</div><div class="sub">Proximos 180 dias</div></div><div class="kpi"><div class="lab">Devolucoes em pauta</div><div class="val">${devs}</div><div class="sub">Restituicao de imovel</div></div>`;
+  if(realEstateLoadError){body.innerHTML=`<div class="capex-zeev-empty" style="border-color:#C0392B;color:#7A1F18;background:#FFF7F4"><b>Real Estate ainda nao conseguiu carregar.</b><br>${escHtml(realEstateLoadError)}<br>Se for o primeiro acesso, aplique o script SQL de Real Estate no Supabase.</div>`;return;}
+  const q=realEstateNorm(document.getElementById('realestate-search')?.value||''),st=document.getElementById('realestate-status-filter')?.value||'';
+  const filtered=rows.filter(i=>{const okStatus=!st||String(i.status||'')===st;const hay=realEstateNorm([i.nome,i.unidade_ocupante,i.marca,i.endereco,i.locador,i.locataria,i.contrato_numero,i.observacoes,(i.obrigacoes||[]).map(o=>[o.tipo,o.descricao,o.ticketRaiz].join(' ')).join(' ')].join(' '));return okStatus&&(!q||hay.includes(q));});
+  body.innerHTML=filtered.length?`<div class="realestate-grid">${filtered.map(realEstateCardHtml).join('')}</div>`:`<div class="capex-zeev-empty">Nenhum imovel encontrado para os filtros atuais. Use Novo imovel para cadastrar o primeiro contrato de locacao.</div>`;
+  scheduleActivePageArt(['RAIZ']);
+}
+
+function realEstateSetVal(id,value){const el=document.getElementById(id);if(el)el.value=value||'';}
+function realEstateSetMoney(id,value){setCurrencyValue(id,+value||0);}
+
+function openRealEstateModal(id){
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para editar Real Estate.');return;}
+  const im=id?realEstateImoveis.find(x=>String(x.id)===String(id)):null;
+  realEstateEditId=im?im.id:null;realEstateContractFiles=[];realEstateDevolucaoFiles=[];
+  realEstateDraftObrigacoes=im?JSON.parse(JSON.stringify(im.obrigacoes||[])):[];
+  realEstateDraftAditivos=im?JSON.parse(JSON.stringify(im.aditivos||[])):[];
+  document.getElementById('realestate-modal-title').textContent=im?'Editar imovel':'Novo imovel';
+  realEstateSetVal('re-nome',im?.nome||'');realEstateSetVal('re-unidade-ocupante',im?.unidade_ocupante||'');realEstateSetVal('re-marca',im?.marca||'RAIZ');realEstateSetVal('re-endereco',im?.endereco||'');realEstateSetVal('re-status',im?.status||'Ativo');realEstateSetVal('re-contrato-numero',im?.contrato_numero||'');realEstateSetVal('re-area',im?.area_m2?String(im.area_m2).replace('.',','):'');
+  realEstateSetVal('re-locador',im?.locador||'');realEstateSetVal('re-locataria',im?.locataria||'');realEstateSetVal('re-cnpj-locataria',im?.cnpj_locataria||'');realEstateSetVal('re-centro-custo',im?.centro_custo||'');realEstateSetVal('re-inicio',im?.contrato_inicio||'');realEstateSetVal('re-fim',im?.contrato_fim||'');realEstateSetMoney('re-aluguel',im?.valor_aluguel||0);realEstateSetVal('re-indice',im?.indice_reajuste||'');realEstateSetVal('re-reajuste',im?.data_reajuste||'');realEstateSetVal('re-garantia',im?.garantia||'');realEstateSetVal('re-multa',im?.multa_aviso||'');
+  const dev=realEstateNormalizeDevolucao(im?.devolucao);
+  realEstateSetVal('re-dev-status',dev.status);realEstateSetVal('re-dev-prevista',dev.previsao||'');realEstateSetMoney('re-dev-estimado',dev.valor_estimado||0);realEstateSetVal('re-dev-trs',(dev.trs||[]).map(t=>t.tr).join(', '));realEstateSetVal('re-dev-obs',dev.observacoes||'');realEstateSetVal('re-obs',im?.observacoes||'');
+  const cf=document.getElementById('re-contrato-file');if(cf)cf.value='';const df=document.getElementById('re-dev-files');if(df)df.value='';
+  renderRealEstateContratoDocs(im);renderRealEstateDevolucaoDocs(im);renderRealEstateObrigacoesEditor();renderRealEstateAditivosEditor();
+  document.getElementById('realestate-overlay')?.classList.add('show');
+}
+
+function closeRealEstateModal(){document.getElementById('realestate-overlay')?.classList.remove('show');realEstateEditId=null;realEstateContractFiles=[];realEstateDevolucaoFiles=[];realEstateDraftObrigacoes=[];realEstateDraftAditivos=[];}
+
+function renderRealEstateContratoDocs(im){const el=document.getElementById('re-contrato-docs');if(el)el.innerHTML=realEstateModalDocButtons(im?.contrato_docs||[],'contrato');const note=document.getElementById('re-contrato-file-note');if(note)note.textContent=realEstateContractFiles.length?`${realEstateContractFiles.length} arquivo(s) novo(s) selecionado(s).`:'Anexe contrato de locacao, termo inicial ou documento equivalente.';}
+function renderRealEstateDevolucaoDocs(im){const el=document.getElementById('re-dev-docs');if(el)el.innerHTML=realEstateModalDocButtons(im?.devolucao?.docs||[],'devolucao');const note=document.getElementById('re-dev-file-note');if(note)note.textContent=realEstateDevolucaoFiles.length?`${realEstateDevolucaoFiles.length} arquivo(s) novo(s) selecionado(s).`:'Anexe laudos, fotos, orcamentos, comprovantes ou documentos relacionados a devolucao.';}
+function realEstateContractFilesSelected(input){realEstateContractFiles=Array.from(input.files||[]);renderRealEstateContratoDocs(realEstateEditId?realEstateImoveis.find(x=>String(x.id)===String(realEstateEditId)):null);}
+function realEstateDevolucaoFilesSelected(input){realEstateDevolucaoFiles=Array.from(input.files||[]);renderRealEstateDevolucaoDocs(realEstateEditId?realEstateImoveis.find(x=>String(x.id)===String(realEstateEditId)):null);}
+
+function realEstateAddObrigacao(){realEstateDraftObrigacoes=realEstateCollectObrigacoes();realEstateDraftObrigacoes.push({id:realEstateUuid(),tipo:'Aluguel',descricao:'',valor:0,periodicidade:'Mensal',competencia:'',vencimento:'',status:'Aberto',ticketRaiz:'',ticketLink:'',docs:[]});renderRealEstateObrigacoesEditor();}
+function realEstateRemoveObrigacao(idx){realEstateDraftObrigacoes=realEstateCollectObrigacoes();realEstateDraftObrigacoes.splice(idx,1);renderRealEstateObrigacoesEditor();}
+function realEstateObrigacaoFilesSelected(idx,input){if(!realEstateDraftObrigacoes[idx])return;realEstateDraftObrigacoes[idx]._newFiles=Array.from(input.files||[]);const note=document.getElementById('re-ob-file-note-'+idx);if(note)note.textContent=realEstateDraftObrigacoes[idx]._newFiles.length?`${realEstateDraftObrigacoes[idx]._newFiles.length} arquivo(s) novo(s) selecionado(s).`:'';}
+
+function renderRealEstateObrigacoesEditor(){
+  const el=document.getElementById('re-obrigacoes-editor');if(!el)return;
+  el.innerHTML=realEstateDraftObrigacoes.length?realEstateDraftObrigacoes.map((o,idx)=>`<div class="realestate-editor-row" data-idx="${idx}">
+    <div class="row-head"><b>Obrigacao ${idx+1}</b><button type="button" class="iconbtn" onclick="realEstateRemoveObrigacao(${idx})" title="Remover">×</button></div>
+    <div class="realestate-editor-grid">
+      <div class="frow"><label class="fl">Tipo</label><select class="fi" id="re-ob-tipo-${idx}">${realEstateOptions(REAL_ESTATE_OBRIGACAO_TIPOS,o.tipo)}</select></div>
+      <div class="frow"><label class="fl">Valor</label><input class="fi num" id="re-ob-valor-${idx}" inputmode="decimal" onblur="fmtCurrencyBlur(this)" value="${o.valor?escHtml((+o.valor).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})):''}" placeholder="0,00"></div>
+      <div class="frow"><label class="fl">Periodicidade</label><select class="fi" id="re-ob-periodo-${idx}">${realEstateOptions(REAL_ESTATE_PERIODICIDADES,o.periodicidade)}</select></div>
+      <div class="frow"><label class="fl">Competencia</label><input class="fi" id="re-ob-comp-${idx}" value="${escHtml(o.competencia||'')}" placeholder="Ex.: 2026-08"></div>
+      <div class="frow"><label class="fl">Vencimento</label><input class="fi" id="re-ob-venc-${idx}" type="date" value="${escHtml(o.vencimento||'')}"></div>
+      <div class="frow"><label class="fl">Status</label><select class="fi" id="re-ob-status-${idx}">${realEstateOptions(REAL_ESTATE_OB_STATUS,o.status)}</select></div>
+      <div class="realestate-editor-wide frow"><label class="fl">Descricao</label><input class="fi" id="re-ob-desc-${idx}" value="${escHtml(o.descricao||'')}" placeholder="Ex.: IPTU 2026, aluguel mensal, taxa de bombeiro..."></div>
+      <div class="frow"><label class="fl">TR vinculado</label><input class="fi" id="re-ob-tr-${idx}" value="${escHtml(o.ticketRaiz||'')}" placeholder="Opcional"></div>
+      <div class="frow"><label class="fl">Link do Ticket</label><input class="fi" id="re-ob-link-${idx}" value="${escHtml(o.ticketLink||'')}" placeholder="Opcional"></div>
+      <div class="realestate-editor-wide"><div class="realestate-docs">${realEstateModalDocButtons(o.docs||[],'obrigacao',idx)}</div><input class="fi" type="file" multiple style="margin-top:8px" onchange="realEstateObrigacaoFilesSelected(${idx},this)"><div class="realestate-file-note" id="re-ob-file-note-${idx}"></div></div>
+    </div>
+  </div>`).join(''):'<div class="realestate-muted" style="margin-bottom:10px">Nenhuma obrigacao cadastrada ainda.</div>';
+}
+
+function realEstateCollectObrigacoes(){return Array.from(document.querySelectorAll('#re-obrigacoes-editor .realestate-editor-row')).map(row=>{const idx=+row.dataset.idx,old=realEstateDraftObrigacoes[idx]||{};return{id:old.id||realEstateUuid(),tipo:document.getElementById('re-ob-tipo-'+idx)?.value||'Outros',descricao:document.getElementById('re-ob-desc-'+idx)?.value||'',valor:parseCurrency(document.getElementById('re-ob-valor-'+idx)?.value||''),periodicidade:document.getElementById('re-ob-periodo-'+idx)?.value||'Mensal',competencia:document.getElementById('re-ob-comp-'+idx)?.value||'',vencimento:normalizeDateISO(document.getElementById('re-ob-venc-'+idx)?.value||''),status:document.getElementById('re-ob-status-'+idx)?.value||'Aberto',ticketRaiz:capexZeevSearchDigits(document.getElementById('re-ob-tr-'+idx)?.value||''),ticketLink:document.getElementById('re-ob-link-'+idx)?.value||'',docs:realEstateNormalizeDocs(old.docs||[]),_newFiles:old._newFiles||[]};});}
+
+function realEstateAddAditivo(){realEstateDraftAditivos=realEstateCollectAditivos();realEstateDraftAditivos.push({id:realEstateUuid(),titulo:'Aditivo',data:'',resumo:'',valor:0,docs:[]});renderRealEstateAditivosEditor();}
+function realEstateRemoveAditivo(idx){realEstateDraftAditivos=realEstateCollectAditivos();realEstateDraftAditivos.splice(idx,1);renderRealEstateAditivosEditor();}
+function realEstateAditivoFilesSelected(idx,input){if(!realEstateDraftAditivos[idx])return;realEstateDraftAditivos[idx]._newFiles=Array.from(input.files||[]);const note=document.getElementById('re-ad-file-note-'+idx);if(note)note.textContent=realEstateDraftAditivos[idx]._newFiles.length?`${realEstateDraftAditivos[idx]._newFiles.length} arquivo(s) novo(s) selecionado(s).`:'';}
+
+function renderRealEstateAditivosEditor(){
+  const el=document.getElementById('re-aditivos-editor');if(!el)return;
+  el.innerHTML=realEstateDraftAditivos.length?realEstateDraftAditivos.map((a,idx)=>`<div class="realestate-editor-row" data-idx="${idx}">
+    <div class="row-head"><b>Aditivo ${idx+1}</b><button type="button" class="iconbtn" onclick="realEstateRemoveAditivo(${idx})" title="Remover">×</button></div>
+    <div class="realestate-editor-grid">
+      <div class="frow"><label class="fl">Titulo</label><input class="fi" id="re-ad-titulo-${idx}" value="${escHtml(a.titulo||'')}" placeholder="Renovacao, reajuste, aditivo de prazo..."></div>
+      <div class="frow"><label class="fl">Data</label><input class="fi" id="re-ad-data-${idx}" type="date" value="${escHtml(a.data||'')}"></div>
+      <div class="frow"><label class="fl">Impacto financeiro</label><input class="fi num" id="re-ad-valor-${idx}" inputmode="decimal" onblur="fmtCurrencyBlur(this)" value="${a.valor?escHtml((+a.valor).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})):''}" placeholder="0,00"></div>
+      <div class="realestate-editor-wide frow"><label class="fl">Resumo</label><input class="fi" id="re-ad-resumo-${idx}" value="${escHtml(a.resumo||'')}" placeholder="O que mudou no contrato"></div>
+      <div class="realestate-editor-wide"><div class="realestate-docs">${realEstateModalDocButtons(a.docs||[],'aditivo',idx)}</div><input class="fi" type="file" multiple style="margin-top:8px" onchange="realEstateAditivoFilesSelected(${idx},this)"><div class="realestate-file-note" id="re-ad-file-note-${idx}"></div></div>
+    </div>
+  </div>`).join(''):'<div class="realestate-muted" style="margin-bottom:10px">Nenhum aditivo cadastrado ainda.</div>';
+}
+
+function realEstateCollectAditivos(){return Array.from(document.querySelectorAll('#re-aditivos-editor .realestate-editor-row')).map(row=>{const idx=+row.dataset.idx,old=realEstateDraftAditivos[idx]||{};return{id:old.id||realEstateUuid(),titulo:document.getElementById('re-ad-titulo-'+idx)?.value||'Aditivo',data:normalizeDateISO(document.getElementById('re-ad-data-'+idx)?.value||''),resumo:document.getElementById('re-ad-resumo-'+idx)?.value||'',valor:parseCurrency(document.getElementById('re-ad-valor-'+idx)?.value||''),docs:realEstateNormalizeDocs(old.docs||[]),_newFiles:old._newFiles||[]};});}
+
+async function realEstateUploadFiles(files,imovelId,folder){const out=[];for(const original of Array.from(files||[])){const f=await prepareFileForStorage(original,{maxDim:2200,quality:.84});const path=`real_estate/${imovelId}/${folder}/${Date.now()}_${realEstateSafeName(f.name)}`;const{error}=await db.storage.from('contratos').upload(path,f,{upsert:true,contentType:f.type||inferType(f.name)});if(error)throw error;out.push({name:f.name,storagePath:path,bucket:'contratos',type:f.type||inferType(f.name)});}return out;}
+
+async function saveRealEstateImovel(){
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para salvar Real Estate.');return;}
+  const g=id=>(document.getElementById(id)?.value||'').trim(),nome=g('re-nome');
+  if(!nome){toast('Informe o nome do imovel ou contrato.');return;}
+  const existing=realEstateEditId?realEstateImoveis.find(x=>String(x.id)===String(realEstateEditId)):null,id=existing?.id||realEstateUuid();
+  try{
+    let contratoDocs=realEstateNormalizeDocs(existing?.contrato_docs||[]).concat(await realEstateUploadFiles(realEstateContractFiles,id,'contratos'));
+    let devDocs=realEstateNormalizeDocs(existing?.devolucao?.docs||[]).concat(await realEstateUploadFiles(realEstateDevolucaoFiles,id,'devolucao'));
+    const obrigacoes=[];for(const ob of realEstateCollectObrigacoes()){const docs=realEstateNormalizeDocs(ob.docs).concat(await realEstateUploadFiles(ob._newFiles||[],id,'obrigacoes/'+ob.id));delete ob._newFiles;obrigacoes.push({...ob,docs});}
+    const aditivos=[];for(const ad of realEstateCollectAditivos()){const docs=realEstateNormalizeDocs(ad.docs).concat(await realEstateUploadFiles(ad._newFiles||[],id,'aditivos/'+ad.id));delete ad._newFiles;aditivos.push({...ad,docs});}
+    const manualTrs=realEstateSplitTrs(g('re-dev-trs')),oldTrs=(existing?.devolucao?.trs||[]).filter(t=>!manualTrs.some(m=>m.tr===t.tr));
+    const im=realEstateNormalizeImovel({id,nome,unidade_ocupante:g('re-unidade-ocupante'),marca:g('re-marca')||'RAIZ',endereco:g('re-endereco'),status:g('re-status')||'Ativo',contrato_numero:g('re-contrato-numero'),area_m2:parseCurrency(g('re-area')),locador:g('re-locador'),locataria:g('re-locataria'),cnpj_locataria:g('re-cnpj-locataria'),centro_custo:g('re-centro-custo'),contrato_inicio:g('re-inicio')||null,contrato_fim:g('re-fim')||null,valor_aluguel:parseCurrency(g('re-aluguel')),indice_reajuste:g('re-indice'),data_reajuste:g('re-reajuste')||null,garantia:g('re-garantia'),multa_aviso:g('re-multa'),contrato_docs:contratoDocs,obrigacoes,aditivos,devolucao:{status:g('re-dev-status')||'Sem devolucao prevista',previsao:g('re-dev-prevista')||'',valor_estimado:parseCurrency(g('re-dev-estimado')),observacoes:g('re-dev-obs'),trs:oldTrs.concat(manualTrs),docs:devDocs},observacoes:g('re-obs')});
+    const{data,error}=await db.from('real_estate_imoveis').upsert(realEstateToDbRow(im),{onConflict:'id'}).select().single();if(error)throw error;
+    const normalized=realEstateNormalizeImovel(data||im),idx=realEstateImoveis.findIndex(x=>String(x.id)===String(normalized.id));if(idx>=0)realEstateImoveis[idx]=normalized;else realEstateImoveis.unshift(normalized);
+    closeRealEstateModal();renderRealEstate();toast(existing?'Imovel atualizado.':'Imovel cadastrado.');
+  }catch(e){console.error('saveRealEstateImovel:',e);toast('Erro ao salvar Real Estate: '+(e.message||e));}
+}
+
+async function realEstatePersistImovel(im){const{data,error}=await db.from('real_estate_imoveis').upsert(realEstateToDbRow(realEstateNormalizeImovel(im)),{onConflict:'id'}).select().single();if(error)throw error;const normalized=realEstateNormalizeImovel(data||im),idx=realEstateImoveis.findIndex(x=>String(x.id)===String(normalized.id));if(idx>=0)realEstateImoveis[idx]=normalized;else realEstateImoveis.unshift(normalized);return normalized;}
+
+async function deleteRealEstateImovel(id){
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para excluir Real Estate.');return;}
+  const im=realEstateImoveis.find(x=>String(x.id)===String(id));if(!im)return;
+  askConfirm('Excluir o imovel "'+(im.nome||'')+'"? Esta acao nao remove arquivos ja enviados do Storage.',async()=>{const{error}=await db.from('real_estate_imoveis').delete().eq('id',id);if(error){toast('Erro ao excluir: '+error.message);return;}realEstateImoveis=realEstateImoveis.filter(x=>String(x.id)!==String(id));renderRealEstate();toast('Imovel removido.');});
+}
+
 
 
 /* ===== ARTE DA PÁGINA — faixas transversais orgânicas ===== */
@@ -5909,6 +6382,7 @@ function go(view){
   if(esferaViews.includes(view)){curEsfera=view;esfBusca='';esfFiltroMarca='Todas';esfNfSearchQuery='';renderEsfera();}
   if(view==="escolas")renderEscolas();
   if(view==="registros")renderRegistrosPendentes();
+  if(view==="realestate")renderRealEstate();
   if(view==="cobranca")renderCobranca();
   if(view==="forn")renderForn();
   if(view==="admin")renderAdmin();
@@ -9083,7 +9557,97 @@ function chooseCapexZeevDestination(kind){
   if(!id){toast('Ticket Raiz nao encontrado.');return;}
   closeCapexZeevDestination(true);
   if(kind==='obra')openCapexZeevObraApproval(id);
+  else if(kind==='realestate')openCapexZeevRealEstateApproval(id);
   else openCapexZeevApproval(id);
+}
+
+function populateZeevRealEstateSelect(selected){
+  const sel=document.getElementById('zr-imovel-id');
+  if(!sel)return;
+  const rows=(realEstateImoveis||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+  sel.innerHTML='<option value="">Selecione o imovel / contrato</option>'+rows.map(i=>`<option value="${escHtml(i.id)}">${escHtml([i.nome,i.unidade_ocupante,i.locador].filter(Boolean).join(' - '))}</option>`).join('');
+  if(selected&&rows.some(i=>String(i.id)===String(selected)))sel.value=String(selected);
+}
+
+function closeCapexZeevRealEstateApproval(preserveReturnState){
+  document.getElementById('capex-zeev-realestate-overlay')?.classList.remove('show');
+  capexZeevRealEstateApproveId=null;
+  if(!preserveReturnState)capexZeevReturnState=null;
+}
+
+function capexZeevSuggestedDueDate(z){
+  const raw=z?.pagamento_json||{};
+  const fields=z?.campos_extraidos||{};
+  return normalizeDateISO(raw.vencimento||raw.data_vencimento||raw.previsao_pagamento||fields.vencimento||fields.dataVencimento||fields.previsaoPagamento||capexZeevAnyField(z,['vencimento','data de vencimento','previsao de pagamento','previsão de pagamento','data prevista'])||'');
+}
+
+async function openCapexZeevRealEstateApproval(id){
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para aprovar.');return;}
+  if(realEstateLoadError){toast('Real Estate ainda nao esta pronto no Supabase. Aplique a tabela antes de registrar.');return;}
+  if(!realEstateImoveis.length){toast('Cadastre primeiro um imovel em Real Estate.');return;}
+  let z=capexZeevSolicitacoes.find(x=>+x.id===+id);
+  z=await ensureCapexZeevDetail(id)||z;
+  if(!z){toast('Ticket Raiz nao encontrado.');return;}
+  if(z.status!=='pendente'||z.capex_item_id){toast('Este Ticket Raiz ja foi tratado.');return;}
+  capexZeevRealEstateApproveId=+id;
+  if(!capexZeevReturnState)capexCaptureZeevReturnState(id);
+  const title=document.getElementById('zr-title');
+  if(title)title.textContent='Registrar Ticket Raiz #'+(z.zeev_instance_id||id)+' em Real Estate';
+  const ctx=document.getElementById('zr-context');
+  if(ctx)ctx.innerHTML=capexZeevContextHtmlFor(z);
+  populateZeevRealEstateSelect('');
+  setCurrencyValue('zr-valor',z.valor_final||z.valor||0);
+  const due=capexZeevSuggestedDueDate(z);
+  const venc=document.getElementById('zr-vencimento');if(venc)venc.value=due||'';
+  const desc=document.getElementById('zr-descricao');if(desc)desc.value=capexZeevDescricaoLancamento(z)||z.request_name||'';
+  const destino=document.getElementById('zr-destino');if(destino)destino.value='devolucao';
+  document.getElementById('capex-zeev-realestate-overlay')?.classList.add('show');
+}
+
+async function saveCapexZeevRealEstateApproval(){
+  if(capexZeevRealEstateSaveInFlight){toast('Salvamento em andamento.');return;}
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para salvar Real Estate.');return;}
+  const id=capexZeevRealEstateApproveId;
+  const z=id?capexZeevSolicitacoes.find(x=>+x.id===+id):null;
+  if(!z){toast('Ticket Raiz nao encontrado.');return;}
+  const imovelId=document.getElementById('zr-imovel-id')?.value||'';
+  const im=realEstateImoveis.find(x=>String(x.id)===String(imovelId));
+  if(!im){toast('Selecione o imovel de destino.');return;}
+  capexZeevRealEstateSaveInFlight=true;
+  try{
+    const tr=capexZeevSearchDigits(z.zeev_instance_id||'');
+    const valor=parseCurrency(document.getElementById('zr-valor')?.value||'')||(+z.valor_final||+z.valor||0);
+    const descricao=(document.getElementById('zr-descricao')?.value||capexZeevDescricaoLancamento(z)||z.request_name||'').trim();
+    const vencimento=normalizeDateISO(document.getElementById('zr-vencimento')?.value||'');
+    const destino=document.getElementById('zr-destino')?.value||'devolucao';
+    const docs=capexZeevStoredDocs(z);
+    if(destino==='obrigacao'){
+      const idx=(im.obrigacoes||[]).findIndex(o=>capexZeevSearchDigits(o.ticketRaiz)===tr);
+      const ob={id:idx>=0?im.obrigacoes[idx].id:realEstateUuid(),tipo:'Manutencao',descricao,valor,periodicidade:'Eventual',competencia:'',vencimento,status:'Aberto',ticketRaiz:tr,ticketLink:z.ticket_link||'',docs:docs.length?docs:(idx>=0?im.obrigacoes[idx].docs||[]:[])};
+      if(idx>=0)im.obrigacoes[idx]=ob;else im.obrigacoes.push(ob);
+    }else{
+      im.devolucao=realEstateNormalizeDevolucao(im.devolucao);
+      if(realEstateNorm(im.devolucao.status).includes('sem devolucao'))im.devolucao.status='Em planejamento';
+      if(vencimento&&!im.devolucao.previsao)im.devolucao.previsao=vencimento;
+      if(valor&&!im.devolucao.valor_estimado)im.devolucao.valor_estimado=valor;
+      const idx=(im.devolucao.trs||[]).findIndex(t=>t.tr===tr);
+      const entry={tr,descricao,valor,status:'Aberto',ticketLink:z.ticket_link||'',registradoEm:new Date().toISOString()};
+      if(idx>=0)im.devolucao.trs[idx]={...im.devolucao.trs[idx],...entry};else im.devolucao.trs.push(entry);
+      const currentDocs=realEstateNormalizeDocs(im.devolucao.docs);
+      const seen=new Set(currentDocs.map(d=>d.storagePath||d.name));
+      im.devolucao.docs=currentDocs.concat(docs.filter(d=>!seen.has(d.storagePath||d.name)));
+    }
+    await realEstatePersistImovel(im);
+    const upd={status:'aprovado',aprovado_por:currentUser?.email||'',aprovado_em:new Date().toISOString()};
+    const{error:zeevErr}=await db.from('capex_zeev_solicitacoes').update(upd).eq('id',id).eq('status','pendente');
+    if(zeevErr)throw zeevErr;
+    Object.assign(z,upd);
+    closeCapexZeevRealEstateApproval(true);
+    renderCapexZeevCurrentView();
+    if(document.querySelector('.view.active')?.id==='view-realestate')renderRealEstate();
+    toast('Ticket Raiz registrado em Real Estate.');
+  }catch(e){console.error('saveCapexZeevRealEstateApproval:',e);toast('Erro ao registrar em Real Estate: '+(e.message||e));}
+  finally{capexZeevRealEstateSaveInFlight=false;}
 }
 
 function populateZeevObraSelect(selected){
@@ -20104,6 +20668,7 @@ async function onLogin(user){
   try{
     await loadFromDB();
     await loadInvestidores();
+    await loadRealEstate();
   }catch(loadErr){
     console.error('[onLogin] Erro ao carregar dados:',loadErr);
     toast('Aviso: alguns dados não carregaram. Tente recarregar a página.');
