@@ -2017,19 +2017,34 @@ function storedCapexRegisteredValue(row: AnyRecord = {}) {
   const dados = row?.ticket_raiz_dados && typeof row.ticket_raiz_dados === 'object' ? row.ticket_raiz_dados : {}
   const campos = dados?.campos && typeof dados.campos === 'object' ? dados.campos : {}
   let value = moneyFromPlainObjectByPriority(campos, PAYMENT_TOTAL_FIELDS)
-  if (value > 0) return value
-
-  const pagamento = dados?.pagamento && typeof dados.pagamento === 'object' ? dados.pagamento : {}
-  for (const key of ['valor_total', 'valorTotal', 'valorTotalPagamento', 'valorTotalDoPagamento', 'total_pagamento', 'totalPagamento', 'valor', 'valor_pagamento']) {
-    value = parseMoney(pagamento?.[key])
-    if (value > 0) return value
+  if (!value) {
+    const pagamento = dados?.pagamento && typeof dados.pagamento === 'object' ? dados.pagamento : {}
+    for (const key of ['valor_total', 'valorTotal', 'valorTotalPagamento', 'valorTotalDoPagamento', 'total_pagamento', 'totalPagamento', 'valor', 'valor_pagamento']) {
+      value = parseMoney(pagamento?.[key])
+      if (value > 0) break
+    }
   }
 
-  const itens = Array.isArray(dados?.itens) ? dados.itens : []
-  value = itemsTotal(itens.filter((item: unknown) => item && typeof item === 'object') as AnyRecord[])
-  if (value > 0) return value
+  if (!value) {
+    const itens = Array.isArray(dados?.itens) ? dados.itens : []
+    value = itemsTotal(itens.filter((item: unknown) => item && typeof item === 'object') as AnyRecord[])
+  }
 
-  value = moneyFromPlainObjectByPriority(dados, PAYMENT_TOTAL_FIELDS)
+  if (!value) value = moneyFromPlainObjectByPriority(dados, PAYMENT_TOTAL_FIELDS)
+  if (!value) return 0
+
+  const rateio = dados?.rateio && typeof dados.rateio === 'object' ? dados.rateio : null
+  const rateioAtivo = rateio && (rateio.ativo === true || ['1', 'true', 'sim', 'yes', 'on'].includes(String(rateio.ativo || '').trim().toLowerCase()))
+  if (rateioAtivo) {
+    const totalPartes = Math.max(1, Math.round(parseMoney(rateio?.total_partes || (Array.isArray(rateio?.unidades) ? rateio.unidades.length : 1)) || 1))
+    if (totalPartes > 1) {
+      const indice = Math.max(1, Math.min(Math.round(parseMoney(rateio?.indice || 1) || 1), totalPartes))
+      const cents = Math.round(value * 100)
+      const base = Math.floor(cents / totalPartes)
+      const remainder = cents % totalPartes
+      return Number(((base + (indice <= remainder ? 1 : 0)) / 100).toFixed(2))
+    }
+  }
   return value > 0 ? value : 0
 }
 

@@ -4525,6 +4525,16 @@ def money_from_mapping_by_priority(mapping, names):
     return 0.0
 
 
+def split_currency(total, parts, index):
+    cents = int(round(float(total or 0) * 100))
+    parts = max(1, int(parts or 1))
+    index = max(1, min(int(index or 1), parts))
+    base = cents // parts
+    remainder = cents % parts
+    value_cents = base + (1 if index <= remainder else 0)
+    return round(value_cents / 100, 2)
+
+
 def stored_capex_registered_value(row):
     data = row.get("ticket_raiz_dados") or {}
     if isinstance(data, str):
@@ -4533,29 +4543,49 @@ def stored_capex_registered_value(row):
         except Exception:
             data = {}
     if not isinstance(data, dict):
-        return 0.0, ""
+        return 0.0, "", None
 
     campos = data.get("campos") if isinstance(data.get("campos"), dict) else {}
     value = money_from_mapping_by_priority(campos, PAYMENT_TOTAL_FIELDS)
-    if value:
-        return value, "ticket_raiz_dados.campos.valorTotalDoPagamento"
+    source = "ticket_raiz_dados.campos.valorTotalDoPagamento" if value else ""
 
-    pagamento = data.get("pagamento") if isinstance(data.get("pagamento"), dict) else {}
-    for key in ("valor_total", "valorTotal", "valorTotalPagamento", "valorTotalDoPagamento", "total_pagamento", "totalPagamento", "valor", "valor_pagamento"):
-        value = parse_money(pagamento.get(key))
+    if not value:
+        pagamento = data.get("pagamento") if isinstance(data.get("pagamento"), dict) else {}
+        for key in ("valor_total", "valorTotal", "valorTotalPagamento", "valorTotalDoPagamento", "total_pagamento", "totalPagamento", "valor", "valor_pagamento"):
+            value = parse_money(pagamento.get(key))
+            if value:
+                source = f"ticket_raiz_dados.pagamento.{key}"
+                break
+
+    if not value:
+        itens = data.get("itens") if isinstance(data.get("itens"), list) else []
+        value = item_total_sum([item for item in itens if isinstance(item, dict)])
         if value:
-            return value, f"ticket_raiz_dados.pagamento.{key}"
+            source = "ticket_raiz_dados.itens.valor_total"
 
-    itens = data.get("itens") if isinstance(data.get("itens"), list) else []
-    value = item_total_sum([item for item in itens if isinstance(item, dict)])
-    if value:
-        return value, "ticket_raiz_dados.itens.valor_total"
+    if not value:
+        value = money_from_mapping_by_priority(data, PAYMENT_TOTAL_FIELDS)
+        if value:
+            source = "ticket_raiz_dados.valorTotalDoPagamento"
 
-    value = money_from_mapping_by_priority(data, PAYMENT_TOTAL_FIELDS)
-    if value:
-        return value, "ticket_raiz_dados.valorTotalDoPagamento"
+    if not value:
+        return 0.0, "", None
 
-    return 0.0, ""
+    rateio = data.get("rateio") if isinstance(data.get("rateio"), dict) else {}
+    if rateio.get("ativo") is True or str(rateio.get("ativo") or "").strip().lower() in {"1", "true", "sim", "yes", "on"}:
+        total_partes = int(parse_money(rateio.get("total_partes") or len(rateio.get("unidades") or []) or 1) or 1)
+        if total_partes > 1:
+            indice = int(parse_money(rateio.get("indice") or 1) or 1)
+            parcela = split_currency(value, total_partes, indice)
+            patched_data = dict(data)
+            patched_rateio = dict(rateio)
+            patched_rateio["total"] = round(float(value), 2)
+            patched_rateio["valor"] = parcela
+            patched_rateio["total_partes"] = total_partes
+            patched_data["rateio"] = patched_rateio
+            return parcela, f"{source}.rateio_parcela", patched_data
+
+    return value, source, None
 
 
 def repair_capex_registered_values():
@@ -4586,18 +4616,24 @@ def repair_capex_registered_values():
     for row in rows:
         current = parse_money(row.get("orcamento"))
         tr = row.get("ticket_raiz_instance_id") or row.get("referencia")
-        if current > 0 and not force:
-            out["skipped"].append({"tr": tr, "reason": "orcamento_ja_preenchido", "orcamento": current})
-            continue
-        value, source = stored_capex_registered_value(row)
+        value, source, patched_data = stored_capex_registered_value(row)
         if not value:
             out["skipped"].append({"tr": tr, "reason": "valor_total_nao_encontrado_no_payload_salvo"})
             continue
+        if current > 0 and not force and abs(current - float(value)) < 0.005:
+            out["skipped"].append({"tr": tr, "reason": "orcamento_ja_correto", "orcamento": current})
+            continue
+        if current > 0 and not force and "rateio_parcela" not in source:
+            out["skipped"].append({"tr": tr, "reason": "orcamento_ja_preenchido", "orcamento": current})
+            continue
+        payload = {"orcamento": round(float(value), 2)}
+        if patched_data is not None:
+            payload["ticket_raiz_dados"] = patched_data
         try:
             supabase_rest(
                 f"/capex_itens?id=eq.{int(row.get('id'))}",
                 method="PATCH",
-                payload={"orcamento": round(float(value), 2)},
+                payload=payload,
                 timeout=90,
             )
             out["updated"].append({"tr": tr, "id": row.get("id"), "orcamento": round(float(value), 2), "source": source})
