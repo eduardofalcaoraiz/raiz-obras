@@ -119,6 +119,8 @@ jobs:
           ZEEV_DEEP_SCAN: ${{ github.event_name == 'schedule' && github.event.schedule == '35 5 * * *' && '1' || github.event_name == 'workflow_dispatch' && inputs.mode != 'incremental' && inputs.mode != 'id-sweep' && '1' || '0' }}
           ZEEV_INCREMENTAL_MAX_PAGES_CAP: "2"
           ZEEV_INCREMENTAL_EXTRA_TICKET_CAP: "20"
+          ZEEV_INCREMENTAL_LAST_TASK_LOOKBACK_HOURS: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '36' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '36' || '0' }}
+          ZEEV_INCREMENTAL_LAST_TASK_MAX_PAGES: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '2' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '2' || '0' }}
           ZEEV_INCREMENTAL_ID_SWEEP_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '120' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && inputs.backfill_limit || '0' }}
           ZEEV_INCREMENTAL_CORRECTION_SWEEP_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '72' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && inputs.correction_sweep_limit || '0' }}
           ZEEV_CORRECTION_SWEEP_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.correction_sweep_limit || '120' }}

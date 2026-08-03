@@ -1021,6 +1021,31 @@ def report_page(flow_id, page, start, end, page_size=30, fields=None, timeout=12
     return data if isinstance(data, list) else [data]
 
 
+def report_page_last_task(flow_id, page, start, end, page_size=30, fields=None, timeout=120):
+    page_size = finished_task_page_size(page_size)
+    payload = {
+        "flowId": flow_id,
+        "lastTaskEndDateIntervalBegin": start,
+        "lastTaskEndDateIntervalEnd": end,
+        "recordsPerPage": page_size,
+        "pageNumber": page,
+        "useCache": False,
+        "formFieldNames": fields if fields is not None else capex_fields(flow_id),
+        "showPendingInstanceTasks": True,
+        "showFinishedInstanceTasks": True,
+        "showPendingAssignees": True,
+        "allowOpenUrlsForFilesInForm": True,
+    }
+    data = request_json(
+        "POST",
+        f"{ZEEV_BASE_URL}/api/2/instances/report",
+        headers={"Authorization": f"Bearer {ZEEV_TOKEN}"},
+        payload=payload,
+        timeout=timeout,
+    )
+    return data if isinstance(data, list) else [data]
+
+
 def report_page_all(page, start, end, page_size=30, fields=None):
     page_size = finished_task_page_size(page_size)
     payload = {
@@ -1042,6 +1067,31 @@ def report_page_all(page, start, end, page_size=30, fields=None):
         headers={"Authorization": f"Bearer {ZEEV_TOKEN}"},
         payload=payload,
         timeout=120,
+    )
+    return data if isinstance(data, list) else [data]
+
+
+def report_instance_get(instance_id, fields=None, timeout=90, retries=3, use_cache=False):
+    params = [
+        ("instanceId", int(instance_id)),
+        ("recordsPerPage", 10),
+        ("pageNumber", 1),
+        ("useCache", "true" if use_cache else "false"),
+        ("simulation", "false"),
+        ("showPendingInstanceTasks", "true"),
+        ("showFinishedInstanceTasks", "true"),
+        ("showPendingAssignees", "true"),
+        ("allowOpenUrlsForFilesInForm", "true"),
+    ]
+    for field in fields or []:
+        params.append(("formFieldNames", field))
+    url = f"{ZEEV_BASE_URL}/api/2/instances/report?" + urllib.parse.urlencode(params)
+    data = request_json(
+        "GET",
+        url,
+        headers={"Authorization": f"Bearer {ZEEV_TOKEN}"},
+        timeout=timeout,
+        retries=retries,
     )
     return data if isinstance(data, list) else [data]
 
@@ -1094,28 +1144,38 @@ def merge_zeev_fields(*groups):
 
 
 def instance_fields(instance_id, fields, timeout=90, retries=3):
-    params = [("showPendingInstanceTasks", "true"), ("showFinishedInstanceTasks", "true"),
-              ("showPendingAssignees", "true"), ("useCache", "false"),
-              ("allowOpenUrlsForFilesInForm", "true")]
-    for field in fields or []:
-        params.append(("formFieldNames", field))
-    url = f"{ZEEV_BASE_URL}/api/2/instances/{instance_id}?" + urllib.parse.urlencode(params)
     latest = {}
     found = []
     errors = []
-    try:
-        data = request_json("GET", url, headers={"Authorization": f"Bearer {ZEEV_TOKEN}"}, timeout=timeout, retries=retries)
-        latest = data or latest
-        found = merge_zeev_fields(found, data.get("formFields") or [])
-    except Exception as exc:
-        errors.append(str(exc)[:500])
-    try:
-        rows = report_instance(instance_id, 0, fields=fields if fields else None, timeout=timeout, retries=retries)
-        target = next((row for row in rows if int(row.get("id") or 0) == int(instance_id)), (rows[0] if rows else {}))
-        latest = target or latest
-        found = merge_zeev_fields(found, target.get("formFields") or [])
-    except Exception as exc:
-        errors.append(str(exc)[:500])
+
+    def direct_instance(use_cache=False, allow_open_urls=True):
+        params = [("showPendingInstanceTasks", "true"), ("showFinishedInstanceTasks", "true"),
+                  ("showPendingAssignees", "true"), ("useCache", "true" if use_cache else "false")]
+        if allow_open_urls:
+            params.append(("allowOpenUrlsForFilesInForm", "true"))
+        for field in fields or []:
+            params.append(("formFieldNames", field))
+        url = f"{ZEEV_BASE_URL}/api/2/instances/{instance_id}?" + urllib.parse.urlencode(params)
+        return request_json("GET", url, headers={"Authorization": f"Bearer {ZEEV_TOKEN}"}, timeout=timeout, retries=retries)
+
+    attempts = [
+        ("GET /api/2/instances useCache=false", lambda: [direct_instance(False, True)]),
+        ("GET /api/2/instances useCache=true", lambda: [direct_instance(True, True)]),
+        ("POST /api/2/instances/report instanceId", lambda: report_instance(instance_id, 0, fields=fields if fields else None, timeout=timeout, retries=retries)),
+        ("GET /api/2/instances/report instanceId useCache=false", lambda: report_instance_get(instance_id, fields=fields if fields else None, timeout=timeout, retries=retries, use_cache=False)),
+        ("GET /api/2/instances/report instanceId useCache=true", lambda: report_instance_get(instance_id, fields=fields if fields else None, timeout=timeout, retries=retries, use_cache=True)),
+    ]
+    for label, fetch_rows in attempts:
+        try:
+            rows = fetch_rows()
+            target = next((row for row in rows if int(row.get("id") or row.get("instanceId") or 0) == int(instance_id)), (rows[0] if rows else {}))
+            if not target:
+                continue
+            latest = target or latest
+            found = merge_zeev_fields(found, target.get("formFields") or [])
+            break
+        except Exception as exc:
+            errors.append(f"{label}: {str(exc)[:450]}")
     if not latest and errors:
         raise RuntimeError(" | ".join(errors))
     return latest, found
@@ -2342,6 +2402,44 @@ def sync(start, end, flows, max_pages, page_size):
                 break
         print(json.dumps({"progress": "flow-end", "flowId": flow_id, "ticketsSoFar": len(tickets)}, ensure_ascii=False), flush=True)
     return sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
+
+
+def sync_last_task_updates(start, end, flows, max_pages, page_size):
+    tickets = {}
+    errors = []
+    max_pages = max(0, int(max_pages or 0))
+    if max_pages <= 0:
+        return {"tickets": [], "errors": [], "start": start, "end": end, "pages": 0}
+    for flow_id in flows:
+        print(json.dumps({"progress": "last-task-flow-start", "flowId": flow_id, "start": start, "end": end, "maxPages": max_pages}, ensure_ascii=False), flush=True)
+        for page in range(1, max_pages + 1):
+            try:
+                rows = report_page_last_task(flow_id, page, start, end, page_size=page_size, timeout=90)
+            except Exception as exc:
+                errors.append({"flowId": flow_id, "page": page, "error": str(exc)[:500]})
+                break
+            print(json.dumps({"progress": "last-task-flow-page", "flowId": flow_id, "page": page, "rows": len(rows), "ticketsSoFar": len(tickets)}, ensure_ascii=False), flush=True)
+            for row in rows:
+                if not has_capex(row.get("formFields") or [], flow_id):
+                    continue
+                try:
+                    enriched = enrich_instance(row)
+                    ticket = build_ticket(enriched)
+                    if ticket:
+                        ticket = attach_rescued_docs(ticket, enriched)
+                        tickets[ticket["zeev_instance_id"]] = ticket
+                except Exception as exc:
+                    errors.append({"flowId": flow_id, "tr": row.get("id"), "error": str(exc)[:500]})
+            if len(rows) < page_size:
+                break
+        print(json.dumps({"progress": "last-task-flow-end", "flowId": flow_id, "ticketsSoFar": len(tickets)}, ensure_ascii=False), flush=True)
+    return {
+        "tickets": sorted(tickets.values(), key=lambda x: x["zeev_instance_id"], reverse=True),
+        "errors": errors[:30],
+        "start": start,
+        "end": end,
+        "pages": max_pages,
+    }
 
 
 def read_test():
@@ -4840,6 +4938,7 @@ def main():
     extra_ticket_ids = parse_ticket_ids(os.environ.get("ZEEV_EXTRA_TICKET_IDS", ""))
     id_sweep_result = None
     correction_sweep_result = None
+    last_task_scan_result = None
     if mode == "incremental" and not deep_mode:
         max_pages = min(max_pages, int(os.environ.get("ZEEV_INCREMENTAL_MAX_PAGES_CAP", "2") or "2"))
         extra_limit = max(0, int(os.environ.get("ZEEV_INCREMENTAL_EXTRA_TICKET_CAP", "5") or "5"))
@@ -4864,6 +4963,23 @@ def main():
         for ticket in sync_ids(extra_ticket_ids):
             merged[ticket["zeev_instance_id"]] = ticket
         if mode == "incremental" and not deep_mode:
+            last_task_pages = env_int("ZEEV_INCREMENTAL_LAST_TASK_MAX_PAGES", 0, 0, 20)
+            if last_task_pages:
+                now = datetime.now(business_tz())
+                lookback_hours = env_int("ZEEV_INCREMENTAL_LAST_TASK_LOOKBACK_HOURS", 36, 1, 720)
+                last_task_start = (now - timedelta(hours=lookback_hours)).isoformat(timespec="seconds")
+                last_task_end = now.isoformat(timespec="seconds")
+                last_task_scan = sync_last_task_updates(last_task_start, last_task_end, FLOW_IDS, max_pages=last_task_pages, page_size=page_size)
+                for ticket in last_task_scan.get("tickets", []):
+                    merged[ticket["zeev_instance_id"]] = ticket
+                last_task_scan_result = {
+                    "start": last_task_scan.get("start"),
+                    "end": last_task_scan.get("end"),
+                    "pages": last_task_scan.get("pages"),
+                    "tickets": len(last_task_scan.get("tickets") or []),
+                    "ticketIds": [t.get("zeev_instance_id") for t in (last_task_scan.get("tickets") or [])[:30]],
+                    "errors": last_task_scan.get("errors") or [],
+                }
             sweep_limit = env_int("ZEEV_INCREMENTAL_ID_SWEEP_LIMIT", 0, 0, 500)
             if sweep_limit:
                 id_sweep_result = collect_id_sweep_tickets(limit=sweep_limit, update_state=True)
@@ -4878,7 +4994,7 @@ def main():
                 correction_sweep_result = {k: v for k, v in correction_sweep_result.items() if k != "tickets"}
         tickets = sorted(merged.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
     result = ingest(tickets, notify=notify)
-    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "deep": deep_mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "idSweep": id_sweep_result, "correctionSweep": correction_sweep_result, "ingest": result}, ensure_ascii=False))
+    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "deep": deep_mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "lastTaskScan": last_task_scan_result, "idSweep": id_sweep_result, "correctionSweep": correction_sweep_result, "ingest": result}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
