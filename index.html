@@ -9238,6 +9238,18 @@ function capexZeevSyncDate(v){
   return d.toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
 }
 
+function capexZeevFriendlyError(raw){
+  const text=String(raw||'').replace(/\s+/g,' ').trim();
+  if(!text)return'';
+  const flows=[...new Set([...text.matchAll(/(?:flow|Fluxo)\s*=?\s*(\d+)/gi)].map(m=>m[1]))].slice(0,8);
+  const flowText=flows.length?` nos fluxos ${flows.join(', ')}`:'';
+  if(/HTTP\s+500/i.test(text))return`Zeev retornou HTTP 500${flowText}. A plataforma preservou os dados ja carregados e tentara novamente no proximo ciclo.`;
+  if(/HTTP\s+(401|403)/i.test(text))return`Zeev recusou autenticacao/permissao da API${flowText}. Verifique o token/perfil liberado no Zeev.`;
+  if(/nenhum fluxo|nenhuma pagina valida|nao retornou nenhuma pagina valida/i.test(text))return`Nenhum fluxo Zeev retornou pagina valida${flowText}. Dados existentes foram preservados.`;
+  if(/timeout|fetch/i.test(text))return`Houve timeout/falha de rede ao consultar o Zeev${flowText}. O proximo ciclo tentara novamente.`;
+  return text.length>260?text.slice(0,257)+'...':text;
+}
+
 function renderCapexZeevSyncStatus(){
   const s=capexZeevSyncState||null;
   if(!s){
@@ -9251,9 +9263,10 @@ function renderCapexZeevSyncStatus(){
   }
   const running=!!s.running;
   const rawError=String(s.last_error||'').trim();
-  const isEmailWarn=/^Aviso de e-mail:/i.test(rawError);
-  const cls=running?'running':(rawError?(isEmailWarn?'warn':'error'):'ok');
-  const tag=running?'Em leitura':(rawError?(isEmailWarn?'E-mail pendente':'Atenção'):'Online');
+  const displayError=capexZeevFriendlyError(rawError);
+  const isWarn=/^(Aviso de e-mail:|Aviso Zeev:)/i.test(rawError);
+  const cls=running?'running':(rawError?(isWarn?'warn':'error'):'ok');
+  const tag=running?'Em leitura':(rawError?(isWarn?'Atenção':'Falha'):'Online');
   const last=capexZeevSyncDate(s.last_success_at||s.updated_at);
   const found=+s.last_run_found||0;
   const created=+s.last_run_new||0;
@@ -9263,8 +9276,8 @@ function renderCapexZeevSyncStatus(){
   pieces.push(`${found} encontrado${found!==1?'s':''}`);
   pieces.push(`${created} novo${created!==1?'s':''}`);
   pieces.push(`${updated} atualizado${updated!==1?'s':''}`);
-  const msg=rawError||pieces.join(' · ');
-  const sub=rawError?`${pieces.join(' · ')}. ${rawError}`:pieces.join(' · ');
+  const msg=displayError||pieces.join(' · ');
+  const sub=displayError?`${pieces.join(' · ')}. ${displayError}`:pieces.join(' · ');
   return`<div class="capex-zeev-sync ${cls}" title="${escHtml(msg)}">
     <span class="capex-zeev-sync-dot"></span>
     <div class="capex-zeev-sync-main">

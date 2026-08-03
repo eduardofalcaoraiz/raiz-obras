@@ -720,6 +720,35 @@ async function responseText(res: Response) {
   return decodeHttpText(body, res.headers.get('Content-Type'))
 }
 
+function compactZeevText(value: unknown, limit = 360) {
+  const text = String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+\|\s+/g, ' | ')
+    .trim()
+  return text.length > limit ? `${text.slice(0, limit - 3)}...` : text
+}
+
+function summarizeZeevErrors(errors: unknown[], prefix = 'Falha Zeev') {
+  const text = compactZeevText((errors || []).map((e) => String(e || '').trim()).filter(Boolean).join(' | '), 1800)
+  if (!text) return null
+  const statusCodes = [...new Set([...text.matchAll(/HTTP\s+(\d{3})/gi)].map((m) => m[1]))]
+  const flows = [...new Set([...text.matchAll(/(?:flow|Fluxo)\s*=?\s*(\d+)/gi)].map((m) => m[1]))].slice(0, 8)
+  const flowText = flows.length ? ` nos fluxos ${flows.join(', ')}` : ''
+  if (statusCodes.includes('500')) {
+    return `${prefix}: Zeev retornou HTTP 500${flowText}. A plataforma preservou os dados ja carregados e vai tentar novamente no proximo ciclo.`
+  }
+  if (statusCodes.some((code) => code === '401' || code === '403')) {
+    return `${prefix}: Zeev recusou a autenticacao/permissao da API${flowText}. Verifique o token/perfil liberado no Zeev.`
+  }
+  if (/nenhum fluxo|nenhuma pagina valida|nao retornou nenhuma pagina valida/i.test(text)) {
+    return `${prefix}: nenhum fluxo Zeev retornou pagina valida${flowText}. Dados existentes foram preservados.`
+  }
+  if (/timeout|fetch/i.test(text)) {
+    return `${prefix}: houve timeout/falha de rede ao consultar o Zeev${flowText}. O proximo ciclo tentara novamente.`
+  }
+  return `${prefix}: ${compactZeevText(text, 420)}`
+}
+
 async function zeevJsonRequest(url: string, init: RequestInit = {}, options: { needsFormFields?: boolean; mergeRows?: boolean; timeoutMs?: number } = {}): Promise<any> {
   const tokens = zeevTokens().filter((token) => token && !BAD_ZEEV_TOKENS.has(token))
   if (!tokens.length) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
@@ -767,7 +796,7 @@ async function zeevJsonRequest(url: string, init: RequestInit = {}, options: { n
 
   if (options.mergeRows && rows.length) return mergeZeevRows(rows)
   if (fallbackSet) return fallback
-  throw new Error(`Zeev API sem resposta autorizada: ${errors.join(' | ')}`)
+  throw new Error(summarizeZeevErrors(errors, 'Zeev API sem resposta autorizada') || 'Zeev API sem resposta autorizada.')
 }
 
 async function zeevTextRequest(url: string, init: RequestInit = {}): Promise<{ res: Response; text: string }> {
@@ -792,7 +821,7 @@ async function zeevTextRequest(url: string, init: RequestInit = {}): Promise<{ r
       if (![401, 403].includes(res.status) && res.status < 500) break
     }
   }
-  throw new Error(`Zeev API sem resposta autorizada: ${errors.join(' | ')}`)
+  throw new Error(summarizeZeevErrors(errors, 'Zeev API sem resposta autorizada') || 'Zeev API sem resposta autorizada.')
 }
 
 async function zeevBinaryRequest(url: string, init: RequestInit = {}, options: { timeoutMs?: number; maxTokens?: number } = {}): Promise<Response> {
@@ -849,7 +878,7 @@ async function zeevBinaryRequest(url: string, init: RequestInit = {}, options: {
     errors.push(`${attempt.auth} HTTP ${res.status}: ${text.slice(0, 220)}`)
     if (![401, 403].includes(res.status) && res.status < 500) break
   }
-  throw new Error(`Zeev arquivo sem resposta autorizada: ${errors.join(' | ')}`)
+  throw new Error(summarizeZeevErrors(errors, 'Zeev arquivo sem resposta autorizada') || 'Zeev arquivo sem resposta autorizada.')
 }
 
 function secretAuthorized(req: Request) {
@@ -2595,7 +2624,7 @@ async function zeevReport(flow: number, page: number, start: string, end: string
       }
     }
   }
-  throw new Error(`Zeev report flow ${flow} page ${page}: ${errors.join(' | ')}`)
+  throw new Error(summarizeZeevErrors(errors, `Zeev report flow ${flow} page ${page}`) || `Zeev report flow ${flow} page ${page}: falha sem detalhe.`)
 }
 
 async function zeevInstance(instanceId: number, flow: number, fields: string[]) {
@@ -3026,9 +3055,11 @@ function emailWarningText(email: { notified?: unknown[]; failed?: AnyRecord[] } 
   return `Aviso de e-mail: ${failed.length} ticket(s) sem notificacao (${reasons || 'motivo nao informado'}). A captura Zeev foi concluida.`
 }
 
-function syncStateMessage(errors: string[]) {
+function syncStateMessage(errors: string[], savedCount = 0) {
   const parts = errors.map((e) => String(e || '').trim()).filter(Boolean)
-  return parts.length ? parts.join(' | ').slice(0, 1500) : null
+  if (!parts.length) return null
+  const prefix = savedCount > 0 ? 'Aviso Zeev' : 'Falha Zeev'
+  return summarizeZeevErrors(parts, prefix)
 }
 
 async function runSync(input: AnyRecord) {
@@ -3082,7 +3113,7 @@ async function runSync(input: AnyRecord) {
           flowHadSuccessfulPage = true
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error)
-          errors.push(String(msg).slice(0, 900))
+          errors.push(summarizeZeevErrors([msg], `Fluxo ${flow}`) || String(msg).slice(0, 300))
           break
         }
         const rows = report.rows
@@ -3098,7 +3129,7 @@ async function runSync(input: AnyRecord) {
     }
 
     if (allTickets.length === 0 && errors.length >= flows.length) {
-      throw new Error(`Nenhum fluxo Zeev retornou pagina valida: ${errors.join(' | ').slice(0, 1500)}`)
+      throw new Error(summarizeZeevErrors(errors, 'Nenhum fluxo Zeev retornou pagina valida') || 'Nenhum fluxo Zeev retornou pagina valida.')
     }
 
     const unique = new Map<number, AnyRecord>()
@@ -3113,7 +3144,7 @@ async function runSync(input: AnyRecord) {
     await saveState(stateId, {
       running: false,
       last_success_at: now.toISOString(),
-      last_error: syncStateMessage(errors),
+      last_error: syncStateMessage(errors, tickets.length),
       last_run_found: tickets.length,
       last_run_new: newCount,
       last_run_updated: Math.max(0, saved.length - newCount),
@@ -3140,7 +3171,7 @@ async function runSync(input: AnyRecord) {
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     errors.push(msg)
-    await saveState(stateId, { running: false, last_error: msg })
+    await saveState(stateId, { running: false, last_error: summarizeZeevErrors([msg], 'Falha Zeev') || compactZeevText(msg, 420) })
     throw error
   }
 }
