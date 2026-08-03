@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "incremental, id-sweep, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-pending-fiscal-metadata, repair-fiscal-metadata, repair-payment-fiscal-fields ou refresh-payment-statuses"
+        description: "incremental, id-sweep, correction-sweep, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-pending-fiscal-metadata, repair-fiscal-metadata, repair-payment-fiscal-fields ou refresh-payment-statuses"
         required: true
         default: "incremental"
       start:
@@ -58,6 +58,10 @@ on:
       checked_before:
         description: "Marco ISO para varredura total finita de anexos; recheca registros ainda nao verificados depois desse horario"
         required: false
+      correction_sweep_limit:
+        description: "Quantidade de TRs antigos para verificar em busca de CAPEX corrigido de Nao para Sim"
+        required: false
+        default: "0"
       target_obra:
         description: "Obra destino para register-obra-payments"
         required: false
@@ -116,6 +120,12 @@ jobs:
           ZEEV_INCREMENTAL_MAX_PAGES_CAP: "2"
           ZEEV_INCREMENTAL_EXTRA_TICKET_CAP: "20"
           ZEEV_INCREMENTAL_ID_SWEEP_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '120' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && inputs.backfill_limit || '0' }}
+          ZEEV_INCREMENTAL_CORRECTION_SWEEP_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '72' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && inputs.correction_sweep_limit || '0' }}
+          ZEEV_CORRECTION_SWEEP_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.correction_sweep_limit || '120' }}
+          ZEEV_CORRECTION_SWEEP_MAX_LOOKBACK: "200000"
+          ZEEV_CORRECTION_SWEEP_BATCH: "12"
+          ZEEV_CORRECTION_SWEEP_PAUSE_SECONDS: "0.6"
+          ZEEV_CORRECTION_SWEEP_MAX_RUNTIME_SECONDS: "120"
           ZEEV_ID_SWEEP_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '120' }}
           ZEEV_ID_SWEEP_START_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'id-sweep' && inputs.start || '' }}
           ZEEV_ID_SWEEP_HARD_LIMIT: "300"

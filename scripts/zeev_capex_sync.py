@@ -1570,20 +1570,21 @@ def platform_existing_ticket_ids(instance_ids):
     return found
 
 
-def load_id_sweep_state():
+def load_id_sweep_state(state_id="zeev-capex-id-sweep"):
     try:
-        rows = supabase_rest("/zeev_sync_state?id=eq.zeev-capex-id-sweep&select=*", timeout=30, prefer="")
+        safe_id = urllib.parse.quote(str(state_id or "zeev-capex-id-sweep"), safe="")
+        rows = supabase_rest(f"/zeev_sync_state?id=eq.{safe_id}&select=*", timeout=30, prefer="")
     except Exception as exc:
-        print(json.dumps({"progress": "id-sweep-state-read-error", "error": str(exc)[:300]}, ensure_ascii=False), file=sys.stderr)
+        print(json.dumps({"progress": "id-sweep-state-read-error", "stateId": state_id, "error": str(exc)[:300]}, ensure_ascii=False), file=sys.stderr)
         return {}
     if isinstance(rows, list) and rows:
         return rows[0] or {}
     return {}
 
 
-def save_id_sweep_state(cursor, scanned, found, imported, error=""):
+def save_id_sweep_state(cursor, scanned, found, imported, error="", state_id="zeev-capex-id-sweep"):
     payload = {
-        "id": "zeev-capex-id-sweep",
+        "id": str(state_id or "zeev-capex-id-sweep"),
         "last_success_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "last_start_date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "last_end_date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -1596,7 +1597,7 @@ def save_id_sweep_state(cursor, scanned, found, imported, error=""):
     try:
         supabase_rest("/zeev_sync_state?on_conflict=id", method="POST", payload=payload, timeout=45, prefer="resolution=merge-duplicates,return=minimal")
     except Exception as exc:
-        print(json.dumps({"progress": "id-sweep-state-write-error", "error": str(exc)[:300]}, ensure_ascii=False), file=sys.stderr)
+        print(json.dumps({"progress": "id-sweep-state-write-error", "stateId": state_id, "error": str(exc)[:300]}, ensure_ascii=False), file=sys.stderr)
 
 
 def id_sweep_candidates(limit=None):
@@ -1696,10 +1697,11 @@ def probe_capex_ticket_ids(instance_ids):
     return sorted(out, key=lambda item: order.get(item.get("tr"), 999999))
 
 
-def collect_id_sweep_tickets(limit=None, update_state=True):
-    ids, meta = id_sweep_candidates(limit)
+def collect_sweep_candidate_tickets(ids, meta, update_state=True, state_id="zeev-capex-id-sweep", mode_label="id-sweep",
+                                   batch_env="ZEEV_ID_SWEEP_BATCH", pause_env="ZEEV_ID_SWEEP_PAUSE_SECONDS",
+                                   runtime_env="ZEEV_ID_SWEEP_MAX_RUNTIME_SECONDS"):
     if not ids:
-        return {"ok": True, "mode": "id-sweep", "scanned": 0, "skippedExisting": 0, "tickets": [], **meta}
+        return {"ok": True, "mode": mode_label, "scanned": 0, "skippedExisting": 0, "tickets": [], **meta}
 
     existing = platform_existing_ticket_ids(ids)
     tickets = []
@@ -1708,9 +1710,9 @@ def collect_id_sweep_tickets(limit=None, update_state=True):
     errors = []
     cursor_after = meta.get("nextCursor")
     partial = False
-    batch_size = env_int("ZEEV_ID_SWEEP_BATCH", 24, 1, 80)
-    pause = float(os.environ.get("ZEEV_ID_SWEEP_PAUSE_SECONDS", "0.35") or "0")
-    max_runtime = env_int("ZEEV_ID_SWEEP_MAX_RUNTIME_SECONDS", 180, 30, 1800)
+    batch_size = env_int(batch_env, 24, 1, 80)
+    pause = float(os.environ.get(pause_env, "0.35") or "0")
+    max_runtime = env_int(runtime_env, 180, 30, 1800)
     started_at = time.monotonic()
     for index, candidate_chunk in enumerate(chunked(ids, batch_size), start=1):
         if time.monotonic() - started_at >= max_runtime:
@@ -1720,7 +1722,7 @@ def collect_id_sweep_tickets(limit=None, update_state=True):
         chunk = [tr for tr in candidate_chunk if tr not in existing]
         if not chunk:
             print(json.dumps({
-                "progress": "id-sweep-batch",
+                "progress": f"{mode_label}-batch",
                 "batch": index,
                 "candidates": len(candidate_chunk),
                 "skippedExisting": len(candidate_chunk),
@@ -1739,7 +1741,7 @@ def collect_id_sweep_tickets(limit=None, update_state=True):
         found = sync_ids(capex_ids, allow_non_capex=False, reason="Varredura token por ID CAPEX", rescue_docs=False) if capex_ids else []
         tickets.extend(found)
         print(json.dumps({
-            "progress": "id-sweep-batch",
+            "progress": f"{mode_label}-batch",
             "batch": index,
             "candidates": len(candidate_chunk),
             "skippedExisting": len(candidate_chunk) - len(chunk),
@@ -1752,11 +1754,11 @@ def collect_id_sweep_tickets(limit=None, update_state=True):
             time.sleep(pause)
 
     if update_state and cursor_after:
-        save_id_sweep_state(cursor_after, scanned, len(tickets), 0)
+        save_id_sweep_state(cursor_after, scanned, len(tickets), 0, state_id=state_id)
 
     out = {
         "ok": True,
-        "mode": "id-sweep",
+        "mode": mode_label,
         "scanned": scanned,
         "probed": probed,
         "candidateIds": len(ids),
@@ -1772,9 +1774,80 @@ def collect_id_sweep_tickets(limit=None, update_state=True):
     return out
 
 
+def collect_id_sweep_tickets(limit=None, update_state=True):
+    ids, meta = id_sweep_candidates(limit)
+    return collect_sweep_candidate_tickets(ids, meta, update_state=update_state, state_id="zeev-capex-id-sweep", mode_label="id-sweep")
+
+
+def correction_sweep_candidates(limit=None):
+    hard_limit = env_int("ZEEV_CORRECTION_SWEEP_HARD_LIMIT", 120, 10, 1000)
+    limit = max(0, min(int(limit or env_int("ZEEV_CORRECTION_SWEEP_LIMIT", 0, 0, hard_limit)), hard_limit))
+    if not limit:
+        return [], {"limit": 0, "reason": "disabled", "strategy": "old-capex-correction-rotating-window"}
+
+    latest = max(
+        env_int("ZEEV_CORRECTION_SWEEP_LATEST_ID", 0, 0),
+        latest_report_ticket_id(),
+        max_known_platform_ticket_id(),
+    )
+    if not latest:
+        return [], {"limit": limit, "reason": "no-head-id", "strategy": "old-capex-correction-rotating-window"}
+
+    max_lookback = env_int("ZEEV_CORRECTION_SWEEP_MAX_LOOKBACK", 200000, 1000, 300000)
+    configured_min = env_int("ZEEV_CORRECTION_SWEEP_MIN_ID", 0, 0)
+    lower_bound = configured_min or max(1, latest - max_lookback)
+    lower_bound = max(1, min(lower_bound, latest))
+
+    state_id = "zeev-capex-correction-sweep"
+    state = load_id_sweep_state(state_id)
+    cursor = ticket_id_from_value(state.get("last_run_found")) or latest
+    if cursor > latest or cursor < lower_bound:
+        cursor = latest
+
+    stop = max(lower_bound - 1, cursor - limit)
+    ids = list(range(cursor, stop, -1))
+    next_cursor = stop
+    if next_cursor <= lower_bound:
+        next_cursor = latest
+
+    return ids, {
+        "limit": limit,
+        "latest": latest,
+        "lowerBound": lower_bound,
+        "cursor": cursor,
+        "nextCursor": next_cursor,
+        "stateId": state_id,
+        "strategy": "old-capex-correction-rotating-window",
+    }
+
+
+def collect_correction_sweep_tickets(limit=None, update_state=True):
+    ids, meta = correction_sweep_candidates(limit)
+    return collect_sweep_candidate_tickets(
+        ids,
+        meta,
+        update_state=update_state,
+        state_id="zeev-capex-correction-sweep",
+        mode_label="correction-sweep",
+        batch_env="ZEEV_CORRECTION_SWEEP_BATCH",
+        pause_env="ZEEV_CORRECTION_SWEEP_PAUSE_SECONDS",
+        runtime_env="ZEEV_CORRECTION_SWEEP_MAX_RUNTIME_SECONDS",
+    )
+
+
 def id_sweep_capex():
     limit = env_int("ZEEV_ID_SWEEP_LIMIT", env_int("ZEEV_BACKFILL_LIMIT", 120, 0), 0, 5000)
     sweep = collect_id_sweep_tickets(limit=limit, update_state=True)
+    tickets = sweep.pop("tickets", [])
+    result = ingest(tickets, notify=os.environ.get("ZEEV_NOTIFY", "false").lower() == "true", backfill_limit=0)
+    sweep["imported"] = len(tickets)
+    sweep["ingest"] = result
+    return sweep
+
+
+def correction_sweep_capex():
+    limit = env_int("ZEEV_CORRECTION_SWEEP_LIMIT", env_int("ZEEV_BACKFILL_LIMIT", 120, 0), 0, 5000)
+    sweep = collect_correction_sweep_tickets(limit=limit, update_state=True)
     tickets = sweep.pop("tickets", [])
     result = ingest(tickets, notify=os.environ.get("ZEEV_NOTIFY", "false").lower() == "true", backfill_limit=0)
     sweep["imported"] = len(tickets)
@@ -4714,6 +4787,10 @@ def main():
         result = id_sweep_capex()
         print(json.dumps(result, ensure_ascii=False))
         return
+    if mode in {"correction-sweep", "capex-correction-sweep", "sweep-corrections", "varrer-correcoes"}:
+        result = correction_sweep_capex()
+        print(json.dumps(result, ensure_ascii=False))
+        return
     if mode in {"rescue-docs-loop", "doc-rescue-loop", "resgate-docs-loop"}:
         result = rescue_docs_loop()
         print(json.dumps(result, ensure_ascii=False))
@@ -4762,6 +4839,7 @@ def main():
     ticket_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS", ""))
     extra_ticket_ids = parse_ticket_ids(os.environ.get("ZEEV_EXTRA_TICKET_IDS", ""))
     id_sweep_result = None
+    correction_sweep_result = None
     if mode == "incremental" and not deep_mode:
         max_pages = min(max_pages, int(os.environ.get("ZEEV_INCREMENTAL_MAX_PAGES_CAP", "2") or "2"))
         extra_limit = max(0, int(os.environ.get("ZEEV_INCREMENTAL_EXTRA_TICKET_CAP", "5") or "5"))
@@ -4792,9 +4870,15 @@ def main():
                 for ticket in id_sweep_result.get("tickets", []):
                     merged[ticket["zeev_instance_id"]] = ticket
                 id_sweep_result = {k: v for k, v in id_sweep_result.items() if k != "tickets"}
+            correction_limit = env_int("ZEEV_INCREMENTAL_CORRECTION_SWEEP_LIMIT", 0, 0, 500)
+            if correction_limit:
+                correction_sweep_result = collect_correction_sweep_tickets(limit=correction_limit, update_state=True)
+                for ticket in correction_sweep_result.get("tickets", []):
+                    merged[ticket["zeev_instance_id"]] = ticket
+                correction_sweep_result = {k: v for k, v in correction_sweep_result.items() if k != "tickets"}
         tickets = sorted(merged.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
     result = ingest(tickets, notify=notify)
-    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "deep": deep_mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "idSweep": id_sweep_result, "ingest": result}, ensure_ascii=False))
+    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "deep": deep_mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "idSweep": id_sweep_result, "correctionSweep": correction_sweep_result, "ingest": result}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
