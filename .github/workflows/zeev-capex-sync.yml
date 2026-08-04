@@ -168,7 +168,7 @@ jobs:
           ZEEV_DOC_RESCUE_CHECKED_BEFORE: ${{ github.event_name == 'workflow_dispatch' && inputs.checked_before || '' }}
           ZEEV_REPAIR_PAYMENT_VALUES: ${{ github.event_name == 'workflow_dispatch' && inputs.repair_values || 'false' }}
           ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST: "1"
-          ZEEV_REPAIR_CAPEX_VALUES_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '24' || github.event_name == 'workflow_dispatch' && inputs.mode == 'repair-capex-registered-values' && inputs.backfill_limit || '80' }}
+          ZEEV_REPAIR_CAPEX_VALUES_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '24' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '24' || github.event_name == 'workflow_dispatch' && inputs.mode == 'repair-capex-registered-values' && inputs.backfill_limit || '80' }}
           ZEEV_PENDING_FISCAL_REPAIR_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && '8' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '6' }}
           ZEEV_PENDING_FISCAL_REPAIR_CYCLES: ${{ github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && '12' || '1' }}
           ZEEV_PENDING_FISCAL_REPAIR_MAX_RUNTIME_MS: "105000"
