@@ -2560,18 +2560,52 @@ function uniqueNumbers(values: unknown[]) {
 }
 
 async function knownTicketRefreshIds(limit: number, flows: number[] = []) {
-  const n = Math.max(0, Math.min(Number(limit) || 0, 25))
+  const n = Math.max(0, Math.min(Number(limit) || 0, 60))
   if (!n) return []
   const flowFilter = flows.length ? `&flow_id=in.(${flows.join(',')})` : ''
-  const recentApprovedLimit = Math.max(1, Math.ceil(n / 3))
-  const staleLimit = Math.max(1, n - recentApprovedLimit)
+  const recentApprovedLimit = Math.max(1, Math.ceil(n / 4))
+  const staleActiveLimit = Math.max(1, Math.ceil(n / 4))
   const recentApproved = await rest(`/capex_zeev_solicitacoes?status=eq.aprovado&capex_item_id=not.is.null${flowFilter}&select=zeev_instance_id,updated_at,last_seen_at,start_date_time&order=updated_at.desc&limit=${recentApprovedLimit}`)
-  const staleKnown = await rest(`/capex_zeev_solicitacoes?status=in.(pendente,aprovado)${flowFilter}&select=zeev_instance_id,updated_at,last_seen_at,start_date_time&order=last_seen_at.asc.nullsfirst&limit=${staleLimit}`)
-  return uniqueNumbers([...(recentApproved || []), ...(staleKnown || [])].map((row: AnyRecord) => row.zeev_instance_id)).slice(0, n)
+  const staleActive = await rest(`/capex_zeev_solicitacoes?status=in.(pendente,aprovado)&active=eq.true${flowFilter}&select=zeev_instance_id,updated_at,last_seen_at,start_date_time&order=last_seen_at.asc.nullsfirst&limit=${staleActiveLimit}`)
+  const selected = uniqueNumbers([...(recentApproved || []), ...(staleActive || [])].map((row: AnyRecord) => row.zeev_instance_id))
+  const selectedSet = new Set(selected)
+  const stateId = 'zeev-known-ticket-refresh'
+  const state = await getState(stateId)
+  let cursor = Math.max(0, Number(state?.last_run_found || 0))
+  let lastRotated = cursor
+
+  const appendRotation = (rows: AnyRecord[]) => {
+    for (const row of rows || []) {
+      const ticketId = Number(row.zeev_instance_id || 0)
+      if (!ticketId) continue
+      lastRotated = ticketId
+      if (selectedSet.has(ticketId)) continue
+      selectedSet.add(ticketId)
+      selected.push(ticketId)
+      if (selected.length >= n) break
+    }
+  }
+
+  const rotationLimit = Math.max(n * 2, 40)
+  const rotating = await rest(`/capex_zeev_solicitacoes?status=in.(pendente,aprovado)&zeev_instance_id=gt.${cursor}${flowFilter}&select=zeev_instance_id&order=zeev_instance_id.asc&limit=${rotationLimit}`)
+  appendRotation(rotating || [])
+  if (selected.length < n) {
+    cursor = 0
+    const wrapped = await rest(`/capex_zeev_solicitacoes?status=in.(pendente,aprovado)${flowFilter}&select=zeev_instance_id&order=zeev_instance_id.asc&limit=${rotationLimit}`)
+    appendRotation(wrapped || [])
+  }
+  await saveState(stateId, {
+    last_run_found: lastRotated || cursor,
+    last_run_updated: selected.length,
+    last_success_at: new Date().toISOString(),
+    running: false,
+    updated_at: new Date().toISOString(),
+  })
+  return selected.slice(0, n)
 }
 
 async function runKnownTicketRefreshIds(input: AnyRecord = {}) {
-  const limit = Math.max(0, Math.min(Number(input.limit || input.refreshLimit || input.refresh_limit || 8) || 0, 25))
+  const limit = Math.max(0, Math.min(Number(input.limit || input.refreshLimit || input.refresh_limit || 8) || 0, 60))
   const flows = parseFlowIds(input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','))
   return {
     ok: true,

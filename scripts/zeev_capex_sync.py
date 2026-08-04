@@ -1411,36 +1411,85 @@ def best_message_description(messages, service_desc="", item_text=""):
 def enrich_instance(row):
     flow_id = int((row.get("flow") or {}).get("id") or row.get("flowId") or 0)
     financeiro = is_finance_row(row)
-    fields = unique_fields(
-        capex_fields(flow_id),
-        FINANCE_FIELDS if financeiro else PURCHASE_FIELDS,
-        flow_design_relevant_fields(flow_id),
-        env_list(os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "")),
-        VALUE_TOTAL_FIELDS,
-        ITEM_DESC_FIELDS,
-        ITEM_QTY_FIELDS,
-        ITEM_UNIT_MEASURE_FIELDS,
-        ITEM_UNIT_FIELDS,
-        ITEM_TOTAL_FIELDS,
-    )
+    design_fields = flow_design_relevant_fields(flow_id)
     all_fields = {}
     errors = []
     latest = row
-    try:
-        detail, found = instance_fields(row["id"], [])
-        latest = detail or latest
-        for field in found:
-            display = field_display_name(field)
-            if not display:
-                continue
-            key = f"{display}|{field.get('row') or 1}"
-            all_fields[key] = field
-    except Exception as exc:
-        errors.append({"field": "__all__", "error": str(exc)[:300]})
+    base_fields = row.get("formFields") or []
+    for field in base_fields:
+        display = field_display_name(field)
+        if not display:
+            continue
+        key = f"{display}|{field.get('row') or 1}"
+        all_fields[key] = field
+    if not row.get("__allFieldsLoaded"):
+        try:
+            detail, found = instance_fields(
+                row["id"],
+                [],
+                timeout=env_int("ZEEV_ENRICH_REQUEST_TIMEOUT_SECONDS", 35, 8, 90),
+                retries=env_int("ZEEV_ENRICH_REQUEST_RETRIES", 1, 1, 3),
+            )
+            latest = detail or latest
+            for field in found:
+                display = field_display_name(field)
+                if not display:
+                    continue
+                key = f"{display}|{field.get('row') or 1}"
+                all_fields[key] = field
+        except Exception as exc:
+            errors.append({"field": "__all__", "error": str(exc)[:300]})
+
+    current_fields = list(all_fields.values())
+    missing_design_fields = [
+        name for name in design_fields
+        if not any(field_matches(field, [name]) for field in current_fields)
+    ]
+    missing_alias_fields = []
+    if not has_capex(current_fields, flow_id):
+        missing_alias_fields.extend(capex_fields(flow_id))
+    if not field_value(current_fields, VALUE_TOTAL_FIELDS):
+        missing_alias_fields.extend(VALUE_TOTAL_FIELDS)
+    if financeiro:
+        if not field_value(current_fields, unique_fields(FISCAL_NUMBER_FIELDS, GENERIC_FISCAL_NUMBER_FIELDS)):
+            missing_alias_fields.extend(unique_fields(FISCAL_NUMBER_FIELDS, GENERIC_FISCAL_NUMBER_FIELDS))
+        if not field_value(current_fields, FINANCE_DESCRIPTION_FIELDS):
+            missing_alias_fields.extend(FINANCE_DESCRIPTION_FIELDS)
+    else:
+        has_service_description = bool(field_value(current_fields, PURCHASE_SERVICE_DESCRIPTION_FIELDS))
+        has_item_description = bool(field_value(current_fields, PURCHASE_ITEM_DESCRIPTION_FIELDS))
+        if not has_service_description and not has_item_description:
+            missing_alias_fields.extend(PURCHASE_SERVICE_DESCRIPTION_FIELDS)
+            missing_alias_fields.extend(unique_fields(
+                PURCHASE_ITEM_DESCRIPTION_FIELDS,
+                ITEM_DESC_FIELDS,
+                ITEM_QTY_FIELDS,
+                ITEM_UNIT_MEASURE_FIELDS,
+                ITEM_UNIT_FIELDS,
+                ITEM_TOTAL_FIELDS,
+            ))
+    supplier_fields = ["fornecedor", "nomeFornecedor", "razaoSocial", "favorecido", "beneficiario", "fornecedorEscolhido"]
+    if not field_value(current_fields, supplier_fields):
+        missing_alias_fields.extend(supplier_fields)
+    payment_date_fields = ["dataPagamento", "previsaoPagamento", "dataDeVencimento", "dataVencimento"]
+    if financeiro and not field_value(current_fields, payment_date_fields):
+        missing_alias_fields.extend(payment_date_fields)
+    if not field_value(current_fields, DESTINATION_UNIT_FIELDS):
+        missing_alias_fields.extend(DESTINATION_UNIT_FIELDS)
+    if not field_value(current_fields, COMPANY_FIELDS):
+        missing_alias_fields.extend(COMPANY_FIELDS)
+    if not field_value(current_fields, DOCUMENT_FIELDS):
+        missing_alias_fields.extend(env_list(os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "")))
+        missing_alias_fields.extend(DOCUMENT_FIELDS)
+    max_filtered_fields = env_int("ZEEV_ENRICH_MAX_FILTER_FIELDS", 64, 8, 160)
+    fields = unique_fields(missing_design_fields, missing_alias_fields)[:max_filtered_fields]
+    single_fallback_remaining = env_int("ZEEV_ENRICH_SINGLE_FIELD_FALLBACK_LIMIT", 4, 0, 16)
+    request_timeout = env_int("ZEEV_ENRICH_REQUEST_TIMEOUT_SECONDS", 35, 8, 90)
+    request_retries = env_int("ZEEV_ENRICH_REQUEST_RETRIES", 1, 1, 3)
     for i in range(0, len(fields), 8):
         chunk = fields[i:i + 8]
         try:
-            detail, found = instance_fields(row["id"], chunk)
+            detail, found = instance_fields(row["id"], chunk, timeout=request_timeout, retries=request_retries)
             latest = detail or latest
             for field in found:
                 display = field_display_name(field)
@@ -1452,9 +1501,10 @@ def enrich_instance(row):
             if len(chunk) == 1:
                 errors.append({"field": chunk[0], "error": str(exc)[:300]})
                 continue
-            for field_name in chunk:
+            errors.append({"field": ",".join(chunk), "error": str(exc)[:300]})
+            for field_name in chunk[:single_fallback_remaining]:
                 try:
-                    detail, found = instance_fields(row["id"], [field_name])
+                    detail, found = instance_fields(row["id"], [field_name], timeout=request_timeout, retries=request_retries)
                     latest = detail or latest
                     for field in found:
                         display = field_display_name(field)
@@ -1464,13 +1514,8 @@ def enrich_instance(row):
                         all_fields[key] = field
                 except Exception as single_exc:
                     errors.append({"field": field_name, "error": str(single_exc)[:300]})
-    base = row.get("formFields") or []
-    for field in base:
-        display = field_display_name(field)
-        if not display:
-            continue
-        key = f"{display}|{field.get('row') or 1}"
-        all_fields[key] = field
+                finally:
+                    single_fallback_remaining = max(0, single_fallback_remaining - 1)
     report_link = (latest or {}).get("reportLink") or (latest or {}).get("reportUrl") or row.get("reportLink") or row.get("reportUrl") or ""
     if report_link:
         try:
@@ -1640,7 +1685,7 @@ def chunked(values, size):
 
 def known_ticket_refresh_ids(limit):
     try:
-        n = max(0, min(int(limit or 0), 25))
+        n = max(0, min(int(limit or 0), 60))
     except (TypeError, ValueError):
         n = 0
     if not n or not ZEEV_SYNC_SECRET:
@@ -4053,9 +4098,11 @@ def sync_ids(instance_ids, allow_non_capex=False, reason="", rescue_docs=True):
 
     def load_one(instance_id):
         try:
-            base, _ = instance_fields(instance_id, [], timeout=read_timeout, retries=read_retries)
+            base, base_fields = instance_fields(instance_id, [], timeout=read_timeout, retries=read_retries)
             row = base if isinstance(base, dict) and base else {"id": instance_id}
             row.setdefault("id", instance_id)
+            row["formFields"] = merge_zeev_fields(row.get("formFields") or [], base_fields)
+            row["__allFieldsLoaded"] = True
             enriched = enrich_instance(row)
             ticket = build_ticket(enriched)
             if not ticket and allow_non_capex:
@@ -5140,6 +5187,27 @@ def default_window():
 
 def main():
     mode = os.environ.get("ZEEV_SYNC_MODE", "incremental")
+    incremental_started = time.monotonic()
+    incremental_budget_seconds = env_int("ZEEV_INCREMENTAL_MAX_RUNTIME_SECONDS", 1500, 300, 3300)
+    incremental_skipped_stages = []
+
+    def incremental_remaining_seconds():
+        return max(0, incremental_budget_seconds - int(time.monotonic() - incremental_started))
+
+    def incremental_stage_allowed(stage, minimum_remaining):
+        if mode != "incremental":
+            return True
+        remaining = incremental_remaining_seconds()
+        if remaining >= minimum_remaining:
+            return True
+        incremental_skipped_stages.append({"stage": stage, "remainingSeconds": remaining, "minimumSeconds": minimum_remaining})
+        print(json.dumps({
+            "progress": "incremental-stage-deferred",
+            "stage": stage,
+            "remainingSeconds": remaining,
+            "minimumSeconds": minimum_remaining,
+        }, ensure_ascii=False), flush=True)
+        return False
     if not ZEEV_SYNC_SECRET:
         raise SystemExit("ZEEV_SYNC_SECRET e obrigatorio.")
     health_skip = maybe_skip_for_supabase_health(mode)
@@ -5238,11 +5306,12 @@ def main():
     id_sweep_result = None
     correction_sweep_result = None
     last_task_scan_result = None
+    auto_extra_ticket_limit = 0
     if mode == "incremental" and not deep_mode:
         max_pages = min(max_pages, int(os.environ.get("ZEEV_INCREMENTAL_MAX_PAGES_CAP", "2") or "2"))
         extra_limit = max(0, int(os.environ.get("ZEEV_INCREMENTAL_EXTRA_TICKET_CAP", "5") or "5"))
         if extra_limit and not extra_ticket_ids:
-            extra_ticket_ids = known_ticket_refresh_ids(extra_limit)
+            auto_extra_ticket_limit = extra_limit
         if extra_limit and len(extra_ticket_ids) > extra_limit:
             print(json.dumps({
                 "progress": "extra-ticket-cap",
@@ -5259,11 +5328,14 @@ def main():
             merged = {t["zeev_instance_id"]: t for t in deep_sync(start, end, max_pages=max_pages, page_size=page_size, notify=notify, progressive_ingest=progressive_ingest, start_page=start_page)}
         else:
             merged = {t["zeev_instance_id"]: t for t in sync(start, end, FLOW_IDS, max_pages=max_pages, page_size=page_size)}
-        for ticket in sync_ids(extra_ticket_ids):
-            merged[ticket["zeev_instance_id"]] = ticket
+        if (extra_ticket_ids or auto_extra_ticket_limit) and incremental_stage_allowed("known-ticket-refresh", 420):
+            if auto_extra_ticket_limit:
+                extra_ticket_ids = known_ticket_refresh_ids(auto_extra_ticket_limit)
+            for ticket in sync_ids(extra_ticket_ids):
+                merged[ticket["zeev_instance_id"]] = ticket
         if mode == "incremental" and not deep_mode:
             last_task_pages = env_int("ZEEV_INCREMENTAL_LAST_TASK_MAX_PAGES", 0, 0, 20)
-            if last_task_pages:
+            if last_task_pages and incremental_stage_allowed("last-task-scan", 600):
                 now = datetime.now(business_tz())
                 lookback_hours = env_int("ZEEV_INCREMENTAL_LAST_TASK_LOOKBACK_HOURS", 36, 1, 720)
                 last_task_start = (now - timedelta(hours=lookback_hours)).isoformat(timespec="seconds")
@@ -5279,28 +5351,29 @@ def main():
                     "ticketIds": [t.get("zeev_instance_id") for t in (last_task_scan.get("tickets") or [])[:30]],
                     "errors": last_task_scan.get("errors") or [],
                 }
-            sweep_limit = env_int("ZEEV_INCREMENTAL_ID_SWEEP_LIMIT", 0, 0, 500)
-            if sweep_limit:
-                id_sweep_result = collect_id_sweep_tickets(limit=sweep_limit, update_state=True)
-                for ticket in id_sweep_result.get("tickets", []):
-                    merged[ticket["zeev_instance_id"]] = ticket
-                id_sweep_result = {k: v for k, v in id_sweep_result.items() if k != "tickets"}
             correction_limit = env_int("ZEEV_INCREMENTAL_CORRECTION_SWEEP_LIMIT", 0, 0, 500)
-            if correction_limit:
+            if correction_limit and incremental_stage_allowed("correction-sweep", 360):
                 correction_sweep_result = collect_correction_sweep_tickets(limit=correction_limit, update_state=True)
                 for ticket in correction_sweep_result.get("tickets", []):
                     merged[ticket["zeev_instance_id"]] = ticket
                 correction_sweep_result = {k: v for k, v in correction_sweep_result.items() if k != "tickets"}
+            sweep_limit = env_int("ZEEV_INCREMENTAL_ID_SWEEP_LIMIT", 0, 0, 500)
+            if sweep_limit and incremental_stage_allowed("id-sweep", 360):
+                id_sweep_result = collect_id_sweep_tickets(limit=sweep_limit, update_state=True)
+                for ticket in id_sweep_result.get("tickets", []):
+                    merged[ticket["zeev_instance_id"]] = ticket
+                id_sweep_result = {k: v for k, v in id_sweep_result.items() if k != "tickets"}
         tickets = sorted(merged.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
     result = ingest(tickets, notify=notify)
     value_repair = None
-    if os.environ.get("ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST", "1").strip().lower() not in {"0", "false", "nao", "não", "no"}:
+    repair_values_enabled = os.environ.get("ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST", "1").strip().lower() not in {"0", "false", "nao", "não", "no"}
+    if repair_values_enabled and incremental_stage_allowed("capex-value-repair", 180):
         try:
             os.environ.setdefault("ZEEV_REPAIR_CAPEX_VALUES_LIMIT", "80")
             value_repair = repair_capex_registered_values()
         except Exception as exc:
             value_repair = {"ok": False, "mode": "repair-capex-registered-values", "error": str(exc)[:700]}
-    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "deep": deep_mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "lastTaskScan": last_task_scan_result, "idSweep": id_sweep_result, "correctionSweep": correction_sweep_result, "ingest": result, "capexValueRepair": value_repair}, ensure_ascii=False))
+    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "deep": deep_mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "lastTaskScan": last_task_scan_result, "idSweep": id_sweep_result, "correctionSweep": correction_sweep_result, "ingest": result, "capexValueRepair": value_repair, "runtimeSeconds": round(time.monotonic() - incremental_started, 2), "runtimeBudgetSeconds": incremental_budget_seconds if mode == "incremental" else None, "deferredStages": incremental_skipped_stages}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
