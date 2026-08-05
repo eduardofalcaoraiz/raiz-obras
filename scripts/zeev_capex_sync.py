@@ -107,6 +107,9 @@ FINANCE_DESCRIPTION_FIELDS = [
     "informacaoSolicitacao",
     "informacoes",
     "informacao",
+    "descricaoDaNotaFiscal",
+    "Descri\u00e7\u00e3o da Nota Fiscal",
+    "Descricao da Nota Fiscal",
     "Informacoes referentes a solicitacao",
     "Informacao referente a solicitacao",
     "Informa\u00e7\u00f5es referentes \u00e0 solicita\u00e7\u00e3o",
@@ -865,6 +868,14 @@ def field_value_by_priority(fields, names):
             if field_matches(field, [name]) and str(field.get("value") or "").strip():
                 return str(field.get("value")).strip()
     return ""
+
+
+def field_value_with_source_by_priority(fields, names):
+    for name in names:
+        for field in fields or []:
+            if field_matches(field, [name]) and str(field.get("value") or "").strip():
+                return str(field.get("value")).strip(), field_display_name(field) or name
+    return "", ""
 
 
 def clean_fiscal_document_number(value):
@@ -2140,6 +2151,42 @@ def best_description(*values):
     return sorted(options, key=description_score, reverse=True)[0]
 
 
+def clean_financial_document_reference(value):
+    name = filename_from_download_path(value, "")
+    if not name:
+        return ""
+    try:
+        from urllib.parse import unquote
+        name = unquote(name)
+    except Exception:
+        pass
+    name = re.sub(r"\.(pdf|xml|png|jpe?g|webp|tiff?|xlsx?|docx?|zip)$", "", name, flags=re.I)
+    name = re.sub(r"_\d{17,}$", "", name)
+    return re.sub(r"\s+", " ", re.sub(r"[_-]+", " ", name)).strip()
+
+
+def finance_fallback_description(fields):
+    item = clean_item_description(field_value_by_priority(fields, ["item"]))
+    supplier = re.sub(
+        r"^\s*\d+\s*-\s*",
+        "",
+        field_value_by_priority(fields, ["fornecedor", "favorecido", "beneficiario", "nomeFornecedor", "razaoSocial"]),
+    ).strip()
+    fiscal_number = fiscal_document_number(fields, financeiro=True)
+    fiscal_type = field_value_by_priority(fields, ["tipoDoPagamento", "tipoDocumento", "tipoDeDocumento"])
+    document_reference = clean_financial_document_reference(field_value_by_priority(fields, DOCUMENT_FIELDS))
+    parts = []
+    if item:
+        parts.append(f"Item: {item}")
+    if supplier:
+        parts.append(f"Fornecedor: {supplier}")
+    if fiscal_number:
+        parts.append(f"{fiscal_type or 'Documento fiscal'}: {fiscal_number}")
+    elif document_reference:
+        parts.append(f"Documento: {document_reference}")
+    return " | ".join(parts)
+
+
 def split_summary_parts(text):
     clean = clean_summary_text(text)
     if not clean:
@@ -2342,7 +2389,7 @@ def card_summary_cascade(text, items=None, compra=False):
 
 def ticket_description(fields, items, financeiro=False, compra=False):
     if financeiro:
-        return field_value_by_priority(fields, FINANCE_DESCRIPTION_FIELDS)
+        return field_value_by_priority(fields, FINANCE_DESCRIPTION_FIELDS) or finance_fallback_description(fields)
     if compra:
         justification = field_value_by_priority(fields, PURCHASE_JUSTIFICATION_FIELDS)
         service_desc = field_value_by_priority(fields, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
@@ -2387,6 +2434,7 @@ def build_ticket(row):
     atual = current_task(tasks)
     situacao, realizado = suggested_capex_status(row, ready)
     campos_extraidos = fields_object(fields)
+    finance_description, finance_description_source = field_value_with_source_by_priority(fields, FINANCE_DESCRIPTION_FIELDS) if financeiro else ("", "")
     resumo_card, resumo_source = card_summary_cascade(pedido, items=itens, compra=compra)
     if resumo_card:
         campos_extraidos["_resumo_card"] = resumo_card
@@ -2396,6 +2444,11 @@ def build_ticket(row):
         campos_extraidos["_descricao_status"] = "parcial"
         campos_extraidos["_descricao_origem"] = "descricaoDoServico"
         campos_extraidos["_descricao_alerta"] = "O Zeev retornou a descricao do servico limitada a 100 caracteres. Abra o Ticket Raiz para conferir o texto integral."
+    if financeiro and pedido:
+        campos_extraidos["_descricao_status"] = "completa" if finance_description else "referencia_estruturada"
+        campos_extraidos["_descricao_origem"] = finance_description_source or "campos_estruturados_zeev"
+        if not finance_description:
+            campos_extraidos["_descricao_alerta"] = "O formulario Zeev nao retornou um campo descritivo; a referencia foi montada somente com item, fornecedor e documento informados no ticket."
     enrichment_errors = list(row.get("__enrichmentErrors") or [])
     if descricao_truncada:
         enrichment_errors.append({

@@ -21,6 +21,9 @@ const FINANCE_DESCRIPTION_FIELDS = [
   'informacaoSolicitacao',
   'informacoes',
   'informacao',
+  'descricaoDaNotaFiscal',
+  'Descri\u00e7\u00e3o da Nota Fiscal',
+  'Descricao da Nota Fiscal',
   'Informacoes referentes a solicitacao',
   'Informacao referente a solicitacao',
   'Informa\u00e7\u00f5es referentes \u00e0 solicita\u00e7\u00e3o',
@@ -995,13 +998,17 @@ function fieldMap(fields: AnyRecord[]) {
   return map
 }
 
-function firstField(fields: Map<string, AnyRecord[]>, names: string[]) {
+function firstFieldMatch(fields: Map<string, AnyRecord[]>, names: string[]) {
   for (const name of names) {
     const arr = fields.get(norm(name)) || fields.get(normKey(name))
     const found = arr?.find((f) => String(f?.value || '').trim())
-    if (found) return String(found.value).trim()
+    if (found) return { value: String(found.value).trim(), source: fieldNames(found)[0] || name }
   }
-  return ''
+  return null
+}
+
+function firstField(fields: Map<string, AnyRecord[]>, names: string[]) {
+  return firstFieldMatch(fields, names)?.value || ''
 }
 
 function moneyByPriority(fields: Map<string, AnyRecord[]>, names: string[]) {
@@ -1542,6 +1549,34 @@ function bestDescription(values: unknown[]) {
     .sort((a, b) => descriptionScore(b) - descriptionScore(a))[0] || ''
 }
 
+function cleanFinancialDocumentReference(value: unknown) {
+  let name = fileNameFromDownloadPath(value, '')
+  if (!name) return ''
+  try { name = decodeURIComponent(name) } catch (_) { /* Keep the Zeev filename as returned. */ }
+  return name
+    .replace(/\.(pdf|xml|png|jpe?g|webp|tiff?|xlsx?|docx?|zip)$/i, '')
+    .replace(/_\d{17,}$/g, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function financeFallbackDescription(fmap: Map<string, AnyRecord[]>) {
+  const item = cleanItemDescription(firstField(fmap, ['item']))
+  const supplier = firstField(fmap, ['fornecedor', 'favorecido', 'beneficiario', 'nomeFornecedor', 'razaoSocial'])
+    .replace(/^\s*\d+\s*-\s*/, '')
+    .trim()
+  const fiscalNumber = fiscalDocumentNumber(fmap, true)
+  const fiscalType = firstField(fmap, ['tipoDoPagamento', 'tipoDocumento', 'tipoDeDocumento'])
+  const documentReference = cleanFinancialDocumentReference(firstField(fmap, DOCUMENT_FIELDS))
+  const parts: string[] = []
+  if (item) parts.push(`Item: ${item}`)
+  if (supplier) parts.push(`Fornecedor: ${supplier}`)
+  if (fiscalNumber) parts.push(`${fiscalType || 'Documento fiscal'}: ${fiscalNumber}`)
+  else if (documentReference) parts.push(`Documento: ${documentReference}`)
+  return parts.join(' | ')
+}
+
 function splitSummaryParts(text: string) {
   return cleanSummaryText(text)
     .split(/\n|[\u2022\u00b7]|(?:^|\s)\d+[.)]\s+|;\s+/g)
@@ -1723,7 +1758,7 @@ async function cardSummaryCascade(text: string, items: AnyRecord[], compra: bool
 }
 
 function ticketDescription(fmap: Map<string, AnyRecord[]>, items: AnyRecord[], financeiro: boolean, compra: boolean) {
-  if (financeiro) return firstField(fmap, FINANCE_DESCRIPTION_FIELDS)
+  if (financeiro) return firstField(fmap, FINANCE_DESCRIPTION_FIELDS) || financeFallbackDescription(fmap)
   if (compra) {
     const justification = firstField(fmap, PURCHASE_JUSTIFICATION_FIELDS)
     const serviceDesc = firstField(fmap, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
@@ -1791,6 +1826,7 @@ async function buildTicket(row: AnyRecord) {
   const categoria = firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra'])
   const pagamento = extractPagamento(fmap, financeiro)
   const campos = fieldsObject(fields)
+  const financeDescriptionMatch = financeiro ? firstFieldMatch(fmap, FINANCE_DESCRIPTION_FIELDS) : null
   const resumo = await cardSummaryCascade(desc || '', itens, compra, { skipAi: Boolean(row.__skipSummaryAi) })
   if (resumo.text) {
     campos._resumo_card = resumo.text
@@ -1801,6 +1837,11 @@ async function buildTicket(row: AnyRecord) {
     campos._descricao_status = 'parcial'
     campos._descricao_origem = 'descricaoDoServico'
     campos._descricao_alerta = 'O Zeev retornou a descricao do servico limitada a 100 caracteres. Abra o Ticket Raiz para conferir o texto integral.'
+  }
+  if (financeiro && desc) {
+    campos._descricao_status = financeDescriptionMatch ? 'completa' : 'referencia_estruturada'
+    campos._descricao_origem = financeDescriptionMatch?.source || 'campos_estruturados_zeev'
+    if (!financeDescriptionMatch) campos._descricao_alerta = 'O formulario Zeev nao retornou um campo descritivo; a referencia foi montada somente com item, fornecedor e documento informados no ticket.'
   }
   const setor = financeiro ? 'FINANCEIRO' : 'COMPRAS'
   const { situacao, realizado } = suggestedCapexStatus(row, conferir)
@@ -7501,14 +7542,19 @@ async function registerCapexItems(input: AnyRecord = {}) {
 }
 
 function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
-  const raw = ticket?.raw_instance && typeof ticket.raw_instance === 'object' ? ticket.raw_instance : ticket
+  const storedRaw = ticket?.raw_instance && typeof ticket.raw_instance === 'object' ? ticket.raw_instance : null
+  const raw = storedRaw && Object.keys(storedRaw).length ? { ...ticket, ...storedRaw } : ticket
   const fields = Array.isArray(ticket?.raw_fields) ? ticket.raw_fields : Array.isArray(raw?.formFields) ? raw.formFields : []
   const tasks = Array.isArray(ticket?.raw_tasks) ? ticket.raw_tasks : Array.isArray(raw?.instanceTasks) ? raw.instanceTasks : []
   const fmap = fieldMap(fields)
   const compra = isCompra(raw || ticket)
   const financeiro = isFinanceiro(raw || ticket)
+  const zeevCapex = capexField(fields)
+  const manuallyForced = !zeevCapex.name
   const itens = Array.isArray(ticket?.itens_json) && ticket.itens_json.length ? ticket.itens_json : extractItems(fields)
   const valor = pickTicketValue(fmap, itens, financeiro) || Number(ticket?.valor_final || ticket?.valor || ticket?.pagamento_json?.valor_total || 0)
+  const financeDescriptionMatch = financeiro ? firstFieldMatch(fmap, FINANCE_DESCRIPTION_FIELDS) : null
+  const financeStructuredFallback = financeiro && !financeDescriptionMatch?.value ? financeFallbackDescription(fmap) : ''
   const desc = cleanSummaryText(ticket?.pedido || '')
     || cleanSummaryText(ticketDescription(fmap, itens, financeiro, compra))
     || cleanSummaryText(ticketDescriptionForPayment(ticket))
@@ -7517,9 +7563,18 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
   const status = suggestedCapexStatus(raw || ticket, conferir)
   const campos = {
     ...fieldsObject(fields),
-    _capex_forcado: true,
-    _capex_forcado_motivo: reason || 'Inclusao manual solicitada pelo usuario.',
-    _capex_forcado_em: new Date().toISOString(),
+    ...(manuallyForced ? {
+      _capex_forcado: true,
+      _capex_forcado_motivo: reason || 'Inclusao manual solicitada pelo usuario.',
+      _capex_forcado_em: new Date().toISOString(),
+    } : {}),
+    ...(financeiro && desc ? {
+      _descricao_status: financeDescriptionMatch?.value ? 'completa' : 'referencia_estruturada',
+      _descricao_origem: financeDescriptionMatch?.source || (financeStructuredFallback ? 'campos_estruturados_zeev' : 'registro_existente'),
+      ...(!financeDescriptionMatch?.value && financeStructuredFallback ? {
+        _descricao_alerta: 'O Zeev nao retornou um campo descritivo preenchido; a referencia foi montada somente com campos estruturados do ticket.',
+      } : {}),
+    } : {}),
   }
   return {
     zeev_instance_id: Number(ticket?.zeev_instance_id || raw?.id || 0),
@@ -7535,8 +7590,8 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
     last_finished_task_date_time: iso(ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime),
     active: ticket?.active === undefined ? (raw?.active === undefined ? null : Boolean(raw.active)) : Boolean(ticket.active),
     flow_result: ticket?.flow_result || raw?.flowResult || '',
-    capex_field_name: 'manual_codex',
-    capex_field_value: 'Sim - inclusao manual',
+    capex_field_name: zeevCapex.name || 'manual_codex',
+    capex_field_value: zeevCapex.name ? String(zeevCapex.value || 'Sim') : 'Sim - inclusao manual',
     requester_name: ticket?.requester_name || raw?.requester?.name || '',
     requester_email: ticket?.requester_email || raw?.requester?.email || '',
     requester_username: ticket?.requester_username || raw?.requester?.username || '',
@@ -7557,13 +7612,13 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
     realizado_sugerido: ticket?.realizado_sugerido ?? status.realizado,
     raw_fields: fields,
     raw_instance: {},
-    raw_tasks: [],
+    raw_tasks: tasks,
     itens_json: itens,
     pagamento_json: ticket?.pagamento_json || { ...extractPagamento(fmap, financeiro), valor_total: valor || null },
     campos_extraidos: campos,
     enrichment_errors: [
       ...(Array.isArray(ticket?.enrichment_errors) ? ticket.enrichment_errors : []),
-      { field: 'CAPEX', warning: reason || 'Ticket incluído manualmente na fila mesmo sem CAPEX marcado como Sim.' },
+      ...(manuallyForced ? [{ field: 'CAPEX', warning: reason || 'Ticket incluído manualmente na fila mesmo sem CAPEX marcado como Sim.' }] : []),
     ].slice(0, 5),
     status: 'pendente',
     capex_item_id: null,
@@ -7583,6 +7638,7 @@ async function forcePendingTickets(input: AnyRecord = {}) {
     }
   }
   const directZeevRead = input.directZeevRead === true || input.direct_zeev_read === true
+  const refreshFromZeev = input.refreshFromZeev === true || input.refresh_from_zeev === true
 
   const existingPending = await loadTicketsByIds(ticketIds)
   const existingCapexRows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id&or=(referencia.in.(${ticketIds.join(',')}),ticket_raiz_instance_id.in.(${ticketIds.join(',')}))`)
@@ -7610,7 +7666,7 @@ async function forcePendingTickets(input: AnyRecord = {}) {
         if (directZeevRead && !hasStored) {
           throw new Error('Ticket nao veio enriquecido do GitHub/Zeev; inclusao sem link foi bloqueada para evitar placeholder.')
         }
-        ticket = await loadForcedPendingTicketFromZeev(ticket)
+        if (!hasStored || refreshFromZeev) ticket = await loadForcedPendingTicketFromZeev(ticket)
       }
       const payload = forcedPendingPayloadFromTicket({ ...ticket, zeev_instance_id: Number(ticket?.zeev_instance_id || id) }, reason)
       if (!payload.zeev_instance_id) throw new Error('Ticket sem ID valido apos leitura do Zeev.')
