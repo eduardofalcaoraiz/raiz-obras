@@ -4296,6 +4296,12 @@ function stripEmbeddedDownloadedDocs(raw: AnyRecord) {
   return next
 }
 
+function hasEmbeddedDownloadedDocContainer(raw: AnyRecord) {
+  if (!raw || typeof raw !== 'object') return false
+  return ['__downloaded_docs', 'downloadedDocs', 'zeevDownloadedDocs', 'directDownloadedDocs']
+    .some((key) => key in raw)
+}
+
 async function clearEmbeddedDownloadedDocs(ticketIds: number[]) {
   const ids = [...new Set(ticketIds.map((id) => Number(id)).filter(Boolean))]
   if (!ids.length) return { checked: 0, cleaned: 0 }
@@ -4303,7 +4309,7 @@ async function clearEmbeddedDownloadedDocs(ticketIds: number[]) {
   let cleaned = 0
   for (const row of rows || []) {
     const raw = row?.raw_instance
-    if (!raw || typeof raw !== 'object' || !hasEmbeddedDownloadedDocs({ raw_instance: raw })) continue
+    if (!hasEmbeddedDownloadedDocContainer(raw)) continue
     await rest(`/capex_zeev_solicitacoes?id=eq.${Number(row.id)}`, {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
