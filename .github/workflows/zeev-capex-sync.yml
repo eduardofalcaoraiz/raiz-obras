@@ -89,7 +89,7 @@ concurrency:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ZEEV_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 60
     steps:
       - name: Checkout repository without marketplace actions
