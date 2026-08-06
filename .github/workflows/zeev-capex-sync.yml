@@ -92,11 +92,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository without marketplace actions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "${GITHUB_SHA}"
+          git checkout --force --detach FETCH_HEAD
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - name: Verify bundled Python runtime
+        run: python3 --version
 
       - name: Sync Zeev CAPEX
         env:
@@ -222,4 +228,4 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
           HF_SUMMARY_MODEL: ${{ secrets.HF_SUMMARY_MODEL }}
-        run: python scripts/zeev_capex_sync.py
+        run: python3 scripts/zeev_capex_sync.py
