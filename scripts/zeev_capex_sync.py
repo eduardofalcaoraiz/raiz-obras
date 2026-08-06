@@ -4361,6 +4361,9 @@ def doc_rescue_candidates(limit=None):
         "mode": "doc-rescue-candidates",
         "limit": max(1, min(int(limit or os.environ.get("ZEEV_DOC_RESCUE_LIMIT", os.environ.get("ZEEV_BACKFILL_LIMIT", "24"))), 160)),
         "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", os.environ.get("ZEEV_DOC_RESCUE_STALE_HOURS", "8"))),
+        # The generic audit sample is ordered by TR number and can starve the
+        # financial queue with very old IDs. Use the source-aware priority scan.
+        "forceEdgeCandidates": True,
         "includePending": os.environ.get("ZEEV_DOC_RESCUE_PENDING", "true").lower() != "false",
         "includePayments": os.environ.get("ZEEV_DOC_RESCUE_PAYMENTS", "true").lower() != "false",
         "includeCapex": os.environ.get("ZEEV_DOC_RESCUE_CAPEX", "true").lower() != "false",
