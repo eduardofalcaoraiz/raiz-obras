@@ -748,7 +748,10 @@ def supabase_healthcheck(timeout=12):
     if not ZEEV_SYNC_SECRET:
         return {"ok": False, "reason": "ZEEV_SYNC_SECRET ausente"}
     url = f"{SUPABASE_URL}/functions/v1/zeev-capex-sync"
-    body = json.dumps({"mode": "health"}, ensure_ascii=False).encode("utf-8")
+    # This preflight guards Supabase availability only. Zeev health is checked
+    # by the worker's authenticated reads; probing it here made a slow Zeev
+    # response incorrectly pause an otherwise healthy persistence cycle.
+    body = json.dumps({"mode": "health", "skipZeev": True}, ensure_ascii=False).encode("utf-8")
     headers = {
         "Authorization": f"Bearer {ZEEV_SYNC_SECRET}",
         "x-cron-secret": ZEEV_SYNC_SECRET,
