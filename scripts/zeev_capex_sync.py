@@ -3277,6 +3277,35 @@ def rescue_documents_for_row(row):
     if not direct_doc_rescue_enabled() or direct_doc_rescue_file_limit() <= 0:
         return [], {"enabled": False}
     instance_id = int(row.get("id") or 0)
+    flow_id = int((row.get("flow") or {}).get("id") or row.get("flowId") or row.get("flow_id") or 0)
+    report_probe = {"requested": False, "fields": 0}
+    try:
+        report_field_limit = max(8, min(int(os.environ.get("ZEEV_DOC_REPORT_FIELD_LIMIT", "40") or "40"), 80))
+        requested_fields = unique_fields(
+            pending_fiscal_repair_fields(flow_id),
+            DOCUMENT_FIELDS,
+            env_list(os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "")),
+        )[:report_field_limit]
+        rows = report_instance(
+            instance_id,
+            flow_id,
+            fields=requested_fields,
+            timeout=env_int("ZEEV_DIRECT_DOC_TIMEOUT_SECONDS", 20, 8, 60),
+            retries=1,
+        )
+        target = next(
+            (item for item in rows if int(item.get("id") or item.get("instanceId") or 0) == instance_id),
+            rows[0] if rows else {},
+        )
+        report_fields = target.get("formFields") or []
+        row["formFields"] = merge_zeev_fields(row.get("formFields") or [], report_fields)
+        report_probe = {
+            "requested": True,
+            "fields": len(report_fields),
+            "openUrls": sum(1 for field in report_fields if field.get("openUrl") or field.get("downloadUrl") or field.get("url")),
+        }
+    except Exception as exc:
+        report_probe = {"requested": True, "fields": 0, "error": str(exc)[:240]}
     candidates = []
     for field in row.get("formFields") or []:
         label = field_display_name(field)
@@ -3344,6 +3373,7 @@ def rescue_documents_for_row(row):
         "enabled": True,
         "candidates": len(candidates),
         "downloaded": len(downloaded),
+        "reportProbe": report_probe,
         "skipped": skipped,
     }
     return downloaded, debug
@@ -3361,9 +3391,31 @@ def attach_rescued_docs(ticket, row):
     if debug.get("skipped"):
         campos["_zeev_doc_rescue_skipped"] = debug.get("skipped")[:5]
     ticket["campos_extraidos"] = campos
+    # Keep only the downloaded payloads needed by the Edge ingest. The full
+    # Zeev instance is intentionally discarded below to protect Postgres, but
+    # dropping these bytes as well made successful downloads disappear.
+    ticket["__downloaded_docs"] = docs
     ticket["raw_instance"] = {}
     ticket["raw_tasks"] = []
     return ticket
+
+
+def embedded_downloaded_docs(ticket):
+    if not isinstance(ticket, dict):
+        return []
+    for value in (
+        ticket.get("__downloaded_docs"),
+        ticket.get("downloaded_docs"),
+        ticket.get("zeev_downloaded_docs"),
+    ):
+        if isinstance(value, list):
+            return value
+    raw = ticket.get("raw_instance") if isinstance(ticket.get("raw_instance"), dict) else {}
+    for key in ("__downloaded_docs", "downloadedDocs", "zeevDownloadedDocs", "directDownloadedDocs"):
+        value = raw.get(key)
+        if isinstance(value, list):
+            return value
+    return []
 
 
 def inspect_docs():
@@ -4581,10 +4633,7 @@ def rescue_docs(deadline=None):
                 if should_fallback:
                     tickets = sync_ids(chunk, allow_non_capex=True, reason="Fallback direto para resgate de documentos Zeev")
                     for ticket in tickets:
-                        raw = ticket.get("raw_instance") if isinstance(ticket, dict) else {}
-                        docs = raw.get("__downloaded_docs") if isinstance(raw, dict) else []
-                        if isinstance(docs, list):
-                            downloaded += len(docs)
+                        downloaded += len(embedded_downloaded_docs(ticket))
                     if downloaded > 0:
                         fallback_result = ingest(tickets, notify=False, backfill_limit=0, fanout_targets=True)
                         result["backfill"] = merge_doc_backfill_results(edge_backfill, fallback_result)
@@ -4593,10 +4642,7 @@ def rescue_docs(deadline=None):
                 tickets = sync_ids(chunk, allow_non_capex=True, reason="Resgate automatico de documentos Zeev")
                 downloaded = 0
                 for ticket in tickets:
-                    raw = ticket.get("raw_instance") if isinstance(ticket, dict) else {}
-                    docs = raw.get("__downloaded_docs") if isinstance(raw, dict) else []
-                    if isinstance(docs, list):
-                        downloaded += len(docs)
+                    downloaded += len(embedded_downloaded_docs(ticket))
                 result = ingest(tickets, notify=False, backfill_limit=0, fanout_targets=True)
             attached = 0
             backfill = result.get("backfill") if isinstance(result, dict) else {}
