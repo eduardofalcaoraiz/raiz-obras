@@ -3391,11 +3391,11 @@ def attach_rescued_docs(ticket, row):
     if debug.get("skipped"):
         campos["_zeev_doc_rescue_skipped"] = debug.get("skipped")[:5]
     ticket["campos_extraidos"] = campos
-    # Keep only the downloaded payloads needed by the Edge ingest. The full
-    # Zeev instance is intentionally discarded below to protect Postgres, but
-    # dropping these bytes as well made successful downloads disappear.
-    ticket["__downloaded_docs"] = docs
-    ticket["raw_instance"] = {}
+    # Keep only the downloaded payloads needed by the Edge ingest. The Edge
+    # reads them from raw_instance, stores the files, then removes this
+    # temporary JSON so the base64 content never remains in Postgres.
+    ticket.pop("__downloaded_docs", None)
+    ticket["raw_instance"] = {"__downloaded_docs": docs}
     ticket["raw_tasks"] = []
     return ticket
 
