@@ -4407,6 +4407,9 @@ def backfill_docs_for_ticket_ids(ticket_ids, file_limit=None, timeout=None):
         "limit": max(1, min(len(parsed_ticket_ids) or 1, edge_limit, 12)),
         "fileLimit": int(file_limit or os.environ.get("ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT", os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "12"))),
         "refresh": True,
+        # This call already runs inside the GitHub worker in bounded chunks.
+        # Prevent the Edge Function from delegating it back to GitHub recursively.
+        "forceEdge": True,
         "staleHours": int(os.environ.get("ZEEV_BACKFILL_STALE_HOURS", os.environ.get("ZEEV_DOC_RESCUE_STALE_HOURS", "720"))),
         "includePending": os.environ.get("ZEEV_DOC_RESCUE_PENDING", "true").lower() != "false",
         "includePayments": os.environ.get("ZEEV_DOC_RESCUE_PAYMENTS", "true").lower() != "false",
