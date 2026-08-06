@@ -3389,7 +3389,10 @@ async function runIngest(input: AnyRecord) {
   const saved = await upsertTickets(normalized)
   const reconcile = await reconcileRegisteredTickets(normalized)
   const directDocTicketIds = normalized
-    .filter((ticket: AnyRecord) => hasEmbeddedDownloadedDocs(ticket))
+    .filter((ticket: AnyRecord) => {
+      const raw = ticket?.raw_instance || ticket?.rawInstance || {}
+      return hasEmbeddedDownloadedDocs(ticket) || hasEmbeddedDownloadedDocContainer(raw)
+    })
     .map((ticket: AnyRecord) => Number(ticket.zeev_instance_id))
     .filter(Boolean)
   const docCheckTicketIds = normalized
