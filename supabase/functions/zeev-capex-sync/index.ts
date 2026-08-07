@@ -4805,6 +4805,8 @@ function paymentDateFromTicket(ticket: AnyRecord) {
   if (fromFinanceCompletion) return fromFinanceCompletion
   const fromTask = paymentDateFromTasks(ticket)
   if (fromTask) return fromTask
+  const fromCompletedTicket = paymentDateFromCompletedTicket(ticket)
+  if (fromCompletedTicket) return fromCompletedTicket
   return paymentDateFromMessages(ticket)
 }
 
@@ -4852,6 +4854,34 @@ function paymentDateFromFinanceCompletion(ticket: AnyRecord) {
   const completed = active === false || Boolean(ticket?.end_date_time || raw?.endDateTime || ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime)
   if (!completed) return ''
   return dateOnly(ticket?.end_date_time || raw?.endDateTime || ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime)
+}
+
+function paymentDateFromCompletedTicket(ticket: AnyRecord) {
+  const result = ticketResultKind(ticket)
+  if (result === 'cancelado' || result === 'rejeitado') return ''
+  const raw = ticket?.raw_instance || ticket?.rawInstance || {}
+  const active = ticket?.active ?? raw?.active
+  const tasks = Array.isArray(ticket?.raw_tasks)
+    ? ticket.raw_tasks
+    : Array.isArray(ticket?.rawTasks)
+      ? ticket.rawTasks
+      : Array.isArray(raw?.instanceTasks)
+        ? raw.instanceTasks
+        : []
+  const lastTaskDate = tasks
+    .map((task: AnyRecord) => dateFromAnyObject(task))
+    .filter(Boolean)
+    .sort()
+    .pop() || ''
+  const completed = active === false || Boolean(
+    ticket?.end_date_time || raw?.endDateTime ||
+    ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime ||
+    (lastTaskDate && result === 'concluido')
+  )
+  if (!completed) return ''
+  return dateOnly(ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime)
+    || lastTaskDate
+    || dateOnly(ticket?.end_date_time || raw?.endDateTime)
 }
 
 function paymentDateFromTasks(ticket: AnyRecord) {
