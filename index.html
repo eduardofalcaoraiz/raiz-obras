@@ -5544,6 +5544,16 @@ function diasAtraso(p){const d=dateObj(p.venc);return d?Math.floor((HOJE-d)/8640
 
 function pagStatus(p){return isAtraso(p)?"ATRASADO":p.st;}
 
+function isPagamentoCancelado(p){
+  const st=String(p&&p.st||'').trim().toUpperCase();
+  return st==='CANCELADO'||st==='REJEITADO'||st==='REPROVADO';
+}
+
+function isPagamentoPendente(p){
+  const st=String(p&&p.st||'').trim().toUpperCase();
+  return st==='PENDENTE'||st==='ATRASADO';
+}
+
 function allAtrasos(){const r=[];obras.forEach(o=>o.pag.forEach((p,i)=>{if(isAtraso(p))r.push({o,p,i});}));return r.sort((a,b)=>diasAtraso(b.p)-diasAtraso(a.p));}
 
 function allPendentes(){const r=[];obras.forEach(o=>o.pag.forEach((p,i)=>{if(p.st==="PENDENTE")r.push({o,p,i});}));return r;}
@@ -13528,7 +13538,7 @@ function renderDashboard(){
 
 function renderPag(){const o=cur;
   const sumPago=rows=>rows.filter(r=>r.p.st==='PAGO').reduce((a,r)=>a+r.p.v,0);
-  const sumPend=rows=>rows.filter(r=>r.p.st!=='PAGO').reduce((a,r)=>a+r.p.v,0);
+  const sumPend=rows=>rows.filter(r=>isPagamentoPendente(r.p)).reduce((a,r)=>a+r.p.v,0);
   const allPag=o.pag.map((p,i)=>({p,i}));
   const allObra=allPag.filter(r=>!r.p.escopoFin||r.p.escopoFin==='obra');
   const allExtra=allPag.filter(r=>r.p.escopoFin==='extra');
@@ -13536,12 +13546,12 @@ function renderPag(){const o=cur;
   // ── NÍVEL 1: Dois cards de resumo clicáveis ──────────────────────
   if(!pagEscopo){
     const summaryCard=(rows,allRows,titulo,icon,escopo,accentColor)=>{
-      const tp=sumPago(allRows),tpe=sumPend(allRows),natr=allRows.filter(r=>isAtraso(r.p)).length;
+      const tp=sumPago(allRows),tpe=sumPend(allRows),natr=allRows.filter(r=>isAtraso(r.p)).length,ncancel=allRows.filter(r=>isPagamentoCancelado(r.p)).length;
       return`<div class="card interactive-card" role="button" tabindex="0" onclick="drillPag('${escopo}')" onkeydown="if(cardKeyOpen(event))drillPag('${escopo}')" style="cursor:pointer;border-top:4px solid ${accentColor};padding:22px 24px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
           <div>
             <div style="font-size:22px;font-weight:800;color:${accentColor};margin-bottom:2px">${icon} ${titulo}</div>
-            <div style="font-size:13px;color:var(--muted)">${allRows.length} lançamento${allRows.length!==1?'s':''}</div>
+            <div style="font-size:13px;color:var(--muted)">${allRows.length} lançamento${allRows.length!==1?'s':''}${ncancel?` · ${ncancel} cancelado${ncancel!==1?'s':''}`:''}</div>
           </div>
           <span style="font-size:22px;opacity:.25">${icon}</span>
         </div>
@@ -13576,7 +13586,7 @@ function renderPag(){const o=cur;
   let rows=(isObra?allObra:allExtra);
   if(pagFiltro==="pagos")rows=rows.filter(r=>r.p.st==="PAGO");
   else if(pagFiltro==="atraso")rows=rows.filter(r=>isAtraso(r.p));
-  else if(pagFiltro==="pend")rows=rows.filter(r=>r.p.st!=="PAGO");
+  else if(pagFiltro==="pend")rows=rows.filter(r=>isPagamentoPendente(r.p));
   if(pagDe)rows=rows.filter(r=>!r.p.venc||normalizeDateISO(r.p.venc)>=pagDe);
   if(pagAte)rows=rows.filter(r=>!r.p.venc||normalizeDateISO(r.p.venc)<=pagAte);
   const q=pagBusca.trim().toLowerCase();
@@ -13593,7 +13603,7 @@ function renderPag(){const o=cur;
   const baseRows=(isObra?allObra:allExtra).filter(r=>{
     if(pagFiltro==="pagos"&&r.p.st!=="PAGO")return false;
     if(pagFiltro==="atraso"&&!isAtraso(r.p))return false;
-    if(pagFiltro==="pend"&&r.p.st==="PAGO")return false;
+    if(pagFiltro==="pend"&&!isPagamentoPendente(r.p))return false;
     if(pagDe&&r.p.venc&&normalizeDateISO(r.p.venc)<pagDe)return false;
     if(pagAte&&r.p.venc&&normalizeDateISO(r.p.venc)>pagAte)return false;
     if(q&&!((r.p.ben||"")+" "+(r.p.ref||"")+" "+(r.p.nfNum||"")).toLowerCase().includes(q))return false;
@@ -13619,9 +13629,10 @@ function renderPag(){const o=cur;
   const expandableRow=({p,i})=>{
     if(paymentDocsAreLoaded(p))hydratePaymentDocs(p);
     const atr=isAtraso(p);
+    const cancelado=isPagamentoCancelado(p);
     const exp=pagExpanded.has(i);
-    const stColor=atr?'var(--danger)':p.st==='PAGO'?'var(--ok)':'var(--warn)';
-    const stLabel=atr?`⚠ ${diasAtraso(p)}d em atraso`:p.st==='PAGO'?'✓ Pago':'⏳ Pendente';
+    const stColor=atr?'var(--danger)':p.st==='PAGO'?'var(--ok)':cancelado?'var(--muted)':'var(--warn)';
+    const stLabel=atr?`⚠ ${diasAtraso(p)}d em atraso`:p.st==='PAGO'?'✓ Pago':cancelado?'Cancelado':'⏳ Pendente';
     const cVinc=p.contratoSeq?o.contratos.find(c=>c.seq===p.contratoSeq):null;
     const compraLink=paymentCompraLink(p);
     const tc=getTipoCusto(p);
@@ -14043,7 +14054,7 @@ function renderForn(){
 
       if(p.st==='PAGO'){map[k].pago+=p.v;map[k].n++;if(p.venc>map[k].last)map[k].last=p.venc;}
 
-      else map[k].pendente+=p.v;
+      else if(isPagamentoPendente(p))map[k].pendente+=p.v;
 
       map[k].obras.add(o.nome.split('—')[0].trim());
 
@@ -14195,7 +14206,7 @@ function openFornDetail(nameEnc){
 
   const pago=pags.filter(p=>p.st==='PAGO').reduce((a,p)=>a+p.v,0);
 
-  const pend=pags.filter(p=>p.st!=='PAGO').reduce((a,p)=>a+p.v,0);
+  const pend=pags.filter(p=>isPagamentoPendente(p)).reduce((a,p)=>a+p.v,0);
 
   const obraSet=new Set(pags.map(p=>p.obraId));
 
