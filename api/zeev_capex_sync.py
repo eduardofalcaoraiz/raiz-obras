@@ -187,6 +187,17 @@ class handler(BaseHTTPRequestHandler):
             mod.SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://hjccxfznojjosvanwztv.supabase.co").rstrip("/")
             mod.BAD_ZEEV_TOKENS.clear()
             mod = importlib.reload(mod)
+            if mode == "health":
+                identity = mod.request_json(
+                    "GET",
+                    f"{mod.ZEEV_BASE_URL}/api/2/tokens",
+                    timeout=12,
+                    retries=1,
+                )
+                if not isinstance(identity, dict):
+                    raise RuntimeError("Identidade Zeev vazia.")
+                _json(self, 200, {"ok": True, "mode": "health", "probe": "vercel-direct"})
+                return
             if mode in {"reconcile-registered", "reconcile", "dedupe-registered"}:
                 result = mod.reconcile_registered()
                 _json(self, 200, result)
@@ -218,7 +229,12 @@ class handler(BaseHTTPRequestHandler):
                 for ticket in mod.sync_ids(extra_ids):
                     merged[ticket["zeev_instance_id"]] = ticket
                 tickets = sorted(merged.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
-            ingest = mod.ingest(tickets, notify=_as_bool(os.environ.get("ZEEV_NOTIFY")))
+            ingest = mod.ingest(
+                tickets,
+                notify=_as_bool(os.environ.get("ZEEV_NOTIFY")),
+                backfill_limit=0,
+                skip_document_backfill=True,
+            )
             _json(
                 self,
                 200,

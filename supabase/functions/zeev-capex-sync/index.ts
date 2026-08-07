@@ -1953,127 +1953,41 @@ async function zeevTokenDiagnostics() {
 
 async function runZeevTokenHealth(input: AnyRecord = {}) {
   const started = Date.now()
-  const tokenInfo = await zeevTokenDiagnostics()
-  if (!zeevToken()) return { ok: false, status: 'missing_token', error: 'ZEEV_TOKEN ausente.', tokenInfo }
-  const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+  const secret = env('ZEEV_SYNC_SECRET')
+  const url = env('ZEEV_BRIDGE_URL', 'https://raiz-obras.vercel.app/api/zeev_capex_sync')
+  if (!secret) return { ok: false, status: 'missing_gateway_secret', error: 'ZEEV_SYNC_SECRET ausente.' }
   try {
-    const identity = await zeevJsonRequest(`${base}/api/2/tokens`, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
-      },
-    }, { timeoutMs: 5000 })
-    if (!identity || typeof identity !== 'object') throw new Error('resposta de identidade vazia')
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 12000)
+    let res: Response
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          'x-cron-secret': secret,
+          'Content-Type': 'application/json',
+          'User-Agent': 'ObrasRealEstate-SupabaseHealth',
+        },
+        body: JSON.stringify({ mode: 'health' }),
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+    }
+    const text = await res.text()
+    let payload: AnyRecord = {}
+    try { payload = text ? JSON.parse(text) : {} } catch (_) { payload = {} }
+    if (!res.ok || payload?.ok !== true) throw new Error(payload?.error || text || `HTTP ${res.status}`)
+    return { ok: true, status: 'ok', probe: 'vercel-gateway', elapsedMs: Date.now() - started }
   } catch (error) {
     return {
       ok: false,
-      status: 'zeev_api_unavailable',
-      probe: 'identity',
+      status: 'zeev_gateway_unavailable',
+      probe: 'vercel-gateway',
       error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
-      tokenInfo,
       elapsedMs: Date.now() - started,
     }
-  }
-  const instanceId = String(env('ZEEV_HEALTH_INSTANCE_ID', '130521') || '').replace(/\D+/g, '')
-  const instanceErrors: string[] = []
-  try {
-    if (instanceId) {
-      const fieldAttempts = [
-        ['numeroDaNF'],
-        [],
-      ]
-      for (const fieldsToRequest of fieldAttempts) {
-        try {
-          const url = new URL(`${base}/api/2/instances/${encodeURIComponent(instanceId)}`)
-          for (const field of fieldsToRequest) url.searchParams.append('formFieldNames', field)
-          const data = await zeevJsonRequest(url.toString(), {
-            headers: {
-              Accept: 'application/json',
-              'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
-            },
-          }, { timeoutMs: 5000, needsFormFields: fieldsToRequest.length > 0 })
-          const fields = Array.isArray(data?.formFields) ? data.formFields : []
-          if (fieldsToRequest.length && !fields.length) {
-            throw new Error(`instance ${instanceId}: sem formFields para ${fieldsToRequest.join(',')}`)
-          }
-          return {
-            ok: true,
-            status: fieldsToRequest.length ? 'ok' : 'ok_basic_instance',
-            probe: 'instance',
-            instanceId,
-            fieldAttempt: fieldsToRequest.join(',') || '__no_formFieldNames__',
-            hasReportLink: Boolean(data?.reportLink),
-            formFields: fields.length,
-            tokenInfo,
-            elapsedMs: Date.now() - started,
-          }
-        } catch (error) {
-          instanceErrors.push(error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300))
-        }
-      }
-    }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    instanceErrors.push(msg.slice(0, 500))
-  }
-
-  const flowIds = parseFlowIds(input.flowIds || input.flow_ids || env('ZEEV_FLOW_IDS') || DEFAULT_FLOW_IDS.join(','))
-  const now = new Date()
-  const begin = new Date(now.getTime() - 48 * 3600 * 1000).toISOString().replace(/\.\d{3}Z$/, '+00:00')
-  const finish = now.toISOString().replace(/\.\d{3}Z$/, '+00:00')
-  const reportErrors: string[] = []
-  const healthFlowLimit = Math.max(1, Math.min(Number(input.healthFlowLimit || input.health_flow_limit || env('ZEEV_HEALTH_FLOW_LIMIT', '3')) || 3, 10))
-  for (const flow of flowIds.slice(0, healthFlowLimit)) {
-    try {
-      const fields = capexFieldsForFlow(flow).slice(0, 2)
-      const rows = await zeevJsonRequest(`${env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')}/api/2/instances/report`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: '*/*',
-          'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
-        },
-        body: JSON.stringify({
-          flowId: flow,
-          startDateIntervalBegin: begin,
-          startDateIntervalEnd: finish,
-          recordsPerPage: 1,
-          pageNumber: 1,
-          useCache: false,
-          formFieldNames: fields,
-          showPendingInstanceTasks: true,
-          showFinishedInstanceTasks: true,
-          showPendingAssignees: true,
-          allowOpenUrlsForFilesInForm: true,
-        }),
-      }, { mergeRows: true, timeoutMs: 5000 })
-      return {
-        ok: true,
-        status: 'ok',
-        probe: 'report',
-        flowId: flow,
-        flowIds,
-        healthFlowLimit,
-        fieldAttempt: fields.join(','),
-        rows: Array.isArray(rows) ? rows.length : 0,
-        instanceProbeError: instanceErrors[0] || '',
-        tokenInfo,
-        elapsedMs: Date.now() - started,
-      }
-    } catch (error) {
-      reportErrors.push(`flow=${flow}: ${error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300)}`)
-    }
-  }
-  if (!instanceId && !reportErrors.length) return { ok: true, status: 'skipped', reason: 'sem probe Zeev configurado', tokenInfo }
-  return {
-    ok: false,
-    status: 'unhealthy',
-    instanceId: instanceId || '',
-    flowIds,
-    healthFlowLimit,
-    error: [...instanceErrors.map((e) => `instance: ${e}`), ...reportErrors].join(' | ').slice(0, 900),
-    tokenInfo,
-    elapsedMs: Date.now() - started,
   }
 }
 
@@ -3347,6 +3261,7 @@ async function runWebhookTicketSync(input: AnyRecord) {
 async function runIngest(input: AnyRecord) {
   const tickets = Array.isArray(input.tickets) ? input.tickets : []
   const finalIngest = input.final !== false && input.partial !== true
+  const skipDocumentBackfill = input.skipDocumentBackfill === true || input.skip_document_backfill === true
   const requestedBackfillLimit = input.backfillLimit ?? input.backfill_limit ?? env('ZEEV_INGEST_BACKFILL_LIMIT', '2')
   const ingestBackfillLimit = Math.max(0, Math.min(Number(requestedBackfillLimit), 8))
   if (!tickets.length) {
@@ -3395,7 +3310,7 @@ async function runIngest(input: AnyRecord) {
     .filter(Boolean)
   const newCount = normalized.filter((t: AnyRecord) => !existing.has(Number(t.zeev_instance_id))).length
   const email = input.notify === true ? await notifyNewTickets(normalized, existing) : { notified: [], failed: [] }
-  const directDocBackfill = finalIngest && docCheckTicketIds.length
+  const directDocBackfill = finalIngest && !skipDocumentBackfill && docCheckTicketIds.length
     ? await runBackfillDocs({
       ticketIds: docCheckTicketIds.join(','),
       limit: Math.min(Math.max(docCheckTicketIds.length, ingestBackfillLimit || 1), 80),
@@ -3407,7 +3322,7 @@ async function runIngest(input: AnyRecord) {
       includeCapex: true,
     })
     : null
-  const scheduledBackfill = finalIngest && ingestBackfillLimit ? await runBackfillDocs({ limit: ingestBackfillLimit, fileLimit: 2, refresh: false, includePayments: true, includeCapex: true }) : null
+  const scheduledBackfill = finalIngest && !skipDocumentBackfill && ingestBackfillLimit ? await runBackfillDocs({ limit: ingestBackfillLimit, fileLimit: 2, refresh: false, includePayments: true, includeCapex: true }) : null
   const backfill = directDocBackfill && scheduledBackfill
     ? { directDocs: directDocBackfill, scheduled: scheduledBackfill }
     : directDocBackfill || scheduledBackfill
@@ -6730,10 +6645,16 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
   const limit = Math.max(1, Math.min(Number(input.limit || input.backfillLimit || input.backfill_limit || 150), 350))
   const fileLimit = Math.max(1, Math.min(Number(input.fileLimit || input.file_limit || env('ZEEV_BACKFILL_FILE_LIMIT', '12')), 40))
   const staleHours = readDocStaleHours(input, 8, 168)
+  const incomingTickets = new Map<number, AnyRecord>()
+  for (const ticket of Array.isArray(input.tickets) ? input.tickets : []) {
+    const id = Number(ticket?.zeev_instance_id || ticket?.id || ticket?.instanceId || 0)
+    if (id) incomingTickets.set(id, ticket)
+  }
+  const skipDocuments = input.skipDocuments === true || input.skip_documents === true
   const targetTicketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const targetSet = new Set(targetTicketIds.map((id) => String(id)))
   const onlyOverdue = input.onlyOverdue !== false && input.only_overdue !== false && !targetTicketIds.length
-  const out: AnyRecord = { ok: true, mode: 'refresh-payment-statuses', requested: targetTicketIds, staleHours, scannedPayments: 0, updatedPaid: 0, updatedDueDate: 0, filesAttached: 0, errors: [], updated: [], unchanged: [], sources: { storedReport: 0, zeevInstance: 0, failedInstance: 0 } }
+  const out: AnyRecord = { ok: true, mode: 'refresh-payment-statuses', requested: targetTicketIds, staleHours, scannedPayments: 0, updatedPaid: 0, updatedDueDate: 0, filesAttached: 0, errors: [], updated: [], unchanged: [], sources: { githubDirect: 0, storedReport: 0, zeevInstance: 0, failedInstance: 0 } }
 
   const paymentFilter = targetTicketIds.length ? `ticket_raiz=in.(${targetTicketIds.join(',')})` : 'ticket_raiz=not.is.null'
   const rows = await restAll(`/pagamentos?select=id,obra_id,ticket_raiz,nf_num,nf_tipo,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&${paymentFilter}&order=id.asc`, 1000)
@@ -6745,26 +6666,39 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
     .sort((a: AnyRecord, b: AnyRecord) => Number(paymentIsOverdue(b)) - Number(paymentIsOverdue(a)) || docsCandidateScore(a) - docsCandidateScore(b) || String(a.venc || '').localeCompare(String(b.venc || '')) || Number(a.id) - Number(b.id))
     .slice(0, limit)
   out.scannedPayments = candidates.length
+  if (input.discoveryOnly === true || input.discovery_only === true) {
+    return {
+      ...out,
+      discoveryOnly: true,
+      ticketIds: uniqueNumbers(candidates.map((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz)))),
+    }
+  }
   const ticketMap = await loadTicketsByIds(candidates.map((row: AnyRecord) => Number(ticketDigits(row.ticket_raiz))))
 
   for (const row of candidates) {
     const tr = Number(ticketDigits(row.ticket_raiz))
     try {
-      const ticket = await loadPaymentTicketForRefresh(row, ticketMap.get(tr))
-      const source = String(ticket?.__zeev_load_source || ticket?.raw_instance?.__zeev_load_source || (ticket?.__zeev_load_error || ticket?.raw_instance?.__zeev_load_error ? 'failed-instance' : 'zeev-instance'))
-      if (source === 'stored-report') out.sources.storedReport++
+      const incoming = incomingTickets.get(tr)
+      const ticket = incoming || await loadPaymentTicketForRefresh(row, ticketMap.get(tr))
+      const source = incoming
+        ? 'github-direct'
+        : String(ticket?.__zeev_load_source || ticket?.raw_instance?.__zeev_load_source || (ticket?.__zeev_load_error || ticket?.raw_instance?.__zeev_load_error ? 'failed-instance' : 'zeev-instance'))
+      if (source === 'github-direct') out.sources.githubDirect++
+      else if (source === 'stored-report') out.sources.storedReport++
       else if (source === 'failed-instance') out.sources.failedInstance++
       else out.sources.zeevInstance++
-      const attach = await attachDocsForTarget('payment', row, ticket, fileLimit)
+      const attach = skipDocuments ? { attached: 0 } : await attachDocsForTarget('payment', row, ticket, fileLimit)
       const paidDate = paymentDateFromTicket(ticket)
       const dueDate = dueDateFromTicket(ticket)
       const lifecycleStatus = paymentLifecycleStatusFromTicket(ticket)
-      const checked = checkedRowWithAttach(row, attach)
-      const patch: AnyRecord = { zeev_docs_checked_at: new Date().toISOString() }
-      if (attach.attached || JSON.stringify(checked.docs_json || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = checked.docs_json || []
-      if (String(checked.nf_doc_path || '') !== String(row.nf_doc_path || '')) patch.nf_doc_path = checked.nf_doc_path || ''
-      if (String(checked.comp_doc_path || '') !== String(row.comp_doc_path || '')) patch.comp_doc_path = checked.comp_doc_path || ''
-      Object.assign(patch, paymentFiscalMetadataPatch(checked, ticket))
+      const checked = skipDocuments ? row : checkedRowWithAttach(row, attach)
+      const patch: AnyRecord = skipDocuments ? {} : { zeev_docs_checked_at: new Date().toISOString() }
+      if (!skipDocuments) {
+        if (attach.attached || JSON.stringify(checked.docs_json || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = checked.docs_json || []
+        if (String(checked.nf_doc_path || '') !== String(row.nf_doc_path || '')) patch.nf_doc_path = checked.nf_doc_path || ''
+        if (String(checked.comp_doc_path || '') !== String(row.comp_doc_path || '')) patch.comp_doc_path = checked.comp_doc_path || ''
+        Object.assign(patch, paymentFiscalMetadataPatch(checked, ticket))
+      }
       if (paidDate) {
         patch.st = 'PAGO'
         patch.paga_em = paidDate
@@ -6778,7 +6712,7 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
         out.updatedDueDate++
       }
       const changed = Object.keys(patch).filter((key) => key !== 'zeev_docs_checked_at').length > 0
-      await rest(`/pagamentos?id=eq.${Number(row.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) })
+      if (Object.keys(patch).length) await rest(`/pagamentos?id=eq.${Number(row.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) })
       out.filesAttached += Number(attach.attached || 0)
       const summary = { tr, pagamento_id: Number(row.id), obra_id: Number(row.obra_id), before: { st: row.st, venc: row.venc, paga_em: row.paga_em || '' }, after: { st: patch.st || row.st, venc: patch.venc || row.venc, paga_em: patch.paga_em || row.paga_em || '' }, docsAttached: Number(attach.attached || 0) }
       if (changed) out.updated.push(summary)
@@ -8121,7 +8055,8 @@ Deno.serve(async (req) => {
         || targetTicketIds.length > directTicketLimit
         || requestedLimit > directLimit
         || requestedFileLimit > directFileLimit
-      if (!forceEdge && canDispatchGithub && heavyBackfill) {
+      const requiresZeevNetwork = input.refresh !== false
+      if (!forceEdge && canDispatchGithub && (heavyBackfill || requiresZeevNetwork)) {
         const delegatedWorkflowMode = String(input.workflowMode || input.syncMode || (targetTicketIds.length ? 'rescue-docs' : 'rescue-docs-loop'))
         const out = await dispatchGithubWorkflow({
           ...input,
@@ -8184,6 +8119,19 @@ Deno.serve(async (req) => {
     }
     if (input?.mode === 'refresh-payment-statuses') {
       if (!secretAuthorized(req)) await requireAppUser(req)
+      if (input?.discoveryOnly !== true && input?.discovery_only !== true && !Array.isArray(input?.tickets)) {
+        const actor = secretAuthorized(req) ? null : await requireAppUser(req)
+        const out = await dispatchGithubWorkflow({
+          ...(input || {}),
+          mode: 'dispatch',
+          target: 'github',
+          workflowMode: 'refresh-payment-statuses',
+          backfillLimit: String(input.limit || input.backfillLimit || input.backfill_limit || 32),
+          notify: false,
+          refreshKnownTickets: false,
+        }, actor)
+        return json({ ...out, mode: 'refresh-payment-statuses', delegated: true, delegatedTo: 'github-actions' })
+      }
       const out = await runRefreshPaymentStatuses(input || {})
       return json(out)
     }
@@ -8202,14 +8150,24 @@ Deno.serve(async (req) => {
       const requested = ticketIdsFromEventInput(input || {})
       if (!requested.length) return json({ ok: false, mode, error: 'Webhook recebido sem numero de TR/instanceId.' }, 400)
       const shouldWait = input?.wait === true || input?.sync === true
-      const payload = { ...(input || {}), mode, ticketIds: requested.join(',') }
+      const payload = {
+        ...(input || {}),
+        mode: 'dispatch',
+        target: 'vercel',
+        workflowMode: 'incremental',
+        ticketIds: requested.join(','),
+        extraTicketIds: '',
+        maxPages: 1,
+        refreshKnownTickets: false,
+        notify: input?.notify === true,
+      }
       const waitUntil = (globalThis as AnyRecord).EdgeRuntime?.waitUntil
       if (!shouldWait && typeof waitUntil === 'function') {
-        waitUntil(runWebhookTicketSync(payload).catch((error: unknown) => console.error('webhook-ticket:', error instanceof Error ? error.message : String(error))))
-        return json({ ok: true, mode: 'webhook-ticket', accepted: true, async: true, requested }, 202)
+        waitUntil(dispatchVercelBridge(payload, null).catch((error: unknown) => console.error('webhook-ticket:', error instanceof Error ? error.message : String(error))))
+        return json({ ok: true, mode: 'webhook-ticket', accepted: true, async: true, delegatedTo: 'vercel', requested }, 202)
       }
-      const out = await runWebhookTicketSync(payload)
-      return json(out)
+      const out = await dispatchVercelBridge(payload, null)
+      return json({ ...out, mode: 'webhook-ticket', delegatedTo: 'vercel', requested })
     }
     if (input?.mode === 'register-obra-payments') {
       if (!secretAuthorized(req)) await requireAppUser(req)
@@ -8228,8 +8186,21 @@ Deno.serve(async (req) => {
     }
     if (input?.mode === 'probe-zeev-ticket') {
       if (!secretAuthorized(req)) await requireAppUser(req)
-      const out = await probeZeevTicket(input || {})
-      return json(out)
+      const actor = secretAuthorized(req) ? null : await requireAppUser(req)
+      const requested = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+      if (!requested.length) return json({ ok: false, mode: 'probe-zeev-ticket', error: 'Informe um TR para diagnosticar.' }, 400)
+      const out = await dispatchVercelBridge({
+        ...(input || {}),
+        mode: 'dispatch',
+        target: 'vercel',
+        workflowMode: 'incremental',
+        ticketIds: requested.slice(0, 1).join(','),
+        extraTicketIds: '',
+        maxPages: 1,
+        refreshKnownTickets: false,
+        notify: false,
+      }, actor)
+      return json({ ...out, mode: 'probe-zeev-ticket', probe: 'vercel-direct', ticketId: requested[0] })
     }
     if (input?.mode === 'inspect-ticket-lifecycle') {
       if (!secretAuthorized(req)) await requireAppUser(req)
@@ -8246,8 +8217,14 @@ Deno.serve(async (req) => {
       return await runFileProxy(input || {})
     }
     if (!secretAuthorized(req)) return json({ ok: false, error: 'Nao autorizado.' }, 401)
-    const out = await runSync(input || {})
-    return json(out)
+    const out = await dispatchGithubWorkflow({
+      ...(input || {}),
+      mode: 'dispatch',
+      target: 'github',
+      workflowMode: mode || 'incremental',
+      notify: input?.notify === true,
+    }, null)
+    return json({ ...out, delegated: true, delegatedTo: 'github-actions' })
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : String(error) }, 500)
   }

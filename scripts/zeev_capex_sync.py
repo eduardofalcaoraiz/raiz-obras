@@ -4227,9 +4227,18 @@ def add_document_options(payload):
     return payload
 
 
-def ingest(tickets, notify=False, partial=False, backfill_limit=None, fanout_targets=None):
+def ingest(
+    tickets,
+    notify=False,
+    partial=False,
+    backfill_limit=None,
+    fanout_targets=None,
+    skip_document_backfill=False,
+):
     payload = {"mode": "ingest", "tickets": tickets, "notify": notify}
     add_document_options(payload)
+    if skip_document_backfill:
+        payload["skipDocumentBackfill"] = True
     if fanout_targets is not None:
         payload["fanoutTargets"] = bool(fanout_targets)
     configured_backfill_limit = backfill_limit
@@ -5169,11 +5178,12 @@ def refresh_payment_statuses():
     if target_ids:
         total_limit = len(target_ids)
     base_batch = max(1, min(int(os.environ.get("ZEEV_STATUS_REFRESH_BATCH", os.environ.get("ZEEV_BACKFILL_BATCH", "6"))), 12))
-    base_file_limit = max(1, min(int(os.environ.get("ZEEV_BACKFILL_FILE_LIMIT", "12")), 40))
     stale_hours = int(os.environ.get("ZEEV_STATUS_REFRESH_STALE_HOURS", os.environ.get("ZEEV_BACKFILL_STALE_HOURS", "8")))
+    only_overdue = os.environ.get("ZEEV_STATUS_ONLY_OVERDUE", "true").lower() != "false"
     out = {
         "ok": True,
         "mode": "refresh-payment-statuses",
+        "zeevRead": "github-direct",
         "requestedLimit": total_limit,
         "batchSize": base_batch,
         "processed": 0,
@@ -5186,78 +5196,68 @@ def refresh_payment_statuses():
         "unchanged": [],
         "errors": [],
     }
-    remaining = total_limit
-    batch = min(base_batch, remaining)
-    file_limit = base_file_limit
-    target_chunks = [target_ids[i:i + base_batch] for i in range(0, len(target_ids), base_batch)] if target_ids else []
-    target_index = 0
-    while remaining > 0:
-        current_target_chunk = target_chunks[target_index] if target_chunks else []
-        current_ticket_ids = ",".join(str(x) for x in current_target_chunk) if current_target_chunk else ticket_ids
-        current_limit = len(current_target_chunk) if current_target_chunk else min(batch, remaining)
-        payload = {
-            "mode": "refresh-payment-statuses",
-            "ticketIds": current_ticket_ids,
-            "limit": current_limit,
-            "fileLimit": file_limit,
-            "staleHours": stale_hours,
-            "onlyOverdue": os.environ.get("ZEEV_STATUS_ONLY_OVERDUE", "true").lower() != "false",
-        }
-        add_document_options(payload)
+    if not target_ids:
+        discovery = request_json(
+            "POST",
+            f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
+            headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
+            payload={
+                "mode": "refresh-payment-statuses",
+                "discoveryOnly": True,
+                "limit": total_limit,
+                "staleHours": stale_hours,
+                "onlyOverdue": only_overdue,
+            },
+            timeout=60,
+            retries=1,
+        )
+        target_ids = parse_ticket_ids((discovery or {}).get("ticketIds") or [])
+        out["discovered"] = len(target_ids)
+
+    for current_target_chunk in chunked(target_ids[:total_limit], base_batch):
+        current_ticket_ids = ",".join(str(x) for x in current_target_chunk)
         try:
+            tickets = sync_ids(current_target_chunk)
+            found_ids = {int(ticket.get("zeev_instance_id") or 0) for ticket in tickets}
+            for missing_id in current_target_chunk:
+                if missing_id not in found_ids:
+                    out["errors"].append({"tr": missing_id, "error": "TR nao retornado pela API Zeev no GitHub Runner."})
             result = request_json(
                 "POST",
                 f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
                 headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
-                payload=payload,
-                timeout=240,
-                retries=0,
+                payload={
+                    "mode": "refresh-payment-statuses",
+                    "ticketIds": current_ticket_ids,
+                    "tickets": tickets,
+                    "limit": len(current_target_chunk),
+                    "staleHours": stale_hours,
+                    "onlyOverdue": False,
+                    "skipDocuments": True,
+                },
+                timeout=120,
+                retries=1,
             )
         except Exception as exc:
-            msg = str(exc)
-            resource_limited = "WORKER_RESOURCE_LIMIT" in msg or "HTTP 546" in msg
-            out["errors"].append({"batch": payload["limit"], "fileLimit": file_limit, "recoverable": resource_limited, "error": msg[:700]})
-            if resource_limited and current_target_chunk and len(current_target_chunk) > 1:
-                mid = max(1, len(current_target_chunk) // 2)
-                target_chunks[target_index:target_index + 1] = [current_target_chunk[:mid], current_target_chunk[mid:]]
-                batch = max(1, batch // 2)
-                file_limit = max(1, file_limit // 2)
-                continue
-            if resource_limited and (batch > 1 or file_limit > 1):
-                batch = max(1, batch // 2)
-                file_limit = max(1, file_limit // 2)
-                continue
-            if resource_limited:
-                out["ok"] = False
-                break
-            raise
+            out["errors"].append({"ticketIds": current_target_chunk, "error": str(exc)[:700]})
+            continue
 
         out["calls"] += 1
         scanned = int(result.get("scannedPayments", 0) or 0)
         out["scannedPayments"] += scanned
+        out["processed"] += len(tickets)
         for key in ("updatedPaid", "updatedDueDate", "filesAttached"):
             out[key] += int(result.get(key, 0) or 0)
         for key in ("updated", "unchanged", "errors"):
             if isinstance(result.get(key), list):
                 out[key].extend(result.get(key))
-        if scanned <= 0 and not target_chunks:
-            out["completed"] = True
-            break
-        out["processed"] += scanned
-        if target_chunks:
-            target_index += 1
-            remaining = max(0, len(target_ids) - sum(len(chunk) for chunk in target_chunks[:target_index]))
-        else:
-            remaining = max(0, remaining - scanned)
-        batch = min(base_batch, remaining) if remaining else 0
-        file_limit = base_file_limit
-        if remaining:
-            time.sleep(float(os.environ.get("ZEEV_STATUS_REFRESH_PAUSE_SECONDS", "1")))
+        time.sleep(float(os.environ.get("ZEEV_STATUS_REFRESH_PAUSE_SECONDS", "1")))
 
     for key in ("updated", "unchanged", "errors"):
         if len(out[key]) > 80:
             out[key] = out[key][:80]
-    out["completed"] = out.get("completed", False) or (target_chunks and target_index >= len(target_chunks)) or out["processed"] >= total_limit
+    out["completed"] = out["processed"] >= len(target_ids)
+    out["ok"] = not out["errors"]
     return out
 
 
