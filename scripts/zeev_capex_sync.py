@@ -5446,7 +5446,9 @@ def main():
                     merged[ticket["zeev_instance_id"]] = ticket
                 id_sweep_result = {k: v for k, v in id_sweep_result.items() if k != "tickets"}
         tickets = sorted(merged.values(), key=lambda x: x["zeev_instance_id"], reverse=True)
-    result = ingest(tickets, notify=notify)
+    # Data/status scans must stay lightweight. Document discovery and downloads
+    # run only in the dedicated rescue modes on the authenticated GitHub runner.
+    result = ingest(tickets, notify=notify, backfill_limit=0, skip_document_backfill=True)
     value_repair = None
     repair_values_enabled = os.environ.get("ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST", "1").strip().lower() not in {"0", "false", "nao", "não", "no"}
     if repair_values_enabled and incremental_stage_allowed("capex-value-repair", 180):
