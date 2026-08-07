@@ -15462,6 +15462,8 @@ function normalizeCapexRateioItem(it){
   const dados=capexTicketDadosObj(it.ticket_raiz_dados);
   const rateio=dados.rateio||dados.rateio_capex||null;
   if(!rateio||typeof rateio!=='object'||!rateio.ativo)return it;
+  const valorRateio=typeof rateio.valor==='number'?rateio.valor:parseCurrency(rateio.valor);
+  if(Number.isFinite(valorRateio)&&valorRateio>=0)it.orcamento=valorRateio;
   const unidade=String(it.unidade||'').trim();
   if(unidade)it.unidades_json=[unidade];
   return it;

@@ -2279,7 +2279,12 @@ function capexRegisteredSyncPatch(ticket: AnyRecord, row: AnyRecord = {}) {
   const patch: AnyRecord = capexRegisteredPatchFromTicket(ticket, row)
   const value = ticketValueForPayment(ticket)
   const storedValue = storedCapexRegisteredValue(row)
-  if ((!ticketHasReliableFinalValue(ticket) || !Number.isFinite(value) || value <= 0) && (!Number.isFinite(storedValue) || storedValue <= 0)) {
+  const storedData = row?.ticket_raiz_dados && typeof row.ticket_raiz_dados === 'object' ? row.ticket_raiz_dados : {}
+  const rateio = storedData?.rateio && typeof storedData.rateio === 'object' ? storedData.rateio : null
+  const rateioAtivo = rateio && (rateio.ativo === true || ['1', 'true', 'sim', 'yes', 'on'].includes(String(rateio.ativo || '').trim().toLowerCase()))
+  if (rateioAtivo && Number.isFinite(storedValue) && storedValue > 0) {
+    patch.orcamento = storedValue
+  } else if ((!ticketHasReliableFinalValue(ticket) || !Number.isFinite(value) || value <= 0) && (!Number.isFinite(storedValue) || storedValue <= 0)) {
     delete patch.orcamento
   } else if ((!Number.isFinite(value) || value <= 0) && Number.isFinite(storedValue) && storedValue > 0) {
     patch.orcamento = storedValue
@@ -6241,7 +6246,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
         recordAttachedDocs(out, 'capex', row, ticket, attach)
         recordCheckedWithoutFiscalDoc(out, 'capex', row, ticket, attach)
         if (targetSet.size && !attach.attached) addDocDebug(out, 'capex', row, ticket, attach)
-        const patch: AnyRecord = capexRegisteredPatchFromTicket(ticket, row)
+        const patch: AnyRecord = capexRegisteredSyncPatch(ticket, row)
         if (attach.attached || JSON.stringify(attach.docs || []) !== JSON.stringify(row.docs_json || [])) patch.docs_json = attach.docs
         await rest(`/capex_itens?id=eq.${Number(row.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) })
         out.updatedCapex++
