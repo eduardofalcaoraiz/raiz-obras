@@ -5124,19 +5124,35 @@ def force_pending_ticket():
 
 def probe_zeev_ticket():
     ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
-    payload = {
-        "mode": "probe-zeev-ticket",
-        "ticketIds": ",".join(str(x) for x in ids[:1]),
-    }
-    add_document_options(payload)
-    return request_json(
-        "POST",
-        f"{SUPABASE_URL}/functions/v1/zeev-capex-sync",
-        headers={"Authorization": f"Bearer {ZEEV_SYNC_SECRET}", "x-cron-secret": ZEEV_SYNC_SECRET},
-        payload=payload,
-        timeout=240,
-        retries=0,
+    if not ids:
+        raise SystemExit("probe-zeev-ticket falhou: informe um TR.")
+    if not has_zeev_token():
+        raise SystemExit("probe-zeev-ticket falhou: ZEEV_TOKEN ausente no cofre do GitHub.")
+
+    started = time.monotonic()
+    identity = request_json(
+        "GET",
+        f"{ZEEV_BASE_URL}/api/2/tokens",
+        timeout=15,
+        retries=1,
     )
+    if not isinstance(identity, dict):
+        raise SystemExit("probe-zeev-ticket falhou: identidade Zeev vazia.")
+
+    rows = report_instance(ids[0], fields=[], page_size=1, timeout=20, retries=1)
+    row = next((item for item in rows if int(item.get("id") or item.get("instanceId") or 0) == ids[0]), rows[0] if rows else {})
+    if not row:
+        raise SystemExit(f"probe-zeev-ticket falhou: TR {ids[0]} nao retornou dados.")
+    return {
+        "ok": True,
+        "mode": "probe-zeev-ticket",
+        "probe": "github-direct",
+        "ticketId": ids[0],
+        "active": row.get("active"),
+        "flowResult": row.get("flowResult") or "",
+        "flowId": int((row.get("flow") or {}).get("id") or row.get("flowId") or 0),
+        "elapsedMs": int((time.monotonic() - started) * 1000),
+    }
 
 
 def require_ok(result, context):
