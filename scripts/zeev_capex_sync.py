@@ -5321,7 +5321,7 @@ def main():
         print(json.dumps(result, ensure_ascii=False))
         return
     if mode in {"refresh-payment-statuses", "refresh-payments", "payment-statuses"}:
-        result = refresh_payment_statuses()
+        result = require_ok(refresh_payment_statuses(), "refresh-payment-statuses")
         print(json.dumps(result, ensure_ascii=False))
         return
     if mode in {"doc-rescue-audit", "rescue-docs-audit", "audit-docs", "auditar-docs"}:

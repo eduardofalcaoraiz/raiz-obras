@@ -6723,6 +6723,14 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
   }
   if (out.errors.length > 30) out.errors = out.errors.slice(0, 30)
   if (out.updated.length > 100) out.updated = out.updated.slice(0, 100)
+  await saveState('zeev-capex', {
+    running: false,
+    last_success_at: out.errors.length ? undefined : new Date().toISOString(),
+    last_error: out.errors.length ? `Atualizacao de pagamentos: ${out.errors.length} erro(s).` : null,
+    last_run_found: out.scannedPayments,
+    last_run_new: 0,
+    last_run_updated: out.updated.length,
+  })
   return out
 }
 
