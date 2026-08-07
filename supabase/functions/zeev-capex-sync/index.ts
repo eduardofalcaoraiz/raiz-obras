@@ -2896,10 +2896,10 @@ async function zeevInstanceReport(instanceId: number, flow: number, fields: stri
 
 function knownZeevFlowIds(...values: unknown[]) {
   const ids = [
+    ...values.map((value) => Number(value)),
     ...DEFAULT_FLOW_IDS,
     ...Array.from(FINANCE_FLOW_IDS),
     ...parseListEnv(env('ZEEV_FLOW_IDS')).map((value) => Number(value)),
-    ...values.map((value) => Number(value)),
   ].filter((value) => Number.isFinite(value) && value > 0)
   return [...new Set(ids)]
 }
@@ -5124,6 +5124,63 @@ async function loadPaymentTicketFromZeev(row: AnyRecord) {
   const id = Number(ticket?.zeev_instance_id || row?.ticket_raiz || row?.zeev_instance_id || 0)
   if (!id) return ticket
   return await attachZeevMessagesToTicket(ticket, id)
+}
+
+async function loadRegisterTicketFromKnownFlow(row: AnyRecord, flow: number) {
+  const id = Number(row?.zeev_instance_id || row?.ticket_raiz || row?.id || 0)
+  if (!id || !flow) return await loadGenericTicketFromZeev(row)
+  try {
+    const probe = await zeevInstanceReport(id, flow, [])
+    const probeId = Number(probe?.id || probe?.instanceId || 0) || 0
+    if (probeId !== id && !probe?.reportLink && !probe?.reportUrl) {
+      throw new Error(`TR ${id} nao pertence ao fluxo Zeev ${flow}.`)
+    }
+    const fields = [...new Set([
+      ...capexFieldsForFlow(flow),
+      'investimentoCAPEX',
+      'valorTotalDoPagamento',
+      'valorTotalDoPagamento01',
+      'valorTotalPagamento',
+      'precoUnitario',
+      'valorLiquidoR',
+      'totalDoItem',
+      'totalDasParcelas',
+      'fornecedorFinal',
+      'fornecedor',
+      'beneficiario',
+      'centroDeCusto',
+      'unidadeFilial2',
+      'informacoes',
+      'informacoesReferentesASolicitacao',
+      'descricaoDaNotaFiscal',
+      'item',
+      'formaDePagamento',
+      'previsaoPagamento',
+      'dataPagamento',
+      'dataDeVencimento',
+      'numeroDaNF',
+      'numeroFatura',
+      'tipoDoPagamento',
+      'chaveDeAcesso',
+      'anexarNotaFiscal',
+      'anexarBoletoAVista',
+      'anexarBoletoParcelado',
+      'comprovantePagamento',
+    ])]
+    const detail = await zeevInstanceReport(id, flow, fields)
+    const normalized = {
+      ...detail,
+      id: Number(detail?.id || id) || id,
+      flow: detail?.flow || { id: flow, name: detail?.flowName || row?.flow_name || '' },
+      flowId: Number(detail?.flow?.id || detail?.flowId || flow) || flow,
+      formFields: Array.isArray(detail?.formFields) ? detail.formFields : [],
+    }
+    const ticket = genericZeevTicket(normalized, { ...row, flow_id: flow })
+    return await attachZeevMessagesToTicket(ticket, id)
+  } catch (error) {
+    console.warn('loadRegisterTicketFromKnownFlow:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
 }
 
 async function loadTicketDocsFromZeev(row: AnyRecord) {
@@ -7504,7 +7561,11 @@ async function registerCapexItems(input: AnyRecord = {}) {
         ),
       )
       let ticket = hasStoredTicketData ? storedTicket : (storedTicket || { zeev_instance_id: id })
-      if (!hasStoredTicketData) ticket = await loadGenericTicketFromZeev(ticket)
+      if (!hasStoredTicketData) {
+        ticket = preferredFlow
+          ? await loadRegisterTicketFromKnownFlow(ticket, preferredFlow)
+          : await loadGenericTicketFromZeev(ticket)
+      }
       const ticketId = Number(ticket?.zeev_instance_id || id)
       if (!ticketId) {
         out.skipped.push({ tr: id, reason: 'ticket_nao_encontrado' })
@@ -7800,6 +7861,7 @@ async function probeZeevDocDownload(input: AnyRecord = {}) {
 
 async function registerObraPayments(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
+  const preferredFlow = Number(input.flowId || input.flow_id || 0) || 0
   const obraName = String(input.obraName || input.targetObra || input.target_obra || input.obra || '').trim()
   const escopo = input.escopo === 'extra' || input.targetEscopo === 'extra' || input.target_escopo === 'extra' ? 'extra' : 'obra'
   const requestedFileLimit = input.fileLimit ?? input.file_limit ?? 5
@@ -7838,7 +7900,7 @@ async function registerObraPayments(input: AnyRecord = {}) {
           (Array.isArray(storedTicket.itens_json) && storedTicket.itens_json.length)
         ),
       )
-      let ticket = hasStoredTicketData ? storedTicket : (storedTicket || { zeev_instance_id: id })
+      let ticket = hasStoredTicketData ? storedTicket : (storedTicket || { zeev_instance_id: id, flow_id: preferredFlow || null })
       if (!hasStoredTicketData) ticket = await loadGenericTicketFromZeev(ticket)
       const ticketId = Number(ticket?.zeev_instance_id || id)
       if (!ticketId) {

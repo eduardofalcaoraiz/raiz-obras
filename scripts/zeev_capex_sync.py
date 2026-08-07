@@ -4974,6 +4974,8 @@ def register_obra_payments():
             "escopo": escopo,
             "fileLimit": current_file_limit,
         }
+        if len(FLOW_IDS) == 1:
+            payload["flowId"] = FLOW_IDS[0]
         if ZEEV_TOKEN:
             payload["zeevToken"] = ZEEV_TOKEN
         add_document_options(payload)
