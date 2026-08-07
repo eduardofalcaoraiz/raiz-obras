@@ -87,7 +87,7 @@ class handler(BaseHTTPRequestHandler):
             _json(self, 401, {"ok": False, "error": "Sessao invalida ou ausente."})
             return
 
-        token = os.environ.get("ZEEV_TOKEN", "").strip()
+        token = urllib.parse.unquote(os.environ.get("ZEEV_TOKEN", "").strip().removeprefix("Bearer "))
         if not token:
             _json(self, 500, {"ok": False, "error": "ZEEV_TOKEN ausente no servidor."})
             return

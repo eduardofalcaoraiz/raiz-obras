@@ -1,6 +1,6 @@
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-webhook-secret, x-zeev-webhook-secret, x-zeev-sync-secret, x-zeev-token, x-zeev-extra-tokens, x-zeev-extra-document-fields, x-zeev-file-download-url-template',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-webhook-secret, x-zeev-webhook-secret, x-zeev-sync-secret, x-zeev-extra-document-fields, x-zeev-file-download-url-template',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
@@ -567,8 +567,6 @@ function automationPaused(mode: unknown) {
   return envFlag('ZEEV_AUTOMATION_PAUSED') && automationModeCanPause(mode)
 }
 
-let REQUEST_ZEEV_TOKEN = ''
-let REQUEST_ZEEV_EXTRA_TOKENS = ''
 let REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS = ''
 let REQUEST_ZEEV_FILE_DOWNLOAD_URL_TEMPLATE = ''
 
@@ -598,30 +596,24 @@ function tokenListInput(value: unknown) {
 }
 
 function tokenVariants(token: string) {
-  const variants = [token]
+  const raw = String(token || '').trim().replace(/^Bearer\s+/i, '')
+  if (!raw) return []
   try {
-    const decoded = decodeURIComponent(token)
-    if (decoded && decoded !== token) variants.push(decoded)
+    const decoded = decodeURIComponent(raw)
+    return [decoded || raw]
   } catch (_) {
-    // Some Zeev tokens arrive already decoded; keep the original in that case.
+    return [raw]
   }
-  return variants
 }
 
 function zeevTokens() {
-  const tokens: string[] = []
-  for (const raw of [REQUEST_ZEEV_TOKEN, env('ZEEV_TOKEN'), REQUEST_ZEEV_EXTRA_TOKENS, env('ZEEV_EXTRA_TOKENS')]) {
+  for (const raw of [env('ZEEV_TOKEN'), env('ZEEV_EXTRA_TOKENS')]) {
     for (const token of tokenListInput(raw)) {
-      for (const variant of tokenVariants(token)) {
-        if (variant && !tokens.includes(variant)) tokens.push(variant)
-      }
+      const canonical = tokenVariants(token)[0]
+      if (canonical) return [canonical]
     }
   }
-  return tokens
-}
-
-function zeevExtraTokensString() {
-  return zeevTokens().slice(1).join('\n')
+  return []
 }
 
 function zeevToken() {
@@ -631,10 +623,6 @@ function zeevToken() {
 function zeevAuthAttempts(token: string) {
   return [
     { label: 'authorization-bearer', apply: (headers: Headers) => headers.set('Authorization', `Bearer ${token}`) },
-    { label: 'authorization-raw', apply: (headers: Headers) => headers.set('Authorization', token) },
-    { label: 'x-api-key', apply: (headers: Headers) => headers.set('X-API-Key', token) },
-    { label: 'api-key', apply: (headers: Headers) => headers.set('api-key', token) },
-    { label: 'x-access-token', apply: (headers: Headers) => headers.set('X-Access-Token', token) },
   ]
 }
 
@@ -836,24 +824,12 @@ async function zeevBinaryRequest(url: string, init: RequestInit = {}, options: {
   const baseHost = new URL(env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it')).hostname
   const isZeevHost = parsedUrl.hostname === baseHost || parsedUrl.hostname.endsWith('.zeev.it')
   const signedZeevDownload = isZeevHost && (/\/document\/download\//i.test(parsedUrl.pathname) || parsedUrl.searchParams.has('c'))
-  const urlWithParam = (key: string, token: string) => {
-    const next = new URL(url)
-    if (!next.searchParams.has(key)) next.searchParams.set(key, token)
-    return next.toString()
-  }
-  const attempts: Array<{ url: string; token?: string; auth: 'none' | 'bearer' | 'raw' | 'x-api-key' | 'api-key' | 'x-access-token' }> = []
+  const attempts: Array<{ url: string; token?: string; auth: 'none' | 'bearer' }> = []
   if (!isZeevHost) {
     attempts.push({ url, auth: 'none' })
   } else {
     for (const token of tokens.slice(0, maxTokens)) {
       attempts.push({ url, token, auth: 'bearer' })
-      attempts.push({ url, token, auth: 'raw' })
-      attempts.push({ url, token, auth: 'x-api-key' })
-      attempts.push({ url, token, auth: 'api-key' })
-      attempts.push({ url, token, auth: 'x-access-token' })
-      attempts.push({ url: urlWithParam('token', token), auth: 'none' })
-      attempts.push({ url: urlWithParam('access_token', token), auth: 'none' })
-      attempts.push({ url: urlWithParam('api_token', token), auth: 'none' })
     }
     if (signedZeevDownload) attempts.unshift({ url, auth: 'none' })
   }
@@ -864,10 +840,6 @@ async function zeevBinaryRequest(url: string, init: RequestInit = {}, options: {
     seen.add(key)
     const headers = new Headers(init.headers || {})
     if (attempt.auth === 'bearer' && attempt.token) headers.set('Authorization', `Bearer ${attempt.token}`)
-    if (attempt.auth === 'raw' && attempt.token) headers.set('Authorization', attempt.token)
-    if (attempt.auth === 'x-api-key' && attempt.token) headers.set('X-API-Key', attempt.token)
-    if (attempt.auth === 'api-key' && attempt.token) headers.set('api-key', attempt.token)
-    if (attempt.auth === 'x-access-token' && attempt.token) headers.set('X-Access-Token', attempt.token)
     if (!headers.has('Accept')) headers.set('Accept', '*/*')
     let res: Response
     try {
@@ -1983,11 +1955,29 @@ async function runZeevTokenHealth(input: AnyRecord = {}) {
   const started = Date.now()
   const tokenInfo = await zeevTokenDiagnostics()
   if (!zeevToken()) return { ok: false, status: 'missing_token', error: 'ZEEV_TOKEN ausente.', tokenInfo }
+  const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+  try {
+    const identity = await zeevJsonRequest(`${base}/api/2/tokens`, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
+      },
+    }, { timeoutMs: 5000 })
+    if (!identity || typeof identity !== 'object') throw new Error('resposta de identidade vazia')
+  } catch (error) {
+    return {
+      ok: false,
+      status: 'zeev_api_unavailable',
+      probe: 'identity',
+      error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+      tokenInfo,
+      elapsedMs: Date.now() - started,
+    }
+  }
   const instanceId = String(env('ZEEV_HEALTH_INSTANCE_ID', '130521') || '').replace(/\D+/g, '')
   const instanceErrors: string[] = []
   try {
     if (instanceId) {
-      const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
       const fieldAttempts = [
         ['numeroDaNF'],
         [],
@@ -3506,6 +3496,7 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
       'doc-rescue-audit',
       'refresh-payment-statuses',
       'reconcile-registered',
+      'probe-zeev-ticket',
     ])
     const workflowMode = directWorkflowModes.has(syncMode)
       ? syncMode
@@ -3573,10 +3564,7 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
 }
 
 async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
-  const token = zeevToken()
-  const extraTokens = zeevExtraTokensString()
   const secret = env('ZEEV_SYNC_SECRET')
-  if (!token) throw new Error('ZEEV_TOKEN ausente nos secrets da Supabase.')
   if (!secret) throw new Error('ZEEV_SYNC_SECRET ausente nos secrets da Supabase.')
   const url = env('ZEEV_BRIDGE_URL', 'https://raiz-obras.vercel.app/api/zeev_capex_sync')
   const syncMode = String(input.workflowMode || input.syncMode || input.mode || 'incremental')
@@ -3602,9 +3590,6 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
     businessTimezone: input.businessTimezone || input.business_timezone || env('ZEEV_BUSINESS_TIMEZONE', 'America/Sao_Paulo'),
     notify: input.notify !== false,
   }
-  if (extraTokens) {
-    ;(body as AnyRecord).zeevExtraTokens = extraTokens
-  }
   if (!body.ticketIds && !body.extraTicketIds && input.refreshKnownTickets !== false && input.backfillMissingValues !== false && syncMode !== 'retro') {
     body.extraTicketIds = await knownTicketRefreshIds(input.refreshLimit || input.backfillLimit || env('ZEEV_REFRESH_LIMIT', '8'), parseFlowIds(body.flowIds))
   }
@@ -3619,8 +3604,6 @@ async function dispatchVercelBridge(input: AnyRecord, actor: AnyRecord | null) {
     headers: {
       Authorization: `Bearer ${secret}`,
       'x-cron-secret': secret,
-      'x-zeev-token': token,
-      ...(extraTokens ? { 'x-zeev-extra-tokens': extraTokens } : {}),
       'Content-Type': 'application/json',
       'User-Agent': 'ObrasRealEstate-SupabaseDispatcher',
     },
@@ -7853,6 +7836,57 @@ async function probeZeevTicket(input: AnyRecord = {}) {
   return out
 }
 
+async function inspectTicketLifecycles(input: AnyRecord = {}) {
+  const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '').slice(0, 40)
+  if (!ticketIds.length) throw new Error('Informe ao menos um TR para verificar.')
+
+  const tickets: AnyRecord[] = new Array(ticketIds.length)
+  let cursor = 0
+  const worker = async () => {
+    while (cursor < ticketIds.length) {
+      const index = cursor++
+      const ticketId = ticketIds[index]
+      try {
+        let row: AnyRecord
+        let source = 'instance'
+        let directError = ''
+        try {
+          row = await zeevInstance(ticketId, 0, [])
+        } catch (error) {
+          directError = error instanceof Error ? error.message : String(error)
+          row = await zeevInstanceReport(ticketId, 0, [])
+          source = 'report'
+        }
+        const resultKind = ticketResultKind(row)
+        const status = resultKind === 'cancelado'
+          ? 'Cancelado'
+          : resultKind === 'rejeitado'
+            ? 'Rejeitado/Reprovado'
+            : resultKind === 'concluido' || row?.active === false || Boolean(row?.endDateTime)
+              ? 'Concluido'
+              : 'Em andamento'
+        tickets[index] = {
+          tr: ticketId,
+          ok: true,
+          source,
+          directError: directError ? directError.slice(0, 300) : '',
+          status,
+          resultKind,
+          flowResult: row?.flowResult || row?.flow_result || '',
+          active: row?.active ?? null,
+          endDateTime: row?.endDateTime || '',
+          flowId: row?.flow?.id || row?.flowId || null,
+          flowName: row?.flow?.name || row?.flowName || row?.requestName || '',
+        }
+      } catch (error) {
+        tickets[index] = { tr: ticketId, ok: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(4, ticketIds.length) }, () => worker()))
+  return { ok: tickets.every((ticket) => ticket?.ok), mode: 'inspect-ticket-lifecycle', tickets }
+}
+
 async function probeZeevDocDownload(input: AnyRecord = {}) {
   const ticketId = Number(parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || input.ticketId || input.ticket_id || '')[0] || 0)
   const flow = Number(input.flowId || input.flow_id || 263)
@@ -8036,8 +8070,6 @@ Deno.serve(async (req) => {
   try {
     const input = await req.json().catch(() => ({}))
     BAD_ZEEV_TOKENS.clear()
-    REQUEST_ZEEV_TOKEN = String(input?.zeevToken || input?.zeev_token || req.headers.get('x-zeev-token') || '').trim()
-    REQUEST_ZEEV_EXTRA_TOKENS = requestListInput(input?.zeevExtraTokens || input?.zeev_extra_tokens || input?.extraZeevTokens || input?.extra_zeev_tokens || req.headers.get('x-zeev-extra-tokens'))
     REQUEST_ZEEV_EXTRA_DOCUMENT_FIELDS = requestListInput(input?.extraDocumentFields || input?.extra_document_fields || req.headers.get('x-zeev-extra-document-fields'))
     REQUEST_ZEEV_FILE_DOWNLOAD_URL_TEMPLATE = String(input?.fileDownloadUrlTemplate || input?.file_download_url_template || req.headers.get('x-zeev-file-download-url-template') || '').trim()
     let mode = String(input?.mode || '').trim()
@@ -8197,6 +8229,11 @@ Deno.serve(async (req) => {
     if (input?.mode === 'probe-zeev-ticket') {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await probeZeevTicket(input || {})
+      return json(out)
+    }
+    if (input?.mode === 'inspect-ticket-lifecycle') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await inspectTicketLifecycles(input || {})
       return json(out)
     }
     if (input?.mode === 'dispatch') {

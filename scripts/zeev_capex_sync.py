@@ -17,8 +17,8 @@ from zoneinfo import ZoneInfo
 ZEEV_BASE_URL = os.environ.get("ZEEV_BASE_URL", "https://raizeducacao.zeev.it").rstrip("/")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://hjccxfznojjosvanwztv.supabase.co").rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-ZEEV_TOKEN = os.environ.get("ZEEV_TOKEN", "")
-ZEEV_EXTRA_TOKENS = os.environ.get("ZEEV_EXTRA_TOKENS", "")
+ZEEV_TOKEN = urllib.parse.unquote(os.environ.get("ZEEV_TOKEN", "").strip().removeprefix("Bearer "))
+ZEEV_EXTRA_TOKENS = ""
 ZEEV_SYNC_SECRET = os.environ.get("ZEEV_SYNC_SECRET", "")
 AUTOMATION_PAUSED = os.environ.get("ZEEV_AUTOMATION_PAUSED", "").strip().lower() in {"1", "true", "sim", "yes", "on"}
 TOTAL_SCAN_LOCK = os.environ.get("ZEEV_TOTAL_SCAN_LOCK", "").strip().lower() in {"1", "true", "sim", "yes", "on"}
@@ -397,12 +397,7 @@ BAD_ZEEV_TOKENS = set()
 
 
 def zeev_tokens():
-    out = []
-    for raw in (ZEEV_TOKEN, ZEEV_EXTRA_TOKENS, os.environ.get("ZEEV_EXTRA_TOKENS", "")):
-        for token in env_list(raw):
-            if token and token not in out:
-                out.append(token)
-    return out
+    return [ZEEV_TOKEN] if ZEEV_TOKEN else []
 
 
 def zeev_auth_attempts(token):
@@ -411,10 +406,6 @@ def zeev_auth_attempts(token):
         return [("none", {})]
     return [
         ("authorization-bearer", {"Authorization": f"Bearer {token}"}),
-        ("authorization-raw", {"Authorization": token}),
-        ("x-api-key", {"X-API-Key": token}),
-        ("api-key", {"api-key": token}),
-        ("x-access-token", {"X-Access-Token": token}),
     ]
 
 
@@ -3145,14 +3136,6 @@ def fetch_binary_for_rescue(url):
     else:
         for token in (token_list or [""])[:token_limit]:
             attempts.append((clean, "bearer", token))
-            attempts.append((clean, "raw", token))
-            attempts.append((clean, "x-api-key", token))
-            attempts.append((clean, "api-key", token))
-            attempts.append((clean, "x-access-token", token))
-            if token:
-                attempts.append((doc_url_with_token_param(clean, "token", token), "none", ""))
-                attempts.append((doc_url_with_token_param(clean, "access_token", token), "none", ""))
-                attempts.append((doc_url_with_token_param(clean, "api_token", token), "none", ""))
         if signed_zeev_download:
             attempts.insert(0, (clean, "none", ""))
     seen = set()
@@ -3167,14 +3150,6 @@ def fetch_binary_for_rescue(url):
         }
         if token and auth_mode == "bearer":
             headers["Authorization"] = f"Bearer {token}"
-        elif token and auth_mode == "raw":
-            headers["Authorization"] = token
-        elif token and auth_mode == "x-api-key":
-            headers["X-API-Key"] = token
-        elif token and auth_mode == "api-key":
-            headers["api-key"] = token
-        elif token and auth_mode == "x-access-token":
-            headers["X-Access-Token"] = token
         req = urllib.request.Request(attempt_url, headers=headers, method="GET")
         try:
             with urllib.request.urlopen(req, timeout=max(5, min(int(os.environ.get("ZEEV_DIRECT_DOC_TIMEOUT_SECONDS", "12")), 60))) as res:
@@ -4243,9 +4218,6 @@ def sync_ids(instance_ids, allow_non_capex=False, reason="", rescue_docs=True):
 
 
 def add_document_options(payload):
-    extra_tokens = os.environ.get("ZEEV_EXTRA_TOKENS", "").strip() or ZEEV_EXTRA_TOKENS.strip()
-    if extra_tokens:
-        payload["zeevExtraTokens"] = extra_tokens
     extra_fields = os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "").strip()
     if extra_fields:
         payload["extraDocumentFields"] = extra_fields
@@ -4257,8 +4229,6 @@ def add_document_options(payload):
 
 def ingest(tickets, notify=False, partial=False, backfill_limit=None, fanout_targets=None):
     payload = {"mode": "ingest", "tickets": tickets, "notify": notify}
-    if ZEEV_TOKEN:
-        payload["zeevToken"] = ZEEV_TOKEN
     add_document_options(payload)
     if fanout_targets is not None:
         payload["fanoutTargets"] = bool(fanout_targets)
@@ -4307,8 +4277,6 @@ def backfill_docs():
         "includePayments": os.environ.get("ZEEV_BACKFILL_PAYMENTS", "true").lower() != "false",
         "includeCapex": os.environ.get("ZEEV_BACKFILL_CAPEX", "true").lower() != "false",
     }
-    if ZEEV_TOKEN:
-        shared["zeevToken"] = ZEEV_TOKEN
     add_doc_rescue_marker(shared)
     add_document_options(shared)
     ticket_ids = os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or ""
@@ -4474,8 +4442,6 @@ def backfill_docs_for_ticket_ids(ticket_ids, file_limit=None, timeout=None):
         "includeCapex": os.environ.get("ZEEV_DOC_RESCUE_CAPEX", "true").lower() != "false",
         "fanoutTargets": True,
     }
-    if ZEEV_TOKEN:
-        payload["zeevToken"] = ZEEV_TOKEN
     add_doc_rescue_marker(payload)
     add_document_options(payload)
     request_timeout = max(
@@ -4976,8 +4942,6 @@ def register_obra_payments():
         }
         if len(FLOW_IDS) == 1:
             payload["flowId"] = FLOW_IDS[0]
-        if ZEEV_TOKEN:
-            payload["zeevToken"] = ZEEV_TOKEN
         add_document_options(payload)
         return request_json(
             "POST",
@@ -5064,8 +5028,6 @@ def register_capex_items():
             "ano": ano,
             "fileLimit": current_file_limit,
         }
-        if ZEEV_TOKEN:
-            payload["zeevToken"] = ZEEV_TOKEN
         add_document_options(payload)
         return request_json(
             "POST",
@@ -5149,8 +5111,6 @@ def force_pending_ticket():
         "directReadMissingIds": missing,
         "fileLimit": 0,
     }
-    if ZEEV_TOKEN:
-        payload["zeevToken"] = ZEEV_TOKEN
     add_document_options(payload)
     return request_json(
         "POST",
@@ -5168,8 +5128,6 @@ def probe_zeev_ticket():
         "mode": "probe-zeev-ticket",
         "ticketIds": ",".join(str(x) for x in ids[:1]),
     }
-    if ZEEV_TOKEN:
-        payload["zeevToken"] = ZEEV_TOKEN
     add_document_options(payload)
     return request_json(
         "POST",
@@ -5229,8 +5187,6 @@ def refresh_payment_statuses():
             "staleHours": stale_hours,
             "onlyOverdue": os.environ.get("ZEEV_STATUS_ONLY_OVERDUE", "true").lower() != "false",
         }
-        if ZEEV_TOKEN:
-            payload["zeevToken"] = ZEEV_TOKEN
         add_document_options(payload)
         try:
             result = request_json(
