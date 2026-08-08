@@ -588,6 +588,7 @@ def supabase_rest_all(path, page_size=1000, timeout=90):
 FLOW_DESIGN_FORM_CACHE = {}
 FLOW_DESIGN_RELEVANT_CACHE = {}
 FLOW_DESIGN_FISCAL_NUMBER_CACHE = {}
+FLOW_DESIGN_FINANCE_DESCRIPTION_CACHE = {}
 
 
 def looks_like_relevant_design_field(field):
@@ -673,6 +674,35 @@ def flow_design_relevant_fields(flow_id):
             names.append(label)
     result = unique_fields(names)
     FLOW_DESIGN_RELEVANT_CACHE[flow] = result
+    return result
+
+
+def finance_request_description_fields(flow_id=0):
+    flow = int(flow_id or 0)
+    if not flow:
+        return FINANCE_REQUEST_DESCRIPTION_FIELDS
+    if flow in FLOW_DESIGN_FINANCE_DESCRIPTION_CACHE:
+        return FLOW_DESIGN_FINANCE_DESCRIPTION_CACHE[flow]
+    target_keys = {norm_key(name) for name in FINANCE_REQUEST_DESCRIPTION_FIELDS}
+    discovered = []
+    for obj in flow_design_form_fields(flow):
+        name = str(obj.get("name") or "").strip()
+        display_values = [
+            str(obj.get(key) or "").strip()
+            for key in ("label", "title", "caption", "displayName")
+        ]
+        identity_values = [name, *display_values]
+        if not any(
+            norm_key(re.sub(r"\s*\*$", "", value).strip()) in target_keys
+            for value in identity_values
+            if value
+        ):
+            continue
+        if name:
+            discovered.append(name)
+        discovered.extend(value for value in display_values if value)
+    result = unique_fields(discovered, FINANCE_REQUEST_DESCRIPTION_FIELDS)
+    FLOW_DESIGN_FINANCE_DESCRIPTION_CACHE[flow] = result
     return result
 
 
@@ -1494,8 +1524,9 @@ def enrich_instance(row):
     ]
     priority_alias_fields = []
     missing_alias_fields = []
-    if financeiro and not field_value_by_priority(current_fields, FINANCE_REQUEST_DESCRIPTION_FIELDS):
-        priority_alias_fields.extend(FINANCE_REQUEST_DESCRIPTION_FIELDS)
+    finance_description_fields = finance_request_description_fields(flow_id) if financeiro else []
+    if financeiro and not field_value_by_priority(current_fields, finance_description_fields):
+        priority_alias_fields.extend(finance_description_fields)
     if not has_capex(current_fields, flow_id):
         missing_alias_fields.extend(capex_fields(flow_id))
     if not field_value(current_fields, VALUE_TOTAL_FIELDS):
@@ -2424,9 +2455,9 @@ def card_summary_cascade(text, items=None, compra=False):
     return deterministic, "texto-completo"
 
 
-def ticket_description(fields, items, financeiro=False, compra=False):
+def ticket_description(fields, items, financeiro=False, compra=False, flow_id=0):
     if financeiro:
-        return field_value_by_priority(fields, FINANCE_REQUEST_DESCRIPTION_FIELDS)
+        return field_value_by_priority(fields, finance_request_description_fields(flow_id))
     if compra:
         justification = field_value_by_priority(fields, PURCHASE_JUSTIFICATION_FIELDS)
         service_desc = field_value_by_priority(fields, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
@@ -2465,13 +2496,13 @@ def build_ticket(row):
     valor_final = valor if valor and result_kind not in ("cancelado", "rejeitado") and (ready or financeiro) else None
     valor_status = "final" if valor_final else ("em_aprovacao" if compra and valor else ("estimado" if valor else "nao_encontrado"))
     unidade = field_value(fields, ["unidadeEscolar", "unidade", "escola", "filial", "localEntrega"]) or clean_unit(field_value(fields, ["centroDeCusto", "centroCusto"]))
-    pedido = ticket_description(fields, itens, financeiro=financeiro, compra=compra)
+    pedido = ticket_description(fields, itens, financeiro=financeiro, compra=compra, flow_id=flow_id)
     service_desc = field_value_by_priority(fields, PURCHASE_SERVICE_DESCRIPTION_FIELDS) if compra else ""
     descricao_truncada = bool(compra and service_desc and service_desc == pedido and looks_truncated_zeev_text(pedido))
     atual = current_task(tasks)
     situacao, realizado = suggested_capex_status(row, ready)
     campos_extraidos = fields_object(fields)
-    finance_description, finance_description_source = field_value_with_source_by_priority(fields, FINANCE_REQUEST_DESCRIPTION_FIELDS) if financeiro else ("", "")
+    finance_description, finance_description_source = field_value_with_source_by_priority(fields, finance_request_description_fields(flow_id)) if financeiro else ("", "")
     resumo_card, resumo_source = card_summary_cascade(pedido, items=itens, compra=compra)
     if resumo_card:
         campos_extraidos["_resumo_card"] = resumo_card
@@ -2482,7 +2513,7 @@ def build_ticket(row):
         campos_extraidos["_descricao_origem"] = "descricaoDoServico"
         campos_extraidos["_descricao_alerta"] = "O Zeev retornou a descricao do servico limitada a 100 caracteres. Abra o Ticket Raiz para conferir o texto integral."
     if financeiro:
-        campos_extraidos["_descricao_regra"] = "informacoes_referentes_solicitacao_v4"
+        campos_extraidos["_descricao_regra"] = "informacoes_referentes_solicitacao_v5"
         campos_extraidos["_descricao_revisada_em"] = datetime.now(timezone.utc).isoformat()
         campos_extraidos["_descricao_status"] = "completa" if finance_description else "nao_encontrada"
         campos_extraidos["_descricao_origem"] = finance_description_source or ""
@@ -2558,7 +2589,7 @@ def generic_ticket_from_instance(row, reason=""):
     result_kind = ticket_result_kind(row)
     ready = delivery_ready(row)
     valor_final = valor if valor and result_kind not in ("cancelado", "rejeitado") and (ready or financeiro) else None
-    pedido = ticket_description(fields, itens, financeiro=financeiro, compra=compra)
+    pedido = ticket_description(fields, itens, financeiro=financeiro, compra=compra, flow_id=flow_id)
     if not pedido and not financeiro:
         pedido = row.get("requestName") or f"Ticket Raiz {row.get('id') or ''}"
     atual = current_task(tasks)
@@ -5312,7 +5343,7 @@ def finance_description_needs_repair(row, force=False):
     if force:
         return True
     campos = row.get("campos_extraidos") if isinstance(row.get("campos_extraidos"), dict) else {}
-    return str(campos.get("_descricao_regra") or "") != "informacoes_referentes_solicitacao_v4"
+    return str(campos.get("_descricao_regra") or "") != "informacoes_referentes_solicitacao_v5"
 
 
 def patch_registered_finance_description(ticket_id, description):
@@ -5340,6 +5371,7 @@ def patch_registered_finance_description(ticket_id, description):
 
 def repair_finance_description_row(row):
     ticket_id = row_ticket_id(row)
+    description_fields = finance_request_description_fields(int(row.get("flow_id") or 0))
     persisted_fields = []
     if isinstance(row.get("raw_fields"), list):
         persisted_fields = merge_zeev_fields(persisted_fields, row.get("raw_fields"))
@@ -5347,7 +5379,7 @@ def repair_finance_description_row(row):
     if isinstance(raw_instance.get("formFields"), list):
         persisted_fields = merge_zeev_fields(persisted_fields, raw_instance.get("formFields"))
     lookup_fields = row_stored_fields(row)
-    description, source = field_value_with_source_by_priority(lookup_fields, FINANCE_REQUEST_DESCRIPTION_FIELDS)
+    description, source = field_value_with_source_by_priority(lookup_fields, description_fields)
     errors = []
     report_link = str(row.get("ticket_link") or raw_instance.get("reportLink") or raw_instance.get("reportUrl") or "").strip()
 
@@ -5356,7 +5388,7 @@ def repair_finance_description_row(row):
             report_fields, _ = fetch_report_link_fields(report_link)
             persisted_fields = merge_zeev_fields(persisted_fields, report_fields)
             lookup_fields = merge_zeev_fields(lookup_fields, report_fields)
-            description, source = field_value_with_source_by_priority(lookup_fields, FINANCE_REQUEST_DESCRIPTION_FIELDS)
+            description, source = field_value_with_source_by_priority(lookup_fields, description_fields)
         except Exception as exc:
             errors.append(f"reportLink: {str(exc)[:260]}")
 
@@ -5365,7 +5397,7 @@ def repair_finance_description_row(row):
             rows = report_instance(
                 ticket_id,
                 int(row.get("flow_id") or 0),
-                fields=FINANCE_REQUEST_DESCRIPTION_FIELDS,
+                fields=description_fields,
                 timeout=35,
                 retries=1,
             )
@@ -5376,7 +5408,7 @@ def repair_finance_description_row(row):
             report_fields = target.get("formFields") or []
             persisted_fields = merge_zeev_fields(persisted_fields, report_fields)
             lookup_fields = merge_zeev_fields(lookup_fields, report_fields)
-            description, source = field_value_with_source_by_priority(lookup_fields, FINANCE_REQUEST_DESCRIPTION_FIELDS)
+            description, source = field_value_with_source_by_priority(lookup_fields, description_fields)
             report_link = str(target.get("reportLink") or target.get("reportUrl") or report_link).strip()
         except Exception as exc:
             errors.append(f"instances/report: {str(exc)[:260]}")
@@ -5386,12 +5418,12 @@ def repair_finance_description_row(row):
             report_fields, _ = fetch_report_link_fields(report_link)
             persisted_fields = merge_zeev_fields(persisted_fields, report_fields)
             lookup_fields = merge_zeev_fields(lookup_fields, report_fields)
-            description, source = field_value_with_source_by_priority(lookup_fields, FINANCE_REQUEST_DESCRIPTION_FIELDS)
+            description, source = field_value_with_source_by_priority(lookup_fields, description_fields)
         except Exception as exc:
             errors.append(f"reportLink apos report: {str(exc)[:260]}")
 
     campos = dict(row.get("campos_extraidos") or {}) if isinstance(row.get("campos_extraidos"), dict) else {}
-    campos["_descricao_regra"] = "informacoes_referentes_solicitacao_v4"
+    campos["_descricao_regra"] = "informacoes_referentes_solicitacao_v5"
     campos["_descricao_revisada_em"] = datetime.now(timezone.utc).isoformat()
     campos["_descricao_status"] = "completa" if description else "nao_encontrada"
     campos["_descricao_origem"] = source or ""
@@ -5419,6 +5451,7 @@ def repair_finance_description_row(row):
         "tr": ticket_id,
         "description": description,
         "source": source,
+        "descriptionFields": description_fields[:20],
         "rowPatched": len(updated) if isinstance(updated, list) else 0,
         "registeredPatched": int(patched.get("capex") or 0),
         "paymentRefsPatched": int(patched.get("payments") or 0),
@@ -5458,7 +5491,7 @@ def repair_finance_descriptions():
     out = {
         "ok": True,
         "mode": "repair-finance-descriptions",
-        "descriptionRule": "informacoes_referentes_solicitacao_v4",
+        "descriptionRule": "informacoes_referentes_solicitacao_v5",
         "scannedRows": len(rows),
         "financeCandidatesTotal": len(candidates),
         "processed": 0,
@@ -5494,7 +5527,12 @@ def repair_finance_descriptions():
             if not description:
                 out["descriptionsMissing"] += 1
                 if len(out["missing"]) < 120:
-                    out["missing"].append({"tr": tr, "reason": "campo_informacoes_referentes_solicitacao_vazio"})
+                    out["missing"].append({
+                        "tr": tr,
+                        "reason": "campo_informacoes_referentes_solicitacao_vazio",
+                        "descriptionFields": result.get("descriptionFields") or [],
+                        "probes": result.get("errors") or [],
+                    })
                 continue
             out["descriptionsFound"] += 1
             out["registeredPatched"] += int(result.get("registeredPatched") or 0)

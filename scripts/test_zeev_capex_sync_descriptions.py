@@ -101,6 +101,19 @@ class FinanceDescriptionTests(unittest.TestCase):
             "Pagamento da troca do quadro eletrico da unidade",
         )
 
+    def test_flow_design_discovers_changed_technical_name(self):
+        design = [{
+            "name": "txtInformacoesSolicitacaoFinanceiraV4",
+            "label": "Informa\u00e7\u00f5es referentes \u00e0 solicita\u00e7\u00e3o *",
+        }]
+        sync.FLOW_DESIGN_FINANCE_DESCRIPTION_CACHE.pop(299, None)
+        with mock.patch.object(sync, "flow_design_form_fields", return_value=design):
+            aliases = sync.finance_request_description_fields(299)
+
+        fields = [form_field("txtInformacoesSolicitacaoFinanceiraV4", "Pagamento do reparo no telhado")]
+        self.assertIn("txtInformacoesSolicitacaoFinanceiraV4", aliases)
+        self.assertEqual(sync.field_value_by_priority(fields, aliases), "Pagamento do reparo no telhado")
+
 
 if __name__ == "__main__":
     unittest.main()
