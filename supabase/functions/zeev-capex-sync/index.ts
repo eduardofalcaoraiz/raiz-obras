@@ -2138,7 +2138,12 @@ function paymentTicketRefs(row: AnyRecord) {
   return docTicketRefs(row?.ticket_raiz)
 }
 
+function isHistoricalPlanningRow(row: AnyRecord) {
+  return normKey(row?.origem) === 'planejamento historico'
+}
+
 function capexTicketRefs(row: AnyRecord) {
+  if (isHistoricalPlanningRow(row)) return []
   const direct = docTicketRefs(row?.ticket_raiz_instance_id)
   if (direct.length) return direct
   return docTicketRefs(row?.referencia, { strict: true })
@@ -2232,11 +2237,11 @@ async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
   }
   if (!byTicket.size) return { capexLinked: 0, paymentMatched: 0, paymentLinked: 0 }
 
-  const capexRows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados')
+  const capexRows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados,origem')
   let capexLinked = 0
   const capexMatchedKeys = new Set<string>()
   for (const row of capexRows || []) {
-    const key = ticketDigits(row.ticket_raiz_instance_id || row.referencia)
+    const key = capexTicketRefs(row)[0] || ''
     const ticket = byTicket.get(key)
     if (!ticket) continue
     capexLinked++
@@ -2308,14 +2313,14 @@ async function reconcileRegisteredTicketsTargeted(tickets: AnyRecord[]) {
   const capexRows: AnyRecord[] = []
   for (let i = 0; i < ids.length; i += 80) {
     const chunk = ids.slice(i, i + 80).join(',')
-    const rows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados&or=(ticket_raiz_instance_id.in.(${chunk}),referencia.in.(${chunk}))`)
+    const rows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados,origem&or=(ticket_raiz_instance_id.in.(${chunk}),referencia.in.(${chunk}))`)
     capexRows.push(...(rows || []))
   }
 
   let capexLinked = 0
   const capexMatchedKeys = new Set<string>()
   for (const row of capexRows || []) {
-    const key = ticketDigits(row.ticket_raiz_instance_id || row.referencia)
+    const key = capexTicketRefs(row)[0] || ''
     const ticket = byTicket.get(key)
     if (!ticket) continue
     capexLinked++
@@ -2392,14 +2397,14 @@ async function reconcilePendingTicketsAlreadyRegistered() {
     return { ok: true, mode: 'reconcile-registered', pending: 0, capexLinked: 0, paymentLinked: 0, tickets: [] }
   }
 
-  const capexRows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados')
+  const capexRows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados,origem')
   const paymentRows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz')
   const fixed: AnyRecord[] = []
   let capexLinked = 0
   let paymentLinked = 0
 
   for (const row of capexRows || []) {
-    const key = ticketDigits(row.ticket_raiz_instance_id || row.referencia)
+    const key = capexTicketRefs(row)[0] || ''
     const ticket = pendingByTicket.get(key)
     if (!ticket) continue
     const patch = capexRegisteredSyncPatch(ticket, row)
@@ -2558,9 +2563,33 @@ async function knownTicketRefreshIds(limit: number, flows: number[] = []) {
   const flowFilter = flows.length ? `&flow_id=in.(${flows.join(',')})` : ''
   const recentApprovedLimit = Math.max(1, Math.ceil(n / 4))
   const staleActiveLimit = Math.max(1, Math.ceil(n / 4))
+  const linkedOpenLimit = Math.max(1, Math.ceil(n / 2))
+  const openStateId = 'zeev-open-capex-refresh'
+  const openState = await getState(openStateId)
+  let openCursor = Math.max(0, Number(openState?.last_run_found || 0))
+  const openBase = '/capex_itens?ticket_raiz_instance_id=not.is.null&situacao=eq.Em%20Andamento&realizado=eq.false&select=id,ticket_raiz_instance_id&order=id.asc'
+  let linkedOpen = await rest(`${openBase}&id=gt.${openCursor}&limit=${linkedOpenLimit}`)
+  if (!Array.isArray(linkedOpen) || linkedOpen.length < linkedOpenLimit) {
+    const remaining = linkedOpenLimit - (Array.isArray(linkedOpen) ? linkedOpen.length : 0)
+    openCursor = 0
+    const wrapped = remaining > 0 ? await rest(`${openBase}&limit=${remaining}`) : []
+    linkedOpen = [...(Array.isArray(linkedOpen) ? linkedOpen : []), ...(Array.isArray(wrapped) ? wrapped : [])]
+  }
+  const lastOpenRow = Array.isArray(linkedOpen) && linkedOpen.length ? linkedOpen[linkedOpen.length - 1] : null
+  await saveState(openStateId, {
+    last_run_found: Number(lastOpenRow?.id || openCursor || 0),
+    last_run_updated: Array.isArray(linkedOpen) ? linkedOpen.length : 0,
+    last_success_at: new Date().toISOString(),
+    running: false,
+    updated_at: new Date().toISOString(),
+  })
   const recentApproved = await rest(`/capex_zeev_solicitacoes?status=eq.aprovado&capex_item_id=not.is.null${flowFilter}&select=zeev_instance_id,updated_at,last_seen_at,start_date_time&order=updated_at.desc&limit=${recentApprovedLimit}`)
   const staleActive = await rest(`/capex_zeev_solicitacoes?status=in.(pendente,aprovado)&active=eq.true${flowFilter}&select=zeev_instance_id,updated_at,last_seen_at,start_date_time&order=last_seen_at.asc.nullsfirst&limit=${staleActiveLimit}`)
-  const selected = uniqueNumbers([...(recentApproved || []), ...(staleActive || [])].map((row: AnyRecord) => row.zeev_instance_id))
+  const selected = uniqueNumbers([
+    ...(linkedOpen || []).map((row: AnyRecord) => row.ticket_raiz_instance_id),
+    ...(recentApproved || []).map((row: AnyRecord) => row.zeev_instance_id),
+    ...(staleActive || []).map((row: AnyRecord) => row.zeev_instance_id),
+  ]).slice(0, n)
   const selectedSet = new Set(selected)
   const stateId = 'zeev-known-ticket-refresh'
   const state = await getState(stateId)
@@ -6199,7 +6228,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   }
 
   if (includeCapex && budget > 0) {
-    const capexBase = '/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at,pedido,orcamento,categoria_capex&order=zeev_docs_checked_at.asc.nullsfirst,id.asc'
+    const capexBase = '/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at,pedido,orcamento,categoria_capex,origem&order=zeev_docs_checked_at.asc.nullsfirst,id.asc'
     const rows = targetTicketIds.length ? await restAll(capexBase) : await rest(`${capexBase}&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
       .filter((row: AnyRecord) => {
@@ -6326,7 +6355,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
   }
 
   if (includeCapex && ids.size < limit) {
-    const rows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at&order=zeev_docs_checked_at.asc.nullsfirst,id.asc')
+    const rows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at,origem&order=zeev_docs_checked_at.asc.nullsfirst,id.asc')
     for (const row of rows || []) {
       if (ids.size >= limit) break
       const refs = capexTicketRefs(row)
@@ -6495,7 +6524,7 @@ async function runDocRescueAudit(input: AnyRecord = {}) {
     if (shouldRescueDocs(row, staleHours, 'pending', checkedBefore)) rescueQueue.add(key)
   }, pageSize)
 
-  rows.capex = await forEachRestPage('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at&order=id.asc', (row: AnyRecord) => {
+  rows.capex = await forEachRestPage('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at,origem&order=id.asc', (row: AnyRecord) => {
     const keys = capexTicketRefs(row)
     if (!keys.length) return
     for (const key of keys) {
@@ -6642,7 +6671,7 @@ async function runDocMissingReport(input: AnyRecord = {}) {
     for (const row of rows || []) inspect('pending', row, [ticketDigits(row.zeev_instance_id)].filter(Boolean), isFinancialZeevRow(row))
   }
   if (includeCapex) {
-    const rows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at,situacao,realizado&order=id.asc')
+    const rows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at,situacao,realizado,origem&order=id.asc')
     for (const row of rows || []) inspect('capex', row, capexTicketRefs(row), false)
   }
   delete out._seen
@@ -6662,7 +6691,7 @@ async function runDocRescueDetail(input: AnyRecord = {}) {
     if (refs.some((ref) => idSet.has(ref))) out.rows.push(docRescueDetailRow('payment', row, matchedTicketRef(refs, idSet) || refs[0]))
   }
   const joined = ticketIds.join(',')
-  const capex = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at,situacao,realizado&or=(referencia.in.(${joined}),ticket_raiz_instance_id.in.(${joined}))&limit=${Math.max(20, ticketIds.length * 4)}`)
+  const capex = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,docs_json,zeev_docs_checked_at,situacao,realizado,origem&or=(referencia.in.(${joined}),ticket_raiz_instance_id.in.(${joined}))&limit=${Math.max(20, ticketIds.length * 4)}`)
   for (const row of capex || []) {
     const refs = capexTicketRefs(row)
     if (refs.some((ref) => idSet.has(ref))) out.rows.push(docRescueDetailRow('capex', row, matchedTicketRef(refs, idSet) || refs[0]))
@@ -7529,11 +7558,11 @@ async function registerCapexItems(input: AnyRecord = {}) {
   const unit = findTargetCapexUnit(unidades, unidadeName)
   if (!unit) throw new Error(`Unidade destino nao encontrada: ${unidadeName}`)
 
-  const existingCapexRows = await rest(`/capex_itens?select=id,ano,unidade,referencia,ticket_raiz_instance_id&or=(referencia.in.(${ticketIds.join(',')}),ticket_raiz_instance_id.in.(${ticketIds.join(',')}))`)
+  const existingCapexRows = await rest(`/capex_itens?select=id,ano,unidade,referencia,ticket_raiz_instance_id,origem&or=(referencia.in.(${ticketIds.join(',')}),ticket_raiz_instance_id.in.(${ticketIds.join(',')}))`)
   const existingPaymentRows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz&ticket_raiz=in.(${ticketIds.join(',')})`)
   const existingCapex = new Map<string, AnyRecord[]>()
   for (const row of existingCapexRows || []) {
-    const key = ticketDigits(row.ticket_raiz_instance_id || row.referencia)
+    const key = capexTicketRefs(row)[0] || ''
     if (!key) continue
     const rows = existingCapex.get(key) || []
     rows.push(row)
@@ -7731,11 +7760,11 @@ async function forcePendingTickets(input: AnyRecord = {}) {
   const refreshFromZeev = input.refreshFromZeev === true || input.refresh_from_zeev === true
 
   const existingPending = await loadTicketsByIds(ticketIds)
-  const existingCapexRows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id&or=(referencia.in.(${ticketIds.join(',')}),ticket_raiz_instance_id.in.(${ticketIds.join(',')}))`)
+  const existingCapexRows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,origem&or=(referencia.in.(${ticketIds.join(',')}),ticket_raiz_instance_id.in.(${ticketIds.join(',')}))`)
   const existingPaymentRows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz&ticket_raiz=in.(${ticketIds.join(',')})`)
   const registered = new Map<string, AnyRecord[]>()
   for (const row of [...(existingCapexRows || []), ...(existingPaymentRows || [])]) {
-    const key = ticketDigits(row.ticket_raiz_instance_id || row.referencia || row.ticket_raiz)
+    const key = row.ticket_raiz ? ticketDigits(row.ticket_raiz) : (capexTicketRefs(row)[0] || '')
     if (!key) continue
     const rows = registered.get(key) || []
     rows.push(row)

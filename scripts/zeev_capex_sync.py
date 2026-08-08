@@ -1827,10 +1827,10 @@ def platform_existing_ticket_ids(instance_ids):
     found = set()
     for chunk in chunked(ids, 80):
         joined = ",".join(str(x) for x in chunk)
+        # A record only counts as synchronized after it exists in the Zeev mirror.
+        # Spreadsheet references and payment links must still be probed/enriched.
         checks = (
-            (f"/capex_zeev_solicitacoes?select=zeev_instance_id&zeev_instance_id=in.({joined})&status=in.(pendente,aprovado)", ("zeev_instance_id",)),
-            (f"/pagamentos?select=ticket_raiz&ticket_raiz=in.({joined})", ("ticket_raiz",)),
-            (f"/capex_itens?select=referencia,ticket_raiz_instance_id&or=(referencia.in.({joined}),ticket_raiz_instance_id.in.({joined}))", ("referencia", "ticket_raiz_instance_id")),
+            (f"/capex_zeev_solicitacoes?select=zeev_instance_id&zeev_instance_id=in.({joined})", ("zeev_instance_id",)),
         )
         for path, keys in checks:
             try:
@@ -4945,13 +4945,13 @@ def repair_capex_registered_values():
     ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     limit = env_int("ZEEV_REPAIR_CAPEX_VALUES_LIMIT", 250, 1, 5000)
     force = os.environ.get("ZEEV_REPAIR_CAPEX_VALUES_FORCE", "").strip().lower() in {"1", "true", "sim", "yes", "on"}
-    select = "id,referencia,ticket_raiz_instance_id,orcamento,ticket_raiz_dados"
+    select = "id,referencia,ticket_raiz_instance_id,orcamento,ticket_raiz_dados,origem"
     if ids:
         joined = ",".join(str(x) for x in ids)
         path = f"/capex_itens?select={select}&or=(referencia.in.({joined}),ticket_raiz_instance_id.in.({joined}))&order=id.asc"
         requested = ids
     else:
-        path = f"/capex_itens?select={select}&or=(orcamento.is.null,orcamento.eq.0)&order=id.asc&limit={limit}"
+        path = f"/capex_itens?select={select}&ticket_raiz_instance_id=not.is.null&or=(orcamento.is.null,orcamento.eq.0)&order=id.asc&limit={limit}"
         requested = []
     rows = supabase_rest(path, timeout=120, prefer="")
     if not isinstance(rows, list):
@@ -4967,6 +4967,9 @@ def repair_capex_registered_values():
         "errors": [],
     }
     for row in rows:
+        if norm(row.get("origem")) == "planejamento historico":
+            out["skipped"].append({"id": row.get("id"), "reason": "planejamento_historico_sem_tr"})
+            continue
         current = parse_money(row.get("orcamento"))
         tr = row.get("ticket_raiz_instance_id") or row.get("referencia")
         value, source, patched_data = stored_capex_registered_value(row)
