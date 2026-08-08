@@ -1435,8 +1435,36 @@ function reportFileFieldsFromHtml(html: string) {
 function reportFieldsFromHtml(html: string) {
   const fields: AnyRecord[] = []
   const seen = new Set<string>()
-  for (const line of stripHtmlToLines(html)) {
-    const pair = splitReportLine(line)
+  const adjacentLabels = [
+    'Valor total do pagamento',
+    'Informa\u00e7\u00f5es referentes \u00e0 solicita\u00e7\u00e3o',
+    'Informacoes referentes a solicitacao',
+    'Justificativa do pedido',
+    'Descri\u00e7\u00e3o do servi\u00e7o',
+    'Descricao do servico',
+    'Lista para cota\u00e7\u00e3o',
+    'Lista para cotacao',
+    'Documento',
+    'CAPEX',
+    '\u00c9 um investimento (CAPEX)?',
+    'E um investimento (CAPEX)?',
+    'Centro de custo',
+    'CNPJ',
+  ]
+  const lines = stripHtmlToLines(html)
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index]
+    let pair = splitReportLine(line)
+    if (!pair) {
+      const cleanLabel = line.replace(/\s*\*$/, '').trim()
+      const matchedLabel = adjacentLabels.find((label) => norm(label) === norm(cleanLabel))
+      const nextLine = lines[index + 1]?.trim() || ''
+      const nextIsLabel = adjacentLabels.some((label) => norm(label) === norm(nextLine.replace(/\s*\*$/, '').trim()))
+      if (matchedLabel && nextLine && !nextIsLabel) {
+        pair = { label: matchedLabel, value: nextLine }
+        index++
+      }
+    }
     if (!pair) continue
     const label = pair.label.replace(/\s+/g, ' ').trim()
     const value = pair.value.replace(/\s+/g, ' ').trim()
@@ -1808,7 +1836,7 @@ async function buildTicket(row: AnyRecord) {
     campos._descricao_alerta = 'O Zeev retornou a descricao do servico limitada a 100 caracteres. Abra o Ticket Raiz para conferir o texto integral.'
   }
   if (financeiro) {
-    campos._descricao_regra = 'informacoes_referentes_solicitacao_v3'
+    campos._descricao_regra = 'informacoes_referentes_solicitacao_v4'
     campos._descricao_revisada_em = new Date().toISOString()
     campos._descricao_status = financeDescriptionMatch?.value ? 'completa' : 'nao_encontrada'
     campos._descricao_origem = financeDescriptionMatch?.source || ''
@@ -7117,7 +7145,7 @@ function ticketFornecedorForPayment(ticket: AnyRecord) {
 
 function trustedStoredFinanceDescription(ticket: AnyRecord) {
   const campos = ticket?.campos_extraidos && typeof ticket.campos_extraidos === 'object' ? ticket.campos_extraidos : {}
-  if (!['informacoes_referentes_solicitacao_v2', 'informacoes_referentes_solicitacao_v3'].includes(String(campos?._descricao_regra || ''))) return ''
+  if (!['informacoes_referentes_solicitacao_v2', 'informacoes_referentes_solicitacao_v3', 'informacoes_referentes_solicitacao_v4'].includes(String(campos?._descricao_regra || ''))) return ''
   if (String(campos?._descricao_status || '') !== 'completa') return ''
   return cleanSummaryText(ticket?.pedido || '')
 }
@@ -7631,7 +7659,7 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
       _capex_forcado_em: new Date().toISOString(),
     } : {}),
     ...(financeiro ? {
-      _descricao_regra: 'informacoes_referentes_solicitacao_v3',
+      _descricao_regra: 'informacoes_referentes_solicitacao_v4',
       _descricao_revisada_em: new Date().toISOString(),
       _descricao_status: desc ? 'completa' : 'nao_encontrada',
       _descricao_origem: financeDescriptionMatch?.source || (desc ? String(ticket?.campos_extraidos?._descricao_origem || '') : ''),

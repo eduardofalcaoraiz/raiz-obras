@@ -8948,7 +8948,7 @@ function capexZeevTrustedStoredFinanceDescription(z){
   const stored=String(z?.pedido||'').trim();
   const regra=String(z?.campos_extraidos?._descricao_regra||'');
   const status=String(z?.campos_extraidos?._descricao_status||'');
-  if(stored&&['informacoes_referentes_solicitacao_v2','informacoes_referentes_solicitacao_v3'].includes(regra)&&status==='completa')return stored;
+  if(stored&&['informacoes_referentes_solicitacao_v2','informacoes_referentes_solicitacao_v3','informacoes_referentes_solicitacao_v4'].includes(regra)&&status==='completa')return stored;
   const source=capexNormText(z?.campos_extraidos?._descricao_origem||'');
   const trusted=CAPEX_ZEEV_FINANCE_REQUEST_FIELDS.some(name=>capexNormText(name)===source);
   return stored&&trusted?stored:'';

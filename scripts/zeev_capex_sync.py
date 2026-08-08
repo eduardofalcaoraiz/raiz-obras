@@ -1344,22 +1344,62 @@ def split_report_line(line):
     return None
 
 
+REPORT_ADJACENT_FIELD_LABELS = [
+    "Valor total do pagamento",
+    "Informa\u00e7\u00f5es referentes \u00e0 solicita\u00e7\u00e3o",
+    "Informacoes referentes a solicitacao",
+    "Justificativa do pedido",
+    "Descri\u00e7\u00e3o do servi\u00e7o",
+    "Descricao do servico",
+    "Lista para cota\u00e7\u00e3o",
+    "Lista para cotacao",
+    "Documento",
+    "CAPEX",
+    "\u00c9 um investimento (CAPEX)?",
+    "E um investimento (CAPEX)?",
+    "Centro de custo",
+    "CNPJ",
+]
+
+
 def report_fields_from_html(raw_html):
     fields = []
     seen = set()
-    for line in strip_html_to_lines(raw_html):
+    lines = strip_html_to_lines(raw_html)
+    index = 0
+    while index < len(lines):
+        line = lines[index]
         pair = split_report_line(line)
         if not pair:
+            clean_label = re.sub(r"\s*\*$", "", line).strip()
+            matched_label = next(
+                (label for label in REPORT_ADJACENT_FIELD_LABELS if norm(label) == norm(clean_label)),
+                "",
+            )
+            if matched_label and index + 1 < len(lines):
+                next_line = lines[index + 1].strip()
+                next_is_label = any(
+                    norm(re.sub(r"\s*\*$", "", next_line).strip()) == norm(label)
+                    for label in REPORT_ADJACENT_FIELD_LABELS
+                )
+                if next_line and not next_is_label:
+                    pair = {"label": matched_label, "value": next_line}
+                    index += 1
+        if not pair:
+            index += 1
             continue
         label = re.sub(r"\s+", " ", pair["label"]).strip()
         value = re.sub(r"\s+", " ", pair["value"]).strip()
         if not label or not value or value == "*" or len(label) > 120:
+            index += 1
             continue
         key = f"{norm_key(label)}|{value}"
         if key in seen:
+            index += 1
             continue
         seen.add(key)
         fields.append({"name": label, "label": label, "value": value, "row": 1, "source": "reportLink"})
+        index += 1
     return fields
 
 
@@ -2442,7 +2482,7 @@ def build_ticket(row):
         campos_extraidos["_descricao_origem"] = "descricaoDoServico"
         campos_extraidos["_descricao_alerta"] = "O Zeev retornou a descricao do servico limitada a 100 caracteres. Abra o Ticket Raiz para conferir o texto integral."
     if financeiro:
-        campos_extraidos["_descricao_regra"] = "informacoes_referentes_solicitacao_v3"
+        campos_extraidos["_descricao_regra"] = "informacoes_referentes_solicitacao_v4"
         campos_extraidos["_descricao_revisada_em"] = datetime.now(timezone.utc).isoformat()
         campos_extraidos["_descricao_status"] = "completa" if finance_description else "nao_encontrada"
         campos_extraidos["_descricao_origem"] = finance_description_source or ""
@@ -5272,7 +5312,7 @@ def finance_description_needs_repair(row, force=False):
     if force:
         return True
     campos = row.get("campos_extraidos") if isinstance(row.get("campos_extraidos"), dict) else {}
-    return str(campos.get("_descricao_regra") or "") != "informacoes_referentes_solicitacao_v3"
+    return str(campos.get("_descricao_regra") or "") != "informacoes_referentes_solicitacao_v4"
 
 
 def patch_registered_finance_description(ticket_id, description):
@@ -5298,6 +5338,94 @@ def patch_registered_finance_description(ticket_id, description):
     }
 
 
+def repair_finance_description_row(row):
+    ticket_id = row_ticket_id(row)
+    persisted_fields = []
+    if isinstance(row.get("raw_fields"), list):
+        persisted_fields = merge_zeev_fields(persisted_fields, row.get("raw_fields"))
+    raw_instance = row.get("raw_instance") if isinstance(row.get("raw_instance"), dict) else {}
+    if isinstance(raw_instance.get("formFields"), list):
+        persisted_fields = merge_zeev_fields(persisted_fields, raw_instance.get("formFields"))
+    lookup_fields = row_stored_fields(row)
+    description, source = field_value_with_source_by_priority(lookup_fields, FINANCE_REQUEST_DESCRIPTION_FIELDS)
+    errors = []
+    report_link = str(row.get("ticket_link") or raw_instance.get("reportLink") or raw_instance.get("reportUrl") or "").strip()
+
+    if not description and report_link:
+        try:
+            report_fields, _ = fetch_report_link_fields(report_link)
+            persisted_fields = merge_zeev_fields(persisted_fields, report_fields)
+            lookup_fields = merge_zeev_fields(lookup_fields, report_fields)
+            description, source = field_value_with_source_by_priority(lookup_fields, FINANCE_REQUEST_DESCRIPTION_FIELDS)
+        except Exception as exc:
+            errors.append(f"reportLink: {str(exc)[:260]}")
+
+    if not description:
+        try:
+            rows = report_instance(
+                ticket_id,
+                int(row.get("flow_id") or 0),
+                fields=FINANCE_REQUEST_DESCRIPTION_FIELDS,
+                timeout=35,
+                retries=1,
+            )
+            target = next(
+                (item for item in rows if int(item.get("id") or item.get("instanceId") or 0) == ticket_id),
+                rows[0] if rows else {},
+            )
+            report_fields = target.get("formFields") or []
+            persisted_fields = merge_zeev_fields(persisted_fields, report_fields)
+            lookup_fields = merge_zeev_fields(lookup_fields, report_fields)
+            description, source = field_value_with_source_by_priority(lookup_fields, FINANCE_REQUEST_DESCRIPTION_FIELDS)
+            report_link = str(target.get("reportLink") or target.get("reportUrl") or report_link).strip()
+        except Exception as exc:
+            errors.append(f"instances/report: {str(exc)[:260]}")
+
+    if not description and report_link:
+        try:
+            report_fields, _ = fetch_report_link_fields(report_link)
+            persisted_fields = merge_zeev_fields(persisted_fields, report_fields)
+            lookup_fields = merge_zeev_fields(lookup_fields, report_fields)
+            description, source = field_value_with_source_by_priority(lookup_fields, FINANCE_REQUEST_DESCRIPTION_FIELDS)
+        except Exception as exc:
+            errors.append(f"reportLink apos report: {str(exc)[:260]}")
+
+    campos = dict(row.get("campos_extraidos") or {}) if isinstance(row.get("campos_extraidos"), dict) else {}
+    campos["_descricao_regra"] = "informacoes_referentes_solicitacao_v4"
+    campos["_descricao_revisada_em"] = datetime.now(timezone.utc).isoformat()
+    campos["_descricao_status"] = "completa" if description else "nao_encontrada"
+    campos["_descricao_origem"] = source or ""
+    if description:
+        campos.pop("_descricao_alerta", None)
+    else:
+        campos["_descricao_alerta"] = "O campo Informacoes referentes a solicitacao nao foi retornado pelo Zeev."
+
+    row_id = urllib.parse.quote(str(row.get("id") or ""), safe="")
+    if not row_id:
+        raise RuntimeError(f"TR {ticket_id} sem id interno para atualizar.")
+    updated = supabase_rest(
+        f"/capex_zeev_solicitacoes?id=eq.{row_id}",
+        method="PATCH",
+        payload={
+            "pedido": description or None,
+            "raw_fields": persisted_fields,
+            "campos_extraidos": campos,
+        },
+        timeout=90,
+        prefer="return=representation",
+    )
+    patched = patch_registered_finance_description(ticket_id, description) if description else {"capex": 0, "payments": 0}
+    return {
+        "tr": ticket_id,
+        "description": description,
+        "source": source,
+        "rowPatched": len(updated) if isinstance(updated, list) else 0,
+        "registeredPatched": int(patched.get("capex") or 0),
+        "paymentRefsPatched": int(patched.get("payments") or 0),
+        "errors": errors,
+    }
+
+
 def repair_finance_descriptions():
     limit = max(1, min(int(os.environ.get("ZEEV_FINANCE_DESCRIPTION_REPAIR_LIMIT", os.environ.get("ZEEV_BACKFILL_LIMIT", "40")) or "40"), 160))
     cycles = max(1, min(int(os.environ.get("ZEEV_FINANCE_DESCRIPTION_REPAIR_CYCLES", "1") or "1"), 12))
@@ -5307,7 +5435,7 @@ def repair_finance_descriptions():
     pending_only = os.environ.get("ZEEV_FINANCE_DESCRIPTION_REPAIR_PENDING_ONLY", "false").lower() == "true"
     select = ",".join([
         "id", "zeev_instance_id", "flow_id", "flow_name", "request_name", "status", "pedido",
-        "start_date_time", "campos_extraidos", "raw_fields", "raw_tasks", "raw_instance",
+        "start_date_time", "ticket_link", "campos_extraidos", "raw_fields", "raw_tasks", "raw_instance",
     ])
     filters = [f"select={select}"]
     if pending_only:
@@ -5330,7 +5458,7 @@ def repair_finance_descriptions():
     out = {
         "ok": True,
         "mode": "repair-finance-descriptions",
-        "descriptionRule": "informacoes_referentes_solicitacao_v3",
+        "descriptionRule": "informacoes_referentes_solicitacao_v4",
         "scannedRows": len(rows),
         "financeCandidatesTotal": len(candidates),
         "processed": 0,
@@ -5346,40 +5474,33 @@ def repair_finance_descriptions():
         batch = candidates[cycle * limit:(cycle + 1) * limit]
         if not batch:
             break
-        batch_ids = [row_ticket_id(row) for row in batch]
-        try:
-            tickets = sync_ids(batch_ids, rescue_docs=False)
-            if tickets:
-                ingest(tickets, notify=False, backfill_limit=0, skip_document_backfill=True)
-        except Exception as exc:
-            out["ok"] = False
-            out["errors"].append({"cycle": cycle + 1, "error": str(exc)[:700]})
-            continue
-        built_by_id = {int(ticket.get("zeev_instance_id") or 0): ticket for ticket in tickets}
-        for tr in batch_ids:
+        concurrency = max(1, min(int(os.environ.get("ZEEV_FINANCE_DESCRIPTION_REPAIR_CONCURRENCY", "5") or "5"), 8, len(batch)))
+        results = []
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            futures = {executor.submit(repair_finance_description_row, row): row for row in batch}
+            for future in as_completed(futures):
+                row = futures[future]
+                tr = row_ticket_id(row)
+                try:
+                    results.append(future.result())
+                except Exception as exc:
+                    out["ok"] = False
+                    out["errors"].append({"tr": tr, "error": str(exc)[:700]})
+                    results.append({"tr": tr, "description": "", "registeredPatched": 0, "paymentRefsPatched": 0})
+        for result in sorted(results, key=lambda item: int(item.get("tr") or 0), reverse=True):
+            tr = int(result.get("tr") or 0)
             out["processed"] += 1
-            ticket = built_by_id.get(int(tr))
-            if not ticket:
-                out["descriptionsMissing"] += 1
-                if len(out["missing"]) < 120:
-                    out["missing"].append({"tr": tr, "reason": "ticket_financeiro_nao_retornado_pelo_zeev"})
-                continue
-            description = str(ticket.get("pedido") or "").strip()
+            description = str(result.get("description") or "").strip()
             if not description:
                 out["descriptionsMissing"] += 1
                 if len(out["missing"]) < 120:
                     out["missing"].append({"tr": tr, "reason": "campo_informacoes_referentes_solicitacao_vazio"})
                 continue
             out["descriptionsFound"] += 1
-            try:
-                patched = patch_registered_finance_description(tr, description)
-                out["registeredPatched"] += int(patched.get("capex") or 0)
-                out["paymentRefsPatched"] += int(patched.get("payments") or 0)
-            except Exception as exc:
-                out["ok"] = False
-                out["errors"].append({"tr": tr, "error": str(exc)[:700]})
+            out["registeredPatched"] += int(result.get("registeredPatched") or 0)
+            out["paymentRefsPatched"] += int(result.get("paymentRefsPatched") or 0)
             if len(out["tickets"]) < 160:
-                out["tickets"].append({"tr": tr, "description": description})
+                out["tickets"].append({"tr": tr, "description": description, "source": result.get("source") or ""})
     return out
 
 

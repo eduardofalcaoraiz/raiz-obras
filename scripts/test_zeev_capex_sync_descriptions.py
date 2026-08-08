@@ -80,6 +80,27 @@ class FinanceDescriptionTests(unittest.TestCase):
             "Pagamento da manutencao eletrica",
         )
 
+    def test_report_parser_pairs_adjacent_table_cells(self):
+        html = """
+        <table>
+          <tr>
+            <td>Informa\u00e7\u00f5es referentes \u00e0 solicita\u00e7\u00e3o *</td>
+            <td>Pagamento da troca do quadro eletrico da unidade</td>
+          </tr>
+          <tr>
+            <td>Descri\u00e7\u00e3o da Nota Fiscal *</td>
+            <td>Servicos prestados conforme contrato</td>
+          </tr>
+        </table>
+        """
+
+        fields = sync.report_fields_from_html(html)
+
+        self.assertEqual(
+            sync.field_value_by_priority(fields, sync.FINANCE_REQUEST_DESCRIPTION_FIELDS),
+            "Pagamento da troca do quadro eletrico da unidade",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
