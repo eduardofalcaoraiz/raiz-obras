@@ -2597,6 +2597,9 @@ def generic_ticket_from_instance(row, reason=""):
     campos_extraidos = fields_object(fields)
     campos_extraidos["_capex_forcado"] = True
     campos_extraidos["_capex_forcado_motivo"] = reason or "Inclusao manual solicitada pelo usuario."
+    registered_capex = "registrado" in norm(reason) and "plataforma" in norm(reason)
+    if registered_capex:
+        campos_extraidos["_capex_registrado_preexistente"] = True
     resumo_card, resumo_source = card_summary_cascade(pedido, items=itens, compra=compra)
     if resumo_card:
         campos_extraidos["_resumo_card"] = resumo_card
@@ -2616,8 +2619,8 @@ def generic_ticket_from_instance(row, reason=""):
         "last_finished_task_date_time": row.get("lastFinishedTaskDateTime"),
         "active": row.get("active"),
         "flow_result": row.get("flowResult") or "",
-        "capex_field_name": "manual_codex",
-        "capex_field_value": "Sim - inclusao manual",
+        "capex_field_name": "registro_plataforma" if registered_capex else "manual_codex",
+        "capex_field_value": "TR ja registrado como CAPEX" if registered_capex else "Sim - inclusao manual",
         "requester_name": ((row.get("requester") or {}).get("name")) or "",
         "requester_email": ((row.get("requester") or {}).get("email")) or "",
         "requester_username": ((row.get("requester") or {}).get("username")) or "",
@@ -5690,7 +5693,12 @@ def main():
             }, ensure_ascii=False))
             extra_ticket_ids = extra_ticket_ids[:extra_limit]
     if ticket_ids:
-        tickets = sync_ids(ticket_ids)
+        tickets = sync_ids(
+            ticket_ids,
+            allow_non_capex=True,
+            reason="TR estruturado ja registrado como CAPEX na plataforma.",
+            rescue_docs=False,
+        )
     else:
         if deep_mode:
             progressive_ingest = os.environ.get("ZEEV_PROGRESSIVE_INGEST", "1") != "0"
@@ -5701,7 +5709,12 @@ def main():
         if (extra_ticket_ids or auto_extra_ticket_limit) and incremental_stage_allowed("known-ticket-refresh", 420):
             if auto_extra_ticket_limit:
                 extra_ticket_ids = known_ticket_refresh_ids(auto_extra_ticket_limit)
-            for ticket in sync_ids(extra_ticket_ids):
+            for ticket in sync_ids(
+                extra_ticket_ids,
+                allow_non_capex=True,
+                reason="TR estruturado ja registrado como CAPEX na plataforma.",
+                rescue_docs=False,
+            ):
                 merged[ticket["zeev_instance_id"]] = ticket
         if mode == "incremental" and not deep_mode:
             last_task_pages = env_int("ZEEV_INCREMENTAL_LAST_TASK_MAX_PAGES", 0, 0, 20)
