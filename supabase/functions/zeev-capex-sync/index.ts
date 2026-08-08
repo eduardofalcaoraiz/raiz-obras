@@ -3427,6 +3427,7 @@ async function dispatchGithubWorkflow(input: AnyRecord, actor: AnyRecord | null)
       'refresh-payment-statuses',
       'reconcile-registered',
       'probe-zeev-ticket',
+      'repair-finance-descriptions',
     ])
     const workflowMode = directWorkflowModes.has(syncMode)
       ? syncMode
