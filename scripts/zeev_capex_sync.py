@@ -1246,10 +1246,14 @@ def instance_fields(instance_id, fields, timeout=90, retries=3):
                 continue
             latest = target or latest
             found = merge_zeev_fields(found, target.get("formFields") or [])
-            break
+            has_requested_fields = bool(found) if not fields else any(field_matches(field, fields) for field in found)
+            if has_requested_fields:
+                break
+            errors.append(f"{label}: resposta sem os formFields solicitados")
         except Exception as exc:
             errors.append(f"{label}: {str(exc)[:450]}")
-    if fields and not found:
+    requested_fields_missing = bool(fields) and not any(field_matches(field, fields) for field in found)
+    if requested_fields_missing:
         fallback_errors = []
         try:
             latest_all, found_all = instance_fields(instance_id, [], timeout=timeout, retries=max(1, retries - 1))
@@ -1257,13 +1261,14 @@ def instance_fields(instance_id, fields, timeout=90, retries=3):
             found = merge_zeev_fields(found, found_all)
         except Exception as exc:
             fallback_errors.append(f"fallback sem formFieldNames: {str(exc)[:300]}")
-        if len(fields) > 1 and not found:
+        requested_fields_missing = not any(field_matches(field, fields) for field in found)
+        if len(fields) > 1 and requested_fields_missing:
             for field_name in unique_fields(fields):
                 try:
                     latest_one, found_one = instance_fields(instance_id, [field_name], timeout=timeout, retries=max(1, retries - 1))
                     latest = latest_one or latest
                     found = merge_zeev_fields(found, found_one)
-                    if has_capex(found, int((latest.get("flow") or {}).get("id") or latest.get("flowId") or latest.get("flow_id") or 0)):
+                    if any(field_matches(field, fields) for field in found):
                         break
                 except Exception as exc:
                     fallback_errors.append(f"{field_name}: {str(exc)[:220]}")
@@ -2437,7 +2442,7 @@ def build_ticket(row):
         campos_extraidos["_descricao_origem"] = "descricaoDoServico"
         campos_extraidos["_descricao_alerta"] = "O Zeev retornou a descricao do servico limitada a 100 caracteres. Abra o Ticket Raiz para conferir o texto integral."
     if financeiro:
-        campos_extraidos["_descricao_regra"] = "informacoes_referentes_solicitacao_v2"
+        campos_extraidos["_descricao_regra"] = "informacoes_referentes_solicitacao_v3"
         campos_extraidos["_descricao_revisada_em"] = datetime.now(timezone.utc).isoformat()
         campos_extraidos["_descricao_status"] = "completa" if finance_description else "nao_encontrada"
         campos_extraidos["_descricao_origem"] = finance_description_source or ""
@@ -5267,7 +5272,7 @@ def finance_description_needs_repair(row, force=False):
     if force:
         return True
     campos = row.get("campos_extraidos") if isinstance(row.get("campos_extraidos"), dict) else {}
-    return str(campos.get("_descricao_regra") or "") != "informacoes_referentes_solicitacao_v2"
+    return str(campos.get("_descricao_regra") or "") != "informacoes_referentes_solicitacao_v3"
 
 
 def patch_registered_finance_description(ticket_id, description):
@@ -5325,7 +5330,7 @@ def repair_finance_descriptions():
     out = {
         "ok": True,
         "mode": "repair-finance-descriptions",
-        "descriptionRule": "informacoes_referentes_solicitacao_v2",
+        "descriptionRule": "informacoes_referentes_solicitacao_v3",
         "scannedRows": len(rows),
         "financeCandidatesTotal": len(candidates),
         "processed": 0,

@@ -1808,7 +1808,7 @@ async function buildTicket(row: AnyRecord) {
     campos._descricao_alerta = 'O Zeev retornou a descricao do servico limitada a 100 caracteres. Abra o Ticket Raiz para conferir o texto integral.'
   }
   if (financeiro) {
-    campos._descricao_regra = 'informacoes_referentes_solicitacao_v2'
+    campos._descricao_regra = 'informacoes_referentes_solicitacao_v3'
     campos._descricao_revisada_em = new Date().toISOString()
     campos._descricao_status = financeDescriptionMatch?.value ? 'completa' : 'nao_encontrada'
     campos._descricao_origem = financeDescriptionMatch?.source || ''
@@ -7117,7 +7117,7 @@ function ticketFornecedorForPayment(ticket: AnyRecord) {
 
 function trustedStoredFinanceDescription(ticket: AnyRecord) {
   const campos = ticket?.campos_extraidos && typeof ticket.campos_extraidos === 'object' ? ticket.campos_extraidos : {}
-  if (String(campos?._descricao_regra || '') !== 'informacoes_referentes_solicitacao_v2') return ''
+  if (!['informacoes_referentes_solicitacao_v2', 'informacoes_referentes_solicitacao_v3'].includes(String(campos?._descricao_regra || ''))) return ''
   if (String(campos?._descricao_status || '') !== 'completa') return ''
   return cleanSummaryText(ticket?.pedido || '')
 }
@@ -7631,7 +7631,7 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
       _capex_forcado_em: new Date().toISOString(),
     } : {}),
     ...(financeiro ? {
-      _descricao_regra: 'informacoes_referentes_solicitacao_v2',
+      _descricao_regra: 'informacoes_referentes_solicitacao_v3',
       _descricao_revisada_em: new Date().toISOString(),
       _descricao_status: desc ? 'completa' : 'nao_encontrada',
       _descricao_origem: financeDescriptionMatch?.source || (desc ? String(ticket?.campos_extraidos?._descricao_origem || '') : ''),

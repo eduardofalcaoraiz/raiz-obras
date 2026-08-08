@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 
 from scripts import zeev_capex_sync as sync
 
@@ -57,6 +58,27 @@ class FinanceDescriptionTests(unittest.TestCase):
         self.assertEqual(description, "")
         normalized = {sync.norm_key(name) for name in sync.FINANCE_REQUEST_DESCRIPTION_FIELDS}
         self.assertNotIn(sync.norm_key("Informa\u00e7\u00f5es"), normalized)
+
+    def test_instance_reader_continues_after_metadata_only_response(self):
+        metadata_only = {"id": 193329, "flow": {"id": 299}, "formFields": []}
+        report_with_form = {
+            "id": 193329,
+            "flow": {"id": 299},
+            "formFields": [
+                form_field("informacoesReferentesASolicitacao", "Pagamento da manutencao eletrica"),
+            ],
+        }
+
+        with mock.patch.object(sync, "request_json", return_value=metadata_only), mock.patch.object(
+            sync, "report_instance", return_value=[report_with_form]
+        ) as report_mock:
+            _, fields = sync.instance_fields(193329, [], timeout=10, retries=1)
+
+        self.assertTrue(report_mock.called)
+        self.assertEqual(
+            sync.field_value_by_priority(fields, sync.FINANCE_REQUEST_DESCRIPTION_FIELDS),
+            "Pagamento da manutencao eletrica",
+        )
 
 
 if __name__ == "__main__":
