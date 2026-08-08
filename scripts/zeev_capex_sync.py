@@ -96,7 +96,10 @@ def decode_http_text(raw, content_type=""):
             best_score = score
     return best if best or not body else body.decode("utf-8", errors="replace")
 
-FINANCE_DESCRIPTION_FIELDS = [
+# A descricao de uma solicitacao financeira vem exclusivamente deste campo do
+# formulario Zeev. Descricao fiscal, item e natureza orcamentaria nao sao
+# substitutos validos para o titulo do registro.
+FINANCE_REQUEST_DESCRIPTION_FIELDS = [
     "informacoesReferentesASolicitacao",
     "informacoesReferentesSolicitacao",
     "informacoesReferenteASolicitacao",
@@ -105,19 +108,13 @@ FINANCE_DESCRIPTION_FIELDS = [
     "informacoesDaSolicitacao",
     "informacoesSolicitacao",
     "informacaoSolicitacao",
-    "informacoes",
-    "informacao",
-    "descricaoDaNotaFiscal",
-    "Descri\u00e7\u00e3o da Nota Fiscal",
-    "Descricao da Nota Fiscal",
     "Informacoes referentes a solicitacao",
     "Informacao referente a solicitacao",
     "Informa\u00e7\u00f5es referentes \u00e0 solicita\u00e7\u00e3o",
     "Informa\u00e7\u00f5es referentes a solicita\u00e7\u00e3o",
     "Informacoes referentes \u00e0 solicita\u00e7\u00e3o",
-    "Informa\u00e7\u00f5es",
-    "Informações",
 ]
+FINANCE_DESCRIPTION_FIELDS = FINANCE_REQUEST_DESCRIPTION_FIELDS
 
 PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
     "descricaoMensagemZeev",
@@ -1450,7 +1447,10 @@ def enrich_instance(row):
         name for name in design_fields
         if not any(field_matches(field, [name]) for field in current_fields)
     ]
+    priority_alias_fields = []
     missing_alias_fields = []
+    if financeiro and not field_value_by_priority(current_fields, FINANCE_REQUEST_DESCRIPTION_FIELDS):
+        priority_alias_fields.extend(FINANCE_REQUEST_DESCRIPTION_FIELDS)
     if not has_capex(current_fields, flow_id):
         missing_alias_fields.extend(capex_fields(flow_id))
     if not field_value(current_fields, VALUE_TOTAL_FIELDS):
@@ -1458,8 +1458,6 @@ def enrich_instance(row):
     if financeiro:
         if not field_value(current_fields, unique_fields(FISCAL_NUMBER_FIELDS, GENERIC_FISCAL_NUMBER_FIELDS)):
             missing_alias_fields.extend(unique_fields(FISCAL_NUMBER_FIELDS, GENERIC_FISCAL_NUMBER_FIELDS))
-        if not field_value(current_fields, FINANCE_DESCRIPTION_FIELDS):
-            missing_alias_fields.extend(FINANCE_DESCRIPTION_FIELDS)
     else:
         has_service_description = bool(field_value(current_fields, PURCHASE_SERVICE_DESCRIPTION_FIELDS))
         has_item_description = bool(field_value(current_fields, PURCHASE_ITEM_DESCRIPTION_FIELDS))
@@ -1487,7 +1485,7 @@ def enrich_instance(row):
         missing_alias_fields.extend(env_list(os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "")))
         missing_alias_fields.extend(DOCUMENT_FIELDS)
     max_filtered_fields = env_int("ZEEV_ENRICH_MAX_FILTER_FIELDS", 64, 8, 160)
-    fields = unique_fields(missing_design_fields, missing_alias_fields)[:max_filtered_fields]
+    fields = unique_fields(priority_alias_fields, missing_design_fields, missing_alias_fields)[:max_filtered_fields]
     single_fallback_remaining = env_int("ZEEV_ENRICH_SINGLE_FIELD_FALLBACK_LIMIT", 4, 0, 16)
     request_timeout = env_int("ZEEV_ENRICH_REQUEST_TIMEOUT_SECONDS", 35, 8, 90)
     request_retries = env_int("ZEEV_ENRICH_REQUEST_RETRIES", 1, 1, 3)
@@ -2383,7 +2381,7 @@ def card_summary_cascade(text, items=None, compra=False):
 
 def ticket_description(fields, items, financeiro=False, compra=False):
     if financeiro:
-        return field_value_by_priority(fields, FINANCE_DESCRIPTION_FIELDS) or finance_fallback_description(fields)
+        return field_value_by_priority(fields, FINANCE_REQUEST_DESCRIPTION_FIELDS)
     if compra:
         justification = field_value_by_priority(fields, PURCHASE_JUSTIFICATION_FIELDS)
         service_desc = field_value_by_priority(fields, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
@@ -2428,7 +2426,7 @@ def build_ticket(row):
     atual = current_task(tasks)
     situacao, realizado = suggested_capex_status(row, ready)
     campos_extraidos = fields_object(fields)
-    finance_description, finance_description_source = field_value_with_source_by_priority(fields, FINANCE_DESCRIPTION_FIELDS) if financeiro else ("", "")
+    finance_description, finance_description_source = field_value_with_source_by_priority(fields, FINANCE_REQUEST_DESCRIPTION_FIELDS) if financeiro else ("", "")
     resumo_card, resumo_source = card_summary_cascade(pedido, items=itens, compra=compra)
     if resumo_card:
         campos_extraidos["_resumo_card"] = resumo_card
@@ -2438,11 +2436,13 @@ def build_ticket(row):
         campos_extraidos["_descricao_status"] = "parcial"
         campos_extraidos["_descricao_origem"] = "descricaoDoServico"
         campos_extraidos["_descricao_alerta"] = "O Zeev retornou a descricao do servico limitada a 100 caracteres. Abra o Ticket Raiz para conferir o texto integral."
-    if financeiro and pedido:
-        campos_extraidos["_descricao_status"] = "completa" if finance_description else "referencia_estruturada"
-        campos_extraidos["_descricao_origem"] = finance_description_source or "campos_estruturados_zeev"
+    if financeiro:
+        campos_extraidos["_descricao_regra"] = "informacoes_referentes_solicitacao_v2"
+        campos_extraidos["_descricao_revisada_em"] = datetime.now(timezone.utc).isoformat()
+        campos_extraidos["_descricao_status"] = "completa" if finance_description else "nao_encontrada"
+        campos_extraidos["_descricao_origem"] = finance_description_source or ""
         if not finance_description:
-            campos_extraidos["_descricao_alerta"] = "O formulario Zeev nao retornou um campo descritivo; a referencia foi montada somente com item, fornecedor e documento informados no ticket."
+            campos_extraidos["_descricao_alerta"] = "O campo Informacoes referentes a solicitacao nao foi retornado pelo Zeev."
     enrichment_errors = list(row.get("__enrichmentErrors") or [])
     if descricao_truncada:
         enrichment_errors.append({
@@ -2513,7 +2513,9 @@ def generic_ticket_from_instance(row, reason=""):
     result_kind = ticket_result_kind(row)
     ready = delivery_ready(row)
     valor_final = valor if valor and result_kind not in ("cancelado", "rejeitado") and (ready or financeiro) else None
-    pedido = ticket_description(fields, itens, financeiro=financeiro, compra=compra) or row.get("requestName") or f"Ticket Raiz {row.get('id') or ''}"
+    pedido = ticket_description(fields, itens, financeiro=financeiro, compra=compra)
+    if not pedido and not financeiro:
+        pedido = row.get("requestName") or f"Ticket Raiz {row.get('id') or ''}"
     atual = current_task(tasks)
     situacao, realizado = suggested_capex_status(row, ready)
     campos_extraidos = fields_object(fields)
@@ -5261,6 +5263,121 @@ def refresh_payment_statuses():
     return out
 
 
+def finance_description_needs_repair(row, force=False):
+    if force:
+        return True
+    campos = row.get("campos_extraidos") if isinstance(row.get("campos_extraidos"), dict) else {}
+    return str(campos.get("_descricao_regra") or "") != "informacoes_referentes_solicitacao_v2"
+
+
+def patch_registered_finance_description(ticket_id, description):
+    if not description:
+        return {"capex": 0, "payments": 0}
+    capex_rows = supabase_rest(
+        f"/capex_itens?or=(ticket_raiz_instance_id.eq.{int(ticket_id)},referencia.eq.{int(ticket_id)})",
+        method="PATCH",
+        payload={"pedido": description},
+        timeout=90,
+        prefer="return=representation",
+    )
+    payment_rows = supabase_rest(
+        f"/pagamentos?ticket_raiz=eq.{int(ticket_id)}",
+        method="PATCH",
+        payload={"ref": description},
+        timeout=90,
+        prefer="return=representation",
+    )
+    return {
+        "capex": len(capex_rows) if isinstance(capex_rows, list) else 0,
+        "payments": len(payment_rows) if isinstance(payment_rows, list) else 0,
+    }
+
+
+def repair_finance_descriptions():
+    limit = max(1, min(int(os.environ.get("ZEEV_FINANCE_DESCRIPTION_REPAIR_LIMIT", os.environ.get("ZEEV_BACKFILL_LIMIT", "40")) or "40"), 160))
+    cycles = max(1, min(int(os.environ.get("ZEEV_FINANCE_DESCRIPTION_REPAIR_CYCLES", "1") or "1"), 12))
+    force = os.environ.get("ZEEV_FINANCE_DESCRIPTION_REPAIR_FORCE", "false").lower() == "true"
+    target_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
+    target_set = set(target_ids)
+    pending_only = os.environ.get("ZEEV_FINANCE_DESCRIPTION_REPAIR_PENDING_ONLY", "false").lower() == "true"
+    select = ",".join([
+        "id", "zeev_instance_id", "flow_id", "flow_name", "request_name", "status", "pedido",
+        "start_date_time", "campos_extraidos", "raw_fields", "raw_tasks", "raw_instance",
+    ])
+    filters = [f"select={select}"]
+    if pending_only:
+        filters.append("status=eq.pendente")
+    if target_ids:
+        filters.append(f"zeev_instance_id=in.({','.join(map(str, target_ids))})")
+    filters.append("order=start_date_time.desc.nullslast,id.desc")
+    rows = supabase_rest_all(
+        "/capex_zeev_solicitacoes?" + "&".join(filters),
+        page_size=1000,
+        timeout=90,
+    )
+    candidates = [
+        row for row in rows
+        if row_ticket_id(row)
+        and (not target_set or row_ticket_id(row) in target_set)
+        and is_finance_row(row)
+        and finance_description_needs_repair(row, force=force)
+    ]
+    out = {
+        "ok": True,
+        "mode": "repair-finance-descriptions",
+        "descriptionRule": "informacoes_referentes_solicitacao_v2",
+        "scannedRows": len(rows),
+        "financeCandidatesTotal": len(candidates),
+        "processed": 0,
+        "descriptionsFound": 0,
+        "descriptionsMissing": 0,
+        "registeredPatched": 0,
+        "paymentRefsPatched": 0,
+        "tickets": [],
+        "missing": [],
+        "errors": [],
+    }
+    for cycle in range(cycles):
+        batch = candidates[cycle * limit:(cycle + 1) * limit]
+        if not batch:
+            break
+        batch_ids = [row_ticket_id(row) for row in batch]
+        try:
+            tickets = sync_ids(batch_ids, rescue_docs=False)
+            if tickets:
+                ingest(tickets, notify=False, backfill_limit=0, skip_document_backfill=True)
+        except Exception as exc:
+            out["ok"] = False
+            out["errors"].append({"cycle": cycle + 1, "error": str(exc)[:700]})
+            continue
+        built_by_id = {int(ticket.get("zeev_instance_id") or 0): ticket for ticket in tickets}
+        for tr in batch_ids:
+            out["processed"] += 1
+            ticket = built_by_id.get(int(tr))
+            if not ticket:
+                out["descriptionsMissing"] += 1
+                if len(out["missing"]) < 120:
+                    out["missing"].append({"tr": tr, "reason": "ticket_financeiro_nao_retornado_pelo_zeev"})
+                continue
+            description = str(ticket.get("pedido") or "").strip()
+            if not description:
+                out["descriptionsMissing"] += 1
+                if len(out["missing"]) < 120:
+                    out["missing"].append({"tr": tr, "reason": "campo_informacoes_referentes_solicitacao_vazio"})
+                continue
+            out["descriptionsFound"] += 1
+            try:
+                patched = patch_registered_finance_description(tr, description)
+                out["registeredPatched"] += int(patched.get("capex") or 0)
+                out["paymentRefsPatched"] += int(patched.get("payments") or 0)
+            except Exception as exc:
+                out["ok"] = False
+                out["errors"].append({"tr": tr, "error": str(exc)[:700]})
+            if len(out["tickets"]) < 160:
+                out["tickets"].append({"tr": tr, "description": description})
+    return out
+
+
 def default_window():
     now = datetime.now(business_tz())
     start = now - timedelta(hours=float(os.environ.get("ZEEV_SYNC_OVERLAP_HOURS", "72")))
@@ -5364,6 +5481,10 @@ def main():
         return
     if mode in {"repair-pending-fiscal-metadata", "repair-pending-fiscal", "repair-pending-fiscal-fields"}:
         result = repair_pending_fiscal_metadata()
+        print(json.dumps(result, ensure_ascii=False))
+        return
+    if mode in {"repair-finance-descriptions", "repair-pending-descriptions", "repair-descriptions"}:
+        result = repair_finance_descriptions()
         print(json.dumps(result, ensure_ascii=False))
         return
     if mode in {"repair-fiscal-metadata", "repair-all-fiscal-metadata", "repair-fiscal"}:

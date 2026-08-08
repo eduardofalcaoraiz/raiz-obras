@@ -8937,6 +8937,22 @@ const CAPEX_ZEEV_PURCHASE_ITEM_FIELDS=[
   'material','materiais','descricaoItem','descricao do item','listaParaCotacao','lista de itens para cotacao',
   'lista para cotacao','descricao','detalhamento'
 ];
+const CAPEX_ZEEV_FINANCE_REQUEST_FIELDS=[
+  'informacoesReferentesASolicitacao','informacoesReferentesSolicitacao','informacoesReferenteASolicitacao',
+  'informacaoReferenteASolicitacao','informacaoReferenteSolicitacao','informacoesDaSolicitacao',
+  'informacoesSolicitacao','informacaoSolicitacao','Informacoes referentes a solicitacao',
+  'Informacao referente a solicitacao','Informacoes referentes a solicitacao'
+];
+
+function capexZeevTrustedStoredFinanceDescription(z){
+  const stored=String(z?.pedido||'').trim();
+  const regra=String(z?.campos_extraidos?._descricao_regra||'');
+  const status=String(z?.campos_extraidos?._descricao_status||'');
+  if(stored&&regra==='informacoes_referentes_solicitacao_v2'&&status==='completa')return stored;
+  const source=capexNormText(z?.campos_extraidos?._descricao_origem||'');
+  const trusted=CAPEX_ZEEV_FINANCE_REQUEST_FIELDS.some(name=>capexNormText(name)===source);
+  return stored&&trusted?stored:'';
+}
 
 function capexZeevItemSummary(z){
   const itens=Array.isArray(z?.itens_json)?z.itens_json:[];
@@ -8965,10 +8981,8 @@ function capexZeevDescricaoLancamento(z){
     if(justification&&(!itemText||capexDescriptionScore(justification)>capexDescriptionScore(service)+35))return justification;
     return capexBestDescription([stored,service,itemText,itemField,justification]);
   }
-  return stored||capexZeevAnyField(z,[
-    'informacoesReferentesASolicitacao','informacoes referentes a solicitacao','informacoesReferentesSolicitacao',
-    'informacoesDaSolicitacao','informacoesSolicitacao','descricaoSolicitacao','solicitacao','pedido','objeto','resumo','descricao'
-  ])||stored;
+  return capexZeevAnyField(z,CAPEX_ZEEV_FINANCE_REQUEST_FIELDS)
+    ||capexZeevTrustedStoredFinanceDescription(z);
 }
 
 function capexZeevFirstItem(z){

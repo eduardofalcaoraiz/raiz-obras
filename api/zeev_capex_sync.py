@@ -169,6 +169,11 @@ class handler(BaseHTTPRequestHandler):
             os.environ["ZEEV_SYNC_END"] = str(payload["end"])
         else:
             os.environ.pop("ZEEV_SYNC_END", None)
+        repair_limit = _first(payload, "limit", "backfillLimit", "backfill_limit")
+        if repair_limit:
+            os.environ["ZEEV_FINANCE_DESCRIPTION_REPAIR_LIMIT"] = str(repair_limit)
+        else:
+            os.environ.pop("ZEEV_FINANCE_DESCRIPTION_REPAIR_LIMIT", None)
         ticket_ids = _extract_ticket_ids(payload)
         if isinstance(ticket_ids, (list, tuple)):
             os.environ["ZEEV_TICKET_IDS"] = ",".join(str(x) for x in ticket_ids)
@@ -208,6 +213,10 @@ class handler(BaseHTTPRequestHandler):
                 return
             if mode in {"refresh-payment-statuses", "refresh-payments", "payment-statuses"}:
                 result = mod.refresh_payment_statuses()
+                _json(self, 200, result)
+                return
+            if mode in {"repair-finance-descriptions", "repair-pending-descriptions", "repair-descriptions"}:
+                result = mod.repair_finance_descriptions()
                 _json(self, 200, result)
                 return
             if mode in {"retro", "deep", "deep-retro"}:

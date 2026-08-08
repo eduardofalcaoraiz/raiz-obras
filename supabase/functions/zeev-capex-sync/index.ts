@@ -10,7 +10,9 @@ const DEFAULT_FLOW_IDS = [299, 275, 263, 220, 110, 102, 300, 365, 152, 151]
 const FINANCE_FLOW_IDS = new Set([299, 275, 263, 220, 152, 151, 110])
 const PURCHASE_FLOW_IDS = new Set([102, 300, 365])
 const CAPEX_FIELDS = ['investimentoCAPEX', 'cAPEX', 'CAPEX', 'capex']
-const FINANCE_DESCRIPTION_FIELDS = [
+// Finance titles must come from the request-information field. Fiscal
+// description, item and budget nature are different data and never fallbacks.
+const FINANCE_REQUEST_DESCRIPTION_FIELDS = [
   'informacoesReferentesASolicitacao',
   'informacoesReferentesSolicitacao',
   'informacoesReferenteASolicitacao',
@@ -19,19 +21,13 @@ const FINANCE_DESCRIPTION_FIELDS = [
   'informacoesDaSolicitacao',
   'informacoesSolicitacao',
   'informacaoSolicitacao',
-  'informacoes',
-  'informacao',
-  'descricaoDaNotaFiscal',
-  'Descri\u00e7\u00e3o da Nota Fiscal',
-  'Descricao da Nota Fiscal',
   'Informacoes referentes a solicitacao',
   'Informacao referente a solicitacao',
   'Informa\u00e7\u00f5es referentes \u00e0 solicita\u00e7\u00e3o',
   'Informa\u00e7\u00f5es referentes a solicita\u00e7\u00e3o',
   'Informacoes referentes \u00e0 solicita\u00e7\u00e3o',
-  'Informa\u00e7\u00f5es',
-  'Informações',
 ]
+const FINANCE_DESCRIPTION_FIELDS = FINANCE_REQUEST_DESCRIPTION_FIELDS
 const PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
   'descricaoMensagemZeev',
   'descricaoDoServico',
@@ -443,6 +439,7 @@ const PURCHASE_ENRICH_FIELDS = [
 
 const FINANCE_ENRICH_FIELDS = [
   'investimentoCAPEX',
+  ...FINANCE_REQUEST_DESCRIPTION_FIELDS,
   'valorTotalDoPagamento',
   'valorTotalDoPagamento01',
   'valorTotalPagamento',
@@ -1730,7 +1727,7 @@ async function cardSummaryCascade(text: string, items: AnyRecord[], compra: bool
 }
 
 function ticketDescription(fmap: Map<string, AnyRecord[]>, items: AnyRecord[], financeiro: boolean, compra: boolean) {
-  if (financeiro) return firstField(fmap, FINANCE_DESCRIPTION_FIELDS) || financeFallbackDescription(fmap)
+  if (financeiro) return firstField(fmap, FINANCE_REQUEST_DESCRIPTION_FIELDS)
   if (compra) {
     const justification = firstField(fmap, PURCHASE_JUSTIFICATION_FIELDS)
     const serviceDesc = firstField(fmap, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
@@ -1798,7 +1795,7 @@ async function buildTicket(row: AnyRecord) {
   const categoria = firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra'])
   const pagamento = extractPagamento(fmap, financeiro)
   const campos = fieldsObject(fields)
-  const financeDescriptionMatch = financeiro ? firstFieldMatch(fmap, FINANCE_DESCRIPTION_FIELDS) : null
+  const financeDescriptionMatch = financeiro ? firstFieldMatch(fmap, FINANCE_REQUEST_DESCRIPTION_FIELDS) : null
   const resumo = await cardSummaryCascade(desc || '', itens, compra, { skipAi: Boolean(row.__skipSummaryAi) })
   if (resumo.text) {
     campos._resumo_card = resumo.text
@@ -1810,10 +1807,12 @@ async function buildTicket(row: AnyRecord) {
     campos._descricao_origem = 'descricaoDoServico'
     campos._descricao_alerta = 'O Zeev retornou a descricao do servico limitada a 100 caracteres. Abra o Ticket Raiz para conferir o texto integral.'
   }
-  if (financeiro && desc) {
-    campos._descricao_status = financeDescriptionMatch ? 'completa' : 'referencia_estruturada'
-    campos._descricao_origem = financeDescriptionMatch?.source || 'campos_estruturados_zeev'
-    if (!financeDescriptionMatch) campos._descricao_alerta = 'O formulario Zeev nao retornou um campo descritivo; a referencia foi montada somente com item, fornecedor e documento informados no ticket.'
+  if (financeiro) {
+    campos._descricao_regra = 'informacoes_referentes_solicitacao_v2'
+    campos._descricao_revisada_em = new Date().toISOString()
+    campos._descricao_status = financeDescriptionMatch?.value ? 'completa' : 'nao_encontrada'
+    campos._descricao_origem = financeDescriptionMatch?.source || ''
+    if (!financeDescriptionMatch?.value) campos._descricao_alerta = 'O campo Informacoes referentes a solicitacao nao foi retornado pelo Zeev.'
   }
   const setor = financeiro ? 'FINANCEIRO' : 'COMPRAS'
   const { situacao, realizado } = suggestedCapexStatus(row, conferir)
@@ -2236,7 +2235,7 @@ async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
     })
   }
 
-  const paymentRows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz')
+  const paymentRows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz,ref')
   let paymentMatched = 0
   let paymentLinked = 0
   for (const row of paymentRows || []) {
@@ -2245,6 +2244,14 @@ async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
     const ticket = byTicket.get(key)
     if (!key || !ticket) continue
     paymentMatched++
+    const financeDescription = isFinanceiro(ticket) ? ticketDescriptionForPayment(ticket) : ''
+    if (financeDescription && financeDescription !== String(row.ref || '').trim()) {
+      await rest(`/pagamentos?id=eq.${Number(row.id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ ref: financeDescription }),
+      })
+    }
     await rest(`/capex_zeev_solicitacoes?zeev_instance_id=eq.${Number(ticket.zeev_instance_id)}&status=eq.pendente`, {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
@@ -2310,7 +2317,7 @@ async function reconcileRegisteredTicketsTargeted(tickets: AnyRecord[]) {
   const paymentRows: AnyRecord[] = []
   for (let i = 0; i < ids.length; i += 120) {
     const chunk = ids.slice(i, i + 120).join(',')
-    const rows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz&ticket_raiz=in.(${chunk})`)
+    const rows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz,ref&ticket_raiz=in.(${chunk})`)
     paymentRows.push(...(rows || []))
   }
 
@@ -2322,6 +2329,14 @@ async function reconcileRegisteredTicketsTargeted(tickets: AnyRecord[]) {
     const ticket = byTicket.get(key)
     if (!key || !ticket) continue
     paymentMatched++
+    const financeDescription = isFinanceiro(ticket) ? ticketDescriptionForPayment(ticket) : ''
+    if (financeDescription && financeDescription !== String(row.ref || '').trim()) {
+      await rest(`/pagamentos?id=eq.${Number(row.id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ ref: financeDescription }),
+      })
+    }
     await rest(`/capex_zeev_solicitacoes?zeev_instance_id=eq.${Number(ticket.zeev_instance_id)}&status=eq.pendente`, {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
@@ -4940,6 +4955,7 @@ function leanFieldsForFlow(flow: number) {
 function forcedPendingFieldsForFlow(flow: number) {
   const base = [
     ...capexFieldsForFlow(flow),
+    ...FINANCE_REQUEST_DESCRIPTION_FIELDS,
     ...EXTRA_FIELDS,
     ...VALUE_TOTAL_FIELDS,
     ...PAYMENT_TOTAL_FIELDS,
@@ -7098,12 +7114,23 @@ function ticketFornecedorForPayment(ticket: AnyRecord) {
     || `Ticket Raiz ${ticket?.zeev_instance_id || ''}`.trim()
 }
 
+function trustedStoredFinanceDescription(ticket: AnyRecord) {
+  const campos = ticket?.campos_extraidos && typeof ticket.campos_extraidos === 'object' ? ticket.campos_extraidos : {}
+  if (String(campos?._descricao_regra || '') !== 'informacoes_referentes_solicitacao_v2') return ''
+  if (String(campos?._descricao_status || '') !== 'completa') return ''
+  return cleanSummaryText(ticket?.pedido || '')
+}
+
 function ticketDescriptionForPayment(ticket: AnyRecord) {
   const fmap = ticketFieldMap(ticket)
   const items = Array.isArray(ticket?.itens_json) ? ticket.itens_json : []
+  if (isFinanceiro(ticket)) {
+    return cleanSummaryText(ticketDescription(fmap, items, true, false))
+      || trustedStoredFinanceDescription(ticket)
+  }
   return cleanSummaryText(ticket?.pedido || '')
     || cleanSummaryText(ticketDescription(fmap, items, isFinanceiro(ticket), isCompra(ticket)))
-    || cleanSummaryText(ticketFirstField(ticket, [...FINANCE_DESCRIPTION_FIELDS, ...PURCHASE_JUSTIFICATION_FIELDS, ...PURCHASE_SERVICE_DESCRIPTION_FIELDS, ...PURCHASE_ITEM_DESCRIPTION_FIELDS, 'descricao', 'pedido', 'solicitacao', 'objeto', 'resumo']))
+    || cleanSummaryText(ticketFirstField(ticket, [...PURCHASE_JUSTIFICATION_FIELDS, ...PURCHASE_SERVICE_DESCRIPTION_FIELDS, ...PURCHASE_ITEM_DESCRIPTION_FIELDS, 'descricao', 'pedido', 'solicitacao', 'objeto', 'resumo']))
     || ticket?.request_name
     || `Ticket Raiz ${ticket?.zeev_instance_id || ''}`.trim()
 }
@@ -7455,7 +7482,7 @@ function capexRegisteredPatchFromTicket(ticket: AnyRecord, row: AnyRecord = {}) 
 
   const pedido = ticketDescriptionForPayment(ticket)
   const currentPedido = String(row.pedido || '').trim()
-  if (pedido && (!currentPedido || /^ticket raiz\s+\d+$/i.test(currentPedido))) patch.pedido = pedido
+  if (pedido && (isFinanceiro(ticket) || !currentPedido || /^ticket raiz\s+\d+$/i.test(currentPedido))) patch.pedido = pedido
 
   return patch
 }
@@ -7583,12 +7610,16 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
   const manuallyForced = !zeevCapex.name
   const itens = Array.isArray(ticket?.itens_json) && ticket.itens_json.length ? ticket.itens_json : extractItems(fields)
   const valor = pickTicketValue(fmap, itens, financeiro) || Number(ticket?.valor_final || ticket?.valor || ticket?.pagamento_json?.valor_total || 0)
-  const financeDescriptionMatch = financeiro ? firstFieldMatch(fmap, FINANCE_DESCRIPTION_FIELDS) : null
-  const financeStructuredFallback = financeiro && !financeDescriptionMatch?.value ? financeFallbackDescription(fmap) : ''
-  const desc = cleanSummaryText(ticket?.pedido || '')
-    || cleanSummaryText(ticketDescription(fmap, itens, financeiro, compra))
-    || cleanSummaryText(ticketDescriptionForPayment(ticket))
-    || String(ticket?.request_name || raw?.requestName || `Ticket Raiz ${ticket?.zeev_instance_id || raw?.id || ''}`).trim()
+  const financeDescriptionMatch = financeiro ? firstFieldMatch(fmap, FINANCE_REQUEST_DESCRIPTION_FIELDS) : null
+  const strictFinanceDescription = financeiro
+    ? cleanSummaryText(financeDescriptionMatch?.value || '') || trustedStoredFinanceDescription(ticket)
+    : ''
+  const desc = financeiro
+    ? strictFinanceDescription
+    : cleanSummaryText(ticket?.pedido || '')
+      || cleanSummaryText(ticketDescription(fmap, itens, false, compra))
+      || cleanSummaryText(ticketDescriptionForPayment(ticket))
+      || String(ticket?.request_name || raw?.requestName || `Ticket Raiz ${ticket?.zeev_instance_id || raw?.id || ''}`).trim()
   const conferir = valueIsFinalForPurchase(raw || ticket, tasks)
   const status = suggestedCapexStatus(raw || ticket, conferir)
   const campos = {
@@ -7598,12 +7629,12 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
       _capex_forcado_motivo: reason || 'Inclusao manual solicitada pelo usuario.',
       _capex_forcado_em: new Date().toISOString(),
     } : {}),
-    ...(financeiro && desc ? {
-      _descricao_status: financeDescriptionMatch?.value ? 'completa' : 'referencia_estruturada',
-      _descricao_origem: financeDescriptionMatch?.source || (financeStructuredFallback ? 'campos_estruturados_zeev' : 'registro_existente'),
-      ...(!financeDescriptionMatch?.value && financeStructuredFallback ? {
-        _descricao_alerta: 'O Zeev nao retornou um campo descritivo preenchido; a referencia foi montada somente com campos estruturados do ticket.',
-      } : {}),
+    ...(financeiro ? {
+      _descricao_regra: 'informacoes_referentes_solicitacao_v2',
+      _descricao_revisada_em: new Date().toISOString(),
+      _descricao_status: desc ? 'completa' : 'nao_encontrada',
+      _descricao_origem: financeDescriptionMatch?.source || (desc ? String(ticket?.campos_extraidos?._descricao_origem || '') : ''),
+      ...(!desc ? { _descricao_alerta: 'O campo Informacoes referentes a solicitacao nao foi retornado pelo Zeev.' } : {}),
     } : {}),
   }
   return {

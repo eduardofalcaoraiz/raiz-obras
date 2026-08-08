@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "incremental, id-sweep, correction-sweep, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, repair-capex-registered-values, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-pending-fiscal-metadata, repair-fiscal-metadata, repair-payment-fiscal-fields ou refresh-payment-statuses"
+        description: "incremental, id-sweep, correction-sweep, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, repair-capex-registered-values, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-finance-descriptions, repair-pending-fiscal-metadata, repair-fiscal-metadata, repair-payment-fiscal-fields ou refresh-payment-statuses"
         required: true
         default: "incremental"
       start:
@@ -180,6 +180,9 @@ jobs:
           ZEEV_PENDING_FISCAL_REPAIR_STALE_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '24' }}
           ZEEV_PENDING_FISCAL_REPAIR_REFRESH: "true"
           ZEEV_PENDING_FISCAL_REPAIR_VIA_EDGE: "false"
+          ZEEV_FINANCE_DESCRIPTION_REPAIR_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '40' }}
+          ZEEV_FINANCE_DESCRIPTION_REPAIR_CYCLES: "1"
+          ZEEV_FINANCE_DESCRIPTION_REPAIR_PENDING_ONLY: "false"
           ZEEV_BACKFILL_FILE_LIMIT: "4"
           ZEEV_ATTACH_ALL_TICKET_DOCS: "1"
           ZEEV_DOC_ATTACH_PER_TICKET_LIMIT: "6"
