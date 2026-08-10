@@ -7501,12 +7501,17 @@ function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: st
   }
 }
 
-function findTargetObra(obras: AnyRecord[], name: string) {
+function findTargetObra(obras: AnyRecord[], name: string, subtitle = '') {
   const key = normKey(name)
+  const subtitleKey = normKey(subtitle)
   if (!key) return null
   const exact = obras.filter((obra) => normKey(obra?.nome) === key)
   if (exact.length === 1) return exact[0]
-  if (exact.length > 1) throw new Error(`Mais de uma obra encontrada com o nome "${name}".`)
+  if (exact.length > 1 && subtitleKey) {
+    const bySubtitle = exact.filter((obra) => normKey(obra?.subtitulo_obra) === subtitleKey)
+    if (bySubtitle.length === 1) return bySubtitle[0]
+  }
+  if (exact.length > 1) throw new Error(`Mais de uma obra encontrada com o nome "${name}". Informe obraId ou subtituloObra.`)
   const partial = obras.filter((obra) => {
     const n = normKey(obra?.nome)
     return n && (n.includes(key) || key.includes(n))
@@ -8069,16 +8074,20 @@ async function probeZeevDocDownload(input: AnyRecord = {}) {
 async function registerObraPayments(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const preferredFlow = Number(input.flowId || input.flow_id || 0) || 0
+  const obraId = Number(input.obraId || input.obra_id || input.targetObraId || input.target_obra_id || 0) || 0
   const obraName = String(input.obraName || input.targetObra || input.target_obra || input.obra || '').trim()
+  const obraSubtitle = String(input.subtituloObra || input.subtitulo_obra || input.targetObraSubtitle || input.target_obra_subtitle || '').trim()
   const escopo = input.escopo === 'extra' || input.targetEscopo === 'extra' || input.target_escopo === 'extra' ? 'extra' : 'obra'
   const requestedFileLimit = input.fileLimit ?? input.file_limit ?? 5
   const fileLimit = Math.max(0, Math.min(Number(requestedFileLimit), 40))
   if (!ticketIds.length) throw new Error('Nenhum TR informado para registrar como pagamento.')
-  if (!obraName) throw new Error('Informe a obra destino para registrar os pagamentos.')
+  if (!obraId && !obraName) throw new Error('Informe a obra destino para registrar os pagamentos.')
 
-  const obras = await restAll('/obras?select=id,nome,marca,unidades_obra')
-  const obra = findTargetObra(obras, obraName)
-  if (!obra) throw new Error(`Obra destino nao encontrada: ${obraName}`)
+  const obras = await restAll('/obras?select=id,nome,marca,unidades_obra,subtitulo_obra')
+  const obra = obraId
+    ? obras.find((candidate) => Number(candidate?.id) === obraId)
+    : findTargetObra(obras, obraName, obraSubtitle)
+  if (!obra) throw new Error(`Obra destino nao encontrada: ${obraId || obraName}`)
 
   const existingRows = await rest(`/pagamentos?select=id,obra_id,ticket_raiz,nf_num,nf_tipo,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs&ticket_raiz=in.(${ticketIds.join(',')})`)
   const existingByTicket = new Map<string, AnyRecord[]>()
