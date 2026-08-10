@@ -14,6 +14,31 @@ def form_field(name, value, label=""):
 
 
 class FinanceDescriptionTests(unittest.TestCase):
+    def test_single_installment_uses_next_payment_as_total(self):
+        fields = [
+            form_field("qtdParcelas", "1"),
+            form_field("valorDoProximoPagamento", "7.760,00"),
+        ]
+
+        self.assertEqual(sync.pick_ticket_value(fields, [], financeiro=True), 7760.0)
+
+    def test_multiple_installments_do_not_use_next_payment_as_total(self):
+        fields = [
+            form_field("qtdParcelas", "3"),
+            form_field("valorDoProximoPagamento", "2.000,00"),
+        ]
+
+        self.assertEqual(sync.pick_ticket_value(fields, [], financeiro=True), 0.0)
+
+    def test_explicit_payment_total_wins_over_next_payment(self):
+        fields = [
+            form_field("qtdParcelas", "3"),
+            form_field("valorDoProximoPagamento", "2.000,00"),
+            form_field("valorTotalDoPagamento", "6.000,00"),
+        ]
+
+        self.assertEqual(sync.pick_ticket_value(fields, [], financeiro=True), 6000.0)
+
     def test_request_information_wins_over_fiscal_and_item_descriptions(self):
         fields = [
             form_field("descricaoDaNotaFiscal", "Servicos executados conforme NF 9981"),

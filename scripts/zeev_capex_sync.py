@@ -202,6 +202,16 @@ PAYMENT_TOTAL_FIELDS = [
     "valor a pagar",
 ]
 
+NEXT_PAYMENT_VALUE_FIELDS = [
+    "valorDoProximoPagamento", "valor do proximo pagamento",
+    "valor do pr\u00f3ximo pagamento", "Valor do pr\u00f3ximo pagamento",
+]
+
+INSTALLMENT_COUNT_FIELDS = [
+    "qtdParcelas", "quantidadeDeParcelas", "quantidade de parcelas",
+    "n\u00famero de parcelas", "numero de parcelas",
+]
+
 VALUE_TOTAL_FIELDS = [
     *PAYMENT_TOTAL_FIELDS,
     "valorFinal", "valor final", "valor final da compra", "valor final do pedido",
@@ -1531,6 +1541,9 @@ def enrich_instance(row):
         missing_alias_fields.extend(capex_fields(flow_id))
     if not field_value(current_fields, VALUE_TOTAL_FIELDS):
         missing_alias_fields.extend(VALUE_TOTAL_FIELDS)
+        if financeiro:
+            missing_alias_fields.extend(NEXT_PAYMENT_VALUE_FIELDS)
+            missing_alias_fields.extend(INSTALLMENT_COUNT_FIELDS)
     if financeiro:
         if not field_value(current_fields, unique_fields(FISCAL_NUMBER_FIELDS, GENERIC_FISCAL_NUMBER_FIELDS)):
             missing_alias_fields.extend(unique_fields(FISCAL_NUMBER_FIELDS, GENERIC_FISCAL_NUMBER_FIELDS))
@@ -1718,6 +1731,12 @@ def pick_ticket_value(fields, items, financeiro=False):
     explicit = money_by_priority(fields, PAYMENT_TOTAL_FIELDS)
     if explicit:
         return explicit
+    if financeiro:
+        installment_count = money_by_priority(fields, INSTALLMENT_COUNT_FIELDS)
+        if installment_count == 1:
+            next_payment = money_by_priority(fields, NEXT_PAYMENT_VALUE_FIELDS)
+            if next_payment:
+                return next_payment
     items_total = item_total_sum(items)
     if items_total:
         return items_total

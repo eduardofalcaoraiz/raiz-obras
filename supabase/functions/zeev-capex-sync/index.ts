@@ -147,6 +147,21 @@ const PAYMENT_TOTAL_FIELDS = [
   'valor a pagar',
 ]
 
+const NEXT_PAYMENT_VALUE_FIELDS = [
+  'valorDoProximoPagamento',
+  'valor do proximo pagamento',
+  'valor do pr\u00f3ximo pagamento',
+  'Valor do pr\u00f3ximo pagamento',
+]
+
+const INSTALLMENT_COUNT_FIELDS = [
+  'qtdParcelas',
+  'quantidadeDeParcelas',
+  'quantidade de parcelas',
+  'n\u00famero de parcelas',
+  'numero de parcelas',
+]
+
 const VALUE_TOTAL_FIELDS = [
   ...PAYMENT_TOTAL_FIELDS,
   'valorFinal',
@@ -440,6 +455,8 @@ const PURCHASE_ENRICH_FIELDS = [
 const FINANCE_ENRICH_FIELDS = [
   'investimentoCAPEX',
   ...FINANCE_REQUEST_DESCRIPTION_FIELDS,
+  ...NEXT_PAYMENT_VALUE_FIELDS,
+  ...INSTALLMENT_COUNT_FIELDS,
   'valorTotalDoPagamento',
   'valorTotalDoPagamento01',
   'valorTotalPagamento',
@@ -1236,6 +1253,10 @@ function itemsTotal(items: AnyRecord[]) {
 function pickTicketValue(fmap: Map<string, AnyRecord[]>, items: AnyRecord[], financeiro: boolean) {
   const explicit = moneyByPriority(fmap, PAYMENT_TOTAL_FIELDS)
   if (explicit) return explicit
+  if (financeiro && moneyByPriority(fmap, INSTALLMENT_COUNT_FIELDS) === 1) {
+    const nextPayment = moneyByPriority(fmap, NEXT_PAYMENT_VALUE_FIELDS)
+    if (nextPayment) return nextPayment
+  }
   const totalItems = itemsTotal(items)
   if (totalItems) return totalItems
   return moneyByPriority(fmap, [...VALUE_TOTAL_FIELDS, ...ITEM_TOTAL_FIELDS])
