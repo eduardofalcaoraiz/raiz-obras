@@ -939,6 +939,13 @@ function normKey(value: unknown) {
   return norm(value).replace(/[^a-z0-9]+/g, '')
 }
 
+function canonicalCapexUnitName(value: unknown) {
+  const raw = String(value || '').trim()
+  const key = normKey(raw)
+  if (key === 'matrizbanguexpansao' || key === 'matrizeducacaobanguexpansao') return 'MATRIZ EDUCAÇÃO - BANGU'
+  return raw
+}
+
 function fieldNames(field: AnyRecord) {
   return [field?.name, field?.label, field?.title, field?.caption].filter((x) => String(x || '').trim()).map((x) => String(x))
 }
@@ -1894,7 +1901,7 @@ async function buildTicket(row: AnyRecord) {
     valor: valor || null,
     valor_final: valorFinal,
     valor_status: valorStatus,
-    unidade: unidade || null,
+    unidade: canonicalCapexUnitName(unidade) || null,
     marca: marca || null,
     pedido: desc || null,
     categoria_capex: categoria || null,
@@ -5442,7 +5449,7 @@ function genericZeevTicket(enriched: AnyRecord, fallback: AnyRecord = {}) {
     valor: valor || fallback.valor || null,
     valor_final: fallback.valor_final || null,
     valor_status: valor ? 'estimado' : 'nao_encontrado',
-    unidade: firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto'])) || fallback.unidade || null,
+    unidade: canonicalCapexUnitName(firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto'])) || fallback.unidade) || null,
     marca: firstField(fmap, ['marca']) || fallback.marca || null,
     pedido: desc || fallback.pedido || null,
     categoria_capex: firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra']) || fallback.categoria_capex || null,
@@ -7521,10 +7528,16 @@ function findTargetObra(obras: AnyRecord[], name: string, subtitle = '') {
   return null
 }
 
+function capexUnitLookupKey(value: unknown) {
+  const key = normKey(value)
+  if (key === 'matrizbanguexpansao' || key === 'matrizeducacaobanguexpansao') return 'matrizeducacaobangu'
+  return key
+}
+
 function findTargetCapexUnit(unidades: AnyRecord[], name: string) {
-  const key = normKey(name)
+  const key = capexUnitLookupKey(name)
   if (!key) return null
-  const exact = unidades.filter((unit) => normKey(unit?.nome) === key)
+  const exact = unidades.filter((unit) => capexUnitLookupKey(unit?.nome) === key && capexUnitLookupKey(unit?.nome) === normKey(unit?.nome))
   if (exact.length === 1) return exact[0]
   if (exact.length > 1) throw new Error(`Mais de uma unidade encontrada com o nome "${name}".`)
   const partial = unidades.filter((unit) => {
@@ -7833,7 +7846,7 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
     valor: valor || null,
     valor_final: ticket?.valor_final || (valor && (!compra || conferir || financeiro) ? valor : null),
     valor_status: ticket?.valor_status || (valor ? ((compra && !conferir && !financeiro) ? 'em_aprovacao' : 'final') : 'nao_encontrado'),
-    unidade: ticket?.unidade || firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto'])) || null,
+    unidade: canonicalCapexUnitName(ticket?.unidade || firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto']))) || null,
     marca: ticket?.marca || firstField(fmap, ['marca']) || null,
     pedido: desc || null,
     categoria_capex: ticket?.categoria_capex || firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra']) || null,

@@ -6733,7 +6733,14 @@ const CAPEX_UNIT_EXCEPTIONS=[
 const CAPEX_SETOR_OPTIONS=['COMPRAS','MANUTENÇÃO','ARQUITETURA','TI','FINANCEIRO','OPERAÇÕES','RH'];
 
 function capexUnitKey(nome){
+  const normalized=capexNormText(nome);
+  if(normalized==='matriz bangu expansao'||normalized==='matriz educacao bangu expansao')return'matriz educação bangu';
   return(nome||'').trim().toLowerCase();
+}
+
+function capexUnitHiddenAlias(nome){
+  const normalized=capexNormText(nome);
+  return normalized==='matriz bangu expansao'||normalized==='matriz educacao bangu expansao';
 }
 
 function getCapexUnitException(nome){
@@ -6747,7 +6754,7 @@ function findCapexUnit(unidade){
 
 function capexAllUnitsForInference(){
   const seen=new Set();
-  return[...CAPEX_UNIT_EXCEPTIONS,...unidades].filter(u=>{
+  return[...CAPEX_UNIT_EXCEPTIONS,...unidades].filter(u=>!capexUnitHiddenAlias(u?.nome)).filter(u=>{
     const key=capexUnitKey(u?.nome);
     if(!key||seen.has(key))return false;
     seen.add(key);
@@ -6857,6 +6864,7 @@ function capexSuggestUnitFromZeev(z){
 function capexUnitsForMarca(marca){
   const seen=new Set();
   return[...CAPEX_UNIT_EXCEPTIONS,...unidades]
+    .filter(u=>!capexUnitHiddenAlias(u?.nome))
     .filter(u=>(u.marca||'')===marca)
     .filter(u=>{
       const key=capexUnitKey(u.nome);
@@ -11886,6 +11894,7 @@ function populateCapexCategorySelect(selected){
 function capexSaldoUnits(){
   const seen=new Set();
   return[...CAPEX_UNIT_EXCEPTIONS,...unidades]
+    .filter(u=>!capexUnitHiddenAlias(u?.nome))
     .filter(u=>{
       const key=capexUnitKey(u.nome);
       if(!key||seen.has(key))return false;
@@ -15455,6 +15464,7 @@ function populateEscolasSelect(preferredMarca){
   const seen=new Set();
 
   [...CAPEX_UNIT_EXCEPTIONS,...unidades].forEach(u=>{
+    if(capexUnitHiddenAlias(u?.nome))return;
     const key=capexUnitKey(u.nome);
     if(!key||seen.has(key))return;
     seen.add(key);
