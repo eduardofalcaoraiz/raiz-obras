@@ -5106,6 +5106,8 @@ function forcedPendingFieldsForFlow(flow: number) {
     ...EXTRA_FIELDS,
     ...VALUE_TOTAL_FIELDS,
     ...PAYMENT_TOTAL_FIELDS,
+    ...NEXT_PAYMENT_VALUE_FIELDS,
+    ...INSTALLMENT_COUNT_FIELDS,
     ...FISCAL_NUMBER_FIELDS,
     ...GENERIC_FISCAL_NUMBER_FIELDS,
     ...ISSUE_DATE_FIELDS,
@@ -7754,7 +7756,7 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
   const compra = isCompra(raw || ticket)
   const financeiro = isFinanceiro(raw || ticket)
   const zeevCapex = capexField(fields)
-  const manuallyForced = !zeevCapex.name
+  const manuallyForced = !zeevCapex?.name
   const itens = Array.isArray(ticket?.itens_json) && ticket.itens_json.length ? ticket.itens_json : extractItems(fields)
   const valor = pickTicketValue(fmap, itens, financeiro) || Number(ticket?.valor_final || ticket?.valor || ticket?.pagamento_json?.valor_total || 0)
   const financeDescriptionMatch = financeiro ? firstFieldMatch(fmap, FINANCE_REQUEST_DESCRIPTION_FIELDS) : null
@@ -7798,8 +7800,8 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
     last_finished_task_date_time: iso(ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime),
     active: ticket?.active === undefined ? (raw?.active === undefined ? null : Boolean(raw.active)) : Boolean(ticket.active),
     flow_result: ticket?.flow_result || raw?.flowResult || '',
-    capex_field_name: zeevCapex.name || 'manual_codex',
-    capex_field_value: zeevCapex.name ? String(zeevCapex.value || 'Sim') : 'Sim - inclusao manual',
+    capex_field_name: zeevCapex?.name || 'manual_codex',
+    capex_field_value: zeevCapex?.name ? String(zeevCapex.value || 'Sim') : 'Sim - inclusao manual',
     requester_name: ticket?.requester_name || raw?.requester?.name || '',
     requester_email: ticket?.requester_email || raw?.requester?.email || '',
     requester_username: ticket?.requester_username || raw?.requester?.username || '',
