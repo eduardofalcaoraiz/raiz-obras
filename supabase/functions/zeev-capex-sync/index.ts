@@ -2081,7 +2081,7 @@ async function upsertTickets(tickets: AnyRecord[]) {
     const chunk = tickets.slice(i, i + 100)
     const ids = chunk.map((ticket) => Number(ticket?.zeev_instance_id || 0)).filter(Boolean)
     const storedRows = ids.length
-      ? await rest(`/capex_zeev_solicitacoes?zeev_instance_id=in.(${ids.join(',')})&select=zeev_instance_id,flow_id,flow_name,request_name,setor,pedido,descricao_confiavel,valor,valor_final,valor_status,pagamento_json`)
+      ? await rest(`/capex_zeev_solicitacoes?zeev_instance_id=in.(${ids.join(',')})&select=zeev_instance_id,flow_id,flow_name,flow_version,request_name,ticket_link,confirmation_code,requester_name,requester_email,requester_username,requester_team,etapa_atual,setor,pedido,descricao_confiavel,valor,valor_final,valor_status,pagamento_json`)
       : []
     const storedByTicket = new Map<number, AnyRecord>()
     for (const row of storedRows || []) storedByTicket.set(Number(row.zeev_instance_id), row)
@@ -2134,6 +2134,20 @@ function protectTicketDescription(incoming: AnyRecord, stored?: AnyRecord) {
     pedido: pedido || null,
     campos_extraidos: campos,
     raw_fields: incomingFields,
+  }
+
+  const stableStringFields = [
+    'flow_name', 'request_name', 'ticket_link', 'confirmation_code',
+    'requester_name', 'requester_email', 'requester_username', 'requester_team',
+    'etapa_atual', 'setor',
+  ]
+  for (const key of stableStringFields) {
+    if (!String(protectedTicket[key] || '').trim() && String(stored?.[key] || '').trim()) {
+      protectedTicket[key] = stored[key]
+    }
+  }
+  for (const key of ['flow_id', 'flow_version']) {
+    if (protectedTicket[key] == null && stored?.[key] != null) protectedTicket[key] = stored[key]
   }
 
   const incomingValue = parseMoney(incoming?.valor)
