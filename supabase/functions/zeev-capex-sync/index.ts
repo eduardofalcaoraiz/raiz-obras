@@ -2139,7 +2139,13 @@ function protectTicketDescription(incoming: AnyRecord, stored?: AnyRecord) {
   const incomingValue = parseMoney(incoming?.valor)
   const storedValue = parseMoney(stored?.valor)
   const resultKind = ticketResultKind(incoming)
-  if (financeiro && !incomingValue && storedValue > 0 && !['cancelado', 'rejeitado'].includes(resultKind)) {
+  const incomingTasks = Array.isArray(incoming?.raw_tasks)
+    ? incoming.raw_tasks
+    : Array.isArray(incoming?.raw_instance?.instanceTasks)
+      ? incoming.raw_instance.instanceTasks
+      : []
+  const purchaseReady = (isCompra(incoming) || isCompra(stored)) && valueIsFinalForPurchase(incoming, incomingTasks)
+  if ((financeiro || purchaseReady) && !incomingValue && storedValue > 0 && !['cancelado', 'rejeitado'].includes(resultKind)) {
     protectedTicket.valor = stored.valor
     if (!parseMoney(incoming?.valor_final) && parseMoney(stored?.valor_final) > 0) {
       protectedTicket.valor_final = stored.valor_final
