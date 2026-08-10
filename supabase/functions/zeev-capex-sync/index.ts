@@ -2081,7 +2081,7 @@ async function upsertTickets(tickets: AnyRecord[]) {
     const chunk = tickets.slice(i, i + 100)
     const ids = chunk.map((ticket) => Number(ticket?.zeev_instance_id || 0)).filter(Boolean)
     const storedRows = ids.length
-      ? await rest(`/capex_zeev_solicitacoes?zeev_instance_id=in.(${ids.join(',')})&select=zeev_instance_id,flow_id,flow_name,request_name,setor,pedido,descricao_confiavel`)
+      ? await rest(`/capex_zeev_solicitacoes?zeev_instance_id=in.(${ids.join(',')})&select=zeev_instance_id,flow_id,flow_name,request_name,setor,pedido,descricao_confiavel,valor,valor_final,valor_status,pagamento_json`)
       : []
     const storedByTicket = new Map<number, AnyRecord>()
     for (const row of storedRows || []) storedByTicket.set(Number(row.zeev_instance_id), row)
@@ -2129,12 +2129,32 @@ function protectTicketDescription(incoming: AnyRecord, stored?: AnyRecord) {
     pedido = cleanSummaryText(stored?.pedido || '')
   }
 
-  return {
+  const protectedTicket: AnyRecord = {
     ...incoming,
     pedido: pedido || null,
     campos_extraidos: campos,
     raw_fields: incomingFields,
   }
+
+  const incomingValue = parseMoney(incoming?.valor)
+  const storedValue = parseMoney(stored?.valor)
+  const resultKind = ticketResultKind(incoming)
+  if (financeiro && !incomingValue && storedValue > 0 && !['cancelado', 'rejeitado'].includes(resultKind)) {
+    protectedTicket.valor = stored.valor
+    if (!parseMoney(incoming?.valor_final) && parseMoney(stored?.valor_final) > 0) {
+      protectedTicket.valor_final = stored.valor_final
+    }
+    if (!incoming?.valor_status || incoming?.valor_status === 'nao_encontrado') {
+      protectedTicket.valor_status = stored.valor_status || 'final'
+    }
+    const incomingPayment = incoming?.pagamento_json && typeof incoming.pagamento_json === 'object' ? incoming.pagamento_json : {}
+    const storedPayment = stored?.pagamento_json && typeof stored.pagamento_json === 'object' ? stored.pagamento_json : {}
+    if (!parseMoney(incomingPayment?.valor_total) && parseMoney(storedPayment?.valor_total) > 0) {
+      protectedTicket.pagamento_json = { ...incomingPayment, valor_total: storedPayment.valor_total }
+    }
+  }
+
+  return protectedTicket
 }
 
 function ticketDigits(value: unknown) {
