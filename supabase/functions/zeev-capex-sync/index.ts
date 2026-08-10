@@ -4931,7 +4931,7 @@ function paymentDateFromFinanceCompletion(ticket: AnyRecord) {
   if (result === 'cancelado' || result === 'rejeitado') return ''
   const raw = ticket?.raw_instance || ticket?.rawInstance || {}
   const active = ticket?.active ?? raw?.active
-  const completed = active === false || Boolean(ticket?.end_date_time || raw?.endDateTime || ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime)
+  const completed = active === false || Boolean(ticket?.end_date_time || raw?.endDateTime) || result === 'concluido'
   if (!completed) return ''
   return dateOnly(ticket?.end_date_time || raw?.endDateTime || ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime)
 }
@@ -4953,11 +4953,7 @@ function paymentDateFromCompletedTicket(ticket: AnyRecord) {
     .filter(Boolean)
     .sort()
     .pop() || ''
-  const completed = active === false || Boolean(
-    ticket?.end_date_time || raw?.endDateTime ||
-    ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime ||
-    (lastTaskDate && result === 'concluido')
-  )
+  const completed = active === false || Boolean(ticket?.end_date_time || raw?.endDateTime) || result === 'concluido'
   if (!completed) return ''
   return dateOnly(ticket?.last_finished_task_date_time || raw?.lastFinishedTaskDateTime)
     || lastTaskDate
