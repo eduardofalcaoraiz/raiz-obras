@@ -2597,6 +2597,17 @@ def generic_ticket_from_instance(row, reason=""):
     campos_extraidos = fields_object(fields)
     campos_extraidos["_capex_forcado"] = True
     campos_extraidos["_capex_forcado_motivo"] = reason or "Inclusao manual solicitada pelo usuario."
+    if financeiro:
+        finance_description, finance_description_source = field_value_with_source_by_priority(
+            fields,
+            finance_request_description_fields(flow_id),
+        )
+        campos_extraidos["_descricao_regra"] = "informacoes_referentes_solicitacao_v5"
+        campos_extraidos["_descricao_revisada_em"] = datetime.now(timezone.utc).isoformat()
+        campos_extraidos["_descricao_status"] = "completa" if finance_description else "nao_encontrada"
+        campos_extraidos["_descricao_origem"] = finance_description_source or ""
+        if not finance_description:
+            campos_extraidos["_descricao_alerta"] = "O campo Informacoes referentes a solicitacao nao foi retornado pelo Zeev."
     registered_capex = "registrado" in norm(reason) and "plataforma" in norm(reason)
     if registered_capex:
         campos_extraidos["_capex_registrado_preexistente"] = True
@@ -5349,7 +5360,12 @@ def finance_description_needs_repair(row, force=False):
     if force:
         return True
     campos = row.get("campos_extraidos") if isinstance(row.get("campos_extraidos"), dict) else {}
-    return str(campos.get("_descricao_regra") or "") != "informacoes_referentes_solicitacao_v5"
+    description = clean_summary_text(row.get("pedido") or "")
+    return (
+        not description
+        or str(campos.get("_descricao_status") or "") != "completa"
+        or str(campos.get("_descricao_regra") or "") != "informacoes_referentes_solicitacao_v5"
+    )
 
 
 def patch_registered_finance_description(ticket_id, description):
@@ -5472,13 +5488,17 @@ def repair_finance_descriptions():
     target_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
     target_set = set(target_ids)
     pending_only = os.environ.get("ZEEV_FINANCE_DESCRIPTION_REPAIR_PENDING_ONLY", "false").lower() == "true"
+    missing_only = os.environ.get("ZEEV_FINANCE_DESCRIPTION_REPAIR_MISSING_ONLY", "false").lower() == "true"
     select = ",".join([
         "id", "zeev_instance_id", "flow_id", "flow_name", "request_name", "status", "pedido",
-        "start_date_time", "ticket_link", "campos_extraidos", "raw_fields", "raw_tasks", "raw_instance",
+        "start_date_time", "ticket_link", "descricao_confiavel", "campos_extraidos", "raw_fields", "raw_tasks", "raw_instance",
     ])
     filters = [f"select={select}"]
     if pending_only:
         filters.append("status=eq.pendente")
+    if missing_only:
+        filters.append("setor=eq.FINANCEIRO")
+        filters.append("descricao_confiavel=eq.false")
     if target_ids:
         filters.append(f"zeev_instance_id=in.({','.join(map(str, target_ids))})")
     filters.append("order=start_date_time.desc.nullslast,id.desc")
@@ -5498,6 +5518,7 @@ def repair_finance_descriptions():
         "ok": True,
         "mode": "repair-finance-descriptions",
         "descriptionRule": "informacoes_referentes_solicitacao_v5",
+        "missingOnly": missing_only,
         "scannedRows": len(rows),
         "financeCandidatesTotal": len(candidates),
         "processed": 0,
@@ -5750,6 +5771,34 @@ def main():
     # Data/status scans must stay lightweight. Document discovery and downloads
     # run only in the dedicated rescue modes on the authenticated GitHub runner.
     result = ingest(tickets, notify=notify, backfill_limit=0, skip_document_backfill=True)
+    description_repair = None
+    auto_description_repair_limit = env_int("ZEEV_AUTO_DESCRIPTION_REPAIR_LIMIT", 0, 0, 20)
+    if mode == "incremental" and auto_description_repair_limit and incremental_stage_allowed("finance-description-repair", 150):
+        previous_env = {
+            name: os.environ.get(name)
+            for name in (
+                "ZEEV_FINANCE_DESCRIPTION_REPAIR_LIMIT",
+                "ZEEV_FINANCE_DESCRIPTION_REPAIR_CYCLES",
+                "ZEEV_FINANCE_DESCRIPTION_REPAIR_PENDING_ONLY",
+                "ZEEV_FINANCE_DESCRIPTION_REPAIR_MISSING_ONLY",
+                "ZEEV_FINANCE_DESCRIPTION_REPAIR_CONCURRENCY",
+            )
+        }
+        try:
+            os.environ["ZEEV_FINANCE_DESCRIPTION_REPAIR_LIMIT"] = str(auto_description_repair_limit)
+            os.environ["ZEEV_FINANCE_DESCRIPTION_REPAIR_CYCLES"] = "1"
+            os.environ["ZEEV_FINANCE_DESCRIPTION_REPAIR_PENDING_ONLY"] = "true"
+            os.environ["ZEEV_FINANCE_DESCRIPTION_REPAIR_MISSING_ONLY"] = "true"
+            os.environ["ZEEV_FINANCE_DESCRIPTION_REPAIR_CONCURRENCY"] = "2"
+            description_repair = repair_finance_descriptions()
+        except Exception as exc:
+            description_repair = {"ok": False, "mode": "repair-finance-descriptions", "error": str(exc)[:700]}
+        finally:
+            for name, value in previous_env.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
     value_repair = None
     repair_values_enabled = os.environ.get("ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST", "1").strip().lower() not in {"0", "false", "nao", "não", "no"}
     if repair_values_enabled and incremental_stage_allowed("capex-value-repair", 180):
@@ -5758,7 +5807,7 @@ def main():
             value_repair = repair_capex_registered_values()
         except Exception as exc:
             value_repair = {"ok": False, "mode": "repair-capex-registered-values", "error": str(exc)[:700]}
-    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "deep": deep_mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "lastTaskScan": last_task_scan_result, "idSweep": id_sweep_result, "correctionSweep": correction_sweep_result, "ingest": result, "capexValueRepair": value_repair, "runtimeSeconds": round(time.monotonic() - incremental_started, 2), "runtimeBudgetSeconds": incremental_budget_seconds if mode == "incremental" else None, "deferredStages": incremental_skipped_stages}, ensure_ascii=False))
+    print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "deep": deep_mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "lastTaskScan": last_task_scan_result, "idSweep": id_sweep_result, "correctionSweep": correction_sweep_result, "ingest": result, "financeDescriptionRepair": description_repair, "capexValueRepair": value_repair, "runtimeSeconds": round(time.monotonic() - incremental_started, 2), "runtimeBudgetSeconds": incremental_budget_seconds if mode == "incremental" else None, "deferredStages": incremental_skipped_stages}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

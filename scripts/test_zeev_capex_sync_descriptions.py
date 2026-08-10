@@ -114,6 +114,28 @@ class FinanceDescriptionTests(unittest.TestCase):
         self.assertIn("txtInformacoesSolicitacaoFinanceiraV4", aliases)
         self.assertEqual(sync.field_value_by_priority(fields, aliases), "Pagamento do reparo no telhado")
 
+    def test_v5_row_with_missing_description_still_needs_repair(self):
+        row = {
+            "pedido": None,
+            "campos_extraidos": {
+                "_descricao_regra": "informacoes_referentes_solicitacao_v5",
+                "_descricao_status": "nao_encontrada",
+            },
+        }
+
+        self.assertTrue(sync.finance_description_needs_repair(row))
+
+    def test_complete_v5_description_does_not_need_repair(self):
+        row = {
+            "pedido": "Pagamento da reforma da recepcao",
+            "campos_extraidos": {
+                "_descricao_regra": "informacoes_referentes_solicitacao_v5",
+                "_descricao_status": "completa",
+            },
+        }
+
+        self.assertFalse(sync.finance_description_needs_repair(row))
+
 
 if __name__ == "__main__":
     unittest.main()

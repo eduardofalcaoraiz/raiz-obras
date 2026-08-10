@@ -2058,14 +2058,62 @@ async function upsertTickets(tickets: AnyRecord[]) {
   const saved: AnyRecord[] = []
   for (let i = 0; i < tickets.length; i += 100) {
     const chunk = tickets.slice(i, i + 100)
+    const ids = chunk.map((ticket) => Number(ticket?.zeev_instance_id || 0)).filter(Boolean)
+    const storedRows = ids.length
+      ? await rest(`/capex_zeev_solicitacoes?zeev_instance_id=in.(${ids.join(',')})&select=zeev_instance_id,flow_id,flow_name,request_name,setor,pedido,descricao_confiavel`)
+      : []
+    const storedByTicket = new Map<number, AnyRecord>()
+    for (const row of storedRows || []) storedByTicket.set(Number(row.zeev_instance_id), row)
+    const protectedChunk = chunk.map((ticket) => protectTicketDescription(ticket, storedByTicket.get(Number(ticket.zeev_instance_id))))
     const rows = await rest('/capex_zeev_solicitacoes?on_conflict=zeev_instance_id', {
       method: 'POST',
       headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-      body: JSON.stringify(chunk),
+      body: JSON.stringify(protectedChunk),
     })
     saved.push(...(rows || []))
   }
   return saved
+}
+
+function protectTicketDescription(incoming: AnyRecord, stored?: AnyRecord) {
+  if (!stored) return incoming
+  const incomingFields = Array.isArray(incoming?.raw_fields) ? incoming.raw_fields : []
+  const incomingCampos = incoming?.campos_extraidos && typeof incoming.campos_extraidos === 'object' ? incoming.campos_extraidos : {}
+  const campos = { ...incomingCampos }
+  const financeiro = isFinanceiro(incoming) || isFinanceiro(stored)
+  let pedido = cleanSummaryText(incoming?.pedido || '')
+
+  if (financeiro) {
+    const descriptionMatch = firstFieldMatch(fieldMap(incomingFields), FINANCE_REQUEST_DESCRIPTION_FIELDS)
+    const recovered = cleanSummaryText(descriptionMatch?.value || '')
+    if (recovered) {
+      pedido = recovered
+      campos._descricao_regra = 'informacoes_referentes_solicitacao_v5'
+      campos._descricao_revisada_em = new Date().toISOString()
+      campos._descricao_status = 'completa'
+      campos._descricao_origem = descriptionMatch?.source || ''
+      delete campos._descricao_alerta
+    } else if (!pedido) {
+      const trusted = stored?.descricao_confiavel === true ? cleanSummaryText(stored?.pedido || '') : ''
+      if (trusted) {
+        pedido = trusted
+        campos._descricao_regra = 'informacoes_referentes_solicitacao_v5'
+        campos._descricao_revisada_em = new Date().toISOString()
+        campos._descricao_status = 'completa'
+        campos._descricao_origem = 'descricao_persistida_validada'
+        delete campos._descricao_alerta
+      }
+    }
+  } else if (!pedido) {
+    pedido = cleanSummaryText(stored?.pedido || '')
+  }
+
+  return {
+    ...incoming,
+    pedido: pedido || null,
+    campos_extraidos: campos,
+    raw_fields: incomingFields,
+  }
 }
 
 function ticketDigits(value: unknown) {

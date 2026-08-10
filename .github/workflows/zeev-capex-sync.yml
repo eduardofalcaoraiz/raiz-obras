@@ -183,6 +183,8 @@ jobs:
           ZEEV_FINANCE_DESCRIPTION_REPAIR_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '40' }}
           ZEEV_FINANCE_DESCRIPTION_REPAIR_CYCLES: "1"
           ZEEV_FINANCE_DESCRIPTION_REPAIR_PENDING_ONLY: "false"
+          ZEEV_FINANCE_DESCRIPTION_REPAIR_MISSING_ONLY: "false"
+          ZEEV_AUTO_DESCRIPTION_REPAIR_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '4' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '4' || '0' }}
           ZEEV_BACKFILL_FILE_LIMIT: "4"
           ZEEV_ATTACH_ALL_TICKET_DOCS: "1"
           ZEEV_DOC_ATTACH_PER_TICKET_LIMIT: "6"

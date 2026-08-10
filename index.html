@@ -3839,7 +3839,7 @@ const CAPEX_ZEEV_LIST_COLUMNS=[
   'requester_name','requester_email','requester_username','requester_team','etapa_atual','passou_conferir_entrega',
   'pronto_valor_final','valor','valor_final','valor_status','unidade','marca','pedido','categoria_capex','fonte','setor',
   'situacao_sugerida','realizado_sugerido','status','capex_item_id','aprovado_por','aprovado_em','ignorado_por','ignorado_em',
-  'email_notified_at','last_seen_at','created_at','updated_at','zeev_docs_checked_at','campos_extraidos','pagamento_json','itens_json'
+  'email_notified_at','last_seen_at','created_at','updated_at','zeev_docs_checked_at','descricao_confiavel','campos_extraidos','pagamento_json','itens_json'
 ].join(',');
 
 const CAPEX_ZEEV_QUEUE_COLUMNS=[
@@ -3848,7 +3848,7 @@ const CAPEX_ZEEV_QUEUE_COLUMNS=[
   'requester_name','requester_email','requester_username','requester_team','etapa_atual','passou_conferir_entrega',
   'pronto_valor_final','valor','valor_final','valor_status','unidade','marca','pedido','categoria_capex','fonte','setor',
   'situacao_sugerida','realizado_sugerido','status','capex_item_id','aprovado_por','aprovado_em','ignorado_por','ignorado_em',
-  'email_notified_at','last_seen_at','created_at','updated_at','zeev_docs_checked_at'
+  'email_notified_at','last_seen_at','created_at','updated_at','zeev_docs_checked_at','descricao_confiavel'
 ].join(',');
 
 const PAYMENT_LIST_COLUMNS=[
@@ -8946,6 +8946,7 @@ const CAPEX_ZEEV_FINANCE_REQUEST_FIELDS=[
 
 function capexZeevTrustedStoredFinanceDescription(z){
   const stored=String(z?.pedido||'').trim();
+  if(stored&&z?.descricao_confiavel===true)return stored;
   const regra=String(z?.campos_extraidos?._descricao_regra||'');
   const status=String(z?.campos_extraidos?._descricao_status||'');
   if(stored&&['informacoes_referentes_solicitacao_v2','informacoes_referentes_solicitacao_v3','informacoes_referentes_solicitacao_v4','informacoes_referentes_solicitacao_v5'].includes(regra)&&status==='completa')return stored;
