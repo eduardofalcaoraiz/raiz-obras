@@ -7887,6 +7887,17 @@ function capexCompraLinkFromItem(it){
   return it?capexCompraLinkFromDados(it.ticket_raiz_dados):null;
 }
 
+function capexFinanceLinksFromItem(it){
+  const dados=capexTicketDadosObj(it?.ticket_raiz_dados);
+  const raw=dados.financeirosVinculados||dados.financeiros_vinculados||dados.trsFinanceiros||[];
+  const list=Array.isArray(raw)?raw:(raw&&typeof raw==='object'?[raw]:[]);
+  return list.map(link=>{
+    if(link&&typeof link==='object')return link;
+    const tr=capexZeevSearchDigits(link);
+    return tr?{tr}:null;
+  }).filter(Boolean);
+}
+
 function capexCompraLinkFromZeev(z){
   if(!z||capexZeevType(z)!=='financeiras')return null;
   const raw=capexZeevAnyField(z,['trCompra','tr da compra','tr de compra','ticketCompra','ticket da compra','solicitacaoCompra','solicitação de compra','numeroTRCompra','numero tr compra','número tr compra']);
@@ -11551,7 +11562,12 @@ function renderCapexRegisteredCard(it){
   const docsButton=(docsCount||it.ticket_raiz_instance_id)?`<button class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexDocsModal(${it.id})">Arquivos${docsCount?' ('+docsCount+')':''}</button>`:'';
   const compraLink=capexCompraLinkFromItem(it);
   const compraTr=capexZeevSearchDigits(compraLink?.tr||compraLink?.zeev_id||'');
-  const respLabel=compraTr?`${setorLabel} / Compra TR ${compraTr}${compraLink?.encontrado===false?' - conferir':''}`:setorLabel;
+  const compraTipo=String(compraLink?.tipo||'').toLowerCase();
+  const origemLabel=compraTipo.includes('facilit')?'Facilities':'Compra';
+  const financeiroTrs=capexFinanceLinksFromItem(it).map(link=>capexZeevSearchDigits(link?.tr||link?.zeev_id||'')).filter(Boolean);
+  const respLabel=compraTr
+    ?`${setorLabel} / ${origemLabel} TR ${compraTr}${compraLink?.encontrado===false?' - conferir':''}`
+    :financeiroTrs.length?`${setorLabel} / Financeiro TR ${financeiroTrs.join(', ')}`:setorLabel;
   const details=[
     {label:rateioInfo?'Unidade desta parcela':'Unidades envolvidas',value:unidadesFull},
     ...(rateioInfo?[{label:'Rateio',value:rateioLabel}]:[]),
@@ -11560,7 +11576,8 @@ function renderCapexRegisteredCard(it){
     ...(solicitante.email?[{label:'E-mail',value:solicitante.email}]:[]),
     {label:'Setor',value:it.setor||'Não informado'},
     {label:'Categoria',value:catName},
-    ...(compraTr?[{label:'TR de compra vinculado',value:`TR ${compraTr}${compraLink?.status?' - '+compraLink.status:''}`},{label:'Descrição da compra',value:compraLink?.pedido||'Descrição não importada'}]:[]),
+    ...(compraTr?[{label:`TR de ${origemLabel.toLowerCase()} vinculado`,value:`TR ${compraTr}${compraLink?.status?' - '+compraLink.status:''}`},{label:`Descrição de ${origemLabel.toLowerCase()}`,value:compraLink?.pedido||'Descrição não importada'}]:[]),
+    ...(financeiroTrs.length?[{label:'TR financeiro vinculado',value:financeiroTrs.map(tr=>`TR ${tr}`).join(' / ')}]:[]),
     {label:'Finalizado',value:capexIsFinalizado(it)?'Sim':'Não'}
   ].map(f=>`<div class="capex-detail-field"><b>${escHtml(f.label)}</b><span title="${escHtml(f.value)}">${escHtml(f.value)}</span></div>`).join('');
   return`<details class="capex-expander-card capex-item-card" style="--card-accent:${accent};--card-soft:${soft};--brand-cur:${accent};--brand-cur-light:${soft};--brand-text:${brandTextOnLight(marca)};--brand-readable:${brandTextColor(marca)};--brand-readable-shadow:${brandTextShadow(marca)}">
