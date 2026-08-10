@@ -75,6 +75,35 @@ class FinanceDescriptionTests(unittest.TestCase):
 
         self.assertEqual(description, "Reparo da cobertura do patio")
 
+    def test_purchase_request_information_wins_over_budget_item(self):
+        fields = [
+            form_field("item", "02.07.00026 - Manut Edificacoes / 1.35.007078 - REFORMA PREDIAL"),
+            form_field("informacoes", "Instalacao de tablado de madeira para o professor na Sala 8"),
+            form_field("descricaoServico", "Instalacao de tablado de madeira para o professor na Sala 8"),
+        ]
+
+        description = sync.ticket_description(
+            fields,
+            [{"descricao": "02.07.00026 - Manut Edificacoes / 1.35.007078 - REFORMA PREDIAL"}],
+            compra=True,
+        )
+
+        self.assertEqual(description, "Instalacao de tablado de madeira para o professor na Sala 8")
+
+    def test_purchase_service_description_wins_over_longer_item(self):
+        fields = [
+            form_field("item", "Natureza orcamentaria muito longa para manutencao e reforma predial"),
+            form_field("descricaoServico", "Instalacao de tablado na Sala 8"),
+        ]
+
+        description = sync.ticket_description(
+            fields,
+            [{"descricao": "Natureza orcamentaria muito longa para manutencao e reforma predial"}],
+            compra=True,
+        )
+
+        self.assertEqual(description, "Instalacao de tablado na Sala 8")
+
     def test_generic_information_label_is_not_supported(self):
         fields = [form_field("informacoes", "Texto generico de outra secao", "Informa\u00e7\u00f5es")]
 

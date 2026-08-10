@@ -28,6 +28,11 @@ const FINANCE_REQUEST_DESCRIPTION_FIELDS = [
   'Informacoes referentes \u00e0 solicita\u00e7\u00e3o',
 ]
 const FINANCE_DESCRIPTION_FIELDS = FINANCE_REQUEST_DESCRIPTION_FIELDS
+const PURCHASE_REQUEST_DESCRIPTION_FIELDS = [
+  ...FINANCE_REQUEST_DESCRIPTION_FIELDS,
+  'informacoes',
+  'informa\u00e7\u00f5es',
+]
 const PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
   'descricaoMensagemZeev',
   'descricaoDoServico',
@@ -1785,13 +1790,15 @@ async function cardSummaryCascade(text: string, items: AnyRecord[], compra: bool
 function ticketDescription(fmap: Map<string, AnyRecord[]>, items: AnyRecord[], financeiro: boolean, compra: boolean) {
   if (financeiro) return firstField(fmap, FINANCE_REQUEST_DESCRIPTION_FIELDS)
   if (compra) {
+    const requestInfo = firstField(fmap, PURCHASE_REQUEST_DESCRIPTION_FIELDS)
     const justification = firstField(fmap, PURCHASE_JUSTIFICATION_FIELDS)
     const serviceDesc = firstField(fmap, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
     const itemsText = itemSummary(items)
-    if (itemsText && (!serviceDesc || genericPurchaseText(serviceDesc) || descriptionScore(itemsText) > descriptionScore(serviceDesc) + 40)) return itemsText
-    if (justification && (!itemsText || descriptionScore(justification) > descriptionScore(serviceDesc) + 35)) return justification
+    if (requestInfo) return requestInfo
+    if (serviceDesc && !genericPurchaseText(serviceDesc)) return serviceDesc
+    if (justification) return justification
     if (serviceDesc) return serviceDesc
-    return bestDescription([itemsText, justification, serviceDesc])
+    return itemsText
   }
   return ''
 }

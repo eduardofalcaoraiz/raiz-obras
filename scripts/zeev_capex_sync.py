@@ -116,6 +116,12 @@ FINANCE_REQUEST_DESCRIPTION_FIELDS = [
 ]
 FINANCE_DESCRIPTION_FIELDS = FINANCE_REQUEST_DESCRIPTION_FIELDS
 
+PURCHASE_REQUEST_DESCRIPTION_FIELDS = [
+    *FINANCE_REQUEST_DESCRIPTION_FIELDS,
+    "informacoes",
+    "informa\u00e7\u00f5es",
+]
+
 PURCHASE_SERVICE_DESCRIPTION_FIELDS = [
     "descricaoMensagemZeev",
     "descricaoDoServico",
@@ -2478,16 +2484,19 @@ def ticket_description(fields, items, financeiro=False, compra=False, flow_id=0)
     if financeiro:
         return field_value_by_priority(fields, finance_request_description_fields(flow_id))
     if compra:
+        request_info = field_value_by_priority(fields, PURCHASE_REQUEST_DESCRIPTION_FIELDS)
         justification = field_value_by_priority(fields, PURCHASE_JUSTIFICATION_FIELDS)
         service_desc = field_value_by_priority(fields, PURCHASE_SERVICE_DESCRIPTION_FIELDS)
         items_text = item_summary(items)
-        if items_text and (not service_desc or generic_purchase_text(service_desc) or description_score(items_text) > description_score(service_desc) + 40):
-            return items_text
-        if justification and (not items_text or description_score(justification) > description_score(service_desc) + 35):
+        if request_info:
+            return request_info
+        if service_desc and not generic_purchase_text(service_desc):
+            return service_desc
+        if justification:
             return justification
         if service_desc:
             return service_desc
-        return best_description(items_text, justification, service_desc)
+        return items_text
     return ""
 
 
