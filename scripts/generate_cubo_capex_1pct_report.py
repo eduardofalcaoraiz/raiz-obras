@@ -11,7 +11,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageFilter, ImageOps
 from reportlab.lib.colors import Color, HexColor, white
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
@@ -65,6 +65,9 @@ COVER_LOGO_WIDTH_MM = 60
 COVER_LOGO_MAX_HEIGHT_MM = 22
 DETAIL_LOGO_WIDTH_MM = 40
 DETAIL_LOGO_MAX_HEIGHT_MM = 15
+LOGO_CONTRAST_OUTLINE = False
+LOGO_LIGHTEN_ON_DARK = False
+LOGO_LIGHTEN_STRENGTH = 0.52
 _LOGO_CACHE: dict[str, ImageReader] = {}
 
 
@@ -452,7 +455,10 @@ def draw_progress(c: canvas.Canvas, x: float, y: float, w: float, value: float, 
 
 
 def cropped_logo() -> ImageReader:
-    cache_key = str(LOGO_PATH.resolve())
+    cache_key = (
+        f"{LOGO_PATH.resolve()}|outline={LOGO_CONTRAST_OUTLINE}"
+        f"|lighten={LOGO_LIGHTEN_ON_DARK}:{LOGO_LIGHTEN_STRENGTH}"
+    )
     cached = _LOGO_CACHE.get(cache_key)
     if cached is not None:
         return cached
@@ -471,6 +477,28 @@ def cropped_logo() -> ImageReader:
         right = min(source.width, bbox[2] + pad)
         bottom = min(source.height, bbox[3] + pad)
         source = source.crop((left, top, right, bottom))
+
+    source.thumbnail((1800, 1800), Image.Resampling.LANCZOS)
+    if LOGO_LIGHTEN_ON_DARK:
+        alpha = source.getchannel("A")
+        lightened = Image.blend(
+            source.convert("RGB"),
+            Image.new("RGB", source.size, "white"),
+            LOGO_LIGHTEN_STRENGTH,
+        ).convert("RGBA")
+        lightened.putalpha(alpha)
+        source = lightened
+    if LOGO_CONTRAST_OUTLINE:
+        radius = max(3, min(15, int(min(source.size) * 0.008)))
+        padding = radius * 3
+        source = ImageOps.expand(source, border=padding, fill=(0, 0, 0, 0))
+        alpha = source.getchannel("A")
+        expanded = alpha.filter(ImageFilter.MaxFilter(radius * 2 + 1))
+        outline_alpha = ImageChops.subtract(expanded, alpha).filter(ImageFilter.GaussianBlur(1.0))
+        outline_alpha = outline_alpha.point(lambda value: int(value * 0.88))
+        outline = Image.new("RGBA", source.size, (255, 255, 255, 0))
+        outline.putalpha(outline_alpha)
+        source = Image.alpha_composite(outline, source)
 
     image = ImageReader(source)
     _LOGO_CACHE[cache_key] = image
