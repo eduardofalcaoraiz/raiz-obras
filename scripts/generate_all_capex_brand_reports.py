@@ -19,7 +19,13 @@ BRANDS = {
         "name": "Colégio Americano",
         "logo": "LOGO DO AMERICANO.png",
         "primary": "#0868B8",
-        "header": "#123B5D",
+        "header": "#EAF4FA",
+        "header_text": "#123B5D",
+        "header_meta": "#486578",
+        "cover_logo_width_mm": 74,
+        "cover_logo_max_height_mm": 24,
+        "detail_logo_width_mm": 48,
+        "detail_logo_max_height_mm": 16,
         "accent": "#19A982",
         "pale": "#D2E3F2",
     },
@@ -27,7 +33,13 @@ BRANDS = {
         "name": "Apogeu Global School",
         "logo": "LOGO DO APOGEU GLOBAL SCHOOL.png",
         "primary": "#0848B8",
-        "header": "#122E68",
+        "header": "#E8EEF9",
+        "header_text": "#122E68",
+        "header_meta": "#42577A",
+        "cover_logo_width_mm": 74,
+        "cover_logo_max_height_mm": 24,
+        "detail_logo_width_mm": 48,
+        "detail_logo_max_height_mm": 16,
         "accent": "#F3B52B",
         "pale": "#D2DEF2",
     },
@@ -59,7 +71,13 @@ BRANDS = {
         "name": "Matriz Educação",
         "logo": "LOGO DO MATRIZ EDUCAÇÃO.png",
         "primary": "#1868A8",
-        "header": "#153B5B",
+        "header": "#E5F1F7",
+        "header_text": "#153B5B",
+        "header_meta": "#456174",
+        "cover_logo_width_mm": 74,
+        "cover_logo_max_height_mm": 25,
+        "detail_logo_width_mm": 48,
+        "detail_logo_max_height_mm": 16,
         "accent": "#E58A2B",
         "pale": "#D5E3EF",
     },
@@ -75,7 +93,13 @@ BRANDS = {
         "name": "Sá Pereira",
         "logo": "LOGO DO SÁ PEREIRA.png",
         "primary": "#0878C8",
-        "header": "#163D58",
+        "header": "#E3F1F8",
+        "header_text": "#163D58",
+        "header_meta": "#486A7E",
+        "cover_logo_width_mm": 74,
+        "cover_logo_max_height_mm": 24,
+        "detail_logo_width_mm": 48,
+        "detail_logo_max_height_mm": 16,
         "accent": "#F0B323",
         "pale": "#D2E6F5",
     },
@@ -83,7 +107,13 @@ BRANDS = {
         "name": "SAP",
         "logo": "LOGO DO SAP.png",
         "primary": "#E64C31",
-        "header": "#682A20",
+        "header": "#FBE9E4",
+        "header_text": "#682A20",
+        "header_meta": "#79544C",
+        "cover_logo_width_mm": 74,
+        "cover_logo_max_height_mm": 24,
+        "detail_logo_width_mm": 48,
+        "detail_logo_max_height_mm": 16,
         "accent": "#F39A36",
         "pale": "#FDE0DB",
     },
@@ -107,7 +137,13 @@ BRANDS = {
         "name": "Colégio Unificado",
         "logo": "LOGO DO UNIFICADO.png",
         "primary": "#582878",
-        "header": "#38204A",
+        "header": "#ECE5F1",
+        "header_text": "#38204A",
+        "header_meta": "#665774",
+        "cover_logo_width_mm": 74,
+        "cover_logo_max_height_mm": 24,
+        "detail_logo_width_mm": 48,
+        "detail_logo_max_height_mm": 16,
         "accent": "#E06A43",
         "pale": "#E0D8E6",
     },
@@ -118,19 +154,25 @@ def safe_name(value: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', "-", value).strip()
 
 
-def configure(config: dict[str, str], units: list[str]) -> None:
-    primary = HexColor(config["primary"])
-    accent = HexColor(config["accent"])
-    pale = HexColor(config["pale"])
-    report.BRAND_NAME = config["name"]
-    report.LOGO_PATH = report.PROJECT_ROOT / config["logo"]
+def configure(config: dict[str, object], units: list[str]) -> None:
+    primary = HexColor(str(config["primary"]))
+    accent = HexColor(str(config["accent"]))
+    pale = HexColor(str(config["pale"]))
+    report.BRAND_NAME = str(config["name"])
+    report.LOGO_PATH = report.PROJECT_ROOT / str(config["logo"])
     report.UNITS = units
     report.PURPLE = primary
-    report.PURPLE_DARK = HexColor(config["header"])
+    report.PURPLE_DARK = HexColor(str(config["header"]))
     report.PURPLE_PALE = pale
     report.TEAL = accent
     report.TEAL_DARK = primary
     report.TEAL_PALE = pale
+    report.HEADER_TEXT = HexColor(str(config.get("header_text", "#FFFFFF")))
+    report.HEADER_META = HexColor(str(config.get("header_meta", "#E7E3F0")))
+    report.COVER_LOGO_WIDTH_MM = float(config.get("cover_logo_width_mm", 60))
+    report.COVER_LOGO_MAX_HEIGHT_MM = float(config.get("cover_logo_max_height_mm", 22))
+    report.DETAIL_LOGO_WIDTH_MM = float(config.get("detail_logo_width_mm", 40))
+    report.DETAIL_LOGO_MAX_HEIGHT_MM = float(config.get("detail_logo_max_height_mm", 15))
 
 
 def main() -> None:

@@ -11,6 +11,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
 
+from PIL import Image, ImageChops
 from reportlab.lib.colors import Color, HexColor, white
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
@@ -58,6 +59,13 @@ CORAL_PALE = HexColor("#FBECEB")
 GREEN = HexColor("#278067")
 GREEN_PALE = HexColor("#E9F5F0")
 GRAY_CARD = HexColor("#EEF1F1")
+HEADER_TEXT = white
+HEADER_META = HexColor("#E7E3F0")
+COVER_LOGO_WIDTH_MM = 60
+COVER_LOGO_MAX_HEIGHT_MM = 22
+DETAIL_LOGO_WIDTH_MM = 40
+DETAIL_LOGO_MAX_HEIGHT_MM = 15
+_LOGO_CACHE: dict[str, ImageReader] = {}
 
 
 def dec(value: Any) -> Decimal:
@@ -443,8 +451,34 @@ def draw_progress(c: canvas.Canvas, x: float, y: float, w: float, value: float, 
         round_rect(c, x, y, fill_w, 4.2, 2.1, color)
 
 
+def cropped_logo() -> ImageReader:
+    cache_key = str(LOGO_PATH.resolve())
+    cached = _LOGO_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    source = Image.open(LOGO_PATH).convert("RGBA")
+    alpha = source.getchannel("A")
+    bbox = alpha.getbbox()
+    if bbox == (0, 0, source.width, source.height):
+        rgb = source.convert("RGB")
+        white_background = Image.new("RGB", rgb.size, "white")
+        bbox = ImageChops.difference(rgb, white_background).getbbox()
+    if bbox:
+        pad = max(2, int(min(source.size) * 0.015))
+        left = max(0, bbox[0] - pad)
+        top = max(0, bbox[1] - pad)
+        right = min(source.width, bbox[2] + pad)
+        bottom = min(source.height, bbox[3] + pad)
+        source = source.crop((left, top, right, bottom))
+
+    image = ImageReader(source)
+    _LOGO_CACHE[cache_key] = image
+    return image
+
+
 def draw_logo(c: canvas.Canvas, x: float, y: float, width: float, max_height: float | None = None) -> None:
-    image = ImageReader(str(LOGO_PATH))
+    image = cropped_logo()
     aspect = image.getSize()[1] / image.getSize()[0]
     height = width * aspect
     if max_height is not None and height > max_height:
@@ -569,10 +603,16 @@ def draw_cover(c: canvas.Canvas, payload: dict[str, Any], cutoff_label: str, pag
     c.rect(0, PAGE_H - 58 * MM, 8 * MM, 58 * MM, stroke=0, fill=1)
     c.rect(8 * MM, PAGE_H - 58 * MM, PAGE_W - 8 * MM, 1.2 * MM, stroke=0, fill=1)
 
-    draw_logo(c, 16 * MM, PAGE_H - 30 * MM, 60 * MM, 22 * MM)
+    draw_logo(
+        c,
+        16 * MM,
+        PAGE_H - 30 * MM,
+        COVER_LOGO_WIDTH_MM * MM,
+        COVER_LOGO_MAX_HEIGHT_MM * MM,
+    )
 
     c.setFont("CuboSans-Bold", 27)
-    c.setFillColor(white)
+    c.setFillColor(HEADER_TEXT)
     title_x = 16 * MM
     title_y = PAGE_H - 47 * MM
     c.drawString(title_x, title_y, "CAPEX")
@@ -590,7 +630,7 @@ def draw_cover(c: canvas.Canvas, payload: dict[str, Any], cutoff_label: str, pag
     c.setFillColor(TEAL)
     c.drawString(date_start, date_y, date_label)
     c.setFont("CuboSans", 6.4)
-    c.setFillColor(HexColor("#E7E3F0"))
+    c.setFillColor(HEADER_META)
     c.drawString(date_start + text_width(date_label, "CuboSans-Bold", 6) + date_gap, date_y, date_period)
 
     totals = payload["totals"]
@@ -678,10 +718,16 @@ def draw_cover_dynamic(c: canvas.Canvas, payload: dict[str, Any], cutoff_label: 
     c.setFillColor(TEAL)
     c.rect(0, PAGE_H - 58 * MM, 8 * MM, 58 * MM, stroke=0, fill=1)
     c.rect(8 * MM, PAGE_H - 58 * MM, PAGE_W - 8 * MM, 1.2 * MM, stroke=0, fill=1)
-    draw_logo(c, 16 * MM, PAGE_H - 30 * MM, 60 * MM, 22 * MM)
+    draw_logo(
+        c,
+        16 * MM,
+        PAGE_H - 30 * MM,
+        COVER_LOGO_WIDTH_MM * MM,
+        COVER_LOGO_MAX_HEIGHT_MM * MM,
+    )
 
     c.setFont("CuboSans-Bold", 27)
-    c.setFillColor(white)
+    c.setFillColor(HEADER_TEXT)
     title_x = 16 * MM
     title_y = PAGE_H - 47 * MM
     c.drawString(title_x, title_y, "CAPEX")
@@ -699,7 +745,7 @@ def draw_cover_dynamic(c: canvas.Canvas, payload: dict[str, Any], cutoff_label: 
     c.setFillColor(TEAL)
     c.drawString(date_start, date_y, date_label)
     c.setFont("CuboSans", 6.4)
-    c.setFillColor(HexColor("#E7E3F0"))
+    c.setFillColor(HEADER_META)
     c.drawString(date_start + text_width(date_label, "CuboSans-Bold", 6) + date_gap, date_y, date_period)
 
     totals = payload["totals"]
@@ -765,14 +811,20 @@ def draw_unit_header(c: canvas.Canvas, unit: dict[str, Any], page_number: int, c
     c.rect(0, PAGE_H - 31 * MM, PAGE_W, 31 * MM, stroke=0, fill=1)
     c.setFillColor(TEAL)
     c.rect(0, PAGE_H - 31 * MM, 5 * MM, 31 * MM, stroke=0, fill=1)
-    draw_logo(c, 12 * MM, PAGE_H - 18.5 * MM, 40 * MM, 15 * MM)
+    draw_logo(
+        c,
+        12 * MM,
+        PAGE_H - 18.5 * MM,
+        DETAIL_LOGO_WIDTH_MM * MM,
+        DETAIL_LOGO_MAX_HEIGHT_MM * MM,
+    )
     c.setFont("CuboSans-Bold", 14)
-    c.setFillColor(white)
+    c.setFillColor(HEADER_TEXT)
     title = unit["name"] + (" | continuação" if continuation else "")
     title_lines = wrap_lines(title, "CuboSans-Bold", 14, 122 * MM, 2)
-    draw_text_lines(c, title_lines, 72 * MM, PAGE_H - 14 * MM, "CuboSans-Bold", 14, white, 15)
+    draw_text_lines(c, title_lines, 72 * MM, PAGE_H - 14 * MM, "CuboSans-Bold", 14, HEADER_TEXT, 15)
     c.setFont("CuboSans", 7.4)
-    c.setFillColor(HexColor("#DCD7EA"))
+    c.setFillColor(HEADER_META)
     c.drawString(72 * MM, PAGE_H - 24 * MM, "Composição auditável do valor gasto | CAPEX 2026")
 
     y = PAGE_H - 45 * MM
