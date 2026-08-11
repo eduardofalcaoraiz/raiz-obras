@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import re
 from datetime import datetime
@@ -68,57 +69,72 @@ BRANDS = {
     "MATRIZ": {
         "name": "Matriz Educação",
         "logo": "LOGO DO MATRIZ EDUCAÇÃO.png",
-        "primary": "#1868A8",
-        "header": "#1868A8",
-        "logo_adapt_to_header": True,
+        "primary": "#2268B7",
+        "header": "#F1FAFC",
+        "header_text": "#2268B7",
+        "header_meta": "#357A8C",
         "cover_logo_width_mm": 74,
         "cover_logo_max_height_mm": 25,
         "detail_logo_width_mm": 48,
         "detail_logo_max_height_mm": 16,
-        "accent": "#E58A2B",
-        "pale": "#D5E3EF",
+        "accent": "#27D99A",
+        "pale": "#E3F8F1",
     },
     "QI": {
         "name": "Colégio QI",
         "logo": "LOGO DO QI.png",
-        "primary": "#D9182D",
-        "header": "#651522",
-        "accent": "#F1A11B",
-        "pale": "#FDE3E7",
+        "primary": "#F4152A",
+        "header": "#FFF7F8",
+        "header_text": "#D41126",
+        "header_meta": "#A91424",
+        "cover_logo_width_mm": 72,
+        "cover_logo_max_height_mm": 23,
+        "detail_logo_width_mm": 47,
+        "detail_logo_max_height_mm": 15,
+        "accent": "#F4152A",
+        "pale": "#FDE8EB",
     },
     "SÁ PEREIRA": {
         "name": "Sá Pereira",
         "logo": "LOGO DO SÁ PEREIRA.png",
         "primary": "#0878C8",
-        "header": "#0878C8",
-        "logo_adapt_to_header": True,
+        "header": "#F5FAFE",
+        "header_text": "#0878C8",
+        "header_meta": "#356A98",
         "cover_logo_width_mm": 74,
         "cover_logo_max_height_mm": 24,
         "detail_logo_width_mm": 48,
         "detail_logo_max_height_mm": 16,
-        "accent": "#F0B323",
-        "pale": "#D2E6F5",
+        "accent": "#F7BF3F",
+        "pale": "#E7F3FC",
     },
     "SAP": {
         "name": "SAP",
         "logo": "LOGO DO SAP.png",
-        "primary": "#E64C31",
-        "header": "#B53B28",
-        "logo_adapt_to_header": True,
+        "primary": "#205995",
+        "header": "#FFF9F6",
+        "header_text": "#171717",
+        "header_meta": "#5F5F5F",
         "cover_logo_width_mm": 74,
         "cover_logo_max_height_mm": 24,
         "detail_logo_width_mm": 48,
         "detail_logo_max_height_mm": 16,
-        "accent": "#F39A36",
-        "pale": "#FDE0DB",
+        "accent": "#F15A3A",
+        "pale": "#FBE8E1",
     },
     "SARAH DAWSEY": {
         "name": "Sarah Dawsey",
         "logo": "LOGO DO SARAH DAWSEY.png",
-        "primary": "#183868",
-        "header": "#132A4C",
-        "accent": "#C99A3A",
-        "pale": "#D5DBE3",
+        "primary": "#1D477A",
+        "header": "#EAF6FC",
+        "header_text": "#1D477A",
+        "header_meta": "#315F83",
+        "cover_logo_width_mm": 72,
+        "cover_logo_max_height_mm": 24,
+        "detail_logo_width_mm": 47,
+        "detail_logo_max_height_mm": 16,
+        "accent": "#C7A900",
+        "pale": "#D9EFFA",
     },
     "UNIÃO": {
         "name": "Colégio União",
@@ -132,14 +148,15 @@ BRANDS = {
         "name": "Colégio Unificado",
         "logo": "LOGO DO UNIFICADO.png",
         "primary": "#582878",
-        "header": "#582878",
-        "logo_adapt_to_header": True,
+        "header": "#F1F1F2",
+        "header_text": "#582878",
+        "header_meta": "#626262",
         "cover_logo_width_mm": 74,
         "cover_logo_max_height_mm": 24,
         "detail_logo_width_mm": 48,
         "detail_logo_max_height_mm": 16,
-        "accent": "#E06A43",
-        "pale": "#E0D8E6",
+        "accent": "#626262",
+        "pale": "#E8E5EB",
     },
 }
 
@@ -172,7 +189,20 @@ def configure(config: dict[str, object], units: list[str]) -> None:
     report.LOGO_MIN_CONTRAST = float(config.get("logo_min_contrast", 3.0))
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate CAPEX 2026 brand reports")
+    parser.add_argument(
+        "--brands",
+        nargs="+",
+        choices=tuple(BRANDS),
+        help="Generate only the selected brand keys and preserve all other PDFs.",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = parse_args()
+    selected = set(args.brands or BRANDS)
     token = report.DEFAULT_TOKEN_FILE.read_text(encoding="utf-8").strip()
     balances = report.sql_query(
         token,
@@ -189,8 +219,14 @@ def main() -> None:
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    manifest: list[dict[str, object]] = []
+    manifest_path = DATA_DIR / "manifest.json"
+    existing_manifest = []
+    if manifest_path.exists():
+        existing_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_by_brand = {str(item["brand"]): item for item in existing_manifest}
     for brand_key, config in BRANDS.items():
+        if brand_key not in selected:
+            continue
         units = sorted(set(brands_found.get(brand_key, [])))
         if not units:
             raise RuntimeError(f"No CAPEX 2026 units found for brand {brand_key}")
@@ -202,18 +238,17 @@ def main() -> None:
         data_output = DATA_DIR / filename.replace(".pdf", ".json")
         data_output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         report.generate_pdf(payload, output)
-        manifest.append(
-            {
-                "brand": config["name"],
-                "pdf": str(output),
-                "data": str(data_output),
-                "units": len(units),
-                "totals": payload["totals"],
-            }
-        )
-        print(json.dumps(manifest[-1], ensure_ascii=False))
+        item = {
+            "brand": config["name"],
+            "pdf": str(output),
+            "data": str(data_output),
+            "units": len(units),
+            "totals": payload["totals"],
+        }
+        manifest_by_brand[str(config["name"])] = item
+        print(json.dumps(item, ensure_ascii=False))
 
-    manifest_path = DATA_DIR / "manifest.json"
+    manifest = [manifest_by_brand[str(config["name"])] for config in BRANDS.values()]
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"manifest": str(manifest_path), "reports": len(manifest)}, ensure_ascii=False))
 
