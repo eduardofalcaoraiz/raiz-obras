@@ -19,9 +19,8 @@ BRANDS = {
         "name": "Colégio Americano",
         "logo": "LOGO DO AMERICANO.png",
         "primary": "#0868B8",
-        "header": "#123B5D",
-        "logo_contrast_outline": True,
-        "logo_lighten_on_dark": True,
+        "header": "#0868B8",
+        "logo_adapt_to_header": True,
         "cover_logo_width_mm": 74,
         "cover_logo_max_height_mm": 24,
         "detail_logo_width_mm": 48,
@@ -33,9 +32,8 @@ BRANDS = {
         "name": "Apogeu Global School",
         "logo": "LOGO DO APOGEU GLOBAL SCHOOL.png",
         "primary": "#0848B8",
-        "header": "#122E68",
-        "logo_contrast_outline": True,
-        "logo_lighten_on_dark": True,
+        "header": "#0848B8",
+        "logo_adapt_to_header": True,
         "cover_logo_width_mm": 74,
         "cover_logo_max_height_mm": 24,
         "detail_logo_width_mm": 48,
@@ -71,9 +69,8 @@ BRANDS = {
         "name": "Matriz Educação",
         "logo": "LOGO DO MATRIZ EDUCAÇÃO.png",
         "primary": "#1868A8",
-        "header": "#153B5B",
-        "logo_contrast_outline": True,
-        "logo_lighten_on_dark": True,
+        "header": "#1868A8",
+        "logo_adapt_to_header": True,
         "cover_logo_width_mm": 74,
         "cover_logo_max_height_mm": 25,
         "detail_logo_width_mm": 48,
@@ -93,9 +90,8 @@ BRANDS = {
         "name": "Sá Pereira",
         "logo": "LOGO DO SÁ PEREIRA.png",
         "primary": "#0878C8",
-        "header": "#163D58",
-        "logo_contrast_outline": True,
-        "logo_lighten_on_dark": True,
+        "header": "#0878C8",
+        "logo_adapt_to_header": True,
         "cover_logo_width_mm": 74,
         "cover_logo_max_height_mm": 24,
         "detail_logo_width_mm": 48,
@@ -107,9 +103,8 @@ BRANDS = {
         "name": "SAP",
         "logo": "LOGO DO SAP.png",
         "primary": "#E64C31",
-        "header": "#682A20",
-        "logo_contrast_outline": True,
-        "logo_lighten_on_dark": True,
+        "header": "#B53B28",
+        "logo_adapt_to_header": True,
         "cover_logo_width_mm": 74,
         "cover_logo_max_height_mm": 24,
         "detail_logo_width_mm": 48,
@@ -137,9 +132,8 @@ BRANDS = {
         "name": "Colégio Unificado",
         "logo": "LOGO DO UNIFICADO.png",
         "primary": "#582878",
-        "header": "#38204A",
-        "logo_contrast_outline": True,
-        "logo_lighten_on_dark": True,
+        "header": "#582878",
+        "logo_adapt_to_header": True,
         "cover_logo_width_mm": 74,
         "cover_logo_max_height_mm": 24,
         "detail_logo_width_mm": 48,
@@ -173,9 +167,9 @@ def configure(config: dict[str, object], units: list[str]) -> None:
     report.COVER_LOGO_MAX_HEIGHT_MM = float(config.get("cover_logo_max_height_mm", 22))
     report.DETAIL_LOGO_WIDTH_MM = float(config.get("detail_logo_width_mm", 40))
     report.DETAIL_LOGO_MAX_HEIGHT_MM = float(config.get("detail_logo_max_height_mm", 15))
-    report.LOGO_CONTRAST_OUTLINE = bool(config.get("logo_contrast_outline", False))
-    report.LOGO_LIGHTEN_ON_DARK = bool(config.get("logo_lighten_on_dark", False))
-    report.LOGO_LIGHTEN_STRENGTH = float(config.get("logo_lighten_strength", 0.52))
+    report.LOGO_ADAPT_TO_HEADER = bool(config.get("logo_adapt_to_header", False))
+    report.LOGO_HEADER_COLOR = str(config["header"])
+    report.LOGO_MIN_CONTRAST = float(config.get("logo_min_contrast", 3.0))
 
 
 def main() -> None:
