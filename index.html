@@ -7906,6 +7906,74 @@ function capexFinanceLinksFromItem(it){
   }).filter(Boolean);
 }
 
+function capexItemTrNumber(it){
+  return capexZeevSearchDigits(it?.ticket_raiz_instance_id||it?.referencia||'');
+}
+
+function capexLinkedFinancialParentKeys(){
+  const all=capexItens||[];
+  const existing=new Set(all.map(i=>`${+i.ano||0}|${capexItemTrNumber(i)}`).filter(k=>!k.endsWith('|')));
+  const linked=new Set();
+  all.forEach(child=>{
+    if(!String(child?.setor||'').toUpperCase().includes('FINANCE'))return;
+    if(_ciSit(child)==='Cancelado')return;
+    const parent=capexCompraLinkFromItem(child);
+    const parentTr=capexZeevSearchDigits(parent?.tr||parent?.zeev_id||'');
+    const key=`${+child.ano||0}|${parentTr}`;
+    if(parentTr&&existing.has(key))linked.add(key);
+  });
+  return linked;
+}
+
+function capexConsolidatedItems(its){
+  const linkedParents=capexLinkedFinancialParentKeys();
+  return(its||[]).filter(i=>!linkedParents.has(`${+i.ano||0}|${capexItemTrNumber(i)}`));
+}
+
+async function capexSyncReverseFinancialLink(item,previousItem){
+  if(!String(item?.setor||'').toUpperCase().includes('FINANCE'))return;
+  const childTr=capexItemTrNumber(item);
+  if(!childTr)return;
+  const newParent=capexCompraLinkFromItem(item);
+  const oldParent=capexCompraLinkFromItem(previousItem);
+  const newParentTr=capexZeevSearchDigits(newParent?.tr||newParent?.zeev_id||'');
+  const oldParentTr=capexZeevSearchDigits(oldParent?.tr||oldParent?.zeev_id||'');
+  const parentTrs=[...new Set([newParentTr,oldParentTr].filter(Boolean))];
+  for(const parentTr of parentTrs){
+    let parents=(capexItens||[]).filter(row=>+row.ano===+item.ano&&capexItemTrNumber(row)===parentTr);
+    if(!parents.length){
+      const{data,error}=await db.from('capex_itens').select(CAPEX_ITEM_LIST_COLUMNS).eq('ano',+item.ano).or(`ticket_raiz_instance_id.eq.${parentTr},referencia.eq.${parentTr}`).limit(10);
+      if(error)throw error;
+      parents=(data||[]).map(normalizeCapexRateioItem);
+    }
+    for(const parent of parents){
+      const dados=capexTicketDadosObj(parent.ticket_raiz_dados);
+      const raw=dados.financeirosVinculados||dados.financeiros_vinculados||dados.trsFinanceiros||[];
+      let links=(Array.isArray(raw)?raw:(raw?[raw]:[])).filter(Boolean);
+      links=links.filter(link=>capexZeevSearchDigits(link?.tr||link?.zeev_id||link)!==childTr);
+      if(parentTr===newParentTr){
+        links.push({
+          tr:childTr,
+          zeev_id:+childTr,
+          tipo:'solicitacao_financeira',
+          origem:'capex',
+          pedido:item.pedido||'',
+          status:_ciSit(item),
+          valor:+item.orcamento||0,
+          encontrado:true,
+          vinculado_em:new Date().toISOString(),
+          vinculado_por:currentUser?.email||''
+        });
+      }
+      const nextDados={...dados,financeirosVinculados:links,valorTotalFinanceiros:links.filter(link=>String(link?.status||'')!=='Cancelado').reduce((sum,link)=>sum+(+link?.valor||0),0)};
+      const{error}=await db.from('capex_itens').update({ticket_raiz_dados:nextDados}).eq('id',parent.id);
+      if(error)throw error;
+      const idx=(capexItens||[]).findIndex(row=>+row.id===+parent.id);
+      if(idx>=0)capexItens[idx]={...capexItens[idx],ticket_raiz_dados:nextDados};
+    }
+  }
+}
+
 function capexCompraLinkFromZeev(z){
   if(!z||capexZeevType(z)!=='financeiras')return null;
   const raw=capexZeevAnyField(z,['trCompra','tr da compra','tr de compra','ticketCompra','ticket da compra','solicitacaoCompra','solicitação de compra','numeroTRCompra','numero tr compra','número tr compra']);
@@ -10482,7 +10550,7 @@ function capexApplyListStatus(its){
 }
 
 function capexActiveItems(its){
-  return(its||[]).filter(i=>_ciSit(i)!=='Cancelado');
+  return capexConsolidatedItems(its||[]).filter(i=>_ciSit(i)!=='Cancelado');
 }
 
 function capexSaldoCanEdit(){
@@ -10898,7 +10966,7 @@ function _ciKpis(its){
 
   const canc=its.filter(i=>_ciSit(i)==='Cancelado').length;
 
-  const orc=its.reduce((a,i)=>a+(+i.orcamento||0),0);
+  const orc=capexActiveItems(its).reduce((a,i)=>a+(+i.orcamento||0),0);
 
   const realizado=its.filter(i=>capexIsFinalizado(i)).length;
 
@@ -10992,6 +11060,7 @@ function capexOverviewMoney(its,scope,accent,opts){
 function _ciGroupStats(its,keyFn){
 
   const map={};
+  const valueItems=new Set(capexActiveItems(its));
 
   its.forEach(i=>{
 
@@ -11001,7 +11070,7 @@ function _ciGroupStats(its,keyFn){
 
     map[key].total++;
 
-    map[key].orc+=(+i.orcamento||0);
+    if(valueItems.has(i))map[key].orc+=(+i.orcamento||0);
 
     if(_ciSit(i)==='Resolvido')map[key].res++;
 
@@ -12135,6 +12204,7 @@ async function saveCapexItemLocked(options){if(['leitor','doc'].includes(current
     const idx=capexItens.findIndex(i=>i.id===editId);
 
     if(idx>=0)capexItens[idx]=normalizeCapexRateioItem({...capexItens[idx],...obj});
+    await capexSyncReverseFinancialLink(capexItens[idx]||{...obj,id:editId},antigo);
     if(obraVinculada&&paymentSource)await capexEnsureObraPaymentForTicket(obraVinculada,paymentSource);
 
   }else{
@@ -12169,7 +12239,9 @@ async function saveCapexItemLocked(options){if(['leitor','doc'].includes(current
       });
       const{data,error}=await db.from('capex_itens').insert(rows.map(r=>({...r,aprovado:true}))).select();
       if(error){toast('Erro ao criar rateio: '+error.message);return;}
-      capexItens.unshift(...(data||[]).map(normalizeCapexRateioItem));
+      const createdRateio=(data||[]).map(normalizeCapexRateioItem);
+      capexItens.unshift(...createdRateio);
+      for(const created of createdRateio)await capexSyncReverseFinancialLink(created,null);
       if(zeevRow){
         const first=data?.[0]||{};
         const upd={status:'aprovado',capex_item_id:first.id,aprovado_por:currentUser?.email||'',aprovado_em:new Date().toISOString()};
@@ -12188,7 +12260,9 @@ async function saveCapexItemLocked(options){if(['leitor','doc'].includes(current
 
     if(error){toast('Erro ao criar pedido: '+error.message);return;}
 
-    capexItens.unshift(normalizeCapexRateioItem(data));
+    const created=normalizeCapexRateioItem(data);
+    capexItens.unshift(created);
+    await capexSyncReverseFinancialLink(created,null);
 
     if(zeevRow){
       const upd={status:'aprovado',capex_item_id:data.id,aprovado_por:currentUser?.email||'',aprovado_em:new Date().toISOString()};
