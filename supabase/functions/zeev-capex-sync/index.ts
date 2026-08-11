@@ -948,7 +948,32 @@ function canonicalCapexUnitName(value: unknown) {
   const raw = String(value || '').trim()
   const key = normKey(raw)
   if (key === 'matrizbanguexpansao' || key === 'matrizeducacaobanguexpansao') return 'MATRIZ EDUCAÇÃO - BANGU'
+  if (['sapereiracapistrano', 'sapereirasacapistrano', 'sapereirapereirinha'].some((alias) => key.includes(alias))) {
+    return 'S\u00e1 Pereira - Pereirinha'
+  }
+  if ([
+    'cuboglobalschoolbotafogolucena',
+    'cuboglobalschoolbotagofolucena',
+    'globaltreebotafogo',
+    'cubolucena',
+    'cubokids',
+  ].some((alias) => key.includes(alias))) return 'Cubo Kids'
   return raw
+}
+
+function canonicalizeLegacySchoolNames(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return value
+      .replace(/global\s+tree\s*[-\u2013]?\s*botafogo(?:\s+e\s+cubo\s+lucena)?(?:\s*\(antiga\s+bom\s+tempo\))?/gi, 'Cubo Kids')
+      .replace(/cubo(?:\s+global\s+school)?\s+botafogo\s*[-\u2013]?\s*lucena/gi, 'Cubo Kids')
+      .replace(/cubo\s+lucena/gi, 'Cubo Kids')
+      .replace(/(?:escola\s+)?s[a\u00e1]\s+pereira(?:\s+s[.]?a[.]?)?\s+capistrano/gi, 'S\u00e1 Pereira - Pereirinha')
+  }
+  if (Array.isArray(value)) return value.map((item) => canonicalizeLegacySchoolNames(item))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as AnyRecord).map(([key, item]) => [key, canonicalizeLegacySchoolNames(item)]))
+  }
+  return value
 }
 
 function fieldNames(field: AnyRecord) {
@@ -1916,12 +1941,12 @@ async function buildTicket(row: AnyRecord) {
     setor,
     situacao_sugerida: situacao,
     realizado_sugerido: realizado,
-    raw_fields: fields,
+    raw_fields: canonicalizeLegacySchoolNames(fields),
     raw_instance: {},
     raw_tasks: [],
     itens_json: itens,
     pagamento_json: { ...pagamento, valor_total: valor || null },
-    campos_extraidos: campos,
+    campos_extraidos: canonicalizeLegacySchoolNames(campos),
     enrichment_errors: enrichmentErrors.slice(0, 5),
     last_seen_at: new Date().toISOString(),
   }
@@ -5526,12 +5551,12 @@ function genericZeevTicket(enriched: AnyRecord, fallback: AnyRecord = {}) {
     categoria_capex: firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra']) || fallback.categoria_capex || null,
     fonte: fallback.fonte || 'UNIDADE',
     setor: financeiro ? 'FINANCEIRO' : 'COMPRAS',
-    raw_fields: fields,
+    raw_fields: canonicalizeLegacySchoolNames(fields),
     raw_instance: {},
     raw_tasks: [],
     itens_json: itens,
     pagamento_json: { ...pagamento, valor_total: valor || null },
-    campos_extraidos: fieldsObject(fields),
+    campos_extraidos: canonicalizeLegacySchoolNames(fieldsObject(fields)),
   }
 }
 
@@ -7925,12 +7950,12 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
     setor: ticket?.setor || (financeiro ? 'FINANCEIRO' : 'COMPRAS'),
     situacao_sugerida: ticket?.situacao_sugerida || status.situacao,
     realizado_sugerido: ticket?.realizado_sugerido ?? status.realizado,
-    raw_fields: fields,
+    raw_fields: canonicalizeLegacySchoolNames(fields),
     raw_instance: {},
     raw_tasks: tasks,
     itens_json: itens,
     pagamento_json: ticket?.pagamento_json || { ...extractPagamento(fmap, financeiro), valor_total: valor || null },
-    campos_extraidos: campos,
+    campos_extraidos: canonicalizeLegacySchoolNames(campos),
     enrichment_errors: [
       ...(Array.isArray(ticket?.enrichment_errors) ? ticket.enrichment_errors : []),
       ...(manuallyForced ? [{ field: 'CAPEX', warning: reason || 'Ticket incluído manualmente na fila mesmo sem CAPEX marcado como Sim.' }] : []),

@@ -21,7 +21,6 @@ UPDATE unidades SET cnpj='28.734.505/0003-60', endereco='Rua Barão de Lucena, 1
 UPDATE unidades SET endereco='Rua Sylvio Pinto, 135 - Bosque Marapendi, Barra da Tijuca, Rio de Janeiro - RJ' WHERE id='u57';
 
 -- GLOBAL TREE (raiz CNPJ 28.734.505)
-UPDATE unidades SET cnpj='28.734.505/0006-03', endereco='Rua Barão de Lucena, 103 - Botafogo, Rio de Janeiro - RJ' WHERE id='u91';
 UPDATE unidades SET cnpj='28.734.505/0003-60', endereco='Estrada Coronel Pedro Correia, 125 - Jacarepaguá, Rio de Janeiro - RJ, 22.775-090' WHERE id='u93';
 UPDATE unidades SET cnpj='28.734.505/0001-07', endereco='Rua Sylvio Pinto, 135 - Barra da Tijuca, Rio de Janeiro - RJ' WHERE id='u94';
 UPDATE unidades SET cnpj='28.734.505/0004-41', endereco='Rua Jacarandás da Península, 85 - Barra da Tijuca, Rio de Janeiro - RJ, 22.776-050' WHERE id='u95';

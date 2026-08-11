@@ -15,7 +15,7 @@ INSERT INTO unidades (id, nome, marca, tipo, cnpj, endereco) VALUES
   ('u55', 'Cubo Global School Botafogo',           'CUBO', 'Em operação', '', ''),
   ('u56', 'Cubo Global School Barra Golf',          'CUBO', 'Em operação', '', ''),
   ('u57', 'Cubo Global School Marapendi',           'CUBO', 'Em operação', '', ''),
-  ('u58', 'Cubo Global School Botafogo Lucena',     'CUBO', 'Em operação', '', ''),
+  ('u58', 'Cubo Kids',                              'CUBO', 'Em operação', '', ''),
   ('u59', 'Cubo Global School Botafogo Assunção',   'CUBO', 'Em operação', '', ''),
   -- QI
   ('u60', 'Colégio QI Freguesia',    'QI', 'Em operação', '', ''),
@@ -49,7 +49,7 @@ INSERT INTO unidades (id, nome, marca, tipo, cnpj, endereco) VALUES
   -- UNIFICADO
   ('u85', 'Colégio Unificado Zona Sul', 'UNIFICADO', 'Em operação', '', ''),
   -- SÁ PEREIRA
-  ('u86', 'Escola Sá Pereira Capistrano', 'SÁ PEREIRA', 'Em operação', '', ''),
+  ('u86', 'Sá Pereira - Pereirinha',      'SÁ PEREIRA', 'Em operação', '', ''),
   ('u87', 'Escola Sá Pereira Matriz',     'SÁ PEREIRA', 'Em operação', '', ''),
   -- SAP
   ('u88', 'SAP Barrinha', 'SAP', 'Em operação', '', ''),
@@ -57,7 +57,6 @@ INSERT INTO unidades (id, nome, marca, tipo, cnpj, endereco) VALUES
   ('u89', 'Sarah Dawsey Tijuca',       'SARAH DAWSEY', 'Em operação', '', ''),
   ('u90', 'Sarah Dawsey Juiz de Fora', 'SARAH DAWSEY', 'Em operação', '', ''),
   -- GLOBAL TREE
-  ('u91', 'Global Tree Botafogo',   'GLOBAL TREE', 'Em operação', '', ''),
   ('u92', 'Global Tree Barra Golf', 'GLOBAL TREE', 'Em operação', '', ''),
   ('u93', 'Global Tree Marapendi',  'GLOBAL TREE', 'Em operação', '', ''),
   ('u94', 'Global Tree Península',  'GLOBAL TREE', 'Em operação', '', ''),

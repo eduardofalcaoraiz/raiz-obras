@@ -695,16 +695,16 @@ Cadastradas em `unidades` via `nossas_escolas_A.sql`. IDs u50–u97:
 
 **RAIZ:** Sede, Sul  
 **LEONARDO DA VINCI:** Alfa, Beta, Gama  
-**CUBO:** Botafogo, Barra Golf, Marapendi, Botafogo Lucena, Botafogo Assunção  
+**CUBO:** Botafogo, Barra Golf, Marapendi, Cubo Kids, Botafogo Assunção
 **QI:** Freguesia, Metropolitano, Rio 2, Recreio, Tijuca, Valqueire, Botafogo  
 **MATRIZ:** Bangu, Campo Grande, Caxias, Madureira, Nova Iguaçu, Retiro, Rocha Miranda, São João de Meriti, Tijuca, Taquara, Expansão Bangu  
 **APOGEU:** Zona Norte, Cidade Alta, Ferreira Guimarães, Santo Antônio 1, Santo Antônio 2  
 **AMERICANO:** Cabral, Ramiro  
 **UNIFICADO:** Zona Sul  
-**SÁ PEREIRA:** Capistrano, Matriz  
+**SÁ PEREIRA:** Pereirinha, Matriz
 **SAP:** Barrinha  
 **SARAH DAWSEY:** Tijuca, Juiz de Fora  
-**GLOBAL TREE:** Botafogo, Barra Golf, Marapendi, Península, Rio 2  
+**GLOBAL TREE:** Barra Golf, Marapendi, Península, Rio 2
 **INTEGRA:** Escola Integra  
 **UNIÃO:** Colégio União  
 

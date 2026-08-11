@@ -7,6 +7,7 @@ UPDATE capex_itens SET
     WHEN unidade IN ('LEO ALFA','LEO BETA','LEO GAMA') THEN 'LEONARDO DA VINCI'
     WHEN unidade ILIKE 'SARAH DAWSEY%'                  THEN 'SARAH DAWSEY'
     WHEN unidade ILIKE 'SÁ PEREIRA%' OR unidade ILIKE 'SA PEREIRA%' THEN 'SÁ PEREIRA'
+    WHEN unidade ILIKE 'GLOBAL TREE%BOTAFOGO%'          THEN 'CUBO'
     WHEN unidade ILIKE 'GLOBAL TREE%'                   THEN 'GLOBAL TREE'
     WHEN unidade ILIKE 'CUBO%'                          THEN 'CUBO'
     WHEN unidade ILIKE 'MATRIZ%'                        THEN 'MATRIZ'
@@ -25,6 +26,8 @@ UPDATE capex_itens SET
     WHEN 'LEO GAMA'  THEN 'Colégio Leonardo da Vinci Gama'
     -- CUBO
     WHEN 'CUBO BOTAFOGO'   THEN 'Cubo Global School Botafogo'
+    WHEN 'CUBO BOTAFOGO LUCENA' THEN 'Cubo Kids'
+    WHEN 'CUBO LUCENA'     THEN 'Cubo Kids'
     WHEN 'CUBO BARRA GOLF' THEN 'Cubo Global School Barra Golf'
     WHEN 'CUBO MARAPENDI'  THEN 'Cubo Global School Marapendi'
     -- QI
@@ -59,15 +62,18 @@ UPDATE capex_itens SET
     -- UNIFICADO
     WHEN 'UNIFICADO ZONA SUL' THEN 'Colégio Unificado Zona Sul'
     -- SÁ PEREIRA
-    WHEN 'SÁ PEREIRA CAPISTRANO' THEN 'Escola Sá Pereira Capistrano'
-    WHEN 'SA PEREIRA CAPISTRANO' THEN 'Escola Sá Pereira Capistrano'
+    WHEN 'SÁ PEREIRA CAPISTRANO' THEN 'Sá Pereira - Pereirinha'
+    WHEN 'SA PEREIRA CAPISTRANO' THEN 'Sá Pereira - Pereirinha'
+    WHEN 'SÁ PEREIRA PEREIRINHA' THEN 'Sá Pereira - Pereirinha'
+    WHEN 'SA PEREIRA PEREIRINHA' THEN 'Sá Pereira - Pereirinha'
     WHEN 'SÁ PEREIRA MATRIZ'     THEN 'Escola Sá Pereira Matriz'
     WHEN 'SA PEREIRA MATRIZ'     THEN 'Escola Sá Pereira Matriz'
     -- SARAH DAWSEY
     WHEN 'SARAH DAWSEY TIJUCA' THEN 'Sarah Dawsey Tijuca'
     WHEN 'SARAH DAWSEY JF'     THEN 'Sarah Dawsey Juiz de Fora'
     -- GLOBAL TREE
-    WHEN 'GLOBAL TREE BOTAFOGO'    THEN 'Global Tree Botafogo'
+    WHEN 'GLOBAL TREE BOTAFOGO'    THEN 'Cubo Kids'
+    WHEN 'GLOBAL TREE - BOTAFOGO (ANTIGA BOM TEMPO)' THEN 'Cubo Kids'
     WHEN 'GLOBAL TREE BARRA GOLF'  THEN 'Global Tree Barra Golf'
     WHEN 'GLOBAL TREE MARAPENDI'   THEN 'Global Tree Marapendi'
     WHEN 'GLOBAL TREE PENINSULA'   THEN 'Global Tree Península'
