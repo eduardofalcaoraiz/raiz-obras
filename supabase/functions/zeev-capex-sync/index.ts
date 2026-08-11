@@ -3230,6 +3230,70 @@ async function sendHtmlEmail(subject: string, html: string, toValue?: string) {
   return { sent: false, reason: 'RESEND_API_KEY ou BREVO_API_KEY ausente' }
 }
 
+async function runCapexAuditReport(input: AnyRecord = {}) {
+  const year = Number(input.year || input.ano || new Date().getFullYear()) || new Date().getFullYear()
+  const totalTickets = Number(input.totalTickets || input.total_tickets || 0)
+  const processedTickets = Number(input.processedTickets || input.processed_tickets || 0)
+  const changedTickets = Number(input.changedTickets || input.changed_tickets || 0)
+  const unchangedTickets = Number(input.unchangedTickets || input.unchanged_tickets || 0)
+  const failures = Array.isArray(input.failures) ? input.failures : []
+  const changes = Array.isArray(input.changes) ? input.changes : []
+  const startedAt = String(input.startedAt || input.started_at || '')
+  const finishedAt = String(input.finishedAt || input.finished_at || new Date().toISOString())
+  const recipient = String(input.to || input.email || '').trim()
+  const limitedChanges = changes.slice(0, 500)
+  const rows = limitedChanges.map((change: AnyRecord) => {
+    const fields = Array.isArray(change.fields) ? change.fields.join(', ') : String(change.fields || change.mudancas || '')
+    return `
+      <tr>
+        <td style="border-bottom:1px solid #f3eadf;padding:7px">${htmlEscape(change.tr || change.ticket || '')}</td>
+        <td style="border-bottom:1px solid #f3eadf;padding:7px">${htmlEscape(change.unidade || '')}</td>
+        <td style="border-bottom:1px solid #f3eadf;padding:7px">${htmlEscape(fields)}</td>
+        <td style="border-bottom:1px solid #f3eadf;padding:7px">${htmlEscape(change.before || change.antes || '')}</td>
+        <td style="border-bottom:1px solid #f3eadf;padding:7px">${htmlEscape(change.after || change.depois || '')}</td>
+      </tr>`
+  }).join('')
+  const failureRows = failures.slice(0, 100).map((failure: AnyRecord) => `
+    <li>TR ${htmlEscape(failure.tr || failure.ticket || '')}: ${htmlEscape(failure.error || failure.reason || failure)}</li>`).join('')
+  const subject = `Obras e Real Estate - auditoria CAPEX ${year} concluida`
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#173C34;line-height:1.5;background:#fffaf3;padding:20px;border-radius:12px">
+      <p style="margin:0 0 6px;color:#a35a00;text-transform:uppercase;letter-spacing:.04em;font-size:12px"><b>Integracao Zeev</b></p>
+      <h2 style="margin:0 0 8px">Auditoria completa do CAPEX ${htmlEscape(year)}</h2>
+      <p style="margin:0 0 14px">Varredura individual dos TRs registrados na plataforma, sem incluir linhas historicas sem numero de ticket.</p>
+      <table style="border-collapse:separate;border-spacing:8px;width:100%;font-size:14px">
+        <tbody><tr>
+          <td style="background:#fff;border:1px solid #eadcc9;border-radius:8px;padding:10px"><b>TRs previstos</b><br>${htmlEscape(totalTickets)}</td>
+          <td style="background:#fff;border:1px solid #eadcc9;border-radius:8px;padding:10px"><b>TRs processados</b><br>${htmlEscape(processedTickets)}</td>
+          <td style="background:#fff;border:1px solid #eadcc9;border-radius:8px;padding:10px"><b>TRs alterados</b><br>${htmlEscape(changedTickets)}</td>
+          <td style="background:#fff;border:1px solid #eadcc9;border-radius:8px;padding:10px"><b>Sem mudanca</b><br>${htmlEscape(unchangedTickets)}</td>
+        </tr></tbody>
+      </table>
+      <p><b>Inicio:</b> ${htmlEscape(formatBrDateTime(startedAt))}<br><b>Conclusao:</b> ${htmlEscape(formatBrDateTime(finishedAt))}</p>
+      ${rows ? `
+        <h3 style="margin:18px 0 8px">Mudancas encontradas</h3>
+        <table style="border-collapse:collapse;width:100%;font-size:13px;background:#fff">
+          <thead><tr><th style="text-align:left;padding:7px">TR</th><th style="text-align:left;padding:7px">Unidade</th><th style="text-align:left;padding:7px">Campos</th><th style="text-align:left;padding:7px">Antes</th><th style="text-align:left;padding:7px">Depois</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>` : '<p><b>Nenhuma alteracao de dados foi necessaria.</b></p>'}
+      ${changes.length > limitedChanges.length ? `<p>O e-mail exibe os primeiros ${limitedChanges.length} TRs alterados de ${changes.length}.</p>` : ''}
+      ${failureRows ? `<h3 style="margin:18px 0 8px;color:#9b2c2c">Falhas que exigem nova tentativa</h3><ul>${failureRows}</ul>` : '<p><b>Falhas:</b> nenhuma.</p>'}
+    </div>`
+  const email = await sendHtmlEmail(subject, html, recipient || undefined)
+  return {
+    ok: Boolean(email.sent),
+    mode: 'capex-audit-report',
+    sent: Boolean(email.sent),
+    provider: email.provider || '',
+    reason: email.reason || '',
+    year,
+    totalTickets,
+    processedTickets,
+    changedTickets,
+    failures: failures.length,
+  }
+}
+
 async function sendEmail(ticket: AnyRecord) {
   const subject = `Novo Ticket Raiz CAPEX #${ticket.zeev_instance_id}`
   const link = String(ticket.ticket_link || '')
@@ -8349,6 +8413,11 @@ Deno.serve(async (req) => {
       if (!secretAuthorized(req)) await requireAppUser(req)
       const out = await runRescueBlockReport(input || {})
       return json(out)
+    }
+    if (input?.mode === 'capex-audit-report') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await runCapexAuditReport(input || {})
+      return json(out, out.ok ? 200 : 502)
     }
     if (input?.mode === 'refresh-payment-statuses') {
       if (!secretAuthorized(req)) await requireAppUser(req)
