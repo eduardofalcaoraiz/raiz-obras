@@ -7744,11 +7744,20 @@ function capexRegisteredPatchFromTicket(ticket: AnyRecord, row: AnyRecord = {}) 
     zeev_docs_checked_at: new Date().toISOString(),
   }
 
+  const storedData = row?.ticket_raiz_dados && typeof row.ticket_raiz_dados === 'object' ? row.ticket_raiz_dados : {}
+  const manual = storedData?.validacaoManual && typeof storedData.validacaoManual === 'object' ? storedData.validacaoManual : {}
+  const hasManualBudget = ['orcamento', 'valor', 'valorTotal'].some((key) => Object.prototype.hasOwnProperty.call(manual, key))
+  const manualBudget = parseMoney(manual?.orcamento ?? manual?.valor ?? manual?.valorTotal)
   const value = ticketValueForPayment(ticket) || storedCapexRegisteredValue(row)
-  if (Number.isFinite(value) && value > 0) patch.orcamento = value
+  if (hasManualBudget && Number.isFinite(manualBudget) && manualBudget > 0) patch.orcamento = manualBudget
+  else if (Number.isFinite(value) && value > 0) patch.orcamento = value
 
   const status = capexStatusFromTicket(ticket)
-  if (status.realizado === true) {
+  const manualSituation = String(manual?.situacao || '').trim()
+  if (['Resolvido', 'Em Andamento', 'Cancelado'].includes(manualSituation)) {
+    patch.situacao = manualSituation
+    patch.realizado = manualSituation === 'Resolvido'
+  } else if (status.realizado === true) {
     patch.situacao = 'Resolvido'
     patch.realizado = true
   } else if (String(status.situacao || '').toLowerCase() === 'cancelado') {
