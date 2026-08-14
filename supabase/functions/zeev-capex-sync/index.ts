@@ -2373,6 +2373,9 @@ function ticketHasReliableFinalValue(ticket: AnyRecord) {
 }
 
 function storedCapexRegisteredValue(row: AnyRecord = {}) {
+  const registeredBudget = parseMoney(row?.orcamento)
+  if (registeredBudget > 0) return registeredBudget
+
   const dados = row?.ticket_raiz_dados && typeof row.ticket_raiz_dados === 'object' ? row.ticket_raiz_dados : {}
   const campos = dados?.campos && typeof dados.campos === 'object' ? dados.campos : {}
   let value = moneyFromPlainObjectByPriority(campos, PAYMENT_TOTAL_FIELDS)
@@ -2407,6 +2410,23 @@ function storedCapexRegisteredValue(row: AnyRecord = {}) {
   return value > 0 ? value : 0
 }
 
+function registeredFinanceQueuePatch(ticket: AnyRecord, row: AnyRecord = {}) {
+  if (!isFinanceiro(ticket)) return {}
+  const ticketValue = ticketValueForPayment(ticket)
+  const dados = row?.ticket_raiz_dados && typeof row.ticket_raiz_dados === 'object' ? row.ticket_raiz_dados : {}
+  const rateio = dados?.rateio && typeof dados.rateio === 'object' ? dados.rateio : {}
+  const registeredTotal = parseMoney(rateio?.total) || storedCapexRegisteredValue(row)
+  const value = ticketValue > 0 ? ticketValue : registeredTotal
+  if (!Number.isFinite(value) || value <= 0) return {}
+  const payment = ticket?.pagamento_json && typeof ticket.pagamento_json === 'object' ? ticket.pagamento_json : {}
+  return {
+    valor: value,
+    valor_final: value,
+    valor_status: 'final',
+    pagamento_json: { ...payment, valor_total: value },
+  }
+}
+
 function capexRegisteredSyncPatch(ticket: AnyRecord, row: AnyRecord = {}) {
   const patch: AnyRecord = capexRegisteredPatchFromTicket(ticket, row)
   const value = ticketValueForPayment(ticket)
@@ -2433,7 +2453,7 @@ async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
   }
   if (!byTicket.size) return { capexLinked: 0, paymentMatched: 0, paymentLinked: 0 }
 
-  const capexRows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados,origem')
+  const capexRows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,orcamento,ticket_raiz_dados,origem')
   let capexLinked = 0
   const capexMatchedKeys = new Set<string>()
   for (const row of capexRows || []) {
@@ -2457,6 +2477,7 @@ async function reconcileRegisteredTickets(tickets: AnyRecord[]) {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
       body: JSON.stringify({
+        ...registeredFinanceQueuePatch(ticket, row),
         status: 'aprovado',
         capex_item_id: Number(row.id),
         aprovado_em: new Date().toISOString(),
@@ -2509,7 +2530,7 @@ async function reconcileRegisteredTicketsTargeted(tickets: AnyRecord[]) {
   const capexRows: AnyRecord[] = []
   for (let i = 0; i < ids.length; i += 80) {
     const chunk = ids.slice(i, i + 80).join(',')
-    const rows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados,origem&or=(ticket_raiz_instance_id.in.(${chunk}),referencia.in.(${chunk}))`)
+    const rows = await rest(`/capex_itens?select=id,referencia,ticket_raiz_instance_id,orcamento,ticket_raiz_dados,origem&or=(ticket_raiz_instance_id.in.(${chunk}),referencia.in.(${chunk}))`)
     capexRows.push(...(rows || []))
   }
 
@@ -2536,6 +2557,7 @@ async function reconcileRegisteredTicketsTargeted(tickets: AnyRecord[]) {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
       body: JSON.stringify({
+        ...registeredFinanceQueuePatch(ticket, row),
         status: 'aprovado',
         capex_item_id: Number(row.id),
         aprovado_em: new Date().toISOString(),
@@ -2583,7 +2605,7 @@ async function reconcileRegisteredTicketsTargeted(tickets: AnyRecord[]) {
 }
 
 async function reconcilePendingTicketsAlreadyRegistered() {
-  const pending = await restAll('/capex_zeev_solicitacoes?status=eq.pendente&select=id,zeev_instance_id,ticket_link,pedido,raw_fields,itens_json,pagamento_json,campos_extraidos')
+  const pending = await restAll('/capex_zeev_solicitacoes?status=eq.pendente&select=id,zeev_instance_id,flow_id,flow_name,ticket_link,pedido,valor,valor_final,valor_status,raw_fields,itens_json,pagamento_json,campos_extraidos')
   const pendingByTicket = new Map<string, AnyRecord>()
   for (const row of pending || []) {
     const key = ticketDigits(row.zeev_instance_id)
@@ -2593,7 +2615,7 @@ async function reconcilePendingTicketsAlreadyRegistered() {
     return { ok: true, mode: 'reconcile-registered', pending: 0, capexLinked: 0, paymentLinked: 0, tickets: [] }
   }
 
-  const capexRows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_dados,origem')
+  const capexRows = await restAll('/capex_itens?select=id,referencia,ticket_raiz_instance_id,orcamento,ticket_raiz_dados,origem')
   const paymentRows = await restAll('/pagamentos?select=id,obra_id,ticket_raiz')
   const fixed: AnyRecord[] = []
   let capexLinked = 0
@@ -2618,6 +2640,7 @@ async function reconcilePendingTicketsAlreadyRegistered() {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
       body: JSON.stringify({
+        ...registeredFinanceQueuePatch(ticket, row),
         status: 'aprovado',
         capex_item_id: Number(row.id),
         aprovado_em: new Date().toISOString(),
