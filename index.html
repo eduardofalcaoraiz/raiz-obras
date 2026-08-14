@@ -8565,7 +8565,27 @@ async function capexDownloadZeevDoc(doc){
 
 function paymentDocKey(d){
   if(!d)return'';
+  const hash=String(d.sha256||d.contentHash||'').trim().toLowerCase();
+  if(hash)return'sha256:'+hash;
   return String(d.storagePath||d.url||((d.kind||'')+'|'+(d.name||''))).trim().toLowerCase();
+}
+
+function paymentDocLogicalName(d){
+  let name=String(d?.name||paymentDocUrlFileName(d)||d?.storagePath||d?.path||'').split('?')[0];
+  try{name=decodeURIComponent(name);}catch(_){}
+  name=name.split('/').pop()||'';
+  name=name.replace(/\.[^.]+$/,'').replace(/\s*\(\d+\)\s*$/,'').replace(/_+\d+_?$/,'');
+  return capexZeevNormField(name);
+}
+
+function paymentDocsMatch(a,b){
+  const ah=String(a?.sha256||a?.contentHash||'').trim().toLowerCase();
+  const bh=String(b?.sha256||b?.contentHash||'').trim().toLowerCase();
+  if(ah&&bh)return ah===bh;
+  const an=paymentDocLogicalName(a),bn=paymentDocLogicalName(b);
+  if(!an||an!==bn||an.length<18)return false;
+  const as=Number(a?.size||a?.bytes||0),bs=Number(b?.size||b?.bytes||0);
+  return !as||!bs||as===bs;
 }
 
 function isZeevAuditDocClient(d){
@@ -8583,7 +8603,12 @@ function normalizePaymentDocs(p){
     const corrected=paymentDocKindLabel(item);
     if(corrected)item.kind=corrected;
     const key=paymentDocKey(item);
-    if(!key||rows.some(x=>paymentDocKey(x)===key))return;
+    const duplicate=rows.find(x=>paymentDocKey(x)===key||paymentDocsMatch(x,item));
+    if(!key)return;
+    if(duplicate){
+      if(item.kind==='COMPROVANTE')duplicate.kind='COMPROVANTE';
+      return;
+    }
     rows.push(item);
   };
   (Array.isArray(p.docs)?p.docs:[]).forEach(d=>push(d,d?.kind||''));
@@ -8615,6 +8640,8 @@ function paymentDocKindLabel(doc){
   const fromMessage=/(messages|comentario|comment|instancetasks|rawtasks)/.test(source);
   const explicitFiscalOrCharge=/(notafiscal|notasfiscais|anexarnota|anexarnf|danfe|xml|nfe|nfse|nfs-e|nf-e|fatura|boleto|recibo)/.test(original);
   const proofCue=/(pgfor|comprovantedopagamento|comprovante.*pagamento|pagamento.*comprovante|pix|liquidado|liquidacao|pago)/;
+  const explicit=String(doc?.kind||'').toUpperCase().trim();
+  if(explicit==='COMPROVANTE')return'COMPROVANTE';
   if(proofCue.test(original))return'COMPROVANTE';
   if(/boleto/.test(original))return'BOLETO';
   if(/fatura/.test(original))return'FATURA';
@@ -8622,7 +8649,6 @@ function paymentDocKindLabel(doc){
   if(/xml|danfe|nfe|nfse|nota|nf/.test(original))return'NF';
   if(/comprovante/.test(original))return'COMPROVANTE';
   if(fromMessage&&!explicitFiscalOrCharge)return'COMPROVANTE';
-  const explicit=String(doc?.kind||'').toUpperCase().trim();
   if(['FATURA','RECIBO','BOLETO','COMPROVANTE'].includes(explicit))return explicit;
   if(['NF','NFE','NF-E','NFSE','NFS-E','DANFE','XML'].includes(explicit))return'NF';
   if(proofCue.test(stored))return'COMPROVANTE';
@@ -8764,7 +8790,7 @@ function addPaymentDoc(p,doc,kind){
   p.docs=normalizePaymentDocs(p);
   const item={...doc,kind:doc.kind||kind||'',bucket:doc.bucket||'pagamentos',type:doc.type||inferType(doc.name||doc.storagePath||'')};
   const key=paymentDocKey(item);
-  if(!key||p.docs.some(d=>paymentDocKey(d)===key))return false;
+  if(!key||p.docs.some(d=>paymentDocKey(d)===key||paymentDocsMatch(d,item)))return false;
   p.docs.push(item);
   return true;
 }
@@ -8786,6 +8812,7 @@ function capexZeevDocKind(doc,z){
   const explicitFiscalOrCharge=/(notafiscal|notasfiscais|anexarnota|anexarnf|danfe|xml|nfe|nfse|nfs-e|nf-e|fatura|boleto|recibo)/.test(original);
   const nonFiscal=/cotacao|orcamento|orcamento|proposta|contrato|comprovante|pgfor|liquidado|liquidacao|pix/.test(`${original} ${stored} ${source}`);
   const proofCue=/(pgfor|comprovantedopagamento|comprovante.*pagamento|pagamento.*comprovante|pix|liquidado|liquidacao|pago)/;
+  if(String(doc?.kind||'').toUpperCase().trim()==='COMPROVANTE')return'COMPROVANTE';
   if(proofCue.test(original))return'COMPROVANTE';
   if(/boleto/.test(original))return'BOLETO';
   if(/fatura/.test(original))return'FATURA';
@@ -15801,22 +15828,65 @@ async function savePag(){if(['leitor','doc'].includes(currentProfile?.role)){toa
 
   persist(cur.id);closePagModal();renderObra();renderPainel();updateNavBadge();toast(pagEditIdx!==null?"Pagamento atualizado":"Pagamento lançado");}
 
-function anexarComp(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getElementById("comp-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="comp-input";inp.style.display="none";document.body.appendChild(inp);}
+const paymentDocUploadLocks=new Set();
 
-  inp.onchange=async()=>{if(!inp.files.length)return;const f=inp.files[0];toast('Enviando comprovante…');
+async function paymentFileSha256(file){
+  try{
+    if(!crypto?.subtle||!file?.arrayBuffer)return'';
+    const bytes=await crypto.subtle.digest('SHA-256',await file.arrayBuffer());
+    return Array.from(new Uint8Array(bytes),x=>x.toString(16).padStart(2,'0')).join('');
+  }catch(_){return'';}
+}
+
+function replacePaymentDocKind(p,target,kind){
+  const corrected={...target,kind};
+  p.docs=paymentAllDocs(p).map(d=>(paymentDocsMatch(d,target)||paymentDocKey(d)===paymentDocKey(target))?{...d,kind}:d);
+  if(kind==='COMPROVANTE')p.compDoc=corrected;
+  return corrected;
+}
+
+function anexarComp(oid,i){
+  const o=obras.find(x=>x.id===oid),lockKey=oid+':'+i+':COMPROVANTE';
+  if(!o?.pag?.[i]){toast('Pagamento nao encontrado.');return;}
+  if(paymentDocUploadLocks.has(lockKey)){toast('O comprovante ja esta sendo enviado.');return;}
+  let inp=document.getElementById('comp-input');
+  if(!inp){inp=document.createElement('input');inp.type='file';inp.id='comp-input';inp.style.display='none';document.body.appendChild(inp);}
+  inp.accept='.pdf,.jpg,.jpeg,.png,.webp,.PDF,.JPG,.JPEG,.PNG,.WEBP';
+  inp.onchange=async()=>{
+    if(!inp.files.length)return;
+    paymentDocUploadLocks.add(lockKey);
+    const f=inp.files[0];
+    toast('Enviando comprovante...');
     try{
       const{data:{session}}=await db.auth.getSession();
-      if(!session){toast('Sessão expirada. Faça login novamente.');return;}
+      if(!session){toast('Sessao expirada. Faca login novamente.');return;}
+      await ensurePaymentHeavyFields(o.pag[i]);
+      const candidate={name:f.name,type:f.type||inferType(f.name),bucket:'pagamentos',kind:'COMPROVANTE',size:f.size,sha256:await paymentFileSha256(f)};
+      const existing=paymentAllDocs(o.pag[i]).find(d=>paymentDocsMatch(d,candidate));
+      if(existing){
+        replacePaymentDocKind(o.pag[i],existing,'COMPROVANTE');
+        await persist(oid);
+        if(cur&&cur.id===oid)renderObra();
+        toast('Comprovante ja anexado; o arquivo existente foi mantido.');
+        return;
+      }
       const path=await uploadPagDoc(oid,f,'comp');
-      o.pag[i].compDoc={name:f.name,storagePath:path,type:f.type,bucket:'pagamentos',kind:'COMPROVANTE'};
+      o.pag[i].compDoc={...candidate,storagePath:path};
       addPaymentDoc(o.pag[i],o.pag[i].compDoc,'COMPROVANTE');
-      persist(oid);if(cur&&cur.id===oid)renderObra();toast('✓ Comprovante anexado e salvo.');
+      await persist(oid);
+      if(cur&&cur.id===oid)renderObra();
+      toast('Comprovante anexado e salvo.');
     }catch(e){
       const msg=e?.message||e?.error||String(e);
       console.error('upload comp:',e);
-      toast('❌ Falha ao anexar comprovante: '+msg.slice(0,120));
+      toast('Falha ao anexar comprovante: '+msg.slice(0,120));
+    }finally{
+      paymentDocUploadLocks.delete(lockKey);
+      inp.value='';
     }
-    inp.value="";};inp.click();}
+  };
+  inp.click();
+}
 
 function anexarNF(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getElementById("nf-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="nf-input";inp.style.display="none";document.body.appendChild(inp);}inp.multiple=true;inp.accept=".xml,.pdf,.jpg,.jpeg,.png,.webp,.XML,.PDF,.JPG,.JPEG,.PNG,.WEBP";
 
