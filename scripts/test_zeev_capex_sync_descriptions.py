@@ -39,6 +39,23 @@ class FinanceDescriptionTests(unittest.TestCase):
 
         self.assertEqual(sync.pick_ticket_value(fields, [], financeiro=True), 6000.0)
 
+    def test_installment_total_is_used_when_unit_value_is_empty(self):
+        fields = [
+            form_field("qtdParcelas", "1"),
+            form_field("valorDaParcela", ""),
+            form_field("totalDasParcelas", "69,75"),
+        ]
+
+        self.assertEqual(sync.pick_ticket_value(fields, [], financeiro=True), 69.75)
+
+    def test_installment_unit_value_is_not_mistaken_for_multi_installment_total(self):
+        fields = [
+            form_field("qtdParcelas", "3"),
+            form_field("valorDaParcela", "100,00"),
+        ]
+
+        self.assertEqual(sync.pick_ticket_value(fields, [], financeiro=True), 0.0)
+
     def test_request_information_wins_over_fiscal_and_item_descriptions(self):
         fields = [
             form_field("descricaoDaNotaFiscal", "Servicos executados conforme NF 9981"),

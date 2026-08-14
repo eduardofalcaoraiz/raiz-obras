@@ -1308,9 +1308,13 @@ function itemsTotal(items: AnyRecord[]) {
 function pickTicketValue(fmap: Map<string, AnyRecord[]>, items: AnyRecord[], financeiro: boolean) {
   const explicit = moneyByPriority(fmap, PAYMENT_TOTAL_FIELDS)
   if (explicit) return explicit
-  if (financeiro && moneyByPriority(fmap, INSTALLMENT_COUNT_FIELDS) === 1) {
-    const nextPayment = moneyByPriority(fmap, NEXT_PAYMENT_VALUE_FIELDS)
-    if (nextPayment) return nextPayment
+  if (financeiro) {
+    const installmentTotal = moneyByPriority(fmap, INSTALLMENT_TOTAL_FIELDS)
+    if (installmentTotal) return installmentTotal
+    if (moneyByPriority(fmap, INSTALLMENT_COUNT_FIELDS) === 1) {
+      const nextPayment = moneyByPriority(fmap, NEXT_PAYMENT_VALUE_FIELDS)
+      if (nextPayment) return nextPayment
+    }
   }
   const totalItems = itemsTotal(items)
   if (totalItems) return totalItems

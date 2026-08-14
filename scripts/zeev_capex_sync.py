@@ -1804,6 +1804,9 @@ def pick_ticket_value(fields, items, financeiro=False):
     if explicit:
         return explicit
     if financeiro:
+        installment_total = money_by_priority(fields, INSTALLMENT_TOTAL_FIELDS)
+        if installment_total:
+            return installment_total
         installment_count = money_by_priority(fields, INSTALLMENT_COUNT_FIELDS)
         if installment_count == 1:
             next_payment = money_by_priority(fields, NEXT_PAYMENT_VALUE_FIELDS)
