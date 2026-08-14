@@ -223,10 +223,25 @@ const VALUE_TOTAL_FIELDS = [
 ]
 
 const INSTALLMENT_VALUE_FIELDS = [
+  'valorDaParcela',
+  'valorParcela',
+  'Valor da parcela',
+  'Valor da parcela *',
+  'valor da parcela',
+]
+
+const INSTALLMENT_TOTAL_FIELDS = [
+  'totalDasParcelas',
   'Total das parcelas',
   'Total das parcelas *',
-  'valorParcela',
-  'valor da parcela',
+]
+
+const INSTALLMENT_DUE_DATE_FIELDS = [
+  'vencimentoDaParcela',
+  'Vencimento da parcela',
+  'Vencimento da parcela *',
+  'dataVencimentoParcela',
+  'data de vencimento da parcela',
 ]
 
 const ITEM_DESC_FIELDS = [
@@ -462,6 +477,9 @@ const FINANCE_ENRICH_FIELDS = [
   ...FINANCE_REQUEST_DESCRIPTION_FIELDS,
   ...NEXT_PAYMENT_VALUE_FIELDS,
   ...INSTALLMENT_COUNT_FIELDS,
+  ...INSTALLMENT_VALUE_FIELDS,
+  ...INSTALLMENT_TOTAL_FIELDS,
+  ...INSTALLMENT_DUE_DATE_FIELDS,
   'valorTotalDoPagamento',
   'valorTotalDoPagamento01',
   'valorTotalPagamento',
@@ -1369,14 +1387,36 @@ function fiscalDocumentNumber(fmap: Map<string, AnyRecord[]>, financeiro: boolea
 }
 
 function extractPagamento(fmap: Map<string, AnyRecord[]>, financeiro = false) {
+  const parcelas = financeiro ? extractInstallments(fmap) : []
+  const qtdParcelas = financeiro ? moneyByPriority(fmap, INSTALLMENT_COUNT_FIELDS) : 0
   return {
     forma: firstField(fmap, ['formaDePagamento', 'formaPagamento', 'condicaoPagamento']) || null,
     data_pagamento: firstField(fmap, ['dataPagamento']) || null,
-    previsao_pagamento: firstField(fmap, ['previsaoPagamento', 'dataDeVencimento', 'dataVencimento']) || null,
+    previsao_pagamento: firstField(fmap, ['previsaoPagamento', 'dataDeVencimento', 'dataVencimento']) || parcelas[0]?.vencimento || null,
     data_entrega: firstField(fmap, ['dataEntrega', 'prazoEntrega']) || null,
     nota_fiscal: fiscalDocumentNumber(fmap, financeiro) || null,
     chave_acesso: firstField(fmap, ['chaveAcesso']) || null,
+    qtd_parcelas: qtdParcelas || parcelas.length || null,
+    parcelas,
   }
+}
+
+function extractInstallments(fmap: Map<string, AnyRecord[]>) {
+  const rows = new Map<number, AnyRecord>()
+  for (const field of uniqueFieldsFromMap(fmap)) {
+    const row = Number(field?.row || 1) || 1
+    if (fieldMatches(field, INSTALLMENT_VALUE_FIELDS)) {
+      const valor = parseMoney(field?.value)
+      if (valor > 0) rows.set(row, { ...(rows.get(row) || {}), numero: row, valor })
+    }
+    if (fieldMatches(field, INSTALLMENT_DUE_DATE_FIELDS)) {
+      const vencimento = dateOnly(field?.value)
+      if (vencimento) rows.set(row, { ...(rows.get(row) || {}), numero: row, vencimento })
+    }
+  }
+  return [...rows.values()]
+    .filter((parcela) => Number(parcela?.valor || 0) > 0 || Boolean(parcela?.vencimento))
+    .sort((a, b) => Number(a.numero || 0) - Number(b.numero || 0))
 }
 
 function cleanUnit(value: string) {
@@ -1434,6 +1474,10 @@ function stripHtmlToLines(html: string) {
     .split(/\n+/)
     .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean)
+}
+
+function htmlToPlainText(html: string) {
+  return stripHtmlToLines(html).join(' ')
 }
 
 function splitReportLine(line: string) {
@@ -5220,13 +5264,16 @@ function leanFieldsForFlow(flow: number) {
 
 function forcedPendingFieldsForFlow(flow: number) {
   const base = [
+    ...INSTALLMENT_COUNT_FIELDS,
+    ...INSTALLMENT_VALUE_FIELDS,
+    ...INSTALLMENT_TOTAL_FIELDS,
+    ...INSTALLMENT_DUE_DATE_FIELDS,
     ...capexFieldsForFlow(flow),
     ...FINANCE_REQUEST_DESCRIPTION_FIELDS,
     ...EXTRA_FIELDS,
     ...VALUE_TOTAL_FIELDS,
     ...PAYMENT_TOTAL_FIELDS,
     ...NEXT_PAYMENT_VALUE_FIELDS,
-    ...INSTALLMENT_COUNT_FIELDS,
     ...FISCAL_NUMBER_FIELDS,
     ...GENERIC_FISCAL_NUMBER_FIELDS,
     ...ISSUE_DATE_FIELDS,
@@ -8097,6 +8144,155 @@ async function probeZeevTicket(input: AnyRecord = {}) {
   return out
 }
 
+async function inspectZeevInstallments(input: AnyRecord = {}) {
+  const ticketId = Number(parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')[0] || 0)
+  const flow = Number(input.flowId || input.flow_id || 299) || 299
+  if (!ticketId) throw new Error('Informe um TR para consultar as parcelas.')
+
+  const base = env('ZEEV_BASE_URL', 'https://raizeducacao.zeev.it').replace(/\/$/, '')
+  const errors: AnyRecord[] = []
+  let designFields: AnyRecord[] = []
+  try {
+    const design = await zeevJsonRequest(`${base}/api/2/flows/${flow}/design/form`, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
+      },
+    })
+    designFields = walkJsonObjects(design)
+      .map((field: AnyRecord) => ({
+        name: String(field?.name || '').trim(),
+        label: String(field?.label || field?.title || field?.caption || field?.displayName || '').trim(),
+        type: String(field?.type || field?.fieldType || field?.typeName || '').trim(),
+      }))
+      .filter((field) => field.name && /(parcela|vencimento)/.test(normKey([field.name, field.label].join(' '))))
+  } catch (error) {
+    errors.push({ field: '__design__', error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500) })
+  }
+  const requestedFieldNames = [...new Set([
+    ...designFields.map((field) => field.name),
+    ...INSTALLMENT_COUNT_FIELDS,
+    ...INSTALLMENT_VALUE_FIELDS,
+    ...INSTALLMENT_TOTAL_FIELDS,
+    ...INSTALLMENT_DUE_DATE_FIELDS,
+  ])]
+  const storedMap = await loadTicketsByIds([ticketId])
+  const stored = storedMap.get(ticketId) || {}
+  const messageHints: string[] = []
+  try {
+    const messages = await zeevJsonRequest(`${base}/api/2/messages/instance/${ticketId}?useCache=false`, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
+      },
+    }, { timeoutMs: 20000 })
+    const seenHints = new Set<string>()
+    for (const obj of walkJsonObjects(messages)) {
+      for (const value of Object.values(obj || {})) {
+        if (typeof value !== 'string') continue
+        for (const line of stripHtmlToLines(value)) {
+          const clean = line.replace(/\s+/g, ' ').trim()
+          if (!clean || clean.length > 1000) continue
+          if (!/(parcela|vencimento|\b\d{1,2}\/\d{1,2}\/\d{4}\b|R\$\s*\d)/i.test(clean)) continue
+          if (seenHints.has(clean)) continue
+          seenHints.add(clean)
+          messageHints.push(clean)
+        }
+      }
+    }
+  } catch (error) {
+    errors.push({ field: '__messages__', error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500) })
+  }
+  let collected: AnyRecord = { fields: [], last: null, errors: [] }
+  try {
+    collected = await collectInstanceFields(ticketId, flow, requestedFieldNames, 4, { collectAll: true, maxChunks: 20 })
+  } catch (error) {
+    errors.push({ field: '__instance__', error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500) })
+  }
+  let fields = mergeFields(Array.isArray(stored?.raw_fields) ? stored.raw_fields : [], collected.fields)
+  let detail = collected.last || {}
+  const intervalStart = String(input.start || input.startDate || input.start_date || '').trim()
+  const intervalEnd = String(input.end || input.endDate || input.end_date || '').trim()
+  if (intervalStart && intervalEnd) {
+    const pageSize = Math.max(1, Math.min(Number(input.pageSize || input.page_size || 30) || 30, 30))
+    const pageLimit = Math.max(1, Math.min(Number(input.maxPages || input.max_pages || 4) || 4, 8))
+    for (let page = 1; page <= pageLimit; page++) {
+      try {
+        const data = await zeevJsonRequest(`${base}/api/2/instances/report`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)',
+          },
+          body: JSON.stringify({
+            flowId: flow,
+            startDateIntervalBegin: intervalStart,
+            startDateIntervalEnd: intervalEnd,
+            recordsPerPage: pageSize,
+            pageNumber: page,
+            useCache: false,
+            simulation: false,
+            formFieldNames: requestedFieldNames,
+            showPendingInstanceTasks: true,
+            showFinishedInstanceTasks: true,
+            showPendingAssignees: true,
+            allowOpenUrlsForFilesInForm: true,
+          }),
+        }, { needsFormFields: true, mergeRows: true, timeoutMs: 20000 })
+        const rows = Array.isArray(data) ? data : [data]
+        const target = rows.find((row: AnyRecord) => Number(row?.id || row?.instanceId) === ticketId)
+        if (target) {
+          detail = { ...detail, ...target }
+          fields = mergeFields(fields, Array.isArray(target?.formFields) ? target.formFields : [])
+          break
+        }
+        if (rows.length < pageSize) break
+      } catch (error) {
+        errors.push({ field: '__intervalReport__', page, error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500) })
+        break
+      }
+    }
+  }
+  const reportLink = detail?.reportLink || detail?.reportUrl || stored?.ticket_link || ''
+  if (reportLink) {
+    try {
+      const report = await fetchReportLinkFields(reportLink)
+      const reportRows = new Map<string, number>()
+      const normalizedReportFields = (report.fields || []).map((field: AnyRecord) => {
+        const key = normKey(fieldNames(field)[0] || '')
+        const row = (reportRows.get(key) || 0) + 1
+        reportRows.set(key, row)
+        return { ...field, row }
+      })
+      fields = [...fields, ...normalizedReportFields]
+    } catch (error) {
+      errors.push({ field: '__reportLink__', error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500) })
+    }
+  }
+  const relevant = fields
+    .filter((field) => fieldMatches(field, [...INSTALLMENT_COUNT_FIELDS, ...INSTALLMENT_VALUE_FIELDS, ...INSTALLMENT_TOTAL_FIELDS, ...INSTALLMENT_DUE_DATE_FIELDS]) || /(parcela|vencimento)/.test(normKey(fieldNames(field).join(' '))))
+    .map((field) => ({
+      name: String(field?.name || ''),
+      label: String(field?.label || ''),
+      row: Number(field?.row || 1) || 1,
+      value: field?.value ?? '',
+    }))
+  const fmap = fieldMap(fields)
+  return {
+    ok: true,
+    mode: 'inspect-zeev-installments',
+    tr: ticketId,
+    flow,
+    designFields,
+    fields: relevant,
+    qtdParcelas: moneyByPriority(fmap, INSTALLMENT_COUNT_FIELDS) || null,
+    parcelas: extractInstallments(fmap),
+    messageHints: messageHints.slice(0, 40),
+    errors: [...errors, ...(collected.errors || [])].slice(0, 12),
+  }
+}
+
 async function inspectTicketLifecycles(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '').slice(0, 40)
   if (!ticketIds.length) throw new Error('Informe ao menos um TR para verificar.')
@@ -8537,6 +8733,11 @@ Deno.serve(async (req) => {
         notify: false,
       }, actor)
       return json({ ...out, mode: 'probe-zeev-ticket', probe: 'vercel-direct', ticketId: requested[0] })
+    }
+    if (input?.mode === 'inspect-zeev-installments') {
+      if (!secretAuthorized(req)) await requireAppUser(req)
+      const out = await inspectZeevInstallments(input || {})
+      return json(out)
     }
     if (input?.mode === 'inspect-ticket-lifecycle') {
       if (!secretAuthorized(req)) await requireAppUser(req)

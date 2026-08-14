@@ -239,8 +239,16 @@ VALUE_TOTAL_FIELDS = [
 ]
 
 INSTALLMENT_VALUE_FIELDS = [
-    "Total das parcelas", "Total das parcelas *",
-    "valorParcela", "valor da parcela",
+    "valorDaParcela", "valorParcela", "Valor da parcela", "Valor da parcela *", "valor da parcela",
+]
+
+INSTALLMENT_TOTAL_FIELDS = [
+    "totalDasParcelas", "Total das parcelas", "Total das parcelas *",
+]
+
+INSTALLMENT_DUE_DATE_FIELDS = [
+    "vencimentoDaParcela", "Vencimento da parcela", "Vencimento da parcela *",
+    "dataVencimentoParcela", "data de vencimento da parcela",
 ]
 
 ITEM_TOTAL_FIELDS = [
@@ -489,6 +497,56 @@ def parse_money(value):
         return float(s)
     except ValueError:
         return 0.0
+
+
+def normalize_date_only(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    iso_match = re.match(r"^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])", text)
+    if iso_match:
+        return "-".join(iso_match.groups())
+    br_match = re.search(r"(?:^|\D)(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})(?!\d)", text)
+    if br_match:
+        day, month, year = br_match.groups()
+        if len(year) == 2:
+            year = f"20{year}"
+        return f"{year.zfill(4)}-{month.zfill(2)}-{day.zfill(2)}"
+    return ""
+
+
+def extract_installments(fields):
+    rows = {}
+    for field in fields or []:
+        try:
+            row = int(field.get("row") or 1)
+        except (TypeError, ValueError):
+            row = 1
+        if field_matches(field, INSTALLMENT_VALUE_FIELDS):
+            value = parse_money(field.get("value"))
+            if value > 0:
+                rows[row] = {**rows.get(row, {}), "numero": row, "valor": value}
+        if field_matches(field, INSTALLMENT_DUE_DATE_FIELDS):
+            due_date = normalize_date_only(field.get("value"))
+            if due_date:
+                rows[row] = {**rows.get(row, {}), "numero": row, "vencimento": due_date}
+    return [rows[row] for row in sorted(rows) if rows[row].get("valor") or rows[row].get("vencimento")]
+
+
+def payment_payload(fields, financeiro, valor):
+    installments = extract_installments(fields) if financeiro else []
+    installment_count = int(parse_money(field_value_by_priority(fields, INSTALLMENT_COUNT_FIELDS)) or 0) if financeiro else 0
+    return {
+        "forma": field_value_by_priority(fields, ["formaDePagamento", "formaPagamento", "condicaoPagamento"]) or None,
+        "data_pagamento": field_value(fields, ["dataPagamento"]) or None,
+        "previsao_pagamento": field_value_by_priority(fields, ["previsaoPagamento", "dataDeVencimento", "dataVencimento"]) or (installments[0].get("vencimento") if installments else None),
+        "data_entrega": field_value(fields, ["dataEntrega", "prazoEntrega"]) or None,
+        "nota_fiscal": fiscal_document_number(fields, financeiro=financeiro) or None,
+        "chave_acesso": field_value(fields, ["chaveAcesso"]) or None,
+        "valor_total": valor or None,
+        "qtd_parcelas": installment_count or len(installments) or None,
+        "parcelas": installments,
+    }
 
 
 def request_json(method, url, headers=None, payload=None, timeout=60, retries=3):
@@ -1543,14 +1601,22 @@ def enrich_instance(row):
     finance_description_fields = finance_request_description_fields(flow_id) if financeiro else []
     if financeiro and not field_value_by_priority(current_fields, finance_description_fields):
         priority_alias_fields.extend(finance_description_fields)
+    if financeiro:
+        priority_alias_fields.extend(INSTALLMENT_COUNT_FIELDS)
+        priority_alias_fields.extend(INSTALLMENT_VALUE_FIELDS)
+        priority_alias_fields.extend(INSTALLMENT_TOTAL_FIELDS)
+        priority_alias_fields.extend(INSTALLMENT_DUE_DATE_FIELDS)
     if not has_capex(current_fields, flow_id):
         missing_alias_fields.extend(capex_fields(flow_id))
     if not field_value(current_fields, VALUE_TOTAL_FIELDS):
         missing_alias_fields.extend(VALUE_TOTAL_FIELDS)
         if financeiro:
             missing_alias_fields.extend(NEXT_PAYMENT_VALUE_FIELDS)
-            missing_alias_fields.extend(INSTALLMENT_COUNT_FIELDS)
     if financeiro:
+        missing_alias_fields.extend(INSTALLMENT_COUNT_FIELDS)
+        missing_alias_fields.extend(INSTALLMENT_VALUE_FIELDS)
+        missing_alias_fields.extend(INSTALLMENT_TOTAL_FIELDS)
+        missing_alias_fields.extend(INSTALLMENT_DUE_DATE_FIELDS)
         if not field_value(current_fields, unique_fields(FISCAL_NUMBER_FIELDS, GENERIC_FISCAL_NUMBER_FIELDS)):
             missing_alias_fields.extend(unique_fields(FISCAL_NUMBER_FIELDS, GENERIC_FISCAL_NUMBER_FIELDS))
     else:
@@ -2591,15 +2657,7 @@ def build_ticket(row):
         "raw_instance": {},
         "raw_tasks": [],
         "itens_json": itens,
-        "pagamento_json": {
-            "forma": field_value_by_priority(fields, ["formaDePagamento", "formaPagamento", "condicaoPagamento"]) or None,
-            "data_pagamento": field_value(fields, ["dataPagamento"]) or None,
-            "previsao_pagamento": field_value_by_priority(fields, ["previsaoPagamento", "dataDeVencimento", "dataVencimento"]) or None,
-            "data_entrega": field_value(fields, ["dataEntrega", "prazoEntrega"]) or None,
-            "nota_fiscal": fiscal_document_number(fields, financeiro=financeiro) or None,
-            "chave_acesso": field_value(fields, ["chaveAcesso"]) or None,
-            "valor_total": valor or None,
-        },
+        "pagamento_json": payment_payload(fields, financeiro, valor),
         "campos_extraidos": campos_extraidos,
         "enrichment_errors": enrichment_errors[:5],
     }
@@ -2682,15 +2740,7 @@ def generic_ticket_from_instance(row, reason=""):
         "raw_instance": {},
         "raw_tasks": [],
         "itens_json": itens,
-        "pagamento_json": {
-            "forma": field_value_by_priority(fields, ["formaDePagamento", "formaPagamento", "condicaoPagamento"]) or None,
-            "data_pagamento": field_value(fields, ["dataPagamento"]) or None,
-            "previsao_pagamento": field_value_by_priority(fields, ["previsaoPagamento", "dataDeVencimento", "dataVencimento"]) or None,
-            "data_entrega": field_value(fields, ["dataEntrega", "prazoEntrega"]) or None,
-            "nota_fiscal": fiscal_document_number(fields, financeiro=is_finance_row(row)) or None,
-            "chave_acesso": field_value(fields, ["chaveAcesso"]) or None,
-            "valor_total": valor or None,
-        },
+        "pagamento_json": payment_payload(fields, financeiro, valor),
         "campos_extraidos": campos_extraidos,
         "enrichment_errors": list(row.get("__enrichmentErrors") or [])[:5],
     }
@@ -3699,6 +3749,39 @@ def inspect_docs():
         out["tickets"].append(entry)
     out["ok"] = not any(t.get("errors") for t in out["tickets"]) and not out["errors"]
     return out
+
+
+def inspect_installments():
+    ticket_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS", ""))
+    if len(ticket_ids) != 1:
+        raise RuntimeError("Informe exatamente um TR em ZEEV_TICKET_IDS para consultar parcelas.")
+    instance_id = ticket_ids[0]
+    requested = unique_fields(
+        INSTALLMENT_COUNT_FIELDS,
+        INSTALLMENT_VALUE_FIELDS,
+        INSTALLMENT_TOTAL_FIELDS,
+        INSTALLMENT_DUE_DATE_FIELDS,
+    )
+    detail, found = instance_fields(instance_id, requested, timeout=8, retries=1)
+    fields = merge_zeev_fields(detail.get("formFields") or [], found)
+    relevant = []
+    for field in fields:
+        if not field_matches(field, requested):
+            continue
+        relevant.append({
+            "name": field.get("name") or "",
+            "label": field.get("label") or "",
+            "row": field.get("row") or 1,
+            "value": field.get("value") or "",
+        })
+    return {
+        "ok": True,
+        "mode": "inspect-installments",
+        "tr": instance_id,
+        "qtdParcelas": int(parse_money(field_value_by_priority(fields, INSTALLMENT_COUNT_FIELDS)) or 0),
+        "parcelas": extract_installments(fields),
+        "fields": relevant,
+    }
 
 
 def fiscal_doc_type_from_fields(fields):

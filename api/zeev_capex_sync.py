@@ -203,6 +203,10 @@ class handler(BaseHTTPRequestHandler):
                     raise RuntimeError("Identidade Zeev vazia.")
                 _json(self, 200, {"ok": True, "mode": "health", "probe": "vercel-direct"})
                 return
+            if mode in {"inspect-installments", "inspect-parcelas", "parcelas"}:
+                result = mod.inspect_installments()
+                _json(self, 200, result)
+                return
             if mode in {"reconcile-registered", "reconcile", "dedupe-registered"}:
                 result = mod.reconcile_registered()
                 _json(self, 200, result)

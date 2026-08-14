@@ -8498,6 +8498,7 @@ function capexZeevPagamentoDate(z,names){
 
 function capexBuildPagamentoFromZeev(z,obra,escopo){
   const valor=+z?.valor_final||+z?.valor||+(z?.pagamento_json?.valor_total||0)||0;
+  const parcelas=capexZeevInstallments(z);
   const storedDocs=capexZeevStoredDocs(z);
   const candidateDocs=[...storedDocs,...capexZeevFiscalDocuments(z)].map(d=>({...d,kind:paymentDocKindLabel(d)||capexZeevDocKind(d,z)}));
   const fiscalDoc=candidateDocs.find(paymentIsFiscalDoc)||null;
@@ -8506,7 +8507,7 @@ function capexBuildPagamentoFromZeev(z,obra,escopo){
   const nfNumRaw=String(z?.pagamento_json?.nota_fiscal||capexZeevAnyField(z,CAPEX_ZEEV_FISCAL_NUMBER_FIELDS)||'').trim();
   const fiscalDocName=String(fiscalDoc?.name||(fiscalDoc?.storagePath||'').split('/').pop()||fiscalDoc?.source||'');
   const nfNum=nfNumRaw||paymentDocNumberFromText(fiscalDocName,fiscalKind,fiscalType);
-  const venc=capexZeevPagamentoDate(z,['previsao_pagamento','dataVencimento','dataDeVencimento','previsaoPagamento','dataPagamento']);
+  const venc=parcelas[0]?.vencimento||capexZeevPagamentoDate(z,['previsao_pagamento','dataVencimento','dataDeVencimento','previsaoPagamento','dataPagamento']);
   const dataPag=capexZeevPagamentoDate(z,['data_pagamento','dataPagamento']);
   const ref=capexZeevDescricaoLancamento(z)||z?.request_name||('Ticket Raiz '+(z?.zeev_instance_id||''));
   return{
@@ -8529,8 +8530,8 @@ function capexBuildPagamentoFromZeev(z,obra,escopo){
     ticketRaiz:String(z?.zeev_instance_id||''),
     compraVinculada:null,
     obs:(z?.ticket_link?'Ticket Raiz: '+z.ticket_link:''),
-    pagForma:z?.pagamento_json?.forma||'A_VISTA',
-    parcelas:[],
+    pagForma:parcelas.length>1?'PARCELADO':(z?.pagamento_json?.forma||'A_VISTA'),
+    parcelas,
     itens:Array.isArray(z?.itens_json)?z.itens_json:[],
     docs:storedDocs
   };
@@ -9186,11 +9187,27 @@ function capexZeevFirstItem(z){
   return capexZeevDescricaoLancamento(z)||capexZeevAnyField(z,['descricaoServico','descricaoSolicitacao','descricaoCompra','descricaoProduto','item','itens','servico','servicos','produto','produtos','material','materiais','descricao','justificativa']);
 }
 
+function capexZeevInstallments(z){
+  const parcelas=Array.isArray(z?.pagamento_json?.parcelas)?z.pagamento_json.parcelas:[];
+  return parcelas.map((p,i)=>({
+    numero:+p?.numero||i+1,
+    valor:+p?.valor||0,
+    vencimento:normalizeDateISO(p?.vencimento||p?.data_vencimento||'')||''
+  })).filter(p=>p.valor||p.vencimento).sort((a,b)=>a.numero-b.numero);
+}
+
+function capexZeevInstallmentSummary(z){
+  const parcelas=capexZeevInstallments(z);
+  if(!parcelas.length)return'';
+  return parcelas.map(p=>`${p.numero}a: ${p.valor?fmt(p.valor):'valor pendente'}${p.vencimento?' em '+capexZeevDate(p.vencimento):''}`).join(' / ');
+}
+
 function capexZeevPaymentSummary(z){
   const p=z?.pagamento_json||{};
+  const parcelas=capexZeevInstallments(z);
   const parts=[
     p.forma?String(p.forma):'',
-    p.previsao_pagamento?('prev. '+capexZeevShort(p.previsao_pagamento,22)):'',
+    parcelas.length?`${parcelas.length} parcelas`:(p.previsao_pagamento?('prev. '+capexZeevShort(p.previsao_pagamento,22)):''),
     p.nota_fiscal?('NF '+p.nota_fiscal):''
   ].filter(Boolean);
   if(parts.length)return parts.join(' · ');
@@ -9202,6 +9219,7 @@ function capexZeevFactsHtml(z){
   const fornecedor=capexZeevVendor(z);
   const item=capexZeevFirstItem(z);
   const pagamento=capexZeevPaymentSummary(z);
+  const parcelas=capexZeevInstallmentSummary(z);
   const solicitante=[z.requester_name,z.requester_team].filter(Boolean).join(' · ');
   const descAlert=z?.campos_extraidos?._descricao_alerta||'';
   const facts=[
@@ -9209,6 +9227,7 @@ function capexZeevFactsHtml(z){
     {label:'Fornecedor / favorecido',value:fornecedor||'Nao informado'},
     {label:'Item / servico pedido',value:item||'Nao informado'},
     {label:'Pagamento / anexos',value:pagamento||'Nao informado'},
+    parcelas?{label:'Parcelas',value:parcelas}:null,
     descAlert?{label:'Leitura Zeev',value:descAlert}:null
   ].filter(Boolean);
   return facts.map(f=>`<div class="capex-zeev-fact" title="${escHtml(f.value)}"><b>${escHtml(f.label)}</b><span>${escHtml(f.value)}</span></div>`).join('');
@@ -9216,9 +9235,10 @@ function capexZeevFactsHtml(z){
 
 function capexZeevPaymentSummaryClean(z){
   const p=z?.pagamento_json||{};
+  const parcelas=capexZeevInstallments(z);
   const parts=[
     p.forma?String(p.forma):'',
-    p.previsao_pagamento?('prev. '+capexZeevShort(p.previsao_pagamento,22)):'',
+    parcelas.length?`${parcelas.length} parcelas`:(p.previsao_pagamento?('prev. '+capexZeevShort(p.previsao_pagamento,22)):''),
     p.nota_fiscal?('NF '+p.nota_fiscal):''
   ].filter(Boolean);
   if(parts.length)return parts.join(' / ');
