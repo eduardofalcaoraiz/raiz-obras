@@ -8634,14 +8634,15 @@ function paymentDocUrlFileName(doc){
 
 function paymentDocKindLabel(doc){
   const original=capexZeevNormField([doc?.name,paymentDocUrlFileName(doc)].filter(Boolean).join(' '));
-  const stored=capexZeevNormField([doc?.storagePath,doc?.path].filter(Boolean).join(' '));
+  const rawStored=String(doc?.storagePath||doc?.path||'').replace(/\\/g,'/');
+  const stored=capexZeevNormField(rawStored);
   const file=[original,stored].filter(Boolean).join(' ');
   const source=capexZeevNormField([doc?.source,doc?.origin,doc?.copiedFromTarget].filter(Boolean).join(' '));
   const fromMessage=/(messages|comentario|comment|instancetasks|rawtasks)/.test(source);
   const explicitFiscalOrCharge=/(notafiscal|notasfiscais|anexarnota|anexarnf|danfe|xml|nfe|nfse|nfs-e|nf-e|fatura|boleto|recibo)/.test(original);
   const proofCue=/(pgfor|comprovantedopagamento|comprovante.*pagamento|pagamento.*comprovante|pix|liquidado|liquidacao|pago)/;
   const explicit=String(doc?.kind||'').toUpperCase().trim();
-  if(explicit==='COMPROVANTE')return'COMPROVANTE';
+  if(explicit==='COMPROVANTE'||/(^|\/)comp_\d+\//i.test(rawStored))return'COMPROVANTE';
   if(proofCue.test(original))return'COMPROVANTE';
   if(/boleto/.test(original))return'BOLETO';
   if(/fatura/.test(original))return'FATURA';
