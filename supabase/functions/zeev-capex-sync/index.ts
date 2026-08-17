@@ -7849,6 +7849,161 @@ function capexRegisteredPatchFromTicket(ticket: AnyRecord, row: AnyRecord = {}) 
   return patch
 }
 
+function linkedPurchaseTicketRefs(ticket: AnyRecord) {
+  if (!isFinanceiro(ticket)) return []
+  const ownTicket = ticketDigits(ticket?.zeev_instance_id)
+  const refs: string[] = []
+  const add = (value: unknown) => {
+    for (const ref of docTicketRefs(value)) {
+      if (ref !== ownTicket && !refs.includes(ref)) refs.push(ref)
+    }
+  }
+  const inspect = (value: unknown) => {
+    if (!value) return
+    if (Array.isArray(value)) {
+      value.forEach(inspect)
+      return
+    }
+    if (typeof value === 'object') {
+      const obj = value as AnyRecord
+      add(obj.tr || obj.zeev_id || obj.ticket || obj.numero || obj.id || '')
+      return
+    }
+    add(value)
+  }
+
+  for (const key of ['compraVinculada', 'compra_vinculada', 'compra', 'trCompra', 'ticketCompra', 'solicitacaoCompra']) {
+    inspect(ticket?.[key])
+    inspect(ticket?.raw_instance?.[key])
+  }
+  for (const field of ticketFormRows(ticket)) {
+    const label = normKey(fieldNames(field).join(' '))
+    if (!label.includes('compra')) continue
+    if (!['tr', 'ticket', 'solicitacao', 'vinculad'].some((term) => label.includes(term))) continue
+    inspect(field?.value)
+  }
+  const description = ticketDescriptionForPayment(ticket)
+  const purchaseRefPattern = /\b(?:TR\s+(?:DA|DE)\s+COMPRAS?|TICKET(?:\s+RAIZ)?\s+(?:DA|DE)\s+COMPRAS?|SOLICITA(?:CAO|ÇÃO)\s+DE\s+COMPRAS?)\s*[:#-]?\s*(\d{1,7})\b/giu
+  let match: RegExpExecArray | null
+  while ((match = purchaseRefPattern.exec(description))) {
+    const ref = ticketDigits(match[1])
+    if (ref && ref !== ownTicket && !refs.includes(ref)) refs.push(ref)
+  }
+  return refs
+}
+
+function capexRateioIsActive(row: AnyRecord) {
+  const dados = row?.ticket_raiz_dados && typeof row.ticket_raiz_dados === 'object' ? row.ticket_raiz_dados : {}
+  const rateio = dados?.rateio && typeof dados.rateio === 'object' ? dados.rateio : null
+  return Boolean(rateio && (rateio.ativo === true || ['1', 'true', 'sim', 'yes', 'on'].includes(String(rateio.ativo || '').trim().toLowerCase())))
+}
+
+function capexHasProtectedManualBudget(row: AnyRecord) {
+  const dados = row?.ticket_raiz_dados && typeof row.ticket_raiz_dados === 'object' ? row.ticket_raiz_dados : {}
+  const manual = dados?.validacaoManual && typeof dados.validacaoManual === 'object' ? dados.validacaoManual : {}
+  const hasBudget = ['orcamento', 'valor', 'valorTotal'].some((key) => Object.prototype.hasOwnProperty.call(manual, key))
+  if (!hasBudget) return false
+  return !['consolidacaoautomaticacomprafinanceiro', 'auditoriaduplicidadescapex2026'].includes(normKey(manual?.origem))
+}
+
+async function consolidateLinkedFinanceCapex(ticket: AnyRecord, unit: AnyRecord, ano: number) {
+  const purchaseRefs = linkedPurchaseTicketRefs(ticket)
+  if (!purchaseRefs.length) return { done: false }
+  const rows = await rest(`/capex_itens?ano=eq.${ano}&select=id,ano,unidade,orcamento,situacao,realizado,referencia,ticket_raiz_instance_id,ticket_raiz_dados,origem&or=(ticket_raiz_instance_id.in.(${purchaseRefs.join(',')}),referencia.in.(${purchaseRefs.join(',')}))`)
+  const unitKey = normKey(canonicalCapexUnitName(unit?.nome || ''))
+  const parents = (rows || []).filter((row: AnyRecord) => {
+    if (normKey(canonicalCapexUnitName(row?.unidade || '')) !== unitKey) return false
+    return capexTicketRefs(row).some((ref) => purchaseRefs.includes(ref))
+  })
+  if (!parents.length) return { done: false }
+  if (parents.length !== 1 || capexRateioIsActive(parents[0]) || capexHasProtectedManualBudget(parents[0])) {
+    const reason = parents.length !== 1
+      ? 'compra_vinculada_ambigua'
+      : capexRateioIsActive(parents[0])
+        ? 'compra_vinculada_com_rateio'
+        : 'validacao_manual_protegida'
+    return { done: false, blocked: true, reason, purchaseRefs, parentIds: parents.map((row: AnyRecord) => Number(row.id)) }
+  }
+
+  const parent = parents[0]
+  const financeTr = Number(ticket?.zeev_instance_id || 0)
+  const financeValue = ticketValueForPayment(ticket)
+  if (!(financeValue > 0)) return { done: false, blocked: true, reason: 'valor_financeiro_ausente', purchaseRefs, parentIds: [Number(parent.id)] }
+  const now = new Date().toISOString()
+  const dados = parent?.ticket_raiz_dados && typeof parent.ticket_raiz_dados === 'object' ? parent.ticket_raiz_dados : {}
+  const rawLinks = dados?.financeirosVinculados || dados?.financeiros_vinculados || dados?.trsFinanceiros || []
+  const previousLinks = (Array.isArray(rawLinks) ? rawLinks : rawLinks ? [rawLinks] : [])
+    .filter(Boolean)
+    .map((link: unknown) => link && typeof link === 'object' ? { ...(link as AnyRecord) } : { tr: Number(ticketDigits(link)) || null })
+    .filter((link: AnyRecord) => Number(ticketDigits(link?.tr || link?.zeev_id || link?.ticket || '')) !== financeTr)
+  const status = capexStatusFromTicket(ticket)
+  previousLinks.push({
+    tr: financeTr,
+    zeev_id: financeTr,
+    tipo: 'solicitacao_financeira',
+    origem: 'capex_consolidado',
+    pedido: ticketDescriptionForPayment(ticket),
+    status: status.situacao,
+    valor: financeValue,
+    encontrado: true,
+    vinculado_em: now,
+    vinculado_por: 'capex_lote',
+  })
+  const financeTotal = previousLinks.reduce((total: number, link: AnyRecord) => {
+    if (norm(link?.status).includes('cancelad')) return total
+    return total + parseMoney(link?.valor ?? link?.valor_final ?? link?.valorTotal)
+  }, 0)
+  const previousConsolidation = dados?.consolidacaoFinanceira && typeof dados.consolidacaoFinanceira === 'object' ? dados.consolidacaoFinanceira : {}
+  const purchaseOriginal = parseMoney(previousConsolidation?.valorCompraOriginal) || storedCapexRegisteredValue(parent)
+  const finalValue = Math.max(purchaseOriginal, financeTotal)
+  const previousManual = dados?.validacaoManual && typeof dados.validacaoManual === 'object' ? dados.validacaoManual : {}
+  const nextDados = {
+    ...dados,
+    validacaoManual: {
+      ...previousManual,
+      orcamento: finalValue,
+      valor: finalValue,
+      valorTotal: finalValue,
+      motivo: 'TR financeiro consolidado no TR de compra vinculado para evitar duplicidade no CAPEX.',
+      origem: 'consolidacao_automatica_compra_financeiro',
+      atualizadoPor: 'capex_lote',
+      atualizadoEm: now,
+    },
+    consolidacaoFinanceira: {
+      ...previousConsolidation,
+      trCompra: Number(capexTicketRefs(parent)[0] || purchaseRefs[0]),
+      valorCompraOriginal: purchaseOriginal,
+      valorFinanceiroTotal: financeTotal,
+      valorFinal: finalValue,
+      regraValor: 'maior_entre_compra_e_soma_financeira',
+      consolidadoEm: now,
+    },
+    financeirosVinculados: previousLinks,
+    valorTotalFinanceiros: financeTotal,
+    pagamento: {
+      ...(dados?.pagamento && typeof dados.pagamento === 'object' ? dados.pagamento : {}),
+      valor_total: finalValue,
+    },
+  }
+  await rest(`/capex_itens?id=eq.${Number(parent.id)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ orcamento: finalValue, ticket_raiz_dados: nextDados }),
+  })
+  await rest(`/capex_zeev_solicitacoes?zeev_instance_id=eq.${financeTr}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      ...registeredFinanceQueuePatch(ticket, parent),
+      status: 'aprovado',
+      capex_item_id: Number(parent.id),
+      aprovado_em: now,
+      aprovado_por: 'capex_lote_consolidado',
+    }),
+  })
+  return { done: true, purchaseTr: Number(capexTicketRefs(parent)[0] || purchaseRefs[0]), financeTr, capexItemId: Number(parent.id), purchaseOriginal, financeTotal, finalValue }
+}
+
 async function registerCapexItems(input: AnyRecord = {}) {
   const ticketIds = parseTicketIdList(input.ticketIds || input.ticket_ids || input.instanceIds || input.instance_ids || '')
   const unidadeName = String(input.unidadeName || input.targetUnidade || input.target_unidade || input.unidade || input.escola || input.school || '').trim()
@@ -7882,7 +8037,7 @@ async function registerCapexItems(input: AnyRecord = {}) {
   }
 
   const dbTickets = await loadTicketsByIds(ticketIds)
-  const out: AnyRecord = { ok: true, mode: 'register-capex-items', ano, unidade: { id: unit.id, nome: unit.nome, marca: unit.marca }, requested: ticketIds, inserted: [], skipped: [], errors: [], docsAttached: 0 }
+  const out: AnyRecord = { ok: true, mode: 'register-capex-items', ano, unidade: { id: unit.id, nome: unit.nome, marca: unit.marca }, requested: ticketIds, inserted: [], consolidated: [], skipped: [], errors: [], docsAttached: 0 }
   for (const id of ticketIds) {
     try {
       const key = ticketDigits(id)
@@ -7918,6 +8073,15 @@ async function registerCapexItems(input: AnyRecord = {}) {
       const ticketId = Number(ticket?.zeev_instance_id || id)
       if (!ticketId) {
         out.skipped.push({ tr: id, reason: 'ticket_nao_encontrado' })
+        continue
+      }
+      const consolidation = await consolidateLinkedFinanceCapex({ ...ticket, zeev_instance_id: ticketId }, unit, ano)
+      if (consolidation.blocked) {
+        out.skipped.push({ tr: ticketId, reason: consolidation.reason, purchaseRefs: consolidation.purchaseRefs, parentIds: consolidation.parentIds })
+        continue
+      }
+      if (consolidation.done) {
+        out.consolidated.push(consolidation)
         continue
       }
       const payload = capexPayloadFromTicket({ ...ticket, zeev_instance_id: ticketId }, unit, ano)

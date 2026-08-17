@@ -8055,6 +8055,89 @@ async function capexSyncReverseFinancialLink(item,previousItem){
   }
 }
 
+async function capexConsolidateLinkedFinanceIntoPurchase({zeevRow,obj,compraVinculada,ano,unidade}){
+  if(!zeevRow||capexZeevType(zeevRow)!=='financeiras'||!compraVinculada)return{done:false};
+  const purchaseTr=capexZeevSearchDigits(compraVinculada.tr||compraVinculada.zeev_id||'');
+  const financeTr=capexZeevSearchDigits(zeevRow.zeev_instance_id||zeevRow.id||'');
+  if(!purchaseTr||!financeTr)return{done:false};
+  const sameUnit=row=>capexNormText(row?.unidade)===capexNormText(unidade);
+  let parents=(capexItens||[]).filter(row=>+row.ano===+ano&&capexItemTrNumber(row)===purchaseTr&&sameUnit(row));
+  if(!parents.length){
+    const{data,error}=await db.from('capex_itens')
+      .select('id,ano,unidade,marca,pedido,setor,situacao,orcamento,realizado,referencia,ticket_raiz_instance_id,ticket_raiz_dados,origem')
+      .eq('ano',+ano)
+      .or(`ticket_raiz_instance_id.eq.${purchaseTr},referencia.eq.${purchaseTr}`)
+      .limit(20);
+    if(error)throw error;
+    parents=(data||[]).map(normalizeCapexRateioItem).filter(sameUnit);
+  }
+  if(!parents.length)return{done:false};
+  if(parents.length!==1||capexRateioInfoFromItem(parents[0]))return{done:false,blocked:true};
+
+  const parent=parents[0];
+  const dados=capexTicketDadosObj(parent.ticket_raiz_dados);
+  const previousManual=capexTicketDadosObj(dados.validacaoManual);
+  const manualBudgetKeys=['orcamento','valor','valorTotal'].filter(key=>Object.prototype.hasOwnProperty.call(previousManual,key));
+  const automaticOrigins=['consolidacaoautomaticacomprafinanceiro','auditoriaduplicidadescapex2026'];
+  const manualOrigin=capexNormText(previousManual.origem).replace(/\s+/g,'');
+  if(manualBudgetKeys.length&&!automaticOrigins.includes(manualOrigin))return{done:false,blocked:true,reason:'validacao_manual_protegida'};
+  const previousLinks=capexFinanceLinksFromItem(parent).filter(link=>capexZeevSearchDigits(link?.tr||link?.zeev_id||link)!==financeTr);
+  const financeValue=+obj.orcamento||+zeevRow.valor_final||+zeevRow.valor||+(+zeevRow?.pagamento_json?.valor_total||0);
+  if(!(financeValue>0))return{done:false,blocked:true,reason:'valor_financeiro_ausente'};
+  previousLinks.push({
+    tr:+financeTr,
+    zeev_id:+financeTr,
+    tipo:'solicitacao_financeira',
+    origem:'capex_consolidado',
+    pedido:obj.pedido||zeevRow.pedido||'',
+    status:obj.situacao||capexZeevTicketStatus(zeevRow),
+    valor:financeValue,
+    encontrado:true,
+    vinculado_em:new Date().toISOString(),
+    vinculado_por:currentUser?.email||''
+  });
+  const financeTotal=previousLinks.filter(link=>String(link?.status||'')!=='Cancelado').reduce((sum,link)=>sum+(+link?.valor||0),0);
+  const previousConsolidation=capexTicketDadosObj(dados.consolidacaoFinanceira);
+  const purchaseOriginal=+(previousConsolidation.valorCompraOriginal??parent.orcamento)||0;
+  const finalValue=Math.max(purchaseOriginal,financeTotal);
+  const now=new Date().toISOString();
+  const nextDados={
+    ...dados,
+    validacaoManual:{
+      ...previousManual,
+      orcamento:finalValue,
+      valor:finalValue,
+      valorTotal:finalValue,
+      situacao:parent.situacao,
+      motivo:'TR financeiro consolidado no TR de compra vinculado para evitar duplicidade no CAPEX.',
+      origem:'consolidacao_automatica_compra_financeiro',
+      atualizadoPor:currentUser?.email||'',
+      atualizadoEm:now
+    },
+    consolidacaoFinanceira:{
+      ...previousConsolidation,
+      trCompra:+purchaseTr,
+      valorCompraOriginal:purchaseOriginal,
+      valorFinanceiroTotal:financeTotal,
+      valorFinal:finalValue,
+      regraValor:'maior_entre_compra_e_soma_financeira',
+      consolidadoEm:now
+    },
+    financeirosVinculados:previousLinks,
+    valorTotalFinanceiros:financeTotal,
+    pagamento:{...capexTicketDadosObj(dados.pagamento),valor_total:finalValue}
+  };
+  const{error:updateError}=await db.from('capex_itens').update({orcamento:finalValue,ticket_raiz_dados:nextDados}).eq('id',parent.id);
+  if(updateError)throw updateError;
+  const queuePatch={status:'aprovado',capex_item_id:parent.id,aprovado_por:currentUser?.email||'',aprovado_em:now};
+  const{error:queueError}=await db.from('capex_zeev_solicitacoes').update(queuePatch).eq('id',zeevRow.id).eq('status','pendente');
+  if(queueError)throw queueError;
+  const idx=(capexItens||[]).findIndex(row=>+row.id===+parent.id);
+  if(idx>=0)capexItens[idx]=normalizeCapexRateioItem({...capexItens[idx],orcamento:finalValue,ticket_raiz_dados:nextDados});
+  Object.assign(zeevRow,queuePatch);
+  return{done:true,parentId:parent.id,finalValue};
+}
+
 function capexCompraLinkFromZeev(z){
   if(!z||capexZeevType(z)!=='financeiras')return null;
   const raw=capexZeevAnyField(z,['trCompra','tr da compra','tr de compra','ticketCompra','ticket da compra','solicitacaoCompra','solicitação de compra','numeroTRCompra','numero tr compra','número tr compra']);
@@ -12548,6 +12631,25 @@ async function saveCapexItemLocked(options){if(['leitor','doc'].includes(current
   }:null);
 
   const shouldCheckDuplicateTr=(!options.skipDuplicateTr||rateioAtivo)&&!(wasEdit&&existingRateioInfo);
+
+  if(!wasEdit&&!rateioAtivo&&zeevRow&&compraVinculada){
+    const consolidated=await capexConsolidateLinkedFinanceIntoPurchase({zeevRow,obj,compraVinculada,ano,unidade});
+    if(consolidated.blocked){
+      const message=consolidated.reason==='validacao_manual_protegida'
+        ?'A compra vinculada possui validação manual protegida. Revise o vínculo antes de registrar.'
+        :consolidated.reason==='valor_financeiro_ausente'
+          ?'O TR financeiro não possui valor final positivo. Corrija o valor antes de registrar.'
+          :'A compra vinculada possui rateio ou mais de um item na unidade. Revise o vínculo antes de registrar.';
+      toast(message);return;
+    }
+    if(consolidated.done){
+      closeCapexItemModal(true);
+      renderCapexZeevCurrentView();
+      toast(`TR financeiro consolidado no item de compra existente. Valor final: ${fmt(consolidated.finalValue)}.`);
+      return;
+    }
+  }
+
   if(shouldCheckDuplicateTr){
     const duplicados=await capexTrDuplicateMatchesLive(referencia,editId);
     if(duplicados.length){
