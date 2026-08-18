@@ -4,11 +4,9 @@ run-name: Zeev CAPEX ${{ github.event_name == 'workflow_dispatch' && inputs.mode
 
 on:
   schedule:
-    - cron: "*/8 * * * *"
-    - cron: "17 * * * *"
-    - cron: "35 5 * * *"
-    - cron: "48 6 * * *"
-    - cron: "3,23,43 * * * *"
+    # Keep scheduled traffic intentionally small. Heavy repair, status and
+    # document modes remain available through workflow_dispatch.
+    - cron: "12 * * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -115,20 +113,20 @@ jobs:
           SUPABASE_URL: https://hjccxfznojjosvanwztv.supabase.co
           ZEEV_BUSINESS_TIMEZONE: America/Sao_Paulo
           ZEEV_FLOW_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.flow_ids || '299,275,263,220,110,102,300,365,152,151' }}
-          ZEEV_SYNC_MODE: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && 'rescue-docs-loop' || github.event_name == 'schedule' && github.event.schedule == '35 5 * * *' && 'deep-incremental' || github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && 'repair-fiscal-metadata' || github.event_name == 'schedule' && github.event.schedule == '3,23,43 * * * *' && 'refresh-payment-statuses' || github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
+          ZEEV_SYNC_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
           ZEEV_SYNC_START: ${{ github.event_name == 'workflow_dispatch' && inputs.start || '' }}
           ZEEV_SYNC_END: ${{ github.event_name == 'workflow_dispatch' && inputs.end || '' }}
-          ZEEV_MAX_PAGES: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '2' || github.event_name == 'schedule' && github.event.schedule == '35 5 * * *' && '2' || github.event_name == 'workflow_dispatch' && inputs.max_pages || '1' }}
+          ZEEV_MAX_PAGES: ${{ github.event_name == 'workflow_dispatch' && inputs.max_pages || '1' }}
           ZEEV_START_PAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.start_page || '1' }}
           ZEEV_RECORDS_PER_PAGE: "25"
-          ZEEV_DEEP_SCAN: ${{ github.event_name == 'schedule' && github.event.schedule == '35 5 * * *' && '1' || github.event_name == 'workflow_dispatch' && inputs.mode != 'incremental' && inputs.mode != 'id-sweep' && '1' || '0' }}
-          ZEEV_INCREMENTAL_MAX_PAGES_CAP: "2"
+          ZEEV_DEEP_SCAN: ${{ github.event_name == 'workflow_dispatch' && inputs.mode != 'incremental' && inputs.mode != 'id-sweep' && '1' || '0' }}
+          ZEEV_INCREMENTAL_MAX_PAGES_CAP: "1"
           ZEEV_INCREMENTAL_MAX_RUNTIME_SECONDS: "1500"
-          ZEEV_INCREMENTAL_EXTRA_TICKET_CAP: "24"
-          ZEEV_INCREMENTAL_LAST_TASK_LOOKBACK_HOURS: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '36' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '36' || '0' }}
-          ZEEV_INCREMENTAL_LAST_TASK_MAX_PAGES: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '1' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '1' || '0' }}
-          ZEEV_INCREMENTAL_ID_SWEEP_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '72' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && inputs.backfill_limit || '0' }}
-          ZEEV_INCREMENTAL_CORRECTION_SWEEP_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '36' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && inputs.correction_sweep_limit || '0' }}
+          ZEEV_INCREMENTAL_EXTRA_TICKET_CAP: ${{ github.event_name == 'schedule' && '0' || '24' }}
+          ZEEV_INCREMENTAL_LAST_TASK_LOOKBACK_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '36' || '0' }}
+          ZEEV_INCREMENTAL_LAST_TASK_MAX_PAGES: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '1' || '0' }}
+          ZEEV_INCREMENTAL_ID_SWEEP_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && inputs.backfill_limit || '0' }}
+          ZEEV_INCREMENTAL_CORRECTION_SWEEP_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && inputs.correction_sweep_limit || '0' }}
           ZEEV_CORRECTION_SWEEP_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.correction_sweep_limit || '120' }}
           ZEEV_CORRECTION_SWEEP_MAX_LOOKBACK: "200000"
           ZEEV_CORRECTION_SWEEP_BATCH: "12"
@@ -161,19 +159,19 @@ jobs:
           ZEEV_TARGET_UNIDADE: ${{ github.event_name == 'workflow_dispatch' && inputs.target_unidade || '' }}
           ZEEV_TARGET_ANO: ${{ github.event_name == 'workflow_dispatch' && inputs.target_ano || '' }}
           ZEEV_FORCE_PENDING_REASON: ${{ github.event_name == 'workflow_dispatch' && inputs.force_reason || '' }}
-          ZEEV_AI_SUMMARY_ENABLED: "1"
-          ZEEV_BACKFILL_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && '4' || github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && '20' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '1' }}
-          ZEEV_STATUS_REFRESH_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '3,23,43 * * * *' && '32' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '8' }}
-          ZEEV_STATUS_REFRESH_BATCH: ${{ github.event_name == 'schedule' && github.event.schedule == '3,23,43 * * * *' && '6' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
-          ZEEV_STATUS_REFRESH_STALE_HOURS: ${{ github.event_name == 'schedule' && github.event.schedule == '3,23,43 * * * *' && '8' || github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '8' }}
-          ZEEV_STATUS_ONLY_OVERDUE: ${{ github.event_name == 'schedule' && github.event.schedule == '3,23,43 * * * *' && 'false' || github.event_name == 'workflow_dispatch' && inputs.mode == 'refresh-payment-statuses' && 'false' || 'true' }}
+          ZEEV_AI_SUMMARY_ENABLED: ${{ github.event_name == 'schedule' && '0' || '1' }}
+          ZEEV_BACKFILL_LIMIT: ${{ github.event_name == 'schedule' && '0' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '1' }}
+          ZEEV_STATUS_REFRESH_LIMIT: ${{ github.event_name == 'schedule' && '0' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '8' }}
+          ZEEV_STATUS_REFRESH_BATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
+          ZEEV_STATUS_REFRESH_STALE_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '8' }}
+          ZEEV_STATUS_ONLY_OVERDUE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'refresh-payment-statuses' && 'false' || 'true' }}
           ZEEV_STATUS_REFRESH_PAUSE_SECONDS: "1"
-          ZEEV_BACKFILL_BATCH: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && '2' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
-          ZEEV_BACKFILL_STALE_HOURS: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && '12' || github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '720' }}
+          ZEEV_BACKFILL_BATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
+          ZEEV_BACKFILL_STALE_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_stale_hours || '720' }}
           ZEEV_DOC_RESCUE_CHECKED_BEFORE: ${{ github.event_name == 'workflow_dispatch' && inputs.checked_before || '' }}
           ZEEV_REPAIR_PAYMENT_VALUES: ${{ github.event_name == 'workflow_dispatch' && inputs.repair_values || 'false' }}
-          ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST: "1"
-          ZEEV_REPAIR_CAPEX_VALUES_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '24' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '24' || github.event_name == 'workflow_dispatch' && inputs.mode == 'repair-capex-registered-values' && inputs.backfill_limit || '80' }}
+          ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST: ${{ github.event_name == 'schedule' && '0' || '1' }}
+          ZEEV_REPAIR_CAPEX_VALUES_LIMIT: ${{ github.event_name == 'schedule' && '0' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '24' || github.event_name == 'workflow_dispatch' && inputs.mode == 'repair-capex-registered-values' && inputs.backfill_limit || '80' }}
           ZEEV_PENDING_FISCAL_REPAIR_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && '8' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '6' }}
           ZEEV_PENDING_FISCAL_REPAIR_CYCLES: ${{ github.event_name == 'schedule' && github.event.schedule == '48 6 * * *' && '12' || '1' }}
           ZEEV_PENDING_FISCAL_REPAIR_MAX_RUNTIME_MS: "105000"
@@ -184,24 +182,24 @@ jobs:
           ZEEV_FINANCE_DESCRIPTION_REPAIR_CYCLES: "1"
           ZEEV_FINANCE_DESCRIPTION_REPAIR_PENDING_ONLY: "false"
           ZEEV_FINANCE_DESCRIPTION_REPAIR_MISSING_ONLY: "false"
-          ZEEV_AUTO_DESCRIPTION_REPAIR_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '*/8 * * * *' && '4' || github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '4' || '0' }}
+          ZEEV_AUTO_DESCRIPTION_REPAIR_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'incremental' && '4' || '0' }}
           ZEEV_BACKFILL_FILE_LIMIT: "4"
-          ZEEV_ATTACH_ALL_TICKET_DOCS: "1"
+          ZEEV_ATTACH_ALL_TICKET_DOCS: ${{ github.event_name == 'schedule' && '0' || '1' }}
           ZEEV_DOC_ATTACH_PER_TICKET_LIMIT: "6"
           ZEEV_RESCUE_BLOCK_EMAIL: "true"
           ZEEV_RESCUE_BLOCK_RECENT_HOURS: "24"
           ZEEV_DOC_RETRY_MINUTES: "60"
           ZEEV_DOC_RESCUE_AUDIT_SAMPLE: "60"
-          ZEEV_DOC_RESCUE_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && '4' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '4' }}
-          ZEEV_DOC_RESCUE_BATCH: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && '2' || github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
+          ZEEV_DOC_RESCUE_LIMIT: ${{ github.event_name == 'schedule' && '0' || github.event_name == 'workflow_dispatch' && inputs.backfill_limit || '4' }}
+          ZEEV_DOC_RESCUE_BATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_batch || '1' }}
           # Document discovery/download can exceed the Edge Function's 150s idle limit.
           # The GitHub worker performs that heavy work and sends only the result to Supabase.
           ZEEV_DOC_RESCUE_FAST_EDGE: "0"
           ZEEV_DOC_RESCUE_EDGE_LIMIT: "6"
           ZEEV_SYNC_IDS_CONCURRENCY: "3"
           ZEEV_INGEST_BACKFILL_LIMIT: "0"
-          ZEEV_DIRECT_DOC_RESCUE_ENABLED: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && '1' || github.event_name == 'workflow_dispatch' && (inputs.mode == 'rescue-docs' || inputs.mode == 'rescue-docs-loop' || inputs.mode == 'backfill-docs') && '1' || '0' }}
-          ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT: ${{ github.event_name == 'schedule' && github.event.schedule == '17 * * * *' && '2' || github.event_name == 'workflow_dispatch' && (inputs.mode == 'rescue-docs' || inputs.mode == 'rescue-docs-loop' || inputs.mode == 'backfill-docs') && '2' || '0' }}
+          ZEEV_DIRECT_DOC_RESCUE_ENABLED: ${{ github.event_name == 'workflow_dispatch' && (inputs.mode == 'rescue-docs' || inputs.mode == 'rescue-docs-loop' || inputs.mode == 'backfill-docs') && '1' || '0' }}
+          ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT: ${{ github.event_name == 'workflow_dispatch' && (inputs.mode == 'rescue-docs' || inputs.mode == 'rescue-docs-loop' || inputs.mode == 'backfill-docs') && '2' || '0' }}
           ZEEV_DIRECT_DOC_RESCUE_MAX_BYTES: "4500000"
           ZEEV_DOC_RESCUE_PY_FALLBACK_ENABLED: "1"
           ZEEV_DOC_RESCUE_LOOP_SECONDS: "300"
