@@ -10781,7 +10781,7 @@ async function generateCapexReport(){
   if(!filters.brand){toast('Escolha uma marca.');return;}
   if(!filters.units.length){toast('Selecione pelo menos uma unidade.');return;}
   if(!Object.values(filters.statuses).some(Boolean)){toast('Selecione pelo menos uma situação.');return;}
-  if(!Number.isFinite(filters.percentage)||filters.percentage<=0||filters.percentage>100){toast('Informe um percentual disponibilizado entre 0,1% e 100%.');return;}
+  if(!Number.isFinite(filters.percentage)||filters.percentage<0.1||filters.percentage>100){toast('Informe um percentual disponibilizado entre 0,1% e 100%.');return;}
   if(filters.start&&filters.end&&filters.start>filters.end){toast('A data inicial não pode ser posterior à data final.');return;}
   const win=window.open('','_blank');
   if(!win){toast('Permita pop-ups para abrir a prévia do relatório.');return;}
