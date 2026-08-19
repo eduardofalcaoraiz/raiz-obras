@@ -406,6 +406,16 @@ button{font-family:inherit;cursor:pointer}
 .capex-report-intro b{display:block;font-size:13.5px;color:var(--ink)}
 .capex-report-intro span{display:block;font-size:12.2px;line-height:1.45;color:var(--muted);margin-top:3px}
 .capex-report-filter-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
+.capex-report-percentage-row{grid-column:1/-1}
+.capex-report-percentage{display:grid;grid-template-columns:92px 92px minmax(210px,1fr);gap:8px}
+.capex-report-percent-btn,.capex-report-percent-custom{height:38px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit;font-size:12.5px;font-weight:850}
+.capex-report-percent-btn{cursor:pointer;transition:border-color .16s,background .16s,color .16s}
+.capex-report-percent-btn:hover{border-color:color-mix(in srgb,var(--accent) 38%,var(--line))}
+.capex-report-percent-btn.active{border-color:var(--accent);background:var(--raiz-soft);color:var(--accent-text)}
+.capex-report-percent-custom{display:grid;grid-template-columns:auto minmax(76px,112px) auto;align-items:center;justify-content:start;gap:7px;padding:0 10px;cursor:text}
+.capex-report-percent-custom.active{border-color:var(--accent);background:var(--raiz-soft);color:var(--accent-text)}
+.capex-report-percent-custom input{width:100%;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;font-weight:850;padding:4px 7px;outline:none}
+.capex-report-percent-custom input:focus{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 14%,transparent)}
 .capex-report-block{border:1px solid var(--line);background:var(--surface);border-radius:13px;padding:13px 14px;margin-top:12px}
 .capex-report-block-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
 .capex-report-block-title b{font-size:12.5px;color:var(--ink)}
@@ -422,7 +432,7 @@ button{font-family:inherit;cursor:pointer}
 .capex-report-empty{grid-column:1/-1;color:var(--muted);font-size:12.5px;padding:14px;text-align:center;border:1px dashed var(--line);border-radius:10px}
 .capex-report-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
 .capex-report-actions .hint{font-size:11.8px;color:var(--muted);line-height:1.4;max-width:430px}
-@media(max-width:720px){.capex-tabs-shell{align-items:stretch;flex-direction:column}.capex-report-open{align-self:flex-start}.capex-report-filter-grid,.capex-report-statuses,.capex-report-unit-list{grid-template-columns:1fr}.capex-report-actions{align-items:stretch;flex-direction:column}.capex-report-actions>div:last-child{display:flex;width:100%}.capex-report-actions .btn{flex:1}}
+@media(max-width:720px){.capex-tabs-shell{align-items:stretch;flex-direction:column}.capex-report-open{align-self:flex-start}.capex-report-filter-grid,.capex-report-statuses,.capex-report-unit-list{grid-template-columns:1fr}.capex-report-percentage{grid-template-columns:1fr 1fr}.capex-report-percent-custom{grid-column:1/-1}.capex-report-actions{align-items:stretch;flex-direction:column}.capex-report-actions>div:last-child{display:flex;width:100%}.capex-report-actions .btn{flex:1}}
 
 .capex-year-card{--capex-card-accent:var(--accent);--capex-card-soft:var(--raiz-soft);--capex-card-text:var(--accent-readable);--capex-card-muted:rgba(255,255,255,.78);--capex-card-shadow:none;position:relative;overflow:hidden;border:1px solid color-mix(in srgb,var(--capex-card-accent) 18%,var(--line));border-radius:22px;background:linear-gradient(180deg,rgba(255,255,255,.96) 0%,color-mix(in srgb,var(--capex-card-soft) 28%,#fff) 100%);box-shadow:0 20px 46px -34px rgba(15,42,36,.56);cursor:pointer;min-height:338px;display:flex;flex-direction:column;transition:transform .16s,border-color .18s,box-shadow .18s}
 .capex-year-card:before{content:"";position:absolute;inset:-32% -18% auto auto;width:210px;height:210px;border-radius:999px;background:radial-gradient(circle,color-mix(in srgb,var(--capex-card-accent) 16%,transparent) 0%,transparent 66%);pointer-events:none}
@@ -3839,6 +3849,14 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       <div class="frow" style="margin-bottom:0"><label class="fl">Marca</label><select class="fi" id="capex-report-brand" onchange="capexReportRefreshUnits()"></select></div>
       <div class="frow" style="margin-bottom:0"><label class="fl">Data inicial</label><input class="fi" id="capex-report-start" type="date"></div>
       <div class="frow" style="margin-bottom:0"><label class="fl">Data final</label><input class="fi" id="capex-report-end" type="date"></div>
+      <div class="frow capex-report-percentage-row" style="margin-bottom:0">
+        <label class="fl">Percentual de CAPEX disponibilizado</label>
+        <div class="capex-report-percentage" role="group" aria-label="Percentual de CAPEX disponibilizado">
+          <button class="capex-report-percent-btn" id="capex-report-percent-1" type="button" onclick="capexReportSetPercentage('1')">1%</button>
+          <button class="capex-report-percent-btn active" id="capex-report-percent-1-5" type="button" onclick="capexReportSetPercentage('1.5')" aria-pressed="true">1,5%</button>
+          <label class="capex-report-percent-custom" id="capex-report-percent-custom-wrap" onclick="capexReportSetPercentage('custom')"><span>Outro</span><input id="capex-report-percent-custom" type="number" min="0.1" max="100" step="0.1" value="1.5" inputmode="decimal" onfocus="capexReportSetPercentage('custom',false)" oninput="capexReportSetPercentage('custom',false)"><span>%</span></label>
+        </div>
+      </div>
     </div>
 
     <div class="capex-report-block">
@@ -10528,6 +10546,34 @@ const CAPEX_REPORT_BRANDS={
   'UNIFICADO':{name:'Colégio Unificado',primary:'#582878',header:'#F1F1F2',headerText:'#582878',accent:'#626262',pale:'#E8E5EB'}
 };
 
+const CAPEX_REPORT_SYSTEM_PERCENTAGE=1.5;
+let capexReportPercentageMode='1.5';
+
+function capexReportSetPercentage(mode,focusCustom=true){
+  capexReportPercentageMode=mode==='custom'?'custom':String(Number(mode)||CAPEX_REPORT_SYSTEM_PERCENTAGE);
+  const custom=capexReportPercentageMode==='custom';
+  const one=document.getElementById('capex-report-percent-1');
+  const oneFive=document.getElementById('capex-report-percent-1-5');
+  const customWrap=document.getElementById('capex-report-percent-custom-wrap');
+  const customInput=document.getElementById('capex-report-percent-custom');
+  if(one){const active=capexReportPercentageMode==='1';one.classList.toggle('active',active);one.setAttribute('aria-pressed',String(active));}
+  if(oneFive){const active=capexReportPercentageMode==='1.5';oneFive.classList.toggle('active',active);oneFive.setAttribute('aria-pressed',String(active));}
+  customWrap?.classList.toggle('active',custom);
+  if(customInput){customInput.readOnly=!custom;if(custom&&focusCustom&&document.activeElement!==customInput)customInput.focus();}
+}
+
+function capexReportPercentageValue(){
+  if(capexReportPercentageMode!=='custom')return Number(capexReportPercentageMode)||CAPEX_REPORT_SYSTEM_PERCENTAGE;
+  const raw=String(document.getElementById('capex-report-percent-custom')?.value||'').replace(',','.');
+  return Number(raw);
+}
+
+function capexReportPercentageLabel(value){
+  return`${Number(value||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2})}%`;
+}
+
+function capexReportRoundMoney(value){return Math.round(((+value||0)+Number.EPSILON)*100)/100;}
+
 function capexReportBrandConfig(marca){
   const key=brandLogoKey(marca);
   const found=Object.keys(CAPEX_REPORT_BRANDS).find(k=>brandLogoKey(k)===key);
@@ -10563,6 +10609,7 @@ function openCapexReportModal(){
   start.value=defaultYear===2026?'2026-01-04':`${defaultYear}-01-01`;
   const today=new Date(),todayIso=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
   end.value=String(defaultYear)===String(today.getFullYear())?todayIso:`${defaultYear}-12-31`;
+  capexReportSetPercentage(capexReportPercentageMode,false);
   capexReportRefreshBrands(capexDrillMarca||'');
   document.getElementById('capex-report-overlay')?.classList.add('show');
 }
@@ -10639,6 +10686,7 @@ function capexReportFilters(){
     brand:document.getElementById('capex-report-brand')?.value||'',
     start:document.getElementById('capex-report-start')?.value||'',
     end:document.getElementById('capex-report-end')?.value||'',
+    percentage:capexReportPercentageValue(),
     units:capexReportSelectedUnits(),
     statuses:{resolved:!!document.getElementById('capex-report-resolved')?.checked,active:!!document.getElementById('capex-report-active')?.checked,cancelled:!!document.getElementById('capex-report-cancelled')?.checked},
     includeUndated:!!document.getElementById('capex-report-undated')?.checked,
@@ -10672,10 +10720,11 @@ function capexReportFilteredItems(filters){
 
 function capexReportUnitModel(unidade,items,filters){
   const rows=items.filter(i=>capexUnitKey(i.unidade)===capexUnitKey(unidade));
-  const available=capexSaldoRows({ano:filters.year,marca:filters.brand,unidade}).reduce((sum,r)=>sum+(+r.valor||0),0);
+  const systemAvailable=capexSaldoRows({ano:filters.year,marca:filters.brand,unidade}).reduce((sum,r)=>sum+(+r.valor||0),0);
+  const available=capexReportRoundMoney(systemAvailable*(+filters.percentage||0)/CAPEX_REPORT_SYSTEM_PERCENTAGE);
   const resolved=rows.filter(i=>capexReportStatusKey(i)==='resolved').reduce((sum,i)=>sum+(+i.orcamento||0),0);
   const active=rows.filter(i=>capexReportStatusKey(i)==='active').reduce((sum,i)=>sum+(+i.orcamento||0),0);
-  return{unidade,items:rows,available,resolved,active,cancelled:rows.filter(i=>capexReportStatusKey(i)==='cancelled').length,remaining:available-resolved-active};
+  return{unidade,items:rows,systemAvailable,available,resolved,active,cancelled:rows.filter(i=>capexReportStatusKey(i)==='cancelled').length,remaining:capexReportRoundMoney(available-resolved-active)};
 }
 
 function capexReportModel(filters){
@@ -10712,17 +10761,19 @@ function capexReportPrintableHtml(model){
   const{filters,config}=model;
   const logo=brandLogoUrl(filters.brand)||'';
   const dateRange=`${capexReportDateBr(filters.start)} até ${capexReportDateBr(filters.end)}`;
+  const percentageLabel=capexReportPercentageLabel(filters.percentage);
+  const availabilityLabel=`Disponibilizado (${percentageLabel})`;
   const cols=model.units.length>16?4:model.units.length>8?3:2;
-  const unitCards=model.units.map(u=>`<article class="report-unit-card"><h3>${escHtml(u.unidade)}</h3><div class="report-unit-values"><span><b>Disponibilizado</b>${fmt(u.available)}</span><span><b>Resolvido</b>${fmt(u.resolved)}</span><span><b>Em andamento</b>${fmt(u.active)}</span><span class="${u.remaining<0?'negative':'remaining'}"><b>Saldo projetado</b>${fmt(u.remaining)}</span></div><div class="report-meter"><i style="width:${Math.max(0,Math.min(100,u.available?Math.round((u.resolved+u.active)/u.available*100):0))}%"></i></div></article>`).join('');
+  const unitCards=model.units.map(u=>`<article class="report-unit-card"><h3>${escHtml(u.unidade)}</h3><div class="report-unit-values"><span><b>${escHtml(availabilityLabel)}</b>${fmt(u.available)}</span><span><b>Resolvido</b>${fmt(u.resolved)}</span><span><b>Em andamento</b>${fmt(u.active)}</span><span class="${u.remaining<0?'negative':'remaining'}"><b>Saldo projetado</b>${fmt(u.remaining)}</span></div><div class="report-meter"><i style="width:${Math.max(0,Math.min(100,u.available?Math.round((u.resolved+u.active)/u.available*100):0))}%"></i></div></article>`).join('');
   const details=filters.details?model.units.map(u=>{
     const source=u.items.length?u.items:[null];
     const chunks=[];for(let i=0;i<source.length;i+=3)chunks.push(source.slice(i,i+3));
-    return chunks.map((chunk,pageIndex)=>`<section class="report-page report-detail-page"><header class="report-detail-head"><img src="${logo}" alt="${escHtml(config.name)}"><div><h2>${escHtml(u.unidade)}</h2><p>Composição auditável do CAPEX ${filters.year}${chunks.length>1?` · Página ${pageIndex+1} de ${chunks.length}`:''}</p></div></header><div class="report-detail-kpis"><span><b>Disponibilizado</b>${fmt(u.available)}</span><span><b>Resolvido</b>${fmt(u.resolved)}</span><span><b>Em andamento</b>${fmt(u.active)}</span><span class="${u.remaining<0?'negative':'remaining'}"><b>Saldo projetado</b>${fmt(u.remaining)}</span></div><div class="report-items">${chunk[0]?chunk.map(i=>capexReportDetailCard(i,filters)).join(''):'<div class="report-empty-page">Nenhum TR encontrado com os filtros selecionados.</div>'}</div><footer>Obras e Real Estate · Gerado em ${new Date().toLocaleDateString('pt-BR')}</footer></section>`).join('');
+    return chunks.map((chunk,pageIndex)=>`<section class="report-page report-detail-page"><header class="report-detail-head"><img src="${logo}" alt="${escHtml(config.name)}"><div><h2>${escHtml(u.unidade)}</h2><p>Composição auditável do CAPEX ${filters.year} · ${escHtml(percentageLabel)} disponibilizado${chunks.length>1?` · Página ${pageIndex+1} de ${chunks.length}`:''}</p></div></header><div class="report-detail-kpis"><span><b>${escHtml(availabilityLabel)}</b>${fmt(u.available)}</span><span><b>Resolvido</b>${fmt(u.resolved)}</span><span><b>Em andamento</b>${fmt(u.active)}</span><span class="${u.remaining<0?'negative':'remaining'}"><b>Saldo projetado</b>${fmt(u.remaining)}</span></div><div class="report-items">${chunk[0]?chunk.map(i=>capexReportDetailCard(i,filters)).join(''):'<div class="report-empty-page">Nenhum TR encontrado com os filtros selecionados.</div>'}</div><footer>Obras e Real Estate · Gerado em ${new Date().toLocaleDateString('pt-BR')}</footer></section>`).join('');
   }).join(''):'';
   const css=`
     :root{--primary:${config.primary};--header:${config.header};--header-text:${config.headerText};--accent:${config.accent};--pale:${config.pale};--ink:#242831;--muted:#6D737A;--line:#DDE2E3;--paper:#F6F8F8;--green:#278067;--danger:#C94D47}*{box-sizing:border-box}body{margin:0;background:#DCE1E2;color:var(--ink);font-family:Arial,Helvetica,sans-serif}.print-toolbar{position:sticky;top:0;z-index:5;min-width:210mm;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 8px 20px -18px #000}.print-toolbar b{font-size:14px}.print-toolbar span{font-size:12px;color:var(--muted)}.print-toolbar button{border:0;border-radius:7px;background:var(--primary);color:#fff;padding:9px 14px;font-weight:800;cursor:pointer}.report-page{width:210mm;min-height:297mm;margin:10mm auto;background:var(--paper);position:relative;overflow:hidden;padding:17mm 14mm 14mm;box-shadow:0 12px 32px -22px #000}.report-cover{padding:0 14mm 14mm}.report-cover-head{height:57mm;margin:0 -14mm;padding:11mm 14mm 9mm;border-left:8mm solid var(--primary);border-bottom:1.5mm solid var(--primary);background:var(--header);color:var(--header-text);display:flex;flex-direction:column;justify-content:space-between}.report-cover-head img{width:58mm;height:20mm;object-fit:contain;object-position:left center}.report-cover-title{display:flex;align-items:flex-end;justify-content:space-between;gap:14mm}.report-cover-title h1{font-size:29pt;line-height:1;margin:0;letter-spacing:0}.report-cover-title p{font-size:8pt;margin:0 0 1mm;text-align:right}.report-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:7mm;border:1px solid var(--line);border-radius:5mm;background:#fff;overflow:hidden}.report-kpis span,.report-detail-kpis span{padding:5mm;min-width:0}.report-kpis span+span{border-left:1px solid var(--line)}.report-kpis b,.report-unit-values b,.report-detail-kpis b,.report-item-meta b{display:block;text-transform:uppercase;color:var(--muted);font-size:6.5pt;margin-bottom:1.5mm}.report-kpis span{font-size:13pt;font-weight:800;color:var(--primary)}.report-kpis .remaining,.report-detail-kpis .remaining,.report-unit-values .remaining{color:var(--green)}.report-kpis .negative,.report-detail-kpis .negative,.report-unit-values .negative{color:var(--danger)}.report-cover h2{font-size:13pt;margin:8mm 0 4mm}.report-units{display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));gap:3mm}.report-unit-card{background:#fff;border:1px solid var(--line);border-top:2mm solid var(--primary);border-radius:3mm;padding:3mm;break-inside:avoid;min-width:0}.report-unit-card h3{font-size:${cols>=4?'7.5':'9'}pt;margin:0 0 3mm;line-height:1.15;min-height:${cols>=4?'6':'8'}mm}.report-unit-values{display:grid;grid-template-columns:1fr 1fr;gap:2mm 3mm}.report-unit-values span{font-size:${cols>=4?'6.8':'8'}pt;font-weight:800;min-width:0}.report-meter{height:1.4mm;border-radius:2mm;background:#EEF1F1;margin-top:3mm;overflow:hidden}.report-meter i{display:block;height:100%;background:var(--primary)}.report-note{position:absolute;left:14mm;right:14mm;bottom:11mm;border-radius:3mm;background:var(--pale);padding:3mm 4mm;font-size:7.2pt;color:var(--muted)}.report-detail-page{padding-top:14mm}.report-detail-head{display:flex;align-items:center;gap:8mm;padding-bottom:5mm;border-bottom:1.2mm solid var(--primary)}.report-detail-head img{width:46mm;height:15mm;object-fit:contain;object-position:left center}.report-detail-head h2{font-size:17pt;color:var(--primary);margin:0}.report-detail-head p{font-size:8pt;color:var(--muted);margin:1.5mm 0 0}.report-detail-kpis{display:grid;grid-template-columns:repeat(4,1fr);margin:5mm 0;border:1px solid var(--line);border-radius:3mm;background:#fff;overflow:hidden}.report-detail-kpis span{font-size:10pt;font-weight:800;color:var(--primary);padding:3.5mm}.report-detail-kpis span+span{border-left:1px solid var(--line)}.report-items{display:grid;gap:3mm}.report-item{background:#fff;border:1px solid var(--line);border-left:2mm solid var(--primary);border-radius:3mm;padding:3.5mm 4mm;break-inside:avoid}.report-item-head{display:flex;justify-content:space-between;align-items:flex-start;gap:6mm;padding-bottom:2.5mm;border-bottom:1px solid var(--line)}.report-tr{display:inline-flex;border-radius:99px;background:var(--pale);color:var(--primary);font-size:7.5pt;font-weight:800;padding:1.7mm 3mm}.report-item-head div{text-align:right}.report-item-head strong{display:block;color:var(--primary);font-size:11pt}.report-item-head small{display:block;color:var(--muted);font-size:7pt;margin-top:1mm}.report-item h3{font-size:9.5pt;line-height:1.35;margin:3mm 0}.report-item-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3mm;font-size:7.5pt}.report-links{display:flex;gap:2mm;flex-wrap:wrap;margin-top:3mm}.report-links span{border-radius:99px;background:var(--pale);color:var(--primary);font-size:7pt;font-weight:750;padding:1.5mm 2.5mm}.report-links.empty{font-size:7pt;color:var(--muted)}.report-empty-page{border:1px dashed var(--line);border-radius:3mm;padding:8mm;text-align:center;color:var(--muted);font-size:9pt}footer{position:absolute;left:14mm;right:14mm;bottom:7mm;border-top:1px solid var(--line);padding-top:2mm;color:var(--muted);font-size:7pt}@media print{body{background:#fff}.print-toolbar{display:none}.report-page{margin:0;box-shadow:none;page-break-after:always}.report-page:last-child{page-break-after:auto}}@page{size:A4;margin:0}`;
   const title=`CAPEX ${filters.year} - ${config.name} - ${capexReportDateBr(filters.end).replace(/\//g,'-')}`;
-  return`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escHtml(title)}</title><style>${css}</style></head><body><div class="print-toolbar"><div><b>${escHtml(title)}</b><br><span>Revise a prévia e use Salvar como PDF.</span></div><button onclick="window.print()">Salvar em PDF</button></div><section class="report-page report-cover"><header class="report-cover-head"><img src="${logo}" alt="${escHtml(config.name)}"><div class="report-cover-title"><h1>CAPEX ${filters.year}</h1><p><b>DATA DE CORTE:</b> ${escHtml(dateRange)}</p></div></header><div class="report-kpis"><span><b>Disponibilizado</b>${fmt(model.available)}</span><span><b>Resolvido</b>${fmt(model.resolved)}</span><span><b>Em andamento</b>${fmt(model.active)}</span><span class="${model.remaining<0?'negative':'remaining'}"><b>Saldo projetado</b>${fmt(model.remaining)}</span></div><h2>Visão por unidade</h2><div class="report-units">${unitCards}</div><div class="report-note">Valores cancelados não comprometem o saldo. Quando existem vínculos entre compra/facilities e TRs financeiros, o relatório usa a consolidação da plataforma para evitar duplicidade.</div></section>${details}</body></html>`;
+  return`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escHtml(title)}</title><style>${css}</style></head><body><div class="print-toolbar"><div><b>${escHtml(title)}</b><br><span>Revise a prévia e use Salvar como PDF.</span></div><button onclick="window.print()">Salvar em PDF</button></div><section class="report-page report-cover"><header class="report-cover-head"><img src="${logo}" alt="${escHtml(config.name)}"><div class="report-cover-title"><h1>CAPEX ${filters.year}</h1><p><b>DATA DE CORTE:</b> ${escHtml(dateRange)}<br><b>PERCENTUAL DISPONIBILIZADO:</b> ${escHtml(percentageLabel)}</p></div></header><div class="report-kpis"><span><b>${escHtml(availabilityLabel)}</b>${fmt(model.available)}</span><span><b>Resolvido</b>${fmt(model.resolved)}</span><span><b>Em andamento</b>${fmt(model.active)}</span><span class="${model.remaining<0?'negative':'remaining'}"><b>Saldo projetado</b>${fmt(model.remaining)}</span></div><h2>Visão por unidade</h2><div class="report-units">${unitCards}</div><div class="report-note">O valor disponibilizado foi proporcionalizado sobre a base de ${capexReportPercentageLabel(CAPEX_REPORT_SYSTEM_PERCENTAGE)} cadastrada na plataforma. Valores cancelados não comprometem o saldo. Quando existem vínculos entre compra/facilities e TRs financeiros, o relatório usa a consolidação da plataforma para evitar duplicidade.</div></section>${details}</body></html>`;
 }
 
 async function generateCapexReport(){
@@ -10730,6 +10781,7 @@ async function generateCapexReport(){
   if(!filters.brand){toast('Escolha uma marca.');return;}
   if(!filters.units.length){toast('Selecione pelo menos uma unidade.');return;}
   if(!Object.values(filters.statuses).some(Boolean)){toast('Selecione pelo menos uma situação.');return;}
+  if(!Number.isFinite(filters.percentage)||filters.percentage<=0||filters.percentage>100){toast('Informe um percentual disponibilizado entre 0,1% e 100%.');return;}
   if(filters.start&&filters.end&&filters.start>filters.end){toast('A data inicial não pode ser posterior à data final.');return;}
   const win=window.open('','_blank');
   if(!win){toast('Permita pop-ups para abrir a prévia do relatório.');return;}
@@ -10740,7 +10792,7 @@ async function generateCapexReport(){
     const model=capexReportModel(filters);
     win.document.open();win.document.write(capexReportPrintableHtml(model));win.document.close();
     closeCapexReportModal();
-    toast(`Relatório preparado com ${model.items.length} lançamento${model.items.length===1?'':'s'}.`);
+    toast(`Relatório de ${capexReportPercentageLabel(filters.percentage)} preparado com ${model.items.length} lançamento${model.items.length===1?'':'s'}.`);
   }catch(e){try{win.close();}catch(closeError){}console.error('generateCapexReport:',e);toast('Não foi possível gerar o relatório: '+(e.message||e));}
   finally{if(button){button.disabled=false;button.innerHTML='<span class="ic">↓</span> Gerar relatório';}}
 }
