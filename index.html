@@ -10752,7 +10752,7 @@ function capexReportDetailCard(it,filters){
   return`<article class="report-item">
     <div class="report-item-head"><span class="report-tr">TR ${escHtml(tr)}</span><div><strong>${fmt(+it.orcamento||0)}</strong><small>${escHtml(statusLabel)}</small></div></div>
     <h3>${escHtml(it.pedido||'Descrição não informada')}</h3>
-    <div class="report-item-meta"><span><b>Solicitante</b>${escHtml(capexSolicitanteLabel(it,false))}</span><span><b>Categoria</b>${escHtml(capexCategoriaNome(it))}</span><span><b>Setor</b>${escHtml(it.setor||'Não informado')}</span><span><b>Data</b>${escHtml(capexReportDateBr(date))}</span></div>
+    <div class="report-item-meta" style="grid-template-columns:repeat(3,minmax(0,1fr))"><span><b>Solicitante</b>${escHtml(capexSolicitanteLabel(it,false))}</span><span><b>Setor</b>${escHtml(it.setor||'Não informado')}</span><span><b>Data</b>${escHtml(capexReportDateBr(date))}</span></div>
     ${filters.links?capexReportLinksHtml(it):''}
   </article>`;
 }
