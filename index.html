@@ -416,6 +416,15 @@ button{font-family:inherit;cursor:pointer}
 .capex-report-percent-custom.active{border-color:var(--accent);background:var(--raiz-soft);color:var(--accent-text)}
 .capex-report-percent-custom input{width:100%;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;font-weight:850;padding:4px 7px;outline:none}
 .capex-report-percent-custom input:focus{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 14%,transparent)}
+.capex-report-export{grid-column:1/-1;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:11px 12px}
+.capex-report-export[hidden]{display:none}
+.capex-report-export-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.capex-report-export-head b{font-size:12.5px;color:var(--ink)}
+.capex-report-export-head span{font-size:11.5px;color:var(--muted);text-align:right}
+.capex-report-export-modes{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.capex-report-export-btn{min-height:38px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit;font-size:12.5px;font-weight:850;cursor:pointer;transition:border-color .16s,background .16s,color .16s}
+.capex-report-export-btn:hover{border-color:color-mix(in srgb,var(--accent) 38%,var(--line))}
+.capex-report-export-btn.active{border-color:var(--accent);background:var(--raiz-soft);color:var(--accent-text)}
 .capex-report-block{border:1px solid var(--line);background:var(--surface);border-radius:13px;padding:13px 14px;margin-top:12px}
 .capex-report-block-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
 .capex-report-block-title b{font-size:12.5px;color:var(--ink)}
@@ -432,7 +441,7 @@ button{font-family:inherit;cursor:pointer}
 .capex-report-empty{grid-column:1/-1;color:var(--muted);font-size:12.5px;padding:14px;text-align:center;border:1px dashed var(--line);border-radius:10px}
 .capex-report-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
 .capex-report-actions .hint{font-size:11.8px;color:var(--muted);line-height:1.4;max-width:430px}
-@media(max-width:720px){.capex-tabs-shell{align-items:stretch;flex-direction:column}.capex-report-open{align-self:flex-start}.capex-report-filter-grid,.capex-report-statuses,.capex-report-unit-list{grid-template-columns:1fr}.capex-report-percentage{grid-template-columns:1fr 1fr}.capex-report-percent-custom{grid-column:1/-1}.capex-report-actions{align-items:stretch;flex-direction:column}.capex-report-actions>div:last-child{display:flex;width:100%}.capex-report-actions .btn{flex:1}}
+@media(max-width:720px){.capex-tabs-shell{align-items:stretch;flex-direction:column}.capex-report-open{align-self:flex-start}.capex-report-filter-grid,.capex-report-statuses,.capex-report-unit-list{grid-template-columns:1fr}.capex-report-percentage{grid-template-columns:1fr 1fr}.capex-report-percent-custom{grid-column:1/-1}.capex-report-export-head{align-items:flex-start;flex-direction:column}.capex-report-export-head span{text-align:left}.capex-report-actions{align-items:stretch;flex-direction:column}.capex-report-actions>div:last-child{display:flex;width:100%}.capex-report-actions .btn{flex:1}}
 
 .capex-year-card{--capex-card-accent:var(--accent);--capex-card-soft:var(--raiz-soft);--capex-card-text:var(--accent-readable);--capex-card-muted:rgba(255,255,255,.78);--capex-card-shadow:none;position:relative;overflow:hidden;border:1px solid color-mix(in srgb,var(--capex-card-accent) 18%,var(--line));border-radius:22px;background:linear-gradient(180deg,rgba(255,255,255,.96) 0%,color-mix(in srgb,var(--capex-card-soft) 28%,#fff) 100%);box-shadow:0 20px 46px -34px rgba(15,42,36,.56);cursor:pointer;min-height:338px;display:flex;flex-direction:column;transition:transform .16s,border-color .18s,box-shadow .18s}
 .capex-year-card:before{content:"";position:absolute;inset:-32% -18% auto auto;width:210px;height:210px;border-radius:999px;background:radial-gradient(circle,color-mix(in srgb,var(--capex-card-accent) 16%,transparent) 0%,transparent 66%);pointer-events:none}
@@ -3855,6 +3864,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
           <button class="capex-report-percent-btn" id="capex-report-percent-1" type="button" onclick="capexReportSetPercentage('1')">1%</button>
           <button class="capex-report-percent-btn active" id="capex-report-percent-1-5" type="button" onclick="capexReportSetPercentage('1.5')" aria-pressed="true">1,5%</button>
           <label class="capex-report-percent-custom" id="capex-report-percent-custom-wrap" onclick="capexReportSetPercentage('custom')"><span>Outro</span><input id="capex-report-percent-custom" type="number" min="0.1" max="100" step="0.1" value="1.5" inputmode="decimal" onfocus="capexReportSetPercentage('custom',false)" oninput="capexReportSetPercentage('custom',false)"><span>%</span></label>
+        </div>
+      </div>
+      <div class="capex-report-export" id="capex-report-export" hidden>
+        <div class="capex-report-export-head"><b>Formato para todas as marcas</b><span id="capex-report-export-hint">Um documento consolidado com todas as marcas.</span></div>
+        <div class="capex-report-export-modes" role="group" aria-label="Formato de exportação para todas as marcas">
+          <button class="capex-report-export-btn active" id="capex-report-export-combined" type="button" onclick="capexReportSetExportMode('combined')" aria-pressed="true">PDF único</button>
+          <button class="capex-report-export-btn" id="capex-report-export-separated" type="button" onclick="capexReportSetExportMode('separated')" aria-pressed="false">Separados por marca</button>
         </div>
       </div>
     </div>
@@ -10547,7 +10563,28 @@ const CAPEX_REPORT_BRANDS={
 };
 
 const CAPEX_REPORT_SYSTEM_PERCENTAGE=1.5;
+const CAPEX_REPORT_ALL_BRANDS='__ALL_BRANDS__';
 let capexReportPercentageMode='1.5';
+let capexReportExportMode='combined';
+
+function capexReportIsAllBrands(marca){return marca===CAPEX_REPORT_ALL_BRANDS;}
+
+function capexReportSetExportMode(mode){
+  capexReportExportMode=mode==='separated'?'separated':'combined';
+  const combined=document.getElementById('capex-report-export-combined');
+  const separated=document.getElementById('capex-report-export-separated');
+  const hint=document.getElementById('capex-report-export-hint');
+  if(combined){const active=capexReportExportMode==='combined';combined.classList.toggle('active',active);combined.setAttribute('aria-pressed',String(active));}
+  if(separated){const active=capexReportExportMode==='separated';separated.classList.toggle('active',active);separated.setAttribute('aria-pressed',String(active));}
+  if(hint)hint.textContent=capexReportExportMode==='separated'?'Um centro de exportação com um PDF independente para cada marca.':'Um documento consolidado com todas as marcas.';
+}
+
+function capexReportUpdateExportModeVisibility(){
+  const all=capexReportIsAllBrands(document.getElementById('capex-report-brand')?.value||'');
+  const block=document.getElementById('capex-report-export');
+  if(block)block.hidden=!all;
+  if(all)capexReportSetExportMode(capexReportExportMode);
+}
 
 function capexReportSetPercentage(mode,focusCustom=true){
   capexReportPercentageMode=mode==='custom'?'custom':String(Number(mode)||CAPEX_REPORT_SYSTEM_PERCENTAGE);
@@ -10575,6 +10612,7 @@ function capexReportPercentageLabel(value){
 function capexReportRoundMoney(value){return Math.round(((+value||0)+Number.EPSILON)*100)/100;}
 
 function capexReportBrandConfig(marca){
+  if(capexReportIsAllBrands(marca))return{key:'RAIZ',name:'Todas as marcas',primary:'#F88808',header:'#FFF8EF',headerText:'#A54D00',accent:'#25836C',pale:'#FDE9D2'};
   const key=brandLogoKey(marca);
   const found=Object.keys(CAPEX_REPORT_BRANDS).find(k=>brandLogoKey(k)===key);
   return found?{key:found,...CAPEX_REPORT_BRANDS[found]}:{key:marca||'RAIZ',name:marca||'CAPEX',primary:'#F88808',header:'#FFF8EF',headerText:'#A54D00',accent:'#25836C',pale:'#FDE9D2'};
@@ -10591,12 +10629,14 @@ function capexReportBrandsForYear(year){
   return[...out].sort((a,b)=>a.localeCompare(b,'pt-BR'));
 }
 
+function capexReportScopeKey(marca,unidade){return`${brandLogoKey(marca)}::${capexUnitKey(unidade)}`;}
+
 function capexReportUnitsForScope(year,marca){
   const map=new Map();
-  const push=nome=>{const key=capexUnitKey(nome);if(key&&!map.has(key))map.set(key,String(nome||'').trim());};
-  (capexItens||[]).filter(i=>+i.ano===+year&&extractMarca(i)===marca).forEach(i=>push(i.unidade));
-  (capexSaldos||[]).filter(i=>+i.ano===+year&&capexSaldoMarca(i)===marca).forEach(i=>push(i.unidade));
-  return[...map.values()].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const push=(brand,nome)=>{const unidade=String(nome||'').trim();const key=capexReportScopeKey(brand,unidade);if(brand&&unidade&&!map.has(key))map.set(key,{key,marca:brand,unidade});};
+  (capexItens||[]).filter(i=>+i.ano===+year&&(capexReportIsAllBrands(marca)||extractMarca(i)===marca)).forEach(i=>push(extractMarca(i),i.unidade));
+  (capexSaldos||[]).filter(i=>+i.ano===+year&&(capexReportIsAllBrands(marca)||capexSaldoMarca(i)===marca)).forEach(i=>push(capexSaldoMarca(i),i.unidade));
+  return[...map.values()].sort((a,b)=>a.marca.localeCompare(b.marca,'pt-BR')||a.unidade.localeCompare(b.unidade,'pt-BR'));
 }
 
 function openCapexReportModal(){
@@ -10622,8 +10662,9 @@ function capexReportRefreshBrands(preferred){
   const current=preferred||brandEl?.value||'';
   const brands=capexReportBrandsForYear(year);
   if(brandEl){
-    brandEl.innerHTML=brands.map(m=>`<option value="${escHtml(m)}"${m===current?' selected':''}>${escHtml(capexReportBrandConfig(m).name)}</option>`).join('');
-    if(current&&brands.includes(current))brandEl.value=current;
+    const selected=capexReportIsAllBrands(current)||brands.includes(current)?current:(brands[0]||CAPEX_REPORT_ALL_BRANDS);
+    brandEl.innerHTML=`<option value="${CAPEX_REPORT_ALL_BRANDS}">Todas as marcas</option>`+brands.map(m=>`<option value="${escHtml(m)}">${escHtml(capexReportBrandConfig(m).name)}</option>`).join('');
+    brandEl.value=selected;
   }
   const start=document.getElementById('capex-report-start'),end=document.getElementById('capex-report-end');
   if(start)start.value=year===2026?'2026-01-04':`${year}-01-01`;
@@ -10638,12 +10679,13 @@ function capexReportRefreshUnits(){
   const units=capexReportUnitsForScope(year,marca);
   const list=document.getElementById('capex-report-unit-list');
   if(!list)return;
-  list.innerHTML=units.length?units.map((u,idx)=>`<label class="capex-report-unit" data-search="${escHtml(capexNormText(u))}"><input type="checkbox" value="${escHtml(u)}" checked onchange="capexReportUpdateUnitCount()"><span>${escHtml(u)}</span></label>`).join(''):'<div class="capex-report-empty">Nenhuma unidade encontrada neste recorte.</div>';
+  list.innerHTML=units.length?units.map(u=>{const brandName=capexReportBrandConfig(u.marca).name;const label=capexReportIsAllBrands(marca)?`${u.unidade} · ${brandName}`:u.unidade;return`<label class="capex-report-unit" data-search="${escHtml(capexNormText(`${u.unidade} ${brandName}`))}"><input type="checkbox" value="${escHtml(u.key)}" data-brand="${escHtml(u.marca)}" data-unit="${escHtml(u.unidade)}" checked onchange="capexReportUpdateUnitCount()"><span>${escHtml(label)}</span></label>`;}).join(''):'<div class="capex-report-empty">Nenhuma unidade encontrada neste recorte.</div>';
   const search=document.getElementById('capex-report-unit-search');if(search)search.value='';
+  capexReportUpdateExportModeVisibility();
   capexReportUpdateUnitCount();
 }
 
-function capexReportSelectedUnits(){return Array.from(document.querySelectorAll('#capex-report-unit-list input[type="checkbox"]:checked')).map(i=>i.value);}
+function capexReportSelectedUnits(){return Array.from(document.querySelectorAll('#capex-report-unit-list input[type="checkbox"]:checked')).map(i=>({key:i.value,marca:i.dataset.brand||'',unidade:i.dataset.unit||''}));}
 
 function capexReportUpdateUnitCount(){
   const total=document.querySelectorAll('#capex-report-unit-list input[type="checkbox"]').length;
@@ -10687,6 +10729,7 @@ function capexReportFilters(){
     start:document.getElementById('capex-report-start')?.value||'',
     end:document.getElementById('capex-report-end')?.value||'',
     percentage:capexReportPercentageValue(),
+    exportMode:capexReportExportMode,
     units:capexReportSelectedUnits(),
     statuses:{resolved:!!document.getElementById('capex-report-resolved')?.checked,active:!!document.getElementById('capex-report-active')?.checked,cancelled:!!document.getElementById('capex-report-cancelled')?.checked},
     includeUndated:!!document.getElementById('capex-report-undated')?.checked,
@@ -10696,9 +10739,10 @@ function capexReportFilters(){
 }
 
 function capexReportFilteredItems(filters){
-  const unitKeys=new Set(filters.units.map(capexUnitKey));
+  const unitKeys=new Set(filters.units.map(u=>u.key));
   const rows=(capexItens||[]).filter(it=>{
-    if(+it.ano!==+filters.year||extractMarca(it)!==filters.brand||!unitKeys.has(capexUnitKey(it.unidade)))return false;
+    const marca=extractMarca(it);
+    if(+it.ano!==+filters.year||(!capexReportIsAllBrands(filters.brand)&&marca!==filters.brand)||!unitKeys.has(capexReportScopeKey(marca,it.unidade)))return false;
     const status=capexReportStatusKey(it);if(!filters.statuses[status])return false;
     const iso=capexReportDateIso(it);
     if(!iso)return filters.includeUndated;
@@ -10706,25 +10750,26 @@ function capexReportFilteredItems(filters){
     if(filters.end&&iso>filters.end)return false;
     return true;
   });
-  const existing=new Set(rows.map(i=>`${+i.ano||0}|${capexItemTrNumber(i)}`).filter(k=>!k.endsWith('|')));
+  const rowKey=i=>`${+i.ano||0}|${capexItemTrNumber(i)}|${capexReportScopeKey(extractMarca(i),i.unidade)}`;
+  const existing=new Set(rows.filter(i=>capexItemTrNumber(i)).map(rowKey));
   const linkedParents=new Set();
   rows.forEach(child=>{
     if(!String(child?.setor||'').toUpperCase().includes('FINANCE')||capexReportStatusKey(child)==='cancelled')return;
     const parent=capexCompraLinkFromItem(child);
     const parentTr=capexZeevSearchDigits(parent?.tr||parent?.zeev_id||'');
-    const key=`${+child.ano||0}|${parentTr}`;
+    const key=`${+child.ano||0}|${parentTr}|${capexReportScopeKey(extractMarca(child),child.unidade)}`;
     if(parentTr&&existing.has(key))linkedParents.add(key);
   });
-  return rows.filter(i=>!linkedParents.has(`${+i.ano||0}|${capexItemTrNumber(i)}`));
+  return rows.filter(i=>!linkedParents.has(rowKey(i)));
 }
 
-function capexReportUnitModel(unidade,items,filters){
-  const rows=items.filter(i=>capexUnitKey(i.unidade)===capexUnitKey(unidade));
-  const systemAvailable=capexSaldoRows({ano:filters.year,marca:filters.brand,unidade}).reduce((sum,r)=>sum+(+r.valor||0),0);
+function capexReportUnitModel(scope,items,filters){
+  const rows=items.filter(i=>capexReportScopeKey(extractMarca(i),i.unidade)===scope.key);
+  const systemAvailable=capexSaldoRows({ano:filters.year,marca:scope.marca,unidade:scope.unidade}).reduce((sum,r)=>sum+(+r.valor||0),0);
   const available=capexReportRoundMoney(systemAvailable*(+filters.percentage||0)/CAPEX_REPORT_SYSTEM_PERCENTAGE);
   const resolved=rows.filter(i=>capexReportStatusKey(i)==='resolved').reduce((sum,i)=>sum+(+i.orcamento||0),0);
   const active=rows.filter(i=>capexReportStatusKey(i)==='active').reduce((sum,i)=>sum+(+i.orcamento||0),0);
-  return{unidade,items:rows,systemAvailable,available,resolved,active,cancelled:rows.filter(i=>capexReportStatusKey(i)==='cancelled').length,remaining:capexReportRoundMoney(available-resolved-active)};
+  return{...scope,items:rows,systemAvailable,available,resolved,active,cancelled:rows.filter(i=>capexReportStatusKey(i)==='cancelled').length,remaining:capexReportRoundMoney(available-resolved-active)};
 }
 
 function capexReportModel(filters){
@@ -10759,19 +10804,41 @@ function capexReportDetailCard(it,filters){
 
 function capexReportPrintableHtml(model){
   const{filters,config}=model;
-  const logo=brandLogoUrl(filters.brand)||'';
+  const allBrands=capexReportIsAllBrands(filters.brand);
+  const logo=brandLogoUrl(allBrands?'RAIZ':filters.brand)||'';
   const dateRange=`${capexReportDateBr(filters.start)} até ${capexReportDateBr(filters.end)}`;
   const cols=model.units.length>16?4:model.units.length>8?3:2;
-  const unitCards=model.units.map(u=>`<article class="report-unit-card"><h3>${escHtml(u.unidade)}</h3><div class="report-unit-values"><span><b>Disponibilizado</b>${fmt(u.available)}</span><span><b>Resolvido</b>${fmt(u.resolved)}</span><span><b>Em andamento</b>${fmt(u.active)}</span><span class="${u.remaining<0?'negative':'remaining'}"><b>Saldo projetado</b>${fmt(u.remaining)}</span></div><div class="report-meter"><i style="width:${Math.max(0,Math.min(100,u.available?Math.round((u.resolved+u.active)/u.available*100):0))}%"></i></div></article>`).join('');
+  const unitCardHtml=u=>`<article class="report-unit-card">${allBrands?`<div class="report-unit-brand">${escHtml(capexReportBrandConfig(u.marca).name)}</div>`:''}<h3>${escHtml(u.unidade)}</h3><div class="report-unit-values"><span><b>Disponibilizado</b>${fmt(u.available)}</span><span><b>Resolvido</b>${fmt(u.resolved)}</span><span><b>Em andamento</b>${fmt(u.active)}</span><span class="${u.remaining<0?'negative':'remaining'}"><b>Saldo projetado</b>${fmt(u.remaining)}</span></div><div class="report-meter"><i style="width:${Math.max(0,Math.min(100,u.available?Math.round((u.resolved+u.active)/u.available*100):0))}%"></i></div></article>`;
+  const summaryChunkSize=allBrands?20:Math.max(1,model.units.length);
+  const summaryChunks=[];for(let i=0;i<model.units.length;i+=summaryChunkSize)summaryChunks.push(model.units.slice(i,i+summaryChunkSize));
+  if(!summaryChunks.length)summaryChunks.push([]);
   const details=filters.details?model.units.map(u=>{
+    const unitConfig=capexReportBrandConfig(u.marca);
+    const unitLogo=brandLogoUrl(u.marca)||logo;
     const source=u.items.length?u.items:[null];
     const chunks=[];for(let i=0;i<source.length;i+=3)chunks.push(source.slice(i,i+3));
-    return chunks.map((chunk,pageIndex)=>`<section class="report-page report-detail-page"><header class="report-detail-head"><img src="${logo}" alt="${escHtml(config.name)}"><div><h2>${escHtml(u.unidade)}</h2><p>Composição auditável do CAPEX ${filters.year}${chunks.length>1?` · Página ${pageIndex+1} de ${chunks.length}`:''}</p></div></header><div class="report-detail-kpis"><span><b>Disponibilizado</b>${fmt(u.available)}</span><span><b>Resolvido</b>${fmt(u.resolved)}</span><span><b>Em andamento</b>${fmt(u.active)}</span><span class="${u.remaining<0?'negative':'remaining'}"><b>Saldo projetado</b>${fmt(u.remaining)}</span></div><div class="report-items">${chunk[0]?chunk.map(i=>capexReportDetailCard(i,filters)).join(''):'<div class="report-empty-page">Nenhum TR encontrado com os filtros selecionados.</div>'}</div><footer>Obras e Real Estate · Gerado em ${new Date().toLocaleDateString('pt-BR')}</footer></section>`).join('');
+    return chunks.map((chunk,pageIndex)=>`<section class="report-page report-detail-page"><header class="report-detail-head"><img src="${unitLogo}" alt="${escHtml(unitConfig.name)}"><div><h2>${escHtml(u.unidade)}</h2><p>${escHtml(unitConfig.name)} · Composição auditável do CAPEX ${filters.year}${chunks.length>1?` · Página ${pageIndex+1} de ${chunks.length}`:''}</p></div></header><div class="report-detail-kpis"><span><b>Disponibilizado</b>${fmt(u.available)}</span><span><b>Resolvido</b>${fmt(u.resolved)}</span><span><b>Em andamento</b>${fmt(u.active)}</span><span class="${u.remaining<0?'negative':'remaining'}"><b>Saldo projetado</b>${fmt(u.remaining)}</span></div><div class="report-items">${chunk[0]?chunk.map(i=>capexReportDetailCard(i,filters)).join(''):'<div class="report-empty-page">Nenhum TR encontrado com os filtros selecionados.</div>'}</div><footer>Obras e Real Estate · Gerado em ${new Date().toLocaleDateString('pt-BR')}</footer></section>`).join('');
   }).join(''):'';
   const css=`
-    :root{--primary:${config.primary};--header:${config.header};--header-text:${config.headerText};--accent:${config.accent};--pale:${config.pale};--ink:#242831;--muted:#6D737A;--line:#DDE2E3;--paper:#F6F8F8;--green:#278067;--danger:#C94D47}*{box-sizing:border-box}body{margin:0;background:#DCE1E2;color:var(--ink);font-family:Arial,Helvetica,sans-serif}.print-toolbar{position:sticky;top:0;z-index:5;min-width:210mm;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 8px 20px -18px #000}.print-toolbar b{font-size:14px}.print-toolbar span{font-size:12px;color:var(--muted)}.print-toolbar button{border:0;border-radius:7px;background:var(--primary);color:#fff;padding:9px 14px;font-weight:800;cursor:pointer}.report-page{width:210mm;min-height:297mm;margin:10mm auto;background:var(--paper);position:relative;overflow:hidden;padding:17mm 14mm 14mm;box-shadow:0 12px 32px -22px #000}.report-cover{padding:0 14mm 14mm}.report-cover-head{height:57mm;margin:0 -14mm;padding:11mm 14mm 9mm;border-left:8mm solid var(--primary);border-bottom:1.5mm solid var(--primary);background:var(--header);color:var(--header-text);display:flex;flex-direction:column;justify-content:space-between}.report-cover-head img{width:58mm;height:20mm;object-fit:contain;object-position:left center}.report-cover-title{display:flex;align-items:flex-end;justify-content:space-between;gap:14mm}.report-cover-title h1{font-size:29pt;line-height:1;margin:0;letter-spacing:0}.report-cover-title p{font-size:8pt;margin:0 0 1mm;text-align:right}.report-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:7mm;border:1px solid var(--line);border-radius:5mm;background:#fff;overflow:hidden}.report-kpis span,.report-detail-kpis span{padding:5mm;min-width:0}.report-kpis span+span{border-left:1px solid var(--line)}.report-kpis b,.report-unit-values b,.report-detail-kpis b,.report-item-meta b{display:block;text-transform:uppercase;color:var(--muted);font-size:6.5pt;margin-bottom:1.5mm}.report-kpis span{font-size:13pt;font-weight:800;color:var(--primary)}.report-kpis .remaining,.report-detail-kpis .remaining,.report-unit-values .remaining{color:var(--green)}.report-kpis .negative,.report-detail-kpis .negative,.report-unit-values .negative{color:var(--danger)}.report-cover h2{font-size:13pt;margin:8mm 0 4mm}.report-units{display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));gap:3mm}.report-unit-card{background:#fff;border:1px solid var(--line);border-top:2mm solid var(--primary);border-radius:3mm;padding:3mm;break-inside:avoid;min-width:0}.report-unit-card h3{font-size:${cols>=4?'7.5':'9'}pt;margin:0 0 3mm;line-height:1.15;min-height:${cols>=4?'6':'8'}mm}.report-unit-values{display:grid;grid-template-columns:1fr 1fr;gap:2mm 3mm}.report-unit-values span{font-size:${cols>=4?'6.8':'8'}pt;font-weight:800;min-width:0}.report-meter{height:1.4mm;border-radius:2mm;background:#EEF1F1;margin-top:3mm;overflow:hidden}.report-meter i{display:block;height:100%;background:var(--primary)}.report-note{position:absolute;left:14mm;right:14mm;bottom:11mm;border-radius:3mm;background:var(--pale);padding:3mm 4mm;font-size:7.2pt;color:var(--muted)}.report-detail-page{padding-top:14mm}.report-detail-head{display:flex;align-items:center;gap:8mm;padding-bottom:5mm;border-bottom:1.2mm solid var(--primary)}.report-detail-head img{width:46mm;height:15mm;object-fit:contain;object-position:left center}.report-detail-head h2{font-size:17pt;color:var(--primary);margin:0}.report-detail-head p{font-size:8pt;color:var(--muted);margin:1.5mm 0 0}.report-detail-kpis{display:grid;grid-template-columns:repeat(4,1fr);margin:5mm 0;border:1px solid var(--line);border-radius:3mm;background:#fff;overflow:hidden}.report-detail-kpis span{font-size:10pt;font-weight:800;color:var(--primary);padding:3.5mm}.report-detail-kpis span+span{border-left:1px solid var(--line)}.report-items{display:grid;gap:3mm}.report-item{background:#fff;border:1px solid var(--line);border-left:2mm solid var(--primary);border-radius:3mm;padding:3.5mm 4mm;break-inside:avoid}.report-item-head{display:flex;justify-content:space-between;align-items:flex-start;gap:6mm;padding-bottom:2.5mm;border-bottom:1px solid var(--line)}.report-tr{display:inline-flex;border-radius:99px;background:var(--pale);color:var(--primary);font-size:7.5pt;font-weight:800;padding:1.7mm 3mm}.report-item-head div{text-align:right}.report-item-head strong{display:block;color:var(--primary);font-size:11pt}.report-item-head small{display:block;color:var(--muted);font-size:7pt;margin-top:1mm}.report-item h3{font-size:9.5pt;line-height:1.35;margin:3mm 0}.report-item-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3mm;font-size:7.5pt}.report-links{display:flex;gap:2mm;flex-wrap:wrap;margin-top:3mm}.report-links span{border-radius:99px;background:var(--pale);color:var(--primary);font-size:7pt;font-weight:750;padding:1.5mm 2.5mm}.report-links.empty{font-size:7pt;color:var(--muted)}.report-empty-page{border:1px dashed var(--line);border-radius:3mm;padding:8mm;text-align:center;color:var(--muted);font-size:9pt}footer{position:absolute;left:14mm;right:14mm;bottom:7mm;border-top:1px solid var(--line);padding-top:2mm;color:var(--muted);font-size:7pt}@media print{body{background:#fff}.print-toolbar{display:none}.report-page{margin:0;box-shadow:none;page-break-after:always}.report-page:last-child{page-break-after:auto}}@page{size:A4;margin:0}`;
+    :root{--primary:${config.primary};--header:${config.header};--header-text:${config.headerText};--accent:${config.accent};--pale:${config.pale};--ink:#242831;--muted:#6D737A;--line:#DDE2E3;--paper:#F6F8F8;--green:#278067;--danger:#C94D47}*{box-sizing:border-box}body{margin:0;background:#DCE1E2;color:var(--ink);font-family:Arial,Helvetica,sans-serif}.print-toolbar{position:sticky;top:0;z-index:5;min-width:210mm;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 8px 20px -18px #000}.print-toolbar b{font-size:14px}.print-toolbar span{font-size:12px;color:var(--muted)}.print-toolbar button{border:0;border-radius:7px;background:var(--primary);color:#fff;padding:9px 14px;font-weight:800;cursor:pointer}.report-page{width:210mm;min-height:297mm;margin:10mm auto;background:var(--paper);position:relative;overflow:hidden;padding:17mm 14mm 14mm;box-shadow:0 12px 32px -22px #000}.report-cover{padding:0 14mm 14mm}.report-cover-head{height:57mm;margin:0 -14mm;padding:11mm 14mm 9mm;border-left:8mm solid var(--primary);border-bottom:1.5mm solid var(--primary);background:var(--header);color:var(--header-text);display:flex;flex-direction:column;justify-content:space-between}.report-cover-head img{width:58mm;height:20mm;object-fit:contain;object-position:left center}.report-cover-title{display:flex;align-items:flex-end;justify-content:space-between;gap:14mm}.report-cover-title h1{font-size:29pt;line-height:1;margin:0;letter-spacing:0}.report-cover-title p{font-size:8pt;margin:0 0 1mm;text-align:right}.report-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:7mm;border:1px solid var(--line);border-radius:5mm;background:#fff;overflow:hidden}.report-kpis span,.report-detail-kpis span{padding:5mm;min-width:0}.report-kpis span+span{border-left:1px solid var(--line)}.report-kpis b,.report-unit-values b,.report-detail-kpis b,.report-item-meta b{display:block;text-transform:uppercase;color:var(--muted);font-size:6.5pt;margin-bottom:1.5mm}.report-kpis span{font-size:13pt;font-weight:800;color:var(--primary)}.report-kpis .remaining,.report-detail-kpis .remaining,.report-unit-values .remaining{color:var(--green)}.report-kpis .negative,.report-detail-kpis .negative,.report-unit-values .negative{color:var(--danger)}.report-cover h2{font-size:13pt;margin:8mm 0 4mm}.report-units{display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));gap:3mm}.report-unit-card{background:#fff;border:1px solid var(--line);border-top:2mm solid var(--primary);border-radius:3mm;padding:3mm;break-inside:avoid;min-width:0}.report-unit-brand{font-size:6.5pt;font-weight:800;text-transform:uppercase;color:var(--primary);margin-bottom:1.2mm}.report-unit-card h3{font-size:${cols>=4?'7.5':'9'}pt;margin:0 0 3mm;line-height:1.15;min-height:${cols>=4?'6':'8'}mm}.report-unit-values{display:grid;grid-template-columns:1fr 1fr;gap:2mm 3mm}.report-unit-values span{font-size:${cols>=4?'6.8':'8'}pt;font-weight:800;min-width:0}.report-meter{height:1.4mm;border-radius:2mm;background:#EEF1F1;margin-top:3mm;overflow:hidden}.report-meter i{display:block;height:100%;background:var(--primary)}.report-note{position:absolute;left:14mm;right:14mm;bottom:11mm;border-radius:3mm;background:var(--pale);padding:3mm 4mm;font-size:7.2pt;color:var(--muted)}.report-detail-page{padding-top:14mm}.report-detail-head{display:flex;align-items:center;gap:8mm;padding-bottom:5mm;border-bottom:1.2mm solid var(--primary)}.report-detail-head img{width:46mm;height:15mm;object-fit:contain;object-position:left center}.report-detail-head h2{font-size:17pt;color:var(--primary);margin:0}.report-detail-head p{font-size:8pt;color:var(--muted);margin:1.5mm 0 0}.report-detail-kpis{display:grid;grid-template-columns:repeat(4,1fr);margin:5mm 0;border:1px solid var(--line);border-radius:3mm;background:#fff;overflow:hidden}.report-detail-kpis span{font-size:10pt;font-weight:800;color:var(--primary);padding:3.5mm}.report-detail-kpis span+span{border-left:1px solid var(--line)}.report-items{display:grid;gap:3mm}.report-item{background:#fff;border:1px solid var(--line);border-left:2mm solid var(--primary);border-radius:3mm;padding:3.5mm 4mm;break-inside:avoid}.report-item-head{display:flex;justify-content:space-between;align-items:flex-start;gap:6mm;padding-bottom:2.5mm;border-bottom:1px solid var(--line)}.report-tr{display:inline-flex;border-radius:99px;background:var(--pale);color:var(--primary);font-size:7.5pt;font-weight:800;padding:1.7mm 3mm}.report-item-head div{text-align:right}.report-item-head strong{display:block;color:var(--primary);font-size:11pt}.report-item-head small{display:block;color:var(--muted);font-size:7pt;margin-top:1mm}.report-item h3{font-size:9.5pt;line-height:1.35;margin:3mm 0}.report-item-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3mm;font-size:7.5pt}.report-links{display:flex;gap:2mm;flex-wrap:wrap;margin-top:3mm}.report-links span{border-radius:99px;background:var(--pale);color:var(--primary);font-size:7pt;font-weight:750;padding:1.5mm 2.5mm}.report-links.empty{font-size:7pt;color:var(--muted)}.report-empty-page{border:1px dashed var(--line);border-radius:3mm;padding:8mm;text-align:center;color:var(--muted);font-size:9pt}footer{position:absolute;left:14mm;right:14mm;bottom:7mm;border-top:1px solid var(--line);padding-top:2mm;color:var(--muted);font-size:7pt}@media print{body{background:#fff}.print-toolbar{display:none}.report-page{margin:0;box-shadow:none;page-break-after:always}.report-page:last-child{page-break-after:auto}}@page{size:A4;margin:0}`;
   const title=`CAPEX ${filters.year} - ${config.name} - ${capexReportDateBr(filters.end).replace(/\//g,'-')}`;
-  return`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escHtml(title)}</title><style>${css}</style></head><body><div class="print-toolbar"><div><b>${escHtml(title)}</b><br><span>Revise a prévia e use Salvar como PDF.</span></div><button onclick="window.print()">Salvar em PDF</button></div><section class="report-page report-cover"><header class="report-cover-head"><img src="${logo}" alt="${escHtml(config.name)}"><div class="report-cover-title"><h1>CAPEX ${filters.year}</h1><p><b>DATA DE CORTE:</b> ${escHtml(dateRange)}</p></div></header><div class="report-kpis"><span><b>Disponibilizado</b>${fmt(model.available)}</span><span><b>Resolvido</b>${fmt(model.resolved)}</span><span><b>Em andamento</b>${fmt(model.active)}</span><span class="${model.remaining<0?'negative':'remaining'}"><b>Saldo projetado</b>${fmt(model.remaining)}</span></div><h2>Visão por unidade</h2><div class="report-units">${unitCards}</div><div class="report-note">Valores cancelados não comprometem o saldo. Quando existem vínculos entre compra/facilities e TRs financeiros, o relatório usa a consolidação da plataforma para evitar duplicidade.</div></section>${details}</body></html>`;
+  const generatedAt=new Date().toLocaleDateString('pt-BR');
+  const summaryPages=summaryChunks.map((chunk,index)=>index===0
+    ?`<section class="report-page report-cover"><header class="report-cover-head"><img src="${logo}" alt="${escHtml(config.name)}"><div class="report-cover-title"><h1>CAPEX ${filters.year}</h1><p><b>DATA DE CORTE:</b> ${escHtml(dateRange)}</p></div></header><div class="report-kpis"><span><b>Disponibilizado</b>${fmt(model.available)}</span><span><b>Resolvido</b>${fmt(model.resolved)}</span><span><b>Em andamento</b>${fmt(model.active)}</span><span class="${model.remaining<0?'negative':'remaining'}"><b>Saldo projetado</b>${fmt(model.remaining)}</span></div><h2>Visão por unidade${summaryChunks.length>1?` · Página 1 de ${summaryChunks.length}`:''}</h2><div class="report-units">${chunk.map(unitCardHtml).join('')}</div><div class="report-note">Valores cancelados não comprometem o saldo. Quando existem vínculos entre compra/facilities e TRs financeiros, o relatório usa a consolidação da plataforma para evitar duplicidade.</div></section>`
+    :`<section class="report-page report-detail-page"><header class="report-detail-head"><img src="${logo}" alt="${escHtml(config.name)}"><div><h2>Visão por unidade</h2><p>${escHtml(config.name)} · Página ${index+1} de ${summaryChunks.length}</p></div></header><div class="report-units" style="margin-top:6mm">${chunk.map(unitCardHtml).join('')}</div><footer>Obras e Real Estate · Gerado em ${generatedAt}</footer></section>`).join('');
+  return`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escHtml(title)}</title><style>${css}</style></head><body><div class="print-toolbar"><div><b>${escHtml(title)}</b><br><span>Revise a prévia e use Salvar como PDF.</span></div><button onclick="window.print()">Salvar em PDF</button></div>${summaryPages}${details}</body></html>`;
+}
+
+function capexReportModelsByBrand(filters){
+  const brands=[...new Set(filters.units.map(u=>u.marca).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  return brands.map(brand=>capexReportModel({...filters,brand,exportMode:'combined',units:filters.units.filter(u=>u.marca===brand)}));
+}
+
+function capexReportSeparateHubHtml(models,filters){
+  const reports=models.map(model=>({brand:model.config.name,count:model.items.length,units:model.units.length,html:capexReportPrintableHtml(model)}));
+  const payload=JSON.stringify(reports).replace(/</g,'\\u003c');
+  const cards=reports.map((report,index)=>`<article><div><b>${escHtml(report.brand)}</b><span>${report.units} unidade${report.units===1?'':'s'} · ${report.count} lançamento${report.count===1?'':'s'}</span></div><button type="button" onclick="openReport(${index})">Abrir / salvar PDF</button></article>`).join('');
+  return`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Relatórios CAPEX ${filters.year} por marca</title><style>*{box-sizing:border-box}body{margin:0;background:#F4F6F5;color:#18332D;font-family:Arial,Helvetica,sans-serif}.shell{width:min(860px,calc(100% - 32px));margin:36px auto}.head{border-left:6px solid #F88808;padding:8px 0 8px 16px;margin-bottom:22px}.head h1{font-size:26px;margin:0 0 7px}.head p{color:#69736F;font-size:13px;line-height:1.5;margin:0}.list{display:grid;gap:9px}article{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid #DDE2E0;border-radius:8px;background:#fff;padding:14px 15px}article b{display:block;font-size:14px;margin-bottom:5px}article span{display:block;color:#69736F;font-size:12px}button{flex:none;border:0;border-radius:7px;background:#196C59;color:#fff;font-weight:800;padding:10px 13px;cursor:pointer}button:hover{background:#125746}.note{margin-top:16px;border:1px solid #E7D6C2;border-radius:8px;background:#FFF8EF;color:#76522E;font-size:12px;line-height:1.5;padding:12px 14px}@media(max-width:620px){article{align-items:stretch;flex-direction:column}button{width:100%}}</style></head><body><main class="shell"><header class="head"><h1>Relatórios CAPEX ${filters.year} por marca</h1><p>Os dados foram atualizados uma única vez. Abra cada marca abaixo para revisar e salvar seu PDF independente.</p></header><section class="list">${cards}</section><div class="note">O navegador pode solicitar permissão para abrir a janela de cada relatório. Esta tela permanece aberta até você concluir todas as marcas.</div></main><script>const reports=${payload};function openReport(index){const report=reports[index];const win=window.open('','_blank');if(!win){alert('Permita pop-ups para abrir o relatório desta marca.');return;}win.document.open();win.document.write(report.html);win.document.close();}<\/script></body></html>`;
 }
 
 async function generateCapexReport(){
@@ -10787,10 +10854,13 @@ async function generateCapexReport(){
   const button=document.getElementById('capex-report-generate');if(button){button.disabled=true;button.textContent='Atualizando dados...';}
   try{
     await loadCapexData({force:true});
-    const model=capexReportModel(filters);
-    win.document.open();win.document.write(capexReportPrintableHtml(model));win.document.close();
+    const separated=capexReportIsAllBrands(filters.brand)&&filters.exportMode==='separated';
+    const models=separated?capexReportModelsByBrand(filters):[];
+    const model=separated?null:capexReportModel(filters);
+    win.document.open();win.document.write(separated?capexReportSeparateHubHtml(models,filters):capexReportPrintableHtml(model));win.document.close();
     closeCapexReportModal();
-    toast(`Relatório de ${capexReportPercentageLabel(filters.percentage)} preparado com ${model.items.length} lançamento${model.items.length===1?'':'s'}.`);
+    const itemCount=separated?models.reduce((sum,current)=>sum+current.items.length,0):model.items.length;
+    toast(`${separated?`${models.length} relatórios por marca preparados`:'Relatório preparado'} com ${itemCount} lançamento${itemCount===1?'':'s'}.`);
   }catch(e){try{win.close();}catch(closeError){}console.error('generateCapexReport:',e);toast('Não foi possível gerar o relatório: '+(e.message||e));}
   finally{if(button){button.disabled=false;button.innerHTML='<span class="ic">↓</span> Gerar relatório';}}
 }
