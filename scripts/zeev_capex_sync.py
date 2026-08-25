@@ -5689,6 +5689,65 @@ def default_window():
     return start.isoformat(timespec="seconds"), (now + timedelta(minutes=5)).isoformat(timespec="seconds")
 
 
+def inspect_capex_flags():
+    """Read only the CAPEX answer for explicitly requested Zeev tickets."""
+    ticket_ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS", ""))
+    if not ticket_ids:
+        return {"ok": False, "mode": "inspect-capex-flags", "error": "ZEEV_TICKET_IDS vazio", "tickets": []}
+
+    requested_fields = capex_fields(None)
+    workers = env_int("ZEEV_INSPECT_CONCURRENCY", 8, 1, 12)
+    timeout = env_int("ZEEV_INSPECT_TIMEOUT_SECONDS", 30, 10, 60)
+
+    def inspect_one(ticket_id):
+        try:
+            detail, fields = instance_fields(ticket_id, requested_fields, timeout=timeout, retries=1)
+            matches = []
+            for field in fields or []:
+                name = field_display_name(field)
+                if field_matches(field, requested_fields) or "capex" in norm_key(name):
+                    value = str(field.get("value") or "").strip()
+                    if value or name:
+                        matches.append({"field": name, "value": value})
+            value = next((item["value"] for item in matches if item.get("value")), "")
+            normalized = norm(value)
+            if is_yes(value):
+                classification = "Sim"
+            elif normalized in {"nao", "n", "no", "false", "0"}:
+                classification = "Nao"
+            elif value:
+                classification = "Outro"
+            else:
+                classification = "Sem confirmacao"
+            flow = detail.get("flow") if isinstance(detail.get("flow"), dict) else {}
+            return {
+                "ticket": ticket_id,
+                "classification": classification,
+                "value": value,
+                "fields": matches,
+                "flowId": flow.get("id") or detail.get("flowId") or detail.get("flow_id"),
+                "flowName": flow.get("name") or detail.get("flowName") or detail.get("flow_name") or "",
+                "instanceStatus": detail.get("status") or detail.get("instanceStatus") or detail.get("instance_status") or "",
+            }
+        except Exception as exc:
+            return {"ticket": ticket_id, "classification": "Erro", "error": str(exc)[:700]}
+
+    results = []
+    with ThreadPoolExecutor(max_workers=min(workers, len(ticket_ids))) as executor:
+        futures = {executor.submit(inspect_one, ticket_id): ticket_id for ticket_id in ticket_ids}
+        for future in as_completed(futures):
+            result = future.result()
+            results.append(result)
+            print(json.dumps({"progress": "inspect-capex-flag", **result}, ensure_ascii=False), flush=True)
+
+    results.sort(key=lambda row: int(row.get("ticket") or 0))
+    counts = {}
+    for row in results:
+        classification = row.get("classification") or "Sem confirmacao"
+        counts[classification] = counts.get(classification, 0) + 1
+    return {"ok": True, "mode": "inspect-capex-flags", "requested": len(ticket_ids), "counts": counts, "tickets": results}
+
+
 def main():
     mode = os.environ.get("ZEEV_SYNC_MODE", "incremental")
     incremental_started = time.monotonic()
@@ -5714,6 +5773,11 @@ def main():
         return False
     if not ZEEV_SYNC_SECRET:
         raise SystemExit("ZEEV_SYNC_SECRET e obrigatorio.")
+    if mode in {"inspect-capex-flags", "capex-flags", "audit-capex-flags"}:
+        if not has_zeev_token():
+            raise SystemExit("ZEEV_TOKEN e obrigatorio.")
+        print(json.dumps(inspect_capex_flags(), ensure_ascii=False))
+        return
     health_skip = maybe_skip_for_supabase_health(mode)
     if health_skip:
         print(json.dumps(health_skip, ensure_ascii=False))

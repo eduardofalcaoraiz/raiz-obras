@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "incremental, id-sweep, correction-sweep, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, repair-capex-registered-values, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-finance-descriptions, repair-pending-fiscal-metadata, repair-fiscal-metadata, repair-payment-fiscal-fields ou refresh-payment-statuses"
+        description: "incremental, inspect-capex-flags, id-sweep, correction-sweep, retro, deep-incremental, deep-retro, read-test, inspect-docs, rescue-docs, rescue-docs-loop, doc-rescue-audit, backfill-docs, reconcile-registered, repair-capex-registered-values, register-obra-payments, register-capex-items, force-pending-ticket, probe-zeev-ticket, extract-fiscal-numbers, repair-finance-descriptions, repair-pending-fiscal-metadata, repair-fiscal-metadata, repair-payment-fiscal-fields ou refresh-payment-statuses"
         required: true
         default: "incremental"
       start:
