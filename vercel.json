@@ -12,5 +12,16 @@
     "api/zeev_file_proxy.py": {
       "maxDuration": 60
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        }
+      ]
+    }
+  ]
 }

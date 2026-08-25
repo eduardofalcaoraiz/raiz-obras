@@ -10650,7 +10650,7 @@ function openCapexReportModal(){
   const today=new Date(),todayIso=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
   end.value=String(defaultYear)===String(today.getFullYear())?todayIso:`${defaultYear}-12-31`;
   capexReportSetPercentage(capexReportPercentageMode,false);
-  capexReportRefreshBrands(capexDrillMarca||'');
+  capexReportRefreshBrands(CAPEX_REPORT_ALL_BRANDS);
   document.getElementById('capex-report-overlay')?.classList.add('show');
 }
 
