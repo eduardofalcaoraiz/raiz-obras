@@ -1838,7 +1838,10 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 .realestate-toolbar .fi{max-width:360px}
 .realestate-grid{display:grid;grid-template-columns:1fr;gap:14px}
 .realestate-card{--re-color:var(--accent);background:linear-gradient(135deg,rgba(255,255,255,.86),rgba(255,252,246,.94));border:1px solid color-mix(in srgb,var(--re-color) 32%,var(--line));border-left:5px solid var(--re-color);border-radius:16px;box-shadow:0 18px 42px -34px rgba(22,42,36,.48);overflow:hidden}
-.realestate-card summary{list-style:none;cursor:pointer;padding:18px 18px 16px;display:grid;grid-template-columns:minmax(240px,1.1fr) minmax(210px,.7fr) minmax(260px,1fr) auto;gap:16px;align-items:center}
+.realestate-card summary{list-style:none;cursor:pointer;padding:18px 18px 16px;display:grid;grid-template-columns:minmax(280px,1fr) minmax(360px,1.35fr) auto;gap:16px;align-items:start}
+.realestate-card summary>.realestate-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+.realestate-card summary>.realestate-ob-preview{grid-column:1/-1}
+.realestate-card summary>.realestate-status{grid-column:3;grid-row:1}
 .realestate-card summary::-webkit-details-marker{display:none}
 .realestate-card h3{font-size:18px;margin:0 0 6px;color:var(--ink);line-height:1.25}
 .realestate-muted{font-size:12.5px;color:var(--muted);line-height:1.45}
@@ -1893,6 +1896,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 .realestate-filter-check input{width:16px;height:16px;accent-color:var(--accent)}
 @media(max-width:980px){
   .realestate-card summary{grid-template-columns:1fr;gap:12px}
+  .realestate-card summary>.realestate-ob-preview,.realestate-card summary>.realestate-status{grid-column:auto;grid-row:auto}
   .realestate-status{justify-self:start}
   .realestate-facts{grid-template-columns:1fr}
   .realestate-editor-grid{grid-template-columns:1fr}
@@ -3474,9 +3478,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
         <div class="frow"><label class="fl">Unidade ocupante <span style="font-weight:500;color:var(--muted)">(texto livre)</span></label><input class="fi" id="re-unidade-ocupante" placeholder="Escola, unidade ou opera&ccedil;&atilde;o ocupante"></div>
         <div class="frow"><label class="fl">Marca / bandeira</label><input class="fi" id="re-marca" placeholder="Raiz, Cubo, QI, Uni&atilde;o..."></div>
         <div class="realestate-editor-wide frow"><label class="fl">Endere&ccedil;o do im&oacute;vel</label><input class="fi" id="re-endereco" placeholder="Rua, n&uacute;mero, complemento, bairro, cidade/UF"></div>
-        <div class="frow"><label class="fl">Status contratual</label><select class="fi" id="re-status"><option>Ativo</option><option>Em renovacao</option><option>Aten&ccedil;&atilde;o</option><option>Encerrado</option></select></div>
+        <div class="frow"><label class="fl">Status contratual</label><select class="fi" id="re-status"><option>Ativo</option><option>Em renovacao</option><option value="Atencao">Aten&ccedil;&atilde;o</option><option>Encerrado</option></select></div>
+        <div class="frow"><label class="fl">Modalidade</label><select class="fi" id="re-modalidade"><option>Locacao comum</option><option>Built to suit</option><option>Locacao principal com sublocacao</option><option>Residencial corporativa</option></select></div>
+        <div class="frow"><label class="fl">Revis&atilde;o de dados</label><select class="fi" id="re-revisao"><option value="false">Cadastro conferido</option><option value="true">Revis&atilde;o pendente</option></select></div>
         <div class="frow"><label class="fl">N&ordm; do contrato</label><input class="fi" id="re-contrato-numero" placeholder="N&uacute;mero ou refer&ecirc;ncia interna"></div>
         <div class="frow"><label class="fl">&Aacute;rea locada (m&sup2;)</label><input class="fi num" id="re-area" inputmode="decimal" placeholder="0,00"></div>
+        <div class="frow"><label class="fl">Investimento do locador</label><input class="fi num" id="re-investimento-locador" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div>
+        <div class="realestate-editor-wide frow"><label class="fl">Investidores / aportantes <span style="font-weight:500;color:var(--muted)">(um por linha)</span></label><textarea class="fi" id="re-investidores" rows="3" style="height:auto;resize:vertical" placeholder="Empresa ou investidor | participa&ccedil;&atilde;o / observa&ccedil;&atilde;o"></textarea></div>
       </div>
     </div>
 
@@ -5788,6 +5796,10 @@ function realEstateNormalizeDoc(d){
 
 function realEstateNormalizeDocs(arr){return(Array.isArray(arr)?arr:[]).map(realEstateNormalizeDoc).filter(Boolean);}
 
+function realEstateNormalizeInvestidores(arr){
+  return(Array.isArray(arr)?arr:[]).map(v=>typeof v==='string'?{nome:v,detalhe:''}:{nome:v?.nome||v?.investidor||'',detalhe:v?.detalhe||v?.participacao||v?.observacao||''}).filter(v=>v.nome);
+}
+
 function realEstateNormalizeTr(t){
   if(!t)return null;
   if(typeof t==='object'){
@@ -5807,7 +5819,7 @@ function realEstateNormalizeDevolucao(d){
 function realEstateNormalizeImovel(r){
   r=r||{};
   return{
-    id:r.id||realEstateUuid(),nome:r.nome||'Imovel sem nome',unidade_ocupante:r.unidade_ocupante||r.unidade_nome||'',marca:r.marca||'RAIZ',endereco:r.endereco||'',status:r.status||'Ativo',contrato_numero:r.contrato_numero||'',area_m2:+r.area_m2||0,locador:r.locador||'',locataria:r.locataria||'',cnpj_locataria:r.cnpj_locataria||'',centro_custo:r.centro_custo||'',contrato_inicio:normalizeDateISO(r.contrato_inicio||''),contrato_fim:normalizeDateISO(r.contrato_fim||''),valor_aluguel:+r.valor_aluguel||0,indice_reajuste:r.indice_reajuste||'',data_reajuste:normalizeDateISO(r.data_reajuste||''),garantia:r.garantia||'',multa_aviso:r.multa_aviso||'',contrato_docs:realEstateNormalizeDocs(r.contrato_docs),
+    id:r.id||realEstateUuid(),nome:r.nome||'Imovel sem nome',unidade_ocupante:r.unidade_ocupante||r.unidade_nome||'',marca:r.marca||'RAIZ',endereco:r.endereco||'',status:r.status||'Ativo',modalidade:r.modalidade||'Locacao comum',revisao_pendente:!!r.revisao_pendente,contrato_numero:r.contrato_numero||'',area_m2:+r.area_m2||0,locador:r.locador||'',locataria:r.locataria||'',cnpj_locataria:r.cnpj_locataria||'',centro_custo:r.centro_custo||'',contrato_inicio:normalizeDateISO(r.contrato_inicio||''),contrato_fim:normalizeDateISO(r.contrato_fim||''),valor_aluguel:+r.valor_aluguel||0,investimento_locador:+r.investimento_locador||0,investidores:realEstateNormalizeInvestidores(r.investidores),indice_reajuste:r.indice_reajuste||'',data_reajuste:normalizeDateISO(r.data_reajuste||''),garantia:r.garantia||'',multa_aviso:r.multa_aviso||'',contrato_docs:realEstateNormalizeDocs(r.contrato_docs),
     obrigacoes:(Array.isArray(r.obrigacoes)?r.obrigacoes:[]).map(o=>({id:o.id||realEstateUuid(),tipo:o.tipo||'Outros',descricao:o.descricao||'',valor:+o.valor||0,periodicidade:o.periodicidade||'Mensal',competencia:o.competencia||'',vencimento:normalizeDateISO(o.vencimento||''),status:o.status||'Aberto',ticketRaiz:capexZeevSearchDigits(o.ticketRaiz||o.ticket_raiz||''),ticketLink:o.ticketLink||o.ticket_link||'',docs:realEstateNormalizeDocs(o.docs||o.documentos||[])})),
     aditivos:(Array.isArray(r.aditivos)?r.aditivos:[]).map(a=>({id:a.id||realEstateUuid(),titulo:a.titulo||a.nome||'Aditivo',data:normalizeDateISO(a.data||''),resumo:a.resumo||a.observacoes||'',valor:+a.valor||0,docs:realEstateNormalizeDocs(a.docs||a.documentos||[])})),
     devolucao:realEstateNormalizeDevolucao(r.devolucao),observacoes:r.observacoes||'',created_at:r.created_at||'',updated_at:r.updated_at||''
@@ -5815,7 +5827,7 @@ function realEstateNormalizeImovel(r){
 }
 
 function realEstateToDbRow(i){
-  return{id:i.id,nome:i.nome,unidade_ocupante:i.unidade_ocupante||'',marca:i.marca||'RAIZ',endereco:i.endereco||'',status:i.status||'Ativo',contrato_numero:i.contrato_numero||'',area_m2:+i.area_m2||0,locador:i.locador||'',locataria:i.locataria||'',cnpj_locataria:i.cnpj_locataria||'',centro_custo:i.centro_custo||'',contrato_inicio:i.contrato_inicio||null,contrato_fim:i.contrato_fim||null,valor_aluguel:+i.valor_aluguel||0,indice_reajuste:i.indice_reajuste||'',data_reajuste:i.data_reajuste||null,garantia:i.garantia||'',multa_aviso:i.multa_aviso||'',contrato_docs:i.contrato_docs||[],obrigacoes:i.obrigacoes||[],aditivos:i.aditivos||[],devolucao:i.devolucao||realEstateNormalizeDevolucao({}),observacoes:i.observacoes||'',updated_at:new Date().toISOString()};
+  return{id:i.id,nome:i.nome,unidade_ocupante:i.unidade_ocupante||'',marca:i.marca||'RAIZ',endereco:i.endereco||'',status:i.status||'Ativo',modalidade:i.modalidade||'Locacao comum',revisao_pendente:!!i.revisao_pendente,contrato_numero:i.contrato_numero||'',area_m2:+i.area_m2||0,locador:i.locador||'',locataria:i.locataria||'',cnpj_locataria:i.cnpj_locataria||'',centro_custo:i.centro_custo||'',contrato_inicio:i.contrato_inicio||null,contrato_fim:i.contrato_fim||null,valor_aluguel:+i.valor_aluguel||0,investimento_locador:+i.investimento_locador||0,investidores:i.investidores||[],indice_reajuste:i.indice_reajuste||'',data_reajuste:i.data_reajuste||null,garantia:i.garantia||'',multa_aviso:i.multa_aviso||'',contrato_docs:i.contrato_docs||[],obrigacoes:i.obrigacoes||[],aditivos:i.aditivos||[],devolucao:i.devolucao||realEstateNormalizeDevolucao({}),observacoes:i.observacoes||'',updated_at:new Date().toISOString()};
 }
 
 function realEstateNormalizeSublocacao(r){
@@ -5842,6 +5854,7 @@ async function loadRealEstate(){
 }
 
 function realEstateStatusClass(status){const s=realEstateNorm(status);if(s.includes('encerr'))return'';if(s.includes('atenc')||s.includes('renov'))return'warn';if(s.includes('ativo'))return'ok';return'';}
+function realEstateStatusLabel(status){return realEstateNorm(status)==='atencao'?'Aten\u00e7\u00e3o':String(status||'');}
 function realEstatePeriodMonthly(value,period){const v=+value||0,p=realEstateNorm(period);if(!v)return 0;if(p.includes('mensal'))return v;if(p.includes('bimestral'))return v/2;if(p.includes('trimestral'))return v/3;if(p.includes('semestral'))return v/6;if(p.includes('anual'))return v/12;return 0;}
 function realEstateMonthlyCost(i){const hasRent=(i.obrigacoes||[]).some(o=>realEstateNorm(o.tipo).includes('aluguel'));const base=hasRent?0:(+i.valor_aluguel||0);return money2(base+(i.obrigacoes||[]).filter(o=>!['Pago','Dispensado'].includes(o.status)).reduce((a,o)=>a+realEstatePeriodMonthly(o.valor,o.periodicidade),0));}
 function realEstateDaysTo(v){const d=dateObj(v);if(!d)return null;return Math.ceil((d-HOJE)/86400000);}
@@ -5889,8 +5902,8 @@ function realEstateCardHtml(i,idx){
   const nextObs=(i.obrigacoes||[]).filter(o=>!['Pago','Dispensado'].includes(o.status)).slice().sort((a,b)=>String(a.vencimento||'9999').localeCompare(String(b.vencimento||'9999'))).slice(0,3);
   const dev=i.devolucao||realEstateNormalizeDevolucao({});
   const devActive=!realEstateNorm(dev.status).includes('sem devolucao');
-  const statusCls=overdueOb.length?'danger':(ending?'warn':realEstateStatusClass(i.status));
-  const statusText=overdueOb.length?`${overdueOb.length} obrigacao${overdueOb.length!==1?'oes':''} em atraso`:(ending?'Vigencia vencendo':i.status);
+  const statusCls=overdueOb.length?'danger':(i.revisao_pendente||ending?'warn':realEstateStatusClass(i.status));
+  const statusText=overdueOb.length?`${overdueOb.length} obrigacao${overdueOb.length!==1?'oes':''} em atraso`:(i.revisao_pendente?'Revisao de dados':(ending?'Vigencia vencendo':realEstateStatusLabel(i.status)));
   const preview=nextObs.length?nextObs.map(o=>`<div class="realestate-ob-line"><span>${escHtml(o.tipo)} <small>${fmtD(o.vencimento)}</small></span><b>${fmt(o.valor)}</b></div>`).join(''):'<div class="realestate-muted">Nenhuma obrigacao aberta cadastrada.</div>';
   const obCards=(i.obrigacoes||[]).length?(i.obrigacoes||[]).map((o,oi)=>`<div class="realestate-ob-card">
     <div class="top"><b>${escHtml(o.tipo)}</b><span class="badge ${o.status==='Pago'?'b-ok':o.status==='Dispensado'?'b-neutral':'b-warn'}">${escHtml(o.status||'Aberto')}</span></div>
@@ -5904,10 +5917,11 @@ function realEstateCardHtml(i,idx){
   </div>`).join(''):'<div class="realestate-muted">Nenhuma obrigacao cadastrada ainda.</div>';
   const aditivos=(i.aditivos||[]).length?(i.aditivos||[]).map((a,ai)=>`<div class="realestate-ob-card"><div class="top"><b>${escHtml(a.titulo||'Aditivo')}</b><span class="badge b-neutral">${fmtD(a.data)}</span></div><div class="realestate-muted">${escHtml(a.resumo||'Sem resumo.')}</div>${a.valor?`<div class="realestate-muted" style="margin-top:6px"><b>Impacto:</b> ${fmt(a.valor)}</div>`:''}<div class="realestate-docs" style="margin-top:9px">${realEstateDocButtons(a.docs,i.id,'aditivo',ai)}</div></div>`).join(''):'<div class="realestate-muted">Nenhum aditivo cadastrado.</div>';
   const devTrs=(dev.trs||[]).length?dev.trs.map(t=>`<div class="realestate-ob-line"><span><b>TR ${escHtml(t.tr)}</b> ${escHtml(t.descricao||'')}</span><b>${t.valor?fmt(t.valor):escHtml(t.status||'Aberto')}</b></div>`).join(''):'<div class="realestate-muted">Nenhum TR vinculado a devolucao.</div>';
+  const investidores=(i.investidores||[]).length?(i.investidores||[]).map(v=>`<div class="realestate-ob-line"><span><b>${escHtml(v.nome)}</b></span><span>${escHtml(v.detalhe||'Investidor / aportante')}</span></div>`).join(''):'<div class="realestate-muted">Nenhum investidor ou aportante informado.</div>';
   return`<details class="realestate-card" style="--re-color:${color}" ${idx===0?'open':''}>
     <summary>
       <div>
-        <div class="realestate-brandline"><span class="realestate-chip">${brandLogoImg(marca,'height:16px;width:28px;object-fit:contain')} ${escHtml(marca)}</span>${i.contrato_numero?`<span class="realestate-chip">Contrato ${escHtml(i.contrato_numero)}</span>`:''}</div>
+        <div class="realestate-brandline"><span class="realestate-chip">${brandLogoImg(marca,'height:16px;width:28px;object-fit:contain')} ${escHtml(marca)}</span><span class="realestate-chip">${escHtml(i.modalidade||'Locacao comum')}</span>${i.contrato_numero?`<span class="realestate-chip">Contrato ${escHtml(i.contrato_numero)}</span>`:''}</div>
         <h3>${escHtml(i.nome)}</h3>
         <div class="realestate-muted">${escHtml(i.unidade_ocupante||'Unidade ocupante nao informada')}</div>
         <div class="realestate-muted">${escHtml(i.endereco||'Endereco nao informado')}</div>
@@ -5916,6 +5930,7 @@ function realEstateCardHtml(i,idx){
         <div class="realestate-fact"><b>Locador</b><span>${escHtml(i.locador||'Nao informado')}</span></div>
         <div class="realestate-fact"><b>Vigencia</b><span>${fmtD(i.contrato_inicio)} - ${fmtD(i.contrato_fim)}</span></div>
         <div class="realestate-fact"><b>Custo mensal ref.</b><span>${fmt(realEstateMonthlyCost(i))}</span></div>
+        ${i.investimento_locador?`<div class="realestate-fact"><b>Investimento do locador</b><span>${fmt(i.investimento_locador)}</span></div>`:''}
       </div>
       <div class="realestate-ob-preview">${preview}${devActive?`<div class="realestate-ob-line"><span><b>Devolucao</b> <small>${fmtD(dev.previsao)}</small></span><b>${fmt(dev.valor_estimado)}</b></div>`:''}</div>
       <div class="realestate-status ${statusCls}">${escHtml(statusText)}</div>
@@ -5933,6 +5948,7 @@ function realEstateCardHtml(i,idx){
       <div class="realestate-section-title"><span>Contrato e aditivos</span></div>
       <div class="realestate-docs">${realEstateDocButtons(i.contrato_docs,i.id,'contrato')}</div>
       <div class="realestate-obligations" style="margin-top:10px">${aditivos}</div>
+      ${(i.investimento_locador||(i.investidores||[]).length)?`<div class="realestate-section-title"><span>Investimento do locador / estrutura built to suit</span><span>${i.investimento_locador?fmt(i.investimento_locador):'Valor nao quantificado'}</span></div><div class="realestate-ob-card">${investidores}</div>`:''}
       ${i.observacoes?`<div class="realestate-section-title"><span>Observacoes</span></div><div class="realestate-muted">${escHtml(i.observacoes)}</div>`:''}
       <div class="realestate-actions"><button class="btn btn-ghost btn-sm" onclick="openRealEstateModal('${realEstateJs(i.id)}')">Editar</button><button class="btn btn-ghost btn-sm" onclick="deleteRealEstateImovel('${realEstateJs(i.id)}')">Excluir</button></div>
     </div>
@@ -5955,8 +5971,8 @@ function realEstateConfigureArea(){
   if(button){button.setAttribute('onclick',cantinas?'openRealEstateSublocModal(null)':'openRealEstateModal(null)');button.innerHTML=cantinas?'<span class="ic">+</span> Nova cantina':'<span class="ic">+</span> Novo im&oacute;vel';}
   if(searchLabel)searchLabel.innerHTML=cantinas?'Buscar unidade, marca, operador ou regra de cobran&ccedil;a':'Buscar im&oacute;vel, locador, unidade ocupante ou contrato';
   if(statusLabel)statusLabel.innerHTML=cantinas?'Status da subloca&ccedil;&atilde;o':'Status contratual';
-  if(status){const current=status.value||'';status.innerHTML=cantinas?'<option value="">Todos</option><option value="Ativo">Ativas</option><option value="Atencao">Aten&ccedil;&atilde;o</option><option value="Em renovacao">Em renova&ccedil;&atilde;o</option><option value="Encerrado">Encerradas</option>':'<option value="">Todos</option><option value="Ativo">Ativos</option><option value="Em renovacao">Em renova&ccedil;&atilde;o</option><option value="Atenção">Aten&ccedil;&atilde;o</option><option value="Encerrado">Encerrados</option>';if(Array.from(status.options).some(o=>o.value===current))status.value=current;}
-  if(review)review.style.display=cantinas?'block':'none';
+  if(status){const current=status.value||'';status.innerHTML=cantinas?'<option value="">Todos</option><option value="Ativo">Ativas</option><option value="Atencao">Aten&ccedil;&atilde;o</option><option value="Em renovacao">Em renova&ccedil;&atilde;o</option><option value="Encerrado">Encerradas</option>':'<option value="">Todos</option><option value="Ativo">Ativos</option><option value="Em renovacao">Em renova&ccedil;&atilde;o</option><option value="Atencao">Aten&ccedil;&atilde;o</option><option value="Encerrado">Encerrados</option>';if(Array.from(status.options).some(o=>o.value===current))status.value=current;}
+  if(review)review.style.display='block';
   ['locacoes','cantinas'].forEach(key=>{const el=document.getElementById('realestate-tab-'+key),active=key===realEstateArea;if(el){el.classList.toggle('active',active);el.setAttribute('aria-selected',active?'true':'false');}});
 }
 
@@ -5968,12 +5984,13 @@ function renderRealEstateLocacoes(){
   const rows=(realEstateImoveis||[]).slice();
   const ativos=rows.filter(i=>realEstateNorm(i.status).includes('ativo')).length;
   const mensal=rows.reduce((a,i)=>a+realEstateMonthlyCost(i),0);
-  const vencendo=rows.filter(i=>{const d=realEstateDaysTo(i.contrato_fim);return d!==null&&d>=0&&d<=180;}).length;
-  const devs=rows.filter(i=>!realEstateNorm(i.devolucao?.status).includes('sem devolucao')).length;
-  k.innerHTML=`<div class="kpi"><div class="lab">Contratos de locacao</div><div class="val">${rows.length}</div><div class="sub">${ativos} ativo${ativos!==1?'s':''}</div></div><div class="kpi"><div class="lab">Custo mensal referencial</div><div class="val acc">${fmt(mensal)}</div><div class="sub">Aluguel e obrigacoes recorrentes</div></div><div class="kpi"><div class="lab">Vigencias vencendo</div><div class="val ${vencendo?'dg':''}">${vencendo}</div><div class="sub">Proximos 180 dias</div></div><div class="kpi"><div class="lab">Devolucoes em pauta</div><div class="val">${devs}</div><div class="sub">Restituicao de imovel</div></div>`;
+  const built=rows.filter(i=>realEstateNorm(i.modalidade).includes('built'));
+  const investimento=built.reduce((a,i)=>a+(+i.investimento_locador||0),0);
+  const revisar=rows.filter(i=>i.revisao_pendente).length;
+  k.innerHTML=`<div class="kpi"><div class="lab">Contratos de locacao</div><div class="val">${rows.length}</div><div class="sub">${ativos} ativo${ativos!==1?'s':''}</div></div><div class="kpi"><div class="lab">Custo mensal referencial</div><div class="val acc">${fmt(mensal)}</div><div class="sub">Somente valores atuais confirmados</div></div><div class="kpi"><div class="lab">Built to suit</div><div class="val">${built.length}</div><div class="sub">${investimento?fmt(investimento)+' de aporte identificado':'Sem aporte quantificado'}</div></div><div class="kpi"><div class="lab">Cadastros a revisar</div><div class="val ${revisar?'dg':''}">${revisar}</div><div class="sub">Valores ou documentos pendentes</div></div>`;
   if(realEstateLoadError){body.innerHTML=`<div class="capex-zeev-empty" style="border-color:#C0392B;color:#7A1F18;background:#FFF7F4"><b>Real Estate ainda nao conseguiu carregar.</b><br>${escHtml(realEstateLoadError)}<br>Se for o primeiro acesso, aplique o script SQL de Real Estate no Supabase.</div>`;return;}
-  const q=realEstateNorm(document.getElementById('realestate-search')?.value||''),st=document.getElementById('realestate-status-filter')?.value||'';
-  const filtered=rows.filter(i=>{const okStatus=!st||String(i.status||'')===st;const hay=realEstateNorm([i.nome,i.unidade_ocupante,i.marca,i.endereco,i.locador,i.locataria,i.contrato_numero,i.observacoes,(i.obrigacoes||[]).map(o=>[o.tipo,o.descricao,o.ticketRaiz].join(' ')).join(' ')].join(' '));return okStatus&&(!q||hay.includes(q));});
+  const q=realEstateNorm(document.getElementById('realestate-search')?.value||''),st=document.getElementById('realestate-status-filter')?.value||'',onlyReview=!!document.getElementById('realestate-review-filter')?.checked;
+  const filtered=rows.filter(i=>{const okStatus=!st||String(i.status||'')===st;const hay=realEstateNorm([i.nome,i.unidade_ocupante,i.marca,i.modalidade,i.endereco,i.locador,i.locataria,i.contrato_numero,i.observacoes,(i.investidores||[]).map(v=>[v.nome,v.detalhe].join(' ')).join(' '),(i.obrigacoes||[]).map(o=>[o.tipo,o.descricao,o.ticketRaiz].join(' ')).join(' ')].join(' '));return okStatus&&(!onlyReview||i.revisao_pendente)&&(!q||hay.includes(q));});
   body.innerHTML=filtered.length?`<div class="realestate-grid">${filtered.map(realEstateCardHtml).join('')}</div>`:`<div class="capex-zeev-empty">Nenhum imovel encontrado para os filtros atuais. Use Novo imovel para cadastrar o primeiro contrato de locacao.</div>`;
   scheduleActivePageArt(['RAIZ']);
 }
@@ -6059,7 +6076,7 @@ function openRealEstateModal(id){
   realEstateDraftObrigacoes=im?JSON.parse(JSON.stringify(im.obrigacoes||[])):[];
   realEstateDraftAditivos=im?JSON.parse(JSON.stringify(im.aditivos||[])):[];
   document.getElementById('realestate-modal-title').textContent=im?'Editar imovel':'Novo imovel';
-  realEstateSetVal('re-nome',im?.nome||'');realEstateSetVal('re-unidade-ocupante',im?.unidade_ocupante||'');realEstateSetVal('re-marca',im?.marca||'RAIZ');realEstateSetVal('re-endereco',im?.endereco||'');realEstateSetVal('re-status',im?.status||'Ativo');realEstateSetVal('re-contrato-numero',im?.contrato_numero||'');realEstateSetVal('re-area',im?.area_m2?String(im.area_m2).replace('.',','):'');
+  realEstateSetVal('re-nome',im?.nome||'');realEstateSetVal('re-unidade-ocupante',im?.unidade_ocupante||'');realEstateSetVal('re-marca',im?.marca||'RAIZ');realEstateSetVal('re-endereco',im?.endereco||'');realEstateSetVal('re-status',im?.status||'Ativo');realEstateSetVal('re-modalidade',im?.modalidade||'Locacao comum');realEstateSetVal('re-revisao',im?.revisao_pendente?'true':'false');realEstateSetVal('re-contrato-numero',im?.contrato_numero||'');realEstateSetVal('re-area',im?.area_m2?String(im.area_m2).replace('.',','):'');realEstateSetMoney('re-investimento-locador',im?.investimento_locador||0);realEstateSetVal('re-investidores',(im?.investidores||[]).map(v=>v.nome+(v.detalhe?' | '+v.detalhe:'')).join('\n'));
   realEstateSetVal('re-locador',im?.locador||'');realEstateSetVal('re-locataria',im?.locataria||'');realEstateSetVal('re-cnpj-locataria',im?.cnpj_locataria||'');realEstateSetVal('re-centro-custo',im?.centro_custo||'');realEstateSetVal('re-inicio',im?.contrato_inicio||'');realEstateSetVal('re-fim',im?.contrato_fim||'');realEstateSetMoney('re-aluguel',im?.valor_aluguel||0);realEstateSetVal('re-indice',im?.indice_reajuste||'');realEstateSetVal('re-reajuste',im?.data_reajuste||'');realEstateSetVal('re-garantia',im?.garantia||'');realEstateSetVal('re-multa',im?.multa_aviso||'');
   const dev=realEstateNormalizeDevolucao(im?.devolucao);
   realEstateSetVal('re-dev-status',dev.status);realEstateSetVal('re-dev-prevista',dev.previsao||'');realEstateSetMoney('re-dev-estimado',dev.valor_estimado||0);realEstateSetVal('re-dev-trs',(dev.trs||[]).map(t=>t.tr).join(', '));realEstateSetVal('re-dev-obs',dev.observacoes||'');realEstateSetVal('re-obs',im?.observacoes||'');
@@ -6133,7 +6150,8 @@ async function saveRealEstateImovel(){
     const obrigacoes=[];for(const ob of realEstateCollectObrigacoes()){const docs=realEstateNormalizeDocs(ob.docs).concat(await realEstateUploadFiles(ob._newFiles||[],id,'obrigacoes/'+ob.id));delete ob._newFiles;obrigacoes.push({...ob,docs});}
     const aditivos=[];for(const ad of realEstateCollectAditivos()){const docs=realEstateNormalizeDocs(ad.docs).concat(await realEstateUploadFiles(ad._newFiles||[],id,'aditivos/'+ad.id));delete ad._newFiles;aditivos.push({...ad,docs});}
     const manualTrs=realEstateSplitTrs(g('re-dev-trs')),oldTrs=(existing?.devolucao?.trs||[]).filter(t=>!manualTrs.some(m=>m.tr===t.tr));
-    const im=realEstateNormalizeImovel({id,nome,unidade_ocupante:g('re-unidade-ocupante'),marca:g('re-marca')||'RAIZ',endereco:g('re-endereco'),status:g('re-status')||'Ativo',contrato_numero:g('re-contrato-numero'),area_m2:parseCurrency(g('re-area')),locador:g('re-locador'),locataria:g('re-locataria'),cnpj_locataria:g('re-cnpj-locataria'),centro_custo:g('re-centro-custo'),contrato_inicio:g('re-inicio')||null,contrato_fim:g('re-fim')||null,valor_aluguel:parseCurrency(g('re-aluguel')),indice_reajuste:g('re-indice'),data_reajuste:g('re-reajuste')||null,garantia:g('re-garantia'),multa_aviso:g('re-multa'),contrato_docs:contratoDocs,obrigacoes,aditivos,devolucao:{status:g('re-dev-status')||'Sem devolucao prevista',previsao:g('re-dev-prevista')||'',valor_estimado:parseCurrency(g('re-dev-estimado')),observacoes:g('re-dev-obs'),trs:oldTrs.concat(manualTrs),docs:devDocs},observacoes:g('re-obs')});
+    const investidores=g('re-investidores').split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>{const parts=line.split('|');return{nome:(parts.shift()||'').trim(),detalhe:parts.join('|').trim()};});
+    const im=realEstateNormalizeImovel({id,nome,unidade_ocupante:g('re-unidade-ocupante'),marca:g('re-marca')||'RAIZ',endereco:g('re-endereco'),status:g('re-status')||'Ativo',modalidade:g('re-modalidade')||'Locacao comum',revisao_pendente:g('re-revisao')==='true',contrato_numero:g('re-contrato-numero'),area_m2:parseCurrency(g('re-area')),investimento_locador:parseCurrency(g('re-investimento-locador')),investidores,locador:g('re-locador'),locataria:g('re-locataria'),cnpj_locataria:g('re-cnpj-locataria'),centro_custo:g('re-centro-custo'),contrato_inicio:g('re-inicio')||null,contrato_fim:g('re-fim')||null,valor_aluguel:parseCurrency(g('re-aluguel')),indice_reajuste:g('re-indice'),data_reajuste:g('re-reajuste')||null,garantia:g('re-garantia'),multa_aviso:g('re-multa'),contrato_docs:contratoDocs,obrigacoes,aditivos,devolucao:{status:g('re-dev-status')||'Sem devolucao prevista',previsao:g('re-dev-prevista')||'',valor_estimado:parseCurrency(g('re-dev-estimado')),observacoes:g('re-dev-obs'),trs:oldTrs.concat(manualTrs),docs:devDocs},observacoes:g('re-obs')});
     const{data,error}=await db.from('real_estate_imoveis').upsert(realEstateToDbRow(im),{onConflict:'id'}).select().single();if(error)throw error;
     const normalized=realEstateNormalizeImovel(data||im),idx=realEstateImoveis.findIndex(x=>String(x.id)===String(normalized.id));if(idx>=0)realEstateImoveis[idx]=normalized;else realEstateImoveis.unshift(normalized);
     closeRealEstateModal();renderRealEstate();toast(existing?'Imovel atualizado.':'Imovel cadastrado.');
