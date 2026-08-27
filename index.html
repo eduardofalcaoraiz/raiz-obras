@@ -1870,12 +1870,34 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 .realestate-editor-row .row-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
 .realestate-editor-row .row-head b{font-size:13px;color:var(--ink)}
 .realestate-file-note{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.35;overflow-wrap:anywhere}
+.realestate-area-tabs{display:inline-flex;gap:4px;padding:4px;margin:0 0 18px;border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.72)}
+.realestate-area-tab{min-height:38px;border:0;border-radius:6px;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:850;padding:0 14px;cursor:pointer}
+.realestate-area-tab.active{background:var(--ink);color:#fff;box-shadow:0 4px 12px -9px rgba(15,42,36,.7)}
+.realestate-subloc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+.realestate-subloc-card{--re-color:var(--accent);display:flex;flex-direction:column;min-width:0;border:1px solid color-mix(in srgb,var(--re-color) 24%,var(--line));border-top:4px solid var(--re-color);border-radius:8px;background:#fff;box-shadow:0 15px 34px -31px rgba(15,42,36,.55);overflow:hidden}
+.realestate-subloc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 14px 10px}
+.realestate-subloc-head h3{margin:2px 0 4px;font-size:16px;line-height:1.25;color:var(--ink)}
+.realestate-subloc-brand{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:11px;font-weight:900;text-transform:uppercase}
+.realestate-subloc-brand-logo{display:inline-flex;align-items:center;justify-content:center;width:31px;height:19px;padding:2px 4px;border:1px solid var(--line);border-radius:5px;background:#fff;overflow:hidden}
+.realestate-subloc-value{padding:0 14px 12px;font-size:24px;font-weight:950;line-height:1;color:var(--ink);letter-spacing:0}
+.realestate-subloc-value small{display:block;margin-top:6px;font-size:11px;font-weight:750;color:var(--muted)}
+.realestate-subloc-data{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--line)}
+.realestate-subloc-data>div{min-width:0;background:#fff;padding:10px 12px}
+.realestate-subloc-data b{display:block;margin-bottom:3px;font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em}
+.realestate-subloc-data span{display:block;font-size:12.5px;font-weight:800;color:var(--ink);line-height:1.35;overflow-wrap:anywhere}
+.realestate-subloc-notes{padding:11px 14px;display:flex;flex-direction:column;gap:7px}
+.realestate-subloc-alert{border-left:3px solid var(--warn);padding-left:9px;color:#76522E;font-size:12px;line-height:1.4}
+.realestate-subloc-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:auto;padding:10px 14px 14px}
+.realestate-subloc-actions .btn{min-height:32px}
+.realestate-filter-check{display:flex;align-items:center;gap:8px;height:42px;padding:0 11px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-size:12px;font-weight:800;white-space:nowrap}
+.realestate-filter-check input{width:16px;height:16px;accent-color:var(--accent)}
 @media(max-width:980px){
   .realestate-card summary{grid-template-columns:1fr;gap:12px}
   .realestate-status{justify-self:start}
   .realestate-facts{grid-template-columns:1fr}
   .realestate-editor-grid{grid-template-columns:1fr}
 }
+@media(max-width:720px){.realestate-area-tabs{display:flex}.realestate-area-tab{flex:1;padding:0 9px}.realestate-subloc-grid{grid-template-columns:1fr}.realestate-subloc-data{grid-template-columns:1fr}}
 @media(max-width:500px){
   #login-screen{padding:14px;align-items:flex-start;overflow-y:auto}
   #login-screen .lcard{padding:22px 18px;border-radius:14px;margin:18px auto}
@@ -2073,21 +2095,26 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <div class="phead">
 
-        <div><div class="eyebrow">Real Estate</div><h1>Im&oacute;veis das Escolas</h1><p>Gest&atilde;o independente dos contratos de loca&ccedil;&atilde;o, obriga&ccedil;&otilde;es e documentos dos im&oacute;veis da Raiz Educa&ccedil;&atilde;o.</p></div>
+        <div><div class="eyebrow">Real Estate</div><h1 id="realestate-page-title">Loca&ccedil;&otilde;es de im&oacute;veis</h1><p id="realestate-page-description">Contratos, obriga&ccedil;&otilde;es e documentos dos im&oacute;veis ocupados pelas escolas.</p></div>
 
-        <div class="acts"><button class="btn btn-primary" onclick="openRealEstateModal(null)"><span class="ic">+</span> Novo im&oacute;vel</button></div>
+        <div class="acts"><button class="btn btn-primary" id="realestate-new-button" onclick="openRealEstateModal(null)"><span class="ic">+</span> Novo im&oacute;vel</button></div>
 
+      </div>
+
+      <div class="realestate-area-tabs" role="tablist" aria-label="&Aacute;reas de Real Estate">
+        <button class="realestate-area-tab active" id="realestate-tab-locacoes" type="button" role="tab" aria-selected="true" onclick="setRealEstateArea('locacoes')">Loca&ccedil;&otilde;es de im&oacute;veis</button>
+        <button class="realestate-area-tab" id="realestate-tab-cantinas" type="button" role="tab" aria-selected="false" onclick="setRealEstateArea('cantinas')">Subloca&ccedil;&otilde;es de cantinas</button>
       </div>
 
       <div class="kpis" id="realestate-kpis"></div>
 
       <div class="realestate-toolbar">
         <div style="flex:1;min-width:260px">
-          <label class="fl">Buscar im&oacute;vel, locador, unidade ocupante ou contrato</label>
+          <label class="fl" id="realestate-search-label">Buscar im&oacute;vel, locador, unidade ocupante ou contrato</label>
           <input class="fi" id="realestate-search" placeholder="Digite para filtrar..." oninput="renderRealEstate()">
         </div>
         <div style="min-width:210px">
-          <label class="fl">Status contratual</label>
+          <label class="fl" id="realestate-status-label">Status contratual</label>
           <select class="fi" id="realestate-status-filter" onchange="renderRealEstate()">
             <option value="">Todos</option>
             <option value="Ativo">Ativos</option>
@@ -2095,6 +2122,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
             <option value="Aten&ccedil;&atilde;o">Aten&ccedil;&atilde;o</option>
             <option value="Encerrado">Encerrados</option>
           </select>
+        </div>
+        <div id="realestate-review-filter-wrap" style="display:none">
+          <label class="realestate-filter-check"><input id="realestate-review-filter" type="checkbox" onchange="renderRealEstate()"> Somente dados a revisar</label>
         </div>
       </div>
 
@@ -3513,6 +3543,54 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 </div></div>
 
+<div class="overlay" id="realestate-subloc-overlay"><div class="modal" style="max-width:980px;width:100%">
+  <div class="mhead"><h2 id="realestate-subloc-modal-title" style="font-size:18px">Nova subloca&ccedil;&atilde;o de cantina</h2><button class="x" onclick="closeRealEstateSublocModal()">&times;</button></div>
+  <div class="mbody" style="max-height:82vh;overflow:auto">
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Unidade e operador da cantina</div>
+      <div class="realestate-editor-grid">
+        <div class="frow"><label class="fl">Marca</label><input class="fi" id="res-marca" placeholder="QI, Matriz, Cubo..."></div>
+        <div class="frow"><label class="fl">Unidade escolar</label><input class="fi" id="res-unidade" placeholder="Nome completo da unidade"></div>
+        <div class="frow"><label class="fl">Localidade</label><input class="fi" id="res-localidade" placeholder="Cidade / UF"></div>
+        <div class="frow"><label class="fl">Sublocat&aacute;rio / operador</label><input class="fi" id="res-sublocatario" placeholder="Empresa ou respons&aacute;vel pela cantina"></div>
+        <div class="frow"><label class="fl">E-mail</label><input class="fi" id="res-email" type="email" placeholder="Contato financeiro / operacional"></div>
+        <div class="frow"><label class="fl">Telefone</label><input class="fi" id="res-telefone" placeholder="Telefone de contato"></div>
+        <div class="frow"><label class="fl">Status</label><select class="fi" id="res-status"><option value="Ativo">Ativo</option><option value="Atencao">Aten&ccedil;&atilde;o</option><option value="Em renovacao">Em renova&ccedil;&atilde;o</option><option value="Encerrado">Encerrado</option></select></div>
+        <div class="frow"><label class="fl">Vig&ecirc;ncia</label><input class="fi" id="res-vigencia" placeholder="Ex.: 1 ano"></div>
+        <div class="frow"><label class="fl">Fim do contrato</label><input class="fi" id="res-contrato-fim" type="date"></div>
+      </div>
+    </div>
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Cobran&ccedil;a e recebimento</div>
+      <div class="realestate-editor-grid">
+        <div class="realestate-editor-wide frow"><label class="fl">Regra de cobran&ccedil;a</label><input class="fi" id="res-regra" placeholder="Valor fixo ou regra por aluno / segmento"></div>
+        <div class="frow"><label class="fl">Valor mensal de refer&ecirc;ncia</label><input class="fi num" id="res-valor" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div>
+        <div class="frow"><label class="fl">Forma de pagamento</label><input class="fi" id="res-pagamento" placeholder="Boleto, transfer&ecirc;ncia..."></div>
+        <div class="frow"><label class="fl">Dia do vencimento</label><input class="fi num" id="res-dia" type="number" min="1" max="31" placeholder="15"></div>
+        <div class="frow"><label class="fl">Compet&ecirc;ncia da &uacute;ltima cobran&ccedil;a</label><input class="fi" id="res-cobranca-competencia" placeholder="2026-08"></div>
+        <div class="frow"><label class="fl">Vencimento da &uacute;ltima cobran&ccedil;a</label><input class="fi" id="res-cobranca-vencimento" type="date"></div>
+        <div class="frow"><label class="fl">Refer&ecirc;ncia do lan&ccedil;amento</label><input class="fi" id="res-cobranca-referencia" placeholder="N&uacute;mero interno"></div>
+      </div>
+    </div>
+    <div class="imp-sec">
+      <div class="imp-sec-hd">Contrato e documenta&ccedil;&atilde;o</div>
+      <div class="realestate-editor-grid">
+        <div class="frow"><label class="fl">Situa&ccedil;&atilde;o do contrato</label><select class="fi" id="res-contrato-status"><option value="Assinado">Assinado</option><option value="Encontrado no Drive">Encontrado no Drive</option><option value="Nao confirmado">N&atilde;o confirmado</option><option value="Nao localizado">N&atilde;o localizado</option></select></div>
+        <div class="frow"><label class="fl">Situa&ccedil;&atilde;o da documenta&ccedil;&atilde;o</label><select class="fi" id="res-documentacao-status"><option value="Informada como completa">Informada como completa</option><option value="Informada como incompleta">Informada como incompleta</option><option value="Nao confirmado">N&atilde;o confirmado</option></select></div>
+        <div class="frow"><label class="fl">Revis&atilde;o pendente</label><select class="fi" id="res-revisao"><option value="false">N&atilde;o</option><option value="true">Sim</option></select></div>
+        <div class="realestate-editor-wide frow"><label class="fl">Link do contrato</label><input class="fi" id="res-documento-url" type="url" placeholder="https://drive.google.com/..."></div>
+        <div class="realestate-editor-wide frow"><label class="fl">Pasta de documentos</label><input class="fi" id="res-pasta-url" type="url" placeholder="https://drive.google.com/drive/folders/..."></div>
+        <div class="realestate-editor-wide frow"><label class="fl">Diverg&ecirc;ncias para revisar</label><textarea class="fi" id="res-divergencias" rows="3" style="height:auto;resize:vertical" placeholder="Uma diverg&ecirc;ncia por linha"></textarea></div>
+        <div class="realestate-editor-wide frow"><label class="fl">Observa&ccedil;&otilde;es</label><textarea class="fi" id="res-observacoes" rows="3" style="height:auto;resize:vertical" placeholder="Notas operacionais e financeiras"></textarea></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--line);padding-top:16px">
+      <button class="btn btn-ghost" onclick="closeRealEstateSublocModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveRealEstateSublocacao()"><span class="ic">&#10003;</span> Salvar cantina</button>
+    </div>
+  </div>
+</div></div>
+
 <div class="overlay" id="viewer-overlay"><div class="modal" style="max-width:940px;width:100%">
 
   <div class="mhead"><h2 id="viewer-name" style="font-size:17px;line-height:1.25;overflow-wrap:anywhere;max-width:68%">Documento</h2><div style="display:flex;gap:10px;align-items:center"><button class="btn btn-sm" id="viewer-download" onclick="downloadFromViewer()"><span class="ic">↓</span> Baixar</button><button class="x" onclick="closeViewer()">×</button></div></div>
@@ -4593,6 +4671,7 @@ let capexCompraLookupCache=new Map(),capexCompraLookupSeq=0,capexCompraLookupTim
 let zeevObraCompraLookupSeq=0,zeevObraCompraLookupTimer=null;
 
 let realEstateImoveis=[],realEstateLoadError=null,realEstateEditId=null,realEstateContractFiles=[],realEstateDevolucaoFiles=[],realEstateDraftObrigacoes=[],realEstateDraftAditivos=[];
+let realEstateArea='locacoes',realEstateSublocacoes=[],realEstateSublocLoadError=null,realEstateSublocEditId=null;
 
 function setEsfBusca(v){esfBusca=v;renderEsfera();}
 
@@ -5739,10 +5818,27 @@ function realEstateToDbRow(i){
   return{id:i.id,nome:i.nome,unidade_ocupante:i.unidade_ocupante||'',marca:i.marca||'RAIZ',endereco:i.endereco||'',status:i.status||'Ativo',contrato_numero:i.contrato_numero||'',area_m2:+i.area_m2||0,locador:i.locador||'',locataria:i.locataria||'',cnpj_locataria:i.cnpj_locataria||'',centro_custo:i.centro_custo||'',contrato_inicio:i.contrato_inicio||null,contrato_fim:i.contrato_fim||null,valor_aluguel:+i.valor_aluguel||0,indice_reajuste:i.indice_reajuste||'',data_reajuste:i.data_reajuste||null,garantia:i.garantia||'',multa_aviso:i.multa_aviso||'',contrato_docs:i.contrato_docs||[],obrigacoes:i.obrigacoes||[],aditivos:i.aditivos||[],devolucao:i.devolucao||realEstateNormalizeDevolucao({}),observacoes:i.observacoes||'',updated_at:new Date().toISOString()};
 }
 
+function realEstateNormalizeSublocacao(r){
+  r=r||{};
+  return{id:r.id||realEstateUuid(),fonte_chave:r.fonte_chave||'',tipo:r.tipo||'Cantina',marca:r.marca||'RAIZ',unidade:r.unidade||'',localidade:r.localidade||'',sublocatario:r.sublocatario||'',email:r.email||'',telefone:r.telefone||'',status:r.status||'Ativo',vigencia_texto:r.vigencia_texto||'',contrato_inicio:normalizeDateISO(r.contrato_inicio||''),contrato_fim:normalizeDateISO(r.contrato_fim||''),regra_cobranca:r.regra_cobranca||'',valor_referencia:+r.valor_referencia||0,forma_pagamento:r.forma_pagamento||'',emissao:r.emissao||'',dia_vencimento:r.dia_vencimento==null?null:+r.dia_vencimento,contrato_status:r.contrato_status||'Nao confirmado',documentacao_status:r.documentacao_status||'Nao confirmado',documento_url:r.documento_url||'',pasta_url:r.pasta_url||'',cobrancas:(Array.isArray(r.cobrancas)?r.cobrancas:[]).map(c=>({competencia:c.competencia||'',valor:+c.valor||0,vencimento:normalizeDateISO(c.vencimento||''),referencia:c.referencia||'',status:c.status||''})),revisao_pendente:!!r.revisao_pendente,divergencias:Array.isArray(r.divergencias)?r.divergencias.filter(Boolean):[],observacoes:r.observacoes||'',fonte:r.fonte||'',created_at:r.created_at||'',updated_at:r.updated_at||''};
+}
+
+function realEstateSublocToDbRow(r){
+  return{id:r.id,fonte_chave:r.fonte_chave||('manual|'+r.id),tipo:r.tipo||'Cantina',marca:r.marca||'RAIZ',unidade:r.unidade||'',localidade:r.localidade||'',sublocatario:r.sublocatario||'',email:r.email||'',telefone:r.telefone||'',status:r.status||'Ativo',vigencia_texto:r.vigencia_texto||'',contrato_inicio:r.contrato_inicio||null,contrato_fim:r.contrato_fim||null,regra_cobranca:r.regra_cobranca||'',valor_referencia:+r.valor_referencia||0,forma_pagamento:r.forma_pagamento||'',emissao:r.emissao||'',dia_vencimento:r.dia_vencimento||null,contrato_status:r.contrato_status||'Nao confirmado',documentacao_status:r.documentacao_status||'Nao confirmado',documento_url:r.documento_url||'',pasta_url:r.pasta_url||'',cobrancas:r.cobrancas||[],revisao_pendente:!!r.revisao_pendente,divergencias:r.divergencias||[],observacoes:r.observacoes||'',fonte:r.fonte||'Cadastro manual',updated_at:new Date().toISOString()};
+}
+
+function realEstateLatestCharge(r){
+  return(r.cobrancas||[]).slice().sort((a,b)=>String(b.competencia||b.vencimento||'').localeCompare(String(a.competencia||a.vencimento||'')))[0]||null;
+}
+
 async function loadRealEstate(){
-  realEstateLoadError=null;
-  try{const{data,error}=await selectAllRows('real_estate_imoveis',{order:'nome'});if(error)throw error;realEstateImoveis=(data||[]).map(realEstateNormalizeImovel);}
-  catch(e){console.warn('[loadRealEstate]',e);realEstateLoadError=e?.message||String(e);realEstateImoveis=[];}
+  realEstateLoadError=null;realEstateSublocLoadError=null;
+  const [imoveisResult,sublocResult]=await Promise.all([
+    selectAllRows('real_estate_imoveis',{order:'nome'}).then(({data,error})=>{if(error)throw error;return data||[];}).catch(e=>{console.warn('[loadRealEstate:imoveis]',e);realEstateLoadError=e?.message||String(e);return[];}),
+    selectAllRows('real_estate_sublocacoes',{order:'unidade'}).then(({data,error})=>{if(error)throw error;return data||[];}).catch(e=>{console.warn('[loadRealEstate:sublocacoes]',e);realEstateSublocLoadError=e?.message||String(e);return[];})
+  ]);
+  realEstateImoveis=imoveisResult.map(realEstateNormalizeImovel);
+  realEstateSublocacoes=sublocResult.map(realEstateNormalizeSublocacao);
 }
 
 function realEstateStatusClass(status){const s=realEstateNorm(status);if(s.includes('encerr'))return'';if(s.includes('atenc')||s.includes('renov'))return'warn';if(s.includes('ativo'))return'ok';return'';}
@@ -5843,7 +5939,28 @@ function realEstateCardHtml(i,idx){
   </details>`;
 }
 
-function renderRealEstate(){
+function setRealEstateArea(area){
+  realEstateArea=area==='cantinas'?'cantinas':'locacoes';
+  const search=document.getElementById('realestate-search');if(search)search.value='';
+  const status=document.getElementById('realestate-status-filter');if(status)status.value='';
+  const review=document.getElementById('realestate-review-filter');if(review)review.checked=false;
+  renderRealEstate();
+}
+
+function realEstateConfigureArea(){
+  const cantinas=realEstateArea==='cantinas';
+  const title=document.getElementById('realestate-page-title'),description=document.getElementById('realestate-page-description'),button=document.getElementById('realestate-new-button'),searchLabel=document.getElementById('realestate-search-label'),statusLabel=document.getElementById('realestate-status-label'),status=document.getElementById('realestate-status-filter'),review=document.getElementById('realestate-review-filter-wrap');
+  if(title)title.innerHTML=cantinas?'Subloca&ccedil;&otilde;es de cantinas':'Loca&ccedil;&otilde;es de im&oacute;veis';
+  if(description)description.innerHTML=cantinas?'Operadores, contratos, documenta&ccedil;&atilde;o e cobran&ccedil;as das cantinas por unidade escolar.':'Contratos, obriga&ccedil;&otilde;es e documentos dos im&oacute;veis ocupados pelas escolas.';
+  if(button){button.setAttribute('onclick',cantinas?'openRealEstateSublocModal(null)':'openRealEstateModal(null)');button.innerHTML=cantinas?'<span class="ic">+</span> Nova cantina':'<span class="ic">+</span> Novo im&oacute;vel';}
+  if(searchLabel)searchLabel.innerHTML=cantinas?'Buscar unidade, marca, operador ou regra de cobran&ccedil;a':'Buscar im&oacute;vel, locador, unidade ocupante ou contrato';
+  if(statusLabel)statusLabel.innerHTML=cantinas?'Status da subloca&ccedil;&atilde;o':'Status contratual';
+  if(status){const current=status.value||'';status.innerHTML=cantinas?'<option value="">Todos</option><option value="Ativo">Ativas</option><option value="Atencao">Aten&ccedil;&atilde;o</option><option value="Em renovacao">Em renova&ccedil;&atilde;o</option><option value="Encerrado">Encerradas</option>':'<option value="">Todos</option><option value="Ativo">Ativos</option><option value="Em renovacao">Em renova&ccedil;&atilde;o</option><option value="Atenção">Aten&ccedil;&atilde;o</option><option value="Encerrado">Encerrados</option>';if(Array.from(status.options).some(o=>o.value===current))status.value=current;}
+  if(review)review.style.display=cantinas?'block':'none';
+  ['locacoes','cantinas'].forEach(key=>{const el=document.getElementById('realestate-tab-'+key),active=key===realEstateArea;if(el){el.classList.toggle('active',active);el.setAttribute('aria-selected',active?'true':'false');}});
+}
+
+function renderRealEstateLocacoes(){
   const view=document.getElementById('view-realestate');
   applyBrandVars(view,'RAIZ');
   const k=document.getElementById('realestate-kpis'),body=document.getElementById('realestate-body');
@@ -5859,6 +5976,77 @@ function renderRealEstate(){
   const filtered=rows.filter(i=>{const okStatus=!st||String(i.status||'')===st;const hay=realEstateNorm([i.nome,i.unidade_ocupante,i.marca,i.endereco,i.locador,i.locataria,i.contrato_numero,i.observacoes,(i.obrigacoes||[]).map(o=>[o.tipo,o.descricao,o.ticketRaiz].join(' ')).join(' ')].join(' '));return okStatus&&(!q||hay.includes(q));});
   body.innerHTML=filtered.length?`<div class="realestate-grid">${filtered.map(realEstateCardHtml).join('')}</div>`:`<div class="capex-zeev-empty">Nenhum imovel encontrado para os filtros atuais. Use Novo imovel para cadastrar o primeiro contrato de locacao.</div>`;
   scheduleActivePageArt(['RAIZ']);
+}
+
+function realEstateSublocCardHtml(r){
+  const color=brandColor(r.marca)||brandColor('RAIZ'),charge=realEstateLatestCharge(r),value=charge?.valor||r.valor_referencia||0,endDays=realEstateDaysTo(r.contrato_fim),ending=endDays!==null&&endDays>=0&&endDays<=180;
+  const statusClass=r.revisao_pendente?'warn':(ending?'warn':realEstateStatusClass(r.status));
+  const alerts=(r.divergencias||[]).map(x=>`<div class="realestate-subloc-alert">${escHtml(x)}</div>`).join('');
+  const contractLabel=r.contrato_status||'Nao confirmado';
+  return`<article class="realestate-subloc-card" style="--re-color:${color}">
+    <div class="realestate-subloc-head"><div><div class="realestate-subloc-brand"><span class="realestate-subloc-brand-logo">${brandLogoImg(r.marca,'height:14px;width:24px;object-fit:contain')}</span>${escHtml(r.marca)}</div><h3>${escHtml(r.unidade)}</h3><div class="realestate-muted">${escHtml(r.localidade||'Localidade nao informada')}</div></div><span class="realestate-status ${statusClass}">${escHtml(r.revisao_pendente?'Revisar':r.status)}</span></div>
+    <div class="realestate-subloc-value">${value?fmt(value):'Sem valor'}<small>${charge?`Ultimo lancamento ${escHtml(charge.competencia||'')}${charge.referencia?' · ref. '+escHtml(charge.referencia):''}`:'Valor mensal de referencia'}</small></div>
+    <div class="realestate-subloc-data">
+      <div><b>Operador</b><span>${escHtml(r.sublocatario||'Nao informado')}</span></div><div><b>Vencimento</b><span>${r.dia_vencimento?'Dia '+r.dia_vencimento:'Nao informado'}</span></div>
+      <div><b>Regra</b><span>${escHtml(r.regra_cobranca||'Nao informada')}</span></div><div><b>Contrato</b><span>${escHtml(contractLabel)}${r.contrato_fim?' · ate '+fmtD(r.contrato_fim):''}</span></div>
+    </div>
+    ${(alerts||r.observacoes)?`<div class="realestate-subloc-notes">${alerts}${r.observacoes?`<div class="realestate-muted">${escHtml(r.observacoes)}</div>`:''}</div>`:''}
+    <div class="realestate-subloc-actions">${r.documento_url?`<button class="btn btn-ghost btn-sm" onclick="realEstateOpenExternal('${realEstateJs(r.documento_url)}')">Contrato</button>`:''}${r.pasta_url?`<button class="btn btn-ghost btn-sm" onclick="realEstateOpenExternal('${realEstateJs(r.pasta_url)}')">Pasta no Drive</button>`:''}<button class="btn btn-ghost btn-sm" onclick="openRealEstateSublocModal('${realEstateJs(r.id)}')">Editar</button><button class="btn btn-ghost btn-sm" onclick="deleteRealEstateSublocacao('${realEstateJs(r.id)}')">Excluir</button></div>
+  </article>`;
+}
+
+function renderRealEstateSublocacoes(){
+  const k=document.getElementById('realestate-kpis'),body=document.getElementById('realestate-body');if(!k||!body)return;
+  const rows=(realEstateSublocacoes||[]).filter(r=>realEstateNorm(r.tipo).includes('cantina'));
+  const ativos=rows.filter(r=>realEstateNorm(r.status).includes('ativo')).length;
+  const mensal=rows.reduce((sum,r)=>sum+(realEstateLatestCharge(r)?.valor||r.valor_referencia||0),0);
+  const docs=rows.filter(r=>r.documento_url||r.pasta_url).length;
+  const revisao=rows.filter(r=>r.revisao_pendente).length;
+  k.innerHTML=`<div class="kpi"><div class="lab">Cantinas cadastradas</div><div class="val">${rows.length}</div><div class="sub">${ativos} ativa${ativos!==1?'s':''}</div></div><div class="kpi"><div class="lab">Receita mensal ref.</div><div class="val acc">${fmt(mensal)}</div><div class="sub">Ultimo lancamento ou valor cadastrado</div></div><div class="kpi"><div class="lab">Com documentos</div><div class="val">${docs}</div><div class="sub">Contrato ou pasta vinculada</div></div><div class="kpi"><div class="lab">Dados a revisar</div><div class="val ${revisao?'dg':''}">${revisao}</div><div class="sub">Divergencias encontradas na conciliacao</div></div>`;
+  if(realEstateSublocLoadError){body.innerHTML=`<div class="capex-zeev-empty" style="border-color:#C0392B;color:#7A1F18;background:#FFF7F4"><b>Sublocacoes de cantinas ainda nao conseguiram carregar.</b><br>${escHtml(realEstateSublocLoadError)}<br>A tabela independente precisa ser aplicada no Supabase.</div>`;return;}
+  const q=realEstateNorm(document.getElementById('realestate-search')?.value||''),st=realEstateNorm(document.getElementById('realestate-status-filter')?.value||''),onlyReview=!!document.getElementById('realestate-review-filter')?.checked;
+  const filtered=rows.filter(r=>{const hay=realEstateNorm([r.marca,r.unidade,r.localidade,r.sublocatario,r.email,r.telefone,r.regra_cobranca,r.contrato_status,r.documentacao_status,r.observacoes,(r.divergencias||[]).join(' ')].join(' '));return(!st||realEstateNorm(r.status)===st)&&(!onlyReview||r.revisao_pendente)&&(!q||hay.includes(q));});
+  body.innerHTML=filtered.length?`<div class="realestate-subloc-grid">${filtered.map(realEstateSublocCardHtml).join('')}</div>`:'<div class="capex-zeev-empty">Nenhuma sublocacao de cantina encontrada para os filtros atuais.</div>';
+  scheduleActivePageArt([...new Set(filtered.map(r=>r.marca).filter(Boolean))]);
+}
+
+function renderRealEstate(){
+  const view=document.getElementById('view-realestate');applyBrandVars(view,'RAIZ');realEstateConfigureArea();
+  if(realEstateArea==='cantinas')renderRealEstateSublocacoes();else renderRealEstateLocacoes();
+}
+
+function realEstateOpenExternal(url){
+  if(!/^https:\/\//i.test(String(url||''))){toast('Link externo invalido.');return;}
+  window.open(url,'_blank','noopener,noreferrer');
+}
+
+function openRealEstateSublocModal(id){
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para editar Real Estate.');return;}
+  const r=id?realEstateSublocacoes.find(x=>String(x.id)===String(id)):null,charge=r?realEstateLatestCharge(r):null;
+  realEstateSublocEditId=r?.id||null;
+  document.getElementById('realestate-subloc-modal-title').textContent=r?'Editar sublocacao de cantina':'Nova sublocacao de cantina';
+  realEstateSetVal('res-marca',r?.marca||'');realEstateSetVal('res-unidade',r?.unidade||'');realEstateSetVal('res-localidade',r?.localidade||'');realEstateSetVal('res-sublocatario',r?.sublocatario||'');realEstateSetVal('res-email',r?.email||'');realEstateSetVal('res-telefone',r?.telefone||'');realEstateSetVal('res-status',r?.status||'Ativo');realEstateSetVal('res-vigencia',r?.vigencia_texto||'');realEstateSetVal('res-contrato-fim',r?.contrato_fim||'');realEstateSetVal('res-regra',r?.regra_cobranca||'');realEstateSetMoney('res-valor',charge?.valor||r?.valor_referencia||0);realEstateSetVal('res-pagamento',r?.forma_pagamento||'');realEstateSetVal('res-dia',r?.dia_vencimento||'');realEstateSetVal('res-cobranca-competencia',charge?.competencia||'');realEstateSetVal('res-cobranca-vencimento',charge?.vencimento||'');realEstateSetVal('res-cobranca-referencia',charge?.referencia||'');realEstateSetVal('res-contrato-status',r?.contrato_status||'Nao confirmado');realEstateSetVal('res-documentacao-status',r?.documentacao_status||'Nao confirmado');realEstateSetVal('res-revisao',r?.revisao_pendente?'true':'false');realEstateSetVal('res-documento-url',r?.documento_url||'');realEstateSetVal('res-pasta-url',r?.pasta_url||'');realEstateSetVal('res-divergencias',(r?.divergencias||[]).join('\n'));realEstateSetVal('res-observacoes',r?.observacoes||'');
+  document.getElementById('realestate-subloc-overlay')?.classList.add('show');
+}
+
+function closeRealEstateSublocModal(){document.getElementById('realestate-subloc-overlay')?.classList.remove('show');realEstateSublocEditId=null;}
+
+async function saveRealEstateSublocacao(){
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para editar Real Estate.');return;}
+  const g=id=>(document.getElementById(id)?.value||'').trim(),unidade=g('res-unidade'),sublocatario=g('res-sublocatario');
+  if(!unidade||!sublocatario){toast('Informe a unidade e o operador da cantina.');return;}
+  const existing=realEstateSublocEditId?realEstateSublocacoes.find(x=>String(x.id)===String(realEstateSublocEditId)):null,id=existing?.id||realEstateUuid(),valor=parseCurrency(g('res-valor')),competencia=g('res-cobranca-competencia'),vencimento=g('res-cobranca-vencimento'),referencia=g('res-cobranca-referencia');
+  let cobrancas=existing?.cobrancas?JSON.parse(JSON.stringify(existing.cobrancas)):[];
+  if(competencia||vencimento||referencia){const charge={competencia,valor,vencimento:vencimento||'',referencia,status:'Lancado'},idx=cobrancas.findIndex(c=>String(c.competencia||'')===competencia&&String(c.referencia||'')===referencia);if(idx>=0)cobrancas[idx]=charge;else cobrancas.push(charge);}
+  const row=realEstateNormalizeSublocacao({id,fonte_chave:existing?.fonte_chave||('manual|'+id),tipo:'Cantina',marca:g('res-marca')||'RAIZ',unidade,localidade:g('res-localidade'),sublocatario,email:g('res-email'),telefone:g('res-telefone'),status:g('res-status')||'Ativo',vigencia_texto:g('res-vigencia'),contrato_fim:g('res-contrato-fim')||null,regra_cobranca:g('res-regra'),valor_referencia:valor,forma_pagamento:g('res-pagamento'),emissao:existing?.emissao||'',dia_vencimento:+g('res-dia')||null,contrato_status:g('res-contrato-status')||'Nao confirmado',documentacao_status:g('res-documentacao-status')||'Nao confirmado',documento_url:g('res-documento-url'),pasta_url:g('res-pasta-url'),cobrancas,revisao_pendente:g('res-revisao')==='true',divergencias:g('res-divergencias').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),observacoes:g('res-observacoes'),fonte:existing?.fonte||'Cadastro manual'});
+  try{const{data,error}=await db.from('real_estate_sublocacoes').upsert(realEstateSublocToDbRow(row),{onConflict:'id'}).select().single();if(error)throw error;const normalized=realEstateNormalizeSublocacao(data||row),idx=realEstateSublocacoes.findIndex(x=>String(x.id)===String(normalized.id));if(idx>=0)realEstateSublocacoes[idx]=normalized;else realEstateSublocacoes.unshift(normalized);closeRealEstateSublocModal();renderRealEstate();toast(existing?'Cantina atualizada.':'Cantina cadastrada.');}
+  catch(e){console.error('saveRealEstateSublocacao:',e);toast('Erro ao salvar cantina: '+(e.message||e));}
+}
+
+async function deleteRealEstateSublocacao(id){
+  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para excluir Real Estate.');return;}
+  const r=realEstateSublocacoes.find(x=>String(x.id)===String(id));if(!r)return;
+  askConfirm('Excluir a sublocacao de '+(r.unidade||'cantina')+'?',async()=>{const{error}=await db.from('real_estate_sublocacoes').delete().eq('id',id);if(error){toast('Erro ao excluir: '+error.message);return;}realEstateSublocacoes=realEstateSublocacoes.filter(x=>String(x.id)!==String(id));renderRealEstate();toast('Sublocacao removida.');});
 }
 
 function realEstateSetVal(id,value){const el=document.getElementById(id);if(el)el.value=value||'';}
