@@ -103,6 +103,7 @@ class handler(BaseHTTPRequestHandler):
                 headers={
                     "Authorization": f"Bearer {token}",
                     "Accept": "*/*",
+                    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
                     "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
                 },
             )

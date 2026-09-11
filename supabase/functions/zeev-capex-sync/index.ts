@@ -694,10 +694,13 @@ function zeevRequestTimeoutMs(value?: unknown) {
 }
 
 async function zeevFetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs?: number) {
+  const headers = new Headers(init.headers || {})
+  // This Zeev tenant returns HTTP 500 when the request has no language header.
+  if (!headers.has('Accept-Language')) headers.set('Accept-Language', 'pt-BR,pt;q=0.9,en;q=0.8')
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), zeevRequestTimeoutMs(timeoutMs))
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    return await fetch(url, { ...init, headers, signal: controller.signal })
   } finally {
     clearTimeout(timer)
   }

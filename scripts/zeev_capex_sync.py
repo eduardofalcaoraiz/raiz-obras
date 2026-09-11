@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 
 ZEEV_BASE_URL = os.environ.get("ZEEV_BASE_URL", "https://raizeducacao.zeev.it").rstrip("/")
+ZEEV_ACCEPT_LANGUAGE = "pt-BR,pt;q=0.9,en;q=0.8"
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://hjccxfznojjosvanwztv.supabase.co").rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 ZEEV_TOKEN = urllib.parse.unquote(os.environ.get("ZEEV_TOKEN", "").strip().removeprefix("Bearer "))
@@ -560,6 +561,9 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
         **(headers or {}),
     }
     is_zeev = str(url).startswith(ZEEV_BASE_URL) and (bool(zeev_tokens()) or bool(merged.get("Authorization")))
+    # This Zeev tenant returns HTTP 500 without an explicit request language.
+    if is_zeev and not any(key.lower() == "accept-language" for key in merged):
+        merged["Accept-Language"] = ZEEV_ACCEPT_LANGUAGE
     is_supabase = str(url).startswith(SUPABASE_URL)
     requested_fields = is_zeev and zeev_fields_requested(url, payload)
     merge_token_rows = is_zeev and requested_fields and str(url).rstrip("/").endswith("/api/2/instances/report")
@@ -2926,6 +2930,7 @@ def http_probe(url, method="GET", payload=None):
     body = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
     base_headers = {
         "Accept": "application/json,text/html,*/*",
+        "Accept-Language": ZEEV_ACCEPT_LANGUAGE,
         "Content-Type": "application/json",
         "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
     }
@@ -3023,6 +3028,7 @@ def fetch_text_for_source(url):
     timeout = max(5, min(int(os.environ.get("ZEEV_INSPECT_HTTP_TIMEOUT_SECONDS", "15")), 45))
     base_headers = {
         "Accept": "text/html,application/javascript,text/javascript,application/json,*/*",
+        "Accept-Language": ZEEV_ACCEPT_LANGUAGE,
         "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
     }
     last = (0, "", "")
@@ -3332,6 +3338,7 @@ def fetch_binary_for_rescue(url):
         seen.add(key)
         headers = {
             "Accept": "application/pdf,application/xml,text/xml,image/*,application/octet-stream,application/json,text/html,*/*",
+            "Accept-Language": ZEEV_ACCEPT_LANGUAGE,
             "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
         }
         if token and auth_mode == "bearer":
