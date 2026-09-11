@@ -381,6 +381,7 @@ const DOCUMENT_FIELDS = [
 ]
 
 const PURCHASE_ENRICH_FIELDS = [
+  'quantidadeItem', 'quantidadeMedicamento', 'nomeSolicitante', 'emailSolicitante',
   'cAPEX',
   'centroDeCusto',
   'centroCusto',
@@ -473,6 +474,7 @@ const PURCHASE_ENRICH_FIELDS = [
 ]
 
 const FINANCE_ENRICH_FIELDS = [
+  'nomeSolicitante', 'emailSolicitante',
   'investimentoCAPEX',
   ...FINANCE_REQUEST_DESCRIPTION_FIELDS,
   ...NEXT_PAYMENT_VALUE_FIELDS,

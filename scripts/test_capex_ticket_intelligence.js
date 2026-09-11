@@ -74,6 +74,10 @@ test('description preserves full text, line breaks, justification and repeated i
   const text=context.capexZeevDescricaoLancamento({campos_extraidos:{descricaoServico:'<p>Pintura</p><p>Salas</p>',justificativa:'Reforma anual',item:['Tinta branca','Tinta verde']}});
   assert.ok(text.includes('Pintura\nSalas'));assert.ok(text.includes('Reforma anual'));assert.ok(text.includes('Tinta verde'));
 });
+test('purchase request information is not hidden by the service field',()=>{
+  const text=context.capexZeevDescricaoLancamento({campos_extraidos:{informacoesReferentesASolicitacao:'Notebook para a equipe',descricaoServico:'Compra de equipamento'}});
+  assert.ok(text.includes('Notebook para a equipe'));
+});
 test('finance never substitutes an invoice or arbitrary item for the request',()=>{
   assert.equal(context.capexZeevDescricaoLancamento({type:'financeiras',pedido:'NF 1',campos_extraidos:{descricaoDaNotaFiscal:'Pintura',item:'Mesa'}}),'');
   assert.equal(context.capexZeevDescricaoLancamento({type:'financeiras',campos_extraidos:{informacoesReferentesASolicitacao:'Obra das salas'}}),'Obra das salas');

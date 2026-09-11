@@ -9383,6 +9383,7 @@ function capexZeevDescriptionSections(z){
     const stored=capexZeevTrustedStoredFinanceDescription(z);
     add('Solicitacao',stored&&(!official||clean(stored).startsWith(clean(official)))?stored:official);
   }else{
+    add('Solicitacao',field([...CAPEX_ZEEV_FINANCE_REQUEST_FIELDS,'informacoes']));
     const service=field(CAPEX_ZEEV_PURCHASE_SERVICE_FIELDS);
     const stored=clean(z?.pedido);
     add('Servico / pedido',stored&&service&&stored.startsWith(clean(service))?stored:service);
@@ -9986,7 +9987,11 @@ function capexZeevContextHtml(){
     ${fact('Valor',capexZeevValueLabel(z)||'Nao informado','',!+z.valor_final&&!+z.valor)}
     ${fact('Arquivos',docLine,'',!docs.length&&!links.length)}
   </div>`;
-  const itens=Array.isArray(z.itens_json)?z.itens_json:[];
+  const itens=(Array.isArray(z.itens_json)?z.itens_json:[]).filter(it=>/[a-z]/.test(capexNormText(it.descricao||'')));
+  const seenItems=new Set(itens.map(it=>capexNormText(it.descricao)));
+  CapexTicketIntelligence.recoveredItemDescriptions(z).forEach(descricao=>{
+    if(!seenItems.has(capexNormText(descricao)))itens.push({descricao});
+  });
   const itemRows=itens.slice(0,3).map(it=>`<div class="capex-ticket-item">${escHtml([it.descricao||'',it.quantidade?`qtd ${it.quantidade}`:'',it.valor_total?fmt(it.valor_total):''].filter(Boolean).join(' / '))}</div>`).join('')+(itens.length>3?`<div class="capex-ticket-item">+ ${itens.length-3} item${itens.length-3!==1?'s':''} no Ticket Raiz</div>`:'');
   const desc=capexZeevDescricaoLancamento(z)||z.request_name||'Descricao pendente no Zeev';
   const extra=`<div class="capex-ticket-desc"><b>Descricao do lancamento:</b> ${escHtml(desc)}</div>${itemRows?`<div class="capex-ticket-items"><b>Itens principais</b>${itemRows}</div>`:''}`;

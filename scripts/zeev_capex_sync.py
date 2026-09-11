@@ -326,6 +326,7 @@ DOCUMENT_FIELDS = [
 ]
 
 PURCHASE_FIELDS = [
+    "quantidadeItem", "quantidadeMedicamento", "nomeSolicitante", "emailSolicitante",
     "cAPEX", "centroDeCusto", "centroCusto", "item", "itens", "produto", "produtos",
     "material", "materiais", "servico", "servicos", "descricao", "descricaoSolicitacao",
     "descricaoCompra", "descricaoProduto", "descricaoServico", "detalhamento", "justificativa",
@@ -345,6 +346,7 @@ PURCHASE_FIELDS = [
 ]
 
 FINANCE_FIELDS = [
+    "nomeSolicitante", "emailSolicitante",
     "investimentoCAPEX", "valorTotalDoPagamento", "valorTotalDoPagamento01", "valorTotalPagamento", "valor", "valorTotal", "valorSolicitado", "valorPagamento",
     "valorAPagar", "valorAprovado", "precoUnitario", "dataPagamento", "previsaoPagamento", "dataVencimento", "dataDeVencimento",
     "Data de vencimento", "Data de vencimento *", "Data de vencimento extra\u00edda", *ISSUE_DATE_FIELDS,
