@@ -1,5 +1,8 @@
 create table if not exists public.real_estate_imoveis (
   id uuid primary key default gen_random_uuid(),
+  fonte_chave text,
+  fonte_url text not null default '',
+  pasta_url text not null default '',
   nome text not null,
   unidade_ocupante text not null default '',
   marca text not null default 'RAIZ',
@@ -32,6 +35,9 @@ create table if not exists public.real_estate_imoveis (
 );
 
 alter table public.real_estate_imoveis
+  add column if not exists fonte_chave text,
+  add column if not exists fonte_url text not null default '',
+  add column if not exists pasta_url text not null default '',
   add column if not exists modalidade text not null default 'Locacao comum',
   add column if not exists revisao_pendente boolean not null default false,
   add column if not exists investimento_locador numeric not null default 0,
@@ -41,6 +47,9 @@ create index if not exists real_estate_imoveis_status_idx on public.real_estate_
 create index if not exists real_estate_imoveis_nome_idx on public.real_estate_imoveis(nome);
 create index if not exists real_estate_imoveis_modalidade_idx on public.real_estate_imoveis(modalidade);
 create index if not exists real_estate_imoveis_revisao_idx on public.real_estate_imoveis(revisao_pendente);
+create unique index if not exists real_estate_imoveis_fonte_chave_uidx
+  on public.real_estate_imoveis(fonte_chave)
+  where fonte_chave is not null and fonte_chave <> '';
 create index if not exists real_estate_imoveis_devolucao_gin_idx on public.real_estate_imoveis using gin(devolucao);
 create index if not exists real_estate_imoveis_obrigacoes_gin_idx on public.real_estate_imoveis using gin(obrigacoes);
 

@@ -1,0 +1,21 @@
+.realestate-area-tabs{flex-wrap:wrap;max-width:100%}
+.re-evidence-toolbar{display:flex;align-items:end;gap:14px;flex-wrap:wrap;margin:8px 0 14px}
+.re-evidence-toolbar label{display:grid;gap:5px;font-size:12px;font-weight:600;min-width:140px}
+.re-evidence-toolbar .re-evidence-check{display:flex;align-items:center;gap:7px;min-width:0;padding-bottom:10px}
+.re-evidence-toolbar select{max-width:250px}.re-evidence-caveat{margin:0 0 15px;max-width:1000px}
+.re-evidence-table-wrap{overflow-x:auto;max-width:100%;border:1px solid var(--line);border-radius:6px}
+.re-evidence-table{border-collapse:collapse;width:100%;min-width:850px;font-size:12px;table-layout:fixed}
+.re-evidence-table th{background:#EDF5F2;text-align:left;font-size:11px;padding:12px 10px;color:#173F36}
+.re-evidence-table td{padding:11px 10px;border-top:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere;line-height:1.45}
+.re-evidence-table th:nth-child(2){width:23%}.re-evidence-table th:nth-child(3){width:13%}.re-evidence-table th:nth-child(4){width:10%}
+.re-evidence-table small,.re-evidence-doc small{display:block;color:var(--muted);margin-top:4px}.re-evidence-money{text-align:right;font-variant-numeric:tabular-nums}
+.re-evidence-table a,.re-evidence-doc a{color:#076B73;text-decoration:underline;text-underline-offset:3px}.re-evidence-table details{margin-top:5px}.re-evidence-table summary{cursor:pointer}
+.re-evidence-pagination{display:flex;align-items:center;justify-content:center;gap:16px;margin:18px 0}.re-evidence-pagination button{width:38px;height:34px}
+.re-evidence-doc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:10px}
+.re-evidence-doc{min-width:0;border:1px solid var(--line);border-radius:6px;padding:14px;background:#fff;overflow-wrap:anywhere;font-size:12px;line-height:1.5}.re-evidence-doc p{margin:8px 0}
+.re-evidence-record{min-width:0;margin-top:14px;border-top:1px solid var(--line);padding-top:12px}.re-evidence-record>summary{cursor:pointer;font-weight:600;font-size:13px;list-style:revert;padding:5px 0}
+.re-evidence-record-body{min-width:0;padding-top:12px}.re-evidence-record-body h4{font-size:14px;margin:18px 0 8px}.re-evidence-record-history>.re-evidence-table-wrap{margin-top:8px}.re-evidence-more{margin-top:12px}
+.realestate-subloc-card .re-evidence-record .re-evidence-doc-grid{grid-template-columns:1fr}
+@media(max-width:720px){.realestate-area-tab{flex:auto;white-space:normal;min-height:38px;height:auto}.re-evidence-toolbar{gap:10px}.re-evidence-toolbar label{min-width:120px;max-width:100%}.re-evidence-toolbar select{max-width:100%}.re-evidence-doc-grid{grid-template-columns:1fr}}
+.re-evidence-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
+.re-evidence-doc details { margin: 8px 0; }
