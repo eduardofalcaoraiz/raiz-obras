@@ -1764,12 +1764,19 @@ def suggested_capex_status(row, ready):
 
 def extract_items(fields):
     rows = {}
+    misplaced_descriptions = {}
     for field in fields or []:
         value = str(field.get("value") or "").strip()
         if not value:
             continue
         row = int(field.get("row") or 1)
         item = rows.setdefault(row, {"row": row})
+        if field_matches(field, ["quantidadeItem", "quantidadeMedicamento"]):
+            if re.search(r"[a-z]", norm(value)) and len(norm(value).split()) >= 2 and not re.fullmatch(r"\d+(?:[.,]\d+)?\s*(?:un|und|unid|unidade|unidades|peca|pecas|caixa|caixas|kg|m|m2|litro|litros)\.?", norm(value)):
+                misplaced_descriptions[row] = value
+            elif re.fullmatch(r"\d+(?:[.,]\d+)*", value):
+                item["quantidade"] = parse_money(value)
+            continue
         if field_matches(field, ITEM_DESC_FIELDS):
             item["descricao"] = value
         elif field_matches(field, ITEM_QTY_FIELDS):
@@ -1782,6 +1789,12 @@ def extract_items(fields):
             item["valor_total"] = parse_money(value)
     out = []
     for item in rows.values():
+        # Some Zeev forms return the item text in quantidadeItem (e.g. TR 202857).
+        # Recover text only; the numeric item may be a row number, not a quantity.
+        if not re.search(r"[a-z]", norm(item.get("descricao", ""))):
+            item["descricao"] = misplaced_descriptions.get(item["row"], "")
+            if item["descricao"]:
+                item["descricao_origem"] = "texto_em_campo_quantidade"
         if item.get("valor_unitario") and item.get("quantidade") and not item.get("valor_total"):
             item["valor_total"] = round(float(item["valor_unitario"]) * float(item["quantidade"]), 2)
         if any(k in item for k in ("descricao", "quantidade", "valor_total", "valor_unitario")):
@@ -2530,7 +2543,7 @@ def summarize_with_huggingface(text):
 
 def card_summary_cascade(text, items=None, compra=False):
     clean = clean_summary_text(text)
-    if not clean:
+    if not clean or not re.search(r"[a-z]", norm(clean)):
         return "", ""
     deterministic = deterministic_card_summary(clean, items=items, compra=compra)
     for source, fn in (
@@ -2651,7 +2664,6 @@ def build_ticket(row):
         "unidade": unidade or None,
         "marca": field_value(fields, ["marca"]) or None,
         "pedido": pedido or None,
-        "categoria_capex": field_value(fields, ["categoriaCompra", "categoria", "tipoCompra"]) or None,
         "fonte": "UNIDADE",
         "setor": "FINANCEIRO" if financeiro else "COMPRAS",
         "situacao_sugerida": situacao,
@@ -2734,7 +2746,6 @@ def generic_ticket_from_instance(row, reason=""):
         "unidade": field_value(fields, ["unidadeEscolar", "unidade", "escola", "filial", "localEntrega"]) or clean_unit(field_value(fields, ["centroDeCusto", "centroCusto"])) or None,
         "marca": field_value(fields, ["marca"]) or None,
         "pedido": pedido or None,
-        "categoria_capex": field_value(fields, ["categoriaCompra", "categoria", "tipoCompra"]) or None,
         "fonte": "UNIDADE",
         "setor": "FINANCEIRO" if financeiro else "COMPRAS",
         "situacao_sugerida": situacao,

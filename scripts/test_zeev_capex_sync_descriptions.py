@@ -14,6 +14,26 @@ def form_field(name, value, label=""):
 
 
 class FinanceDescriptionTests(unittest.TestCase):
+    def test_202857_item_text_in_quantity_field(self):
+        fields = [form_field("item", "1"), form_field("quantidadeItem", "Notebook Core i5 com 16 Gbs de Memoria Ram.")]
+        items = sync.extract_items(fields)
+        self.assertEqual(items[0]["descricao"], "Notebook Core i5 com 16 Gbs de Memoria Ram.")
+        self.assertNotIn("quantidade", items[0])
+        self.assertEqual(sync.pick_ticket_value(fields, items), 0)
+        self.assertIn("Notebook", sync.ticket_description(fields, items, compra=True))
+
+    def test_normal_item_and_numeric_quantity_are_preserved(self):
+        fields = [form_field("item", "Mesa"), form_field("quantidadeItem", "2"), form_field("valorUnitario", "100")]
+        item = sync.extract_items(fields)[0]
+        self.assertEqual(item["descricao"], "Mesa")
+        self.assertEqual(item["quantidade"], 2)
+        self.assertEqual(item["valor_total"], 200)
+
+    def test_numeric_description_does_not_call_summary_providers(self):
+        with mock.patch.object(sync, "summarize_with_cloudflare") as provider:
+            self.assertEqual(sync.card_summary_cascade("1", compra=True), ("", ""))
+            provider.assert_not_called()
+
     def test_single_installment_uses_next_payment_as_total(self):
         fields = [
             form_field("qtdParcelas", "1"),

@@ -564,7 +564,11 @@ button{font-family:inherit;cursor:pointer}
 .capex-summary-main{grid-area:main;min-width:0;display:grid;gap:4px;align-self:end}
 .capex-summary-title{font-size:16.4px;font-weight:950;color:var(--ink);line-height:1.25;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
 .capex-card-desc{display:block;white-space:normal;overflow-wrap:anywhere}
-.capex-card-desc-text{display:inline}
+.capex-card-desc-text{display:inline;white-space:pre-line;overflow-wrap:anywhere}
+.capex-ticket-description{display:grid;gap:14px;min-width:0}
+.capex-ticket-description b{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+.capex-ticket-description p{margin:0;font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.capex-ticket-description .capex-description-warning{font-size:12px;color:var(--warn);border-left:3px solid var(--warn);padding-left:10px}
 .capex-read-more{border:0;background:transparent;color:var(--brand-text,var(--accent-text));font:inherit;font-size:11.5px;font-weight:950;text-transform:uppercase;letter-spacing:.04em;padding:0;margin-left:6px;cursor:pointer;vertical-align:baseline}
 .capex-read-more:hover{text-decoration:underline;text-underline-offset:3px}
 .capex-read-more:focus-visible{outline:2px solid color-mix(in srgb,var(--card-accent,var(--accent)) 44%,transparent);outline-offset:3px;border-radius:4px}
@@ -2317,7 +2321,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <section id="view-admin" class="view">
 
-      <div class="phead"><div><div class="eyebrow">Controle de acesso</div><h1>Administração</h1><p>Gerencie usuários, pastas documentais e categorias de CAPEX da plataforma.</p></div></div>
+      <div class="phead"><div><div class="eyebrow">Controle de acesso</div><h1>Administração</h1><p>Gerencie usuários e pastas documentais da plataforma.</p></div></div>
 
       <div class="card"><h2>Usuários</h2><div class="sub">Aprove ou revogue o acesso de cada cadastro.</div>
 
@@ -2344,7 +2348,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
             <h2 style="font-size:19px;margin-bottom:3px">Categorias da plataforma</h2>
 
-            <div class="sub">Gerencie documentos e CAPEX. Categorias de pagamentos foram removidas do fluxo operacional.</div>
+            <div class="sub">Gerencie as pastas de documentos da plataforma.</div>
 
           </div>
 
@@ -3675,9 +3679,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       </div>
       <input type="hidden" id="ci-m-fonte" value="">
 
-      <div class="capex-form-grid-3">
+      <div class="capex-form-grid-2">
         <div class="frow"><label class="fl">Unidade principal / escola <span style="font-weight:500;color:var(--muted)">(opcional no rateio)</span></label><select class="fi" id="ci-m-unidade" onchange="syncCapexExtraUnitOptions();syncCapexRateioOptions();updateCapexUnitHint()"><option value="">— Selecione a unidade —</option></select></div>
-        <div class="frow"><label class="fl">Categoria CAPEX <button type="button" onclick="openCatModal(undefined,'capex')" class="linkbtn" style="font-size:12px;color:var(--accent);font-weight:600">+ Nova</button></label><select class="fi" id="ci-m-cat"><option value="capex_outros">A classificar / outros</option></select></div>
         <div class="frow"><label class="fl">Valor registrado (R$)</label><input class="fi num" id="ci-m-orc" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)" placeholder="0,00"></div>
       </div>
       <div class="frow" id="ci-m-extra-units-row">
@@ -4004,6 +4007,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
 
 
+<script src="scripts/capex-ticket-intelligence.js?v=20260910"></script>
 <script>
 
 const fmt=n=>"R$ "+(+n||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -4038,7 +4042,7 @@ const CAPEX_ZEEV_LIST_COLUMNS=[
   'id','zeev_instance_id','zeev_uid','flow_id','flow_name','flow_version','request_name','ticket_link','confirmation_code',
   'start_date_time','end_date_time','last_finished_task_date_time','active','flow_result','capex_field_name','capex_field_value',
   'requester_name','requester_email','requester_username','requester_team','etapa_atual','passou_conferir_entrega',
-  'pronto_valor_final','valor','valor_final','valor_status','unidade','marca','pedido','categoria_capex','fonte','setor',
+  'pronto_valor_final','valor','valor_final','valor_status','unidade','marca','pedido','fonte','setor',
   'situacao_sugerida','realizado_sugerido','status','capex_item_id','aprovado_por','aprovado_em','ignorado_por','ignorado_em',
   'email_notified_at','last_seen_at','created_at','updated_at','zeev_docs_checked_at','descricao_confiavel','campos_extraidos','pagamento_json','itens_json'
 ].join(',');
@@ -4047,9 +4051,9 @@ const CAPEX_ZEEV_QUEUE_COLUMNS=[
   'id','zeev_instance_id','zeev_uid','flow_id','flow_name','flow_version','request_name','ticket_link','confirmation_code',
   'start_date_time','end_date_time','last_finished_task_date_time','active','flow_result','capex_field_name','capex_field_value',
   'requester_name','requester_email','requester_username','requester_team','etapa_atual','passou_conferir_entrega',
-  'pronto_valor_final','valor','valor_final','valor_status','unidade','marca','pedido','categoria_capex','fonte','setor',
+  'pronto_valor_final','valor','valor_final','valor_status','unidade','marca','pedido','fonte','setor',
   'situacao_sugerida','realizado_sugerido','status','capex_item_id','aprovado_por','aprovado_em','ignorado_por','ignorado_em',
-  'email_notified_at','last_seen_at','created_at','updated_at','zeev_docs_checked_at','descricao_confiavel'
+  'email_notified_at','last_seen_at','created_at','updated_at','zeev_docs_checked_at','descricao_confiavel','campos_extraidos','itens_json'
 ].join(',');
 
 const PAYMENT_LIST_COLUMNS=[
@@ -4607,12 +4611,12 @@ let DOC_CATS=[]; // Categorias/pastas de documentos, independentes de pagamentos
 let docCatSeq=1;
 
 function normalizeCatTipo(tipo){
-  return tipo==='pasta'||tipo==='documento'?'documento':(tipo==='capex'?'capex':'pagamento');
+  return tipo==='pasta'||tipo==='documento'?'documento':'pagamento';
 }
 
 function catListByTipo(tipo){
   tipo=normalizeCatTipo(tipo);
-  return tipo==='capex'?CAPEX_CATS:(tipo==='documento'?DOC_CATS:CATS);
+  return tipo==='documento'?DOC_CATS:CATS;
 }
 
 function docCatById(id){
@@ -4623,35 +4627,10 @@ function docCatsSorted(){
   return DOC_CATS.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
 }
 
-const DEFAULT_CAPEX_CATS=[
-  {id:'capex_mobiliario',nome:'Mobiliário e marcenaria',subs:['Geral'],tipo:'capex'},
-  {id:'capex_pintura',nome:'Pintura, acabamentos e revestimentos',subs:['Geral'],tipo:'capex'},
-  {id:'capex_obras_civis',nome:'Obras civis e reforma predial',subs:['Geral'],tipo:'capex'},
-  {id:'capex_outros',nome:'A classificar / outros',subs:['Geral'],tipo:'capex'},
-  {id:'capex_material_manutencao',nome:'Material de manutenção',subs:['Geral'],tipo:'capex'},
-  {id:'capex_ti',nome:'TI, rede e audiovisual',subs:['Geral'],tipo:'capex'},
-  {id:'capex_playground',nome:'Playground, esporte e áreas externas',subs:['Geral'],tipo:'capex'},
-  {id:'capex_seguranca',nome:'Segurança, acesso e incêndio',subs:['Geral'],tipo:'capex'},
-  {id:'capex_hidraulica',nome:'Hidráulica, banheiros e vazamentos',subs:['Geral'],tipo:'capex'},
-  {id:'capex_climatizacao',nome:'Climatização e ventilação',subs:['Geral'],tipo:'capex'},
-  {id:'capex_comunicacao',nome:'Comunicação visual e sinalização',subs:['Geral'],tipo:'capex'},
-  {id:'capex_ambientes',nome:'Adequação de ambientes e layout',subs:['Geral'],tipo:'capex'},
-  {id:'capex_servicos',nome:'Serviços técnicos e mão de obra',subs:['Geral'],tipo:'capex'},
-  {id:'capex_eletrica',nome:'Elétrica e iluminação',subs:['Geral'],tipo:'capex'},
-  {id:'capex_cozinha',nome:'Cozinha, copa e equipamentos operacionais',subs:['Geral'],tipo:'capex'},
-  {id:'capex_pedagogico',nome:'Pedagógico, laboratório e biblioteca',subs:['Geral'],tipo:'capex'}
-];
-
-let CAPEX_CATS=[]; // Categorias editáveis exclusivas do CAPEX
-let capexCatSeq=1;
-
-function capexCatById(id){
-  return CAPEX_CATS.find(c=>c.id===id)||DEFAULT_CAPEX_CATS.find(c=>c.id===id)||{nome:'A classificar / outros',subs:['Geral'],tipo:'capex'};
-}
 
 function categoryById(id,tipo){
   const list=catListByTipo(tipo);
-  return list.find(c=>c.id===id)||CAPEX_CATS.find(c=>c.id===id)||DOC_CATS.find(c=>c.id===id)||CATS.find(c=>c.id===id)||{nome:'(removida)',subs:[]};
+  return list.find(c=>c.id===id)||DOC_CATS.find(c=>c.id===id)||CATS.find(c=>c.id===id)||{nome:'(removida)',subs:[]};
 }
 
 let CNPJS={}; // Preenchido pelo loadFromDB() — nunca hardcoded
@@ -6860,7 +6839,7 @@ function renderGeral(){
     fornecedorMap[nome].count++;
   });
   const fornecedorRows=Object.values(fornecedorMap).sort((a,b)=>b.value-a.value).slice(0,7).map(r=>({...r,display:`${fmt(r.value)} · ${r.count} lançamento${r.count!==1?'s':''}`}));
-  const capexCatRows=_ciGroupStats(capexItens,i=>capexCategoriaNome(i)).sort((a,b)=>b.orc-a.orc||b.total-a.total).slice(0,7).map(r=>({label:r.key,value:r.orc||r.total,display:r.orc?fmt(r.orc):`${r.total} pedido(s)`,color:'var(--accent)'}));
+  const capexUnitRows=_ciGroupStats(capexItens,i=>i.unidade||'Sem unidade').sort((a,b)=>b.orc-a.orc||b.total-a.total).slice(0,7).map(r=>({label:r.key,value:r.orc||r.total,display:r.orc?fmt(r.orc):`${r.total} pedido(s)`,color:'var(--accent)'}));
 
   const docByMarca={};
   unidades.forEach(u=>{
@@ -6899,8 +6878,8 @@ function renderGeral(){
       ${geralBarRows(fornecedorRows,{money:true,color:'var(--ok)',empty:'Ainda não há pagamentos quitados por fornecedor.'})}
     </div>
     <div class="capex-panel gd-span-6">
-      <div class="gd-panel-head"><div><h3>CAPEX por categoria</h3><div class="sub">Orçamento mapeado nos pedidos de melhorias.</div></div><button class="btn btn-ghost btn-sm" onclick="go('capex')">CAPEX →</button></div>
-      ${geralBarRows(capexCatRows,{color:'var(--accent)',empty:'Sem CAPEX categorizado.'})}
+      <div class="gd-panel-head"><div><h3>CAPEX por unidade</h3><div class="sub">Orçamento mapeado nos pedidos de melhorias.</div></div><button class="btn btn-ghost btn-sm" onclick="go('capex')">CAPEX →</button></div>
+      ${geralBarRows(capexUnitRows,{color:'var(--accent)',empty:'Sem CAPEX registrado.'})}
     </div>
     <div class="capex-panel gd-span-4">
       <div class="gd-panel-head"><div><h3>Esferas</h3><div class="sub">Volume contratado por frente.</div></div></div>
@@ -7145,41 +7124,16 @@ function capexZeevUnitAllSignalText(z){
   ].filter(Boolean).join(' ');
 }
 
+let capexUnitInferenceIndex=null;
+function capexZeevUnitInference(z){
+  if(!capexUnitInferenceIndex)capexUnitInferenceIndex=CapexTicketIntelligence.indexRegistrations(capexItens||[]);
+  const compra=capexCompraLinkFromZeev(z);
+  const source=compra?.tr?{...z,campos_extraidos:{...z.campos_extraidos,ticketRaizCompra:compra.tr}}:z;
+  return CapexTicketIntelligence.inferUnit(source,capexAllUnitsForInference(),[],capexUnitInferenceIndex);
+}
+
 function capexSuggestUnitFromZeev(z){
-  const highRaw=capexZeevUnitHighSignalText(z);
-  const allRaw=capexZeevUnitAllSignalText(z);
-  const high=capexNormText(highRaw);
-  const all=capexNormText(allRaw);
-  const cnpjs=capexExtractCnpjs(allRaw);
-  const candidates=capexAllUnitsForInference().map(u=>{
-    let score=0;
-    const name=capexNormText(u.nome);
-    const brand=capexNormText(u.marca);
-    const unitCnpj=String(u.cnpj||'').replace(/\D/g,'');
-    if(unitCnpj&&cnpjs.has(unitCnpj))score+=520;
-    capexUnitAliasTexts(u).forEach(alias=>{
-      const a=capexNormText(alias);
-      if(!a||a.length<4)return;
-      if(high.includes(a))score+=260;
-      else if(all.includes(a))score+=135;
-    });
-    const tokens=capexUnitDistinctiveTokens(u.nome);
-    let highHits=0,allHits=0;
-    tokens.forEach(t=>{
-      if(capexTextHas(high,t)){score+=55;highHits++;}
-      else if(capexTextHas(all,t)){score+=18;allHits++;}
-    });
-    if(tokens.length&&highHits===tokens.length)score+=80+(tokens.length*12);
-    else if(tokens.length&&(highHits+allHits)===tokens.length)score+=35+(tokens.length*6);
-    if(brand&&capexTextHas(high,brand))score+=capexBrandUnitCount(u.marca)===1?90:24;
-    else if(brand&&capexTextHas(all,brand))score+=capexBrandUnitCount(u.marca)===1?55:10;
-    return{u,score};
-  }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.u.nome.localeCompare(b.u.nome,'pt-BR'));
-  const best=candidates[0];
-  const second=candidates[1];
-  if(!best||best.score<115)return'';
-  if(second&&best.score-second.score<30)return'';
-  return best.u.nome||'';
+  return capexZeevUnitInference(z).unidade;
 }
 
 function capexUnitsForMarca(marca){
@@ -7195,23 +7149,6 @@ function capexUnitsForMarca(marca){
     });
 }
 
-const CAPEX_CATEGORY_RULES=[
-  ['capex_mobiliario',['cadeira','cadeiras','mesa','mesas','carteira','carteiras','armario','armarios','gaveteiro','estante','prateleira','bancada','balcao','sofa','puff','poltrona','marcenaria','movel','moveis','mobiliario','locker','nichos','divisoria','divisorias','painel ripado','porta mochila','cabideiro','roupeiro','guarda volumes']],
-  ['capex_ti',['computador','notebook','desktop','monitor','teclado','mouse','impressora','toner','tablet','ipad','chromebook','switch','roteador','wifi','wi fi','internet','rede logica','cabo hdmi','hdmi','projetor','datashow','tv','televisao','audio','som','microfone','caixa de som','nobreak','servidor','rack ti','camera ip','licenca','software']],
-  ['capex_material_manutencao',['chapa','parafuso','bucha','cola','silicone','massa','cimento','areia','pedra','madeira','mdf','tubo','cano','conexao','material de manutencao','insumo','ferragem','ferramenta','grelha','grelhas','metalon','tela','toldo','lixeira','tapete','tanque de areia','cantoneira','telha','calha']],
-  ['capex_servicos',['mao de obra','mdo','servico de','servicos de','laudo','vistoria','projeto executivo','projeto de','levantamento','frete','transporte','locacao','aluguel','dedetizacao','desinsetizacao','limpeza tecnica','manutencao preventiva','manutencao corretiva','retirada','remocao','desmontagem','montagem','contratacao sera feita']],
-  ['capex_pintura',['pintura','pintar','tinta','grafiato','revestimento','piso','pisos','porcelanato','ceramica','azulejo','rodape','forro','drywall','gesso','massa corrida','textura','vinilico','granito','pastilha','cimento queimado','laminado','sportit','monolitico']],
-  ['capex_obras_civis',['obra','obras','reforma','construcao','construir','demolicao','alvenaria','concreto','estrutura','cobertura','telhado','escada','rampa','muro','guarda corpo','guarda-corpo','corrimao','fachada','ampliacao','platibanda','rachadura','fissura','janela','janelas','porta de vidro','marquise','estacionamento','elevador','acessibilidade']],
-  ['capex_hidraulica',['hidraulica','hidraulico','vazamento','vazamentos','infiltracao','infiltracoes','caixa d agua','caixa dagua','bomba d agua','bomba de agua','ralo','esgoto','vaso sanitario','sanitario','mictorio','torneira','pia','chuveiro','banheiro','banheiros','bebedouro','purificador','filtro','registro']],
-  ['capex_climatizacao',['ar condicionado','split','condicionado','climatizacao','ventilador','ventiladores','exaustao','exaustor','duto','evaporadora','condensadora','ventilacao','cassete','vrf','resfriador']],
-  ['capex_eletrica',['eletrica','eletrico','iluminacao','luminaria','luminarias','lampada','lampadas','led','tomada','tomadas','disjuntor','quadro eletrico','interruptor','refletor','refletores','poste','eletroduto','energia']],
-  ['capex_seguranca',['cftv','camera','cameras','alarme','controle de acesso','catraca','fechadura','porteiro','interfone','grade','grades','gradil','portao','porta cadeado','cerca','concertina','extintor','incendio','sprinkler','avcb','hidrante','rota de fuga','sinalizacao de emergencia']],
-  ['capex_comunicacao',['comunicacao visual','sinalizacao','placa','placas','adesivo','adesivos','adesivacao','adesivar','letreiro','totem','banner','lona','outdoor','plotagem','identificacao','chaveiro plastico','logo da marca']],
-  ['capex_playground',['playground','parquinho','brinquedo','brinquedos','casinha','escorregador','balanco','grama','gramado','jardim','paisagismo','quadra','trave','tabela de basquete','rede de protecao','tatame','piso emborrachado','area externa','patio','cabana alpina','domo','kaska','paradome','ping pong','toto']],
-  ['capex_cozinha',['cozinha','copa','geladeira','freezer','microondas','fogao','forno','lava louca','refeitorio','buffet','coifa','exaustao da cozinha']],
-  ['capex_pedagogico',['biblioteca','livro','livros','laboratorio','microscopio','brinquedoteca','material pedagogico','lousa','quadro branco','quadro magnetico','mapa','instrumento musical','musica','sala de musica','lab de ciencia','ciencias','sala steam']],
-  ['capex_ambientes',['recepcao','auditorio','area de convivencia','sala de aula','sala atendimento','sala de atendimento','secretaria','inspetoria','almoxarifado','hall','novo acesso','acesso a escola','espaco adequado','remanejamento']]
-];
 
 function capexNormText(s){
   return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
@@ -7221,23 +7158,6 @@ function capexTextHas(txt,term){
   return(' '+txt+' ').includes(' '+capexNormText(term)+' ');
 }
 
-function capexAutoCategoryId(it){
-  const desc=capexNormText([it?.pedido,it?.referencia,it?.descricao,it?.itens,it?._autoText].filter(Boolean).join(' '));
-  const meta=capexNormText([it?.setor,it?.fonte,it?.tipo,it?.fluxo].filter(Boolean).join(' '));
-  const hits=[];
-  CAPEX_CATEGORY_RULES.forEach(([id,terms],idx)=>{
-    const score=terms.reduce((n,t)=>n+(capexTextHas(desc,t)?1:0),0);
-    if(score)hits.push({id,score,idx});
-  });
-  if(!hits.length){
-    if(capexTextHas(meta,'ti'))return'capex_ti';
-    if(capexTextHas(meta,'manutencao'))return'capex_material_manutencao';
-    if(capexTextHas(meta,'arquitetura'))return'capex_obras_civis';
-    return'capex_outros';
-  }
-  hits.sort((a,b)=>b.score-a.score||a.idx-b.idx);
-  return hits[0].id||'capex_outros';
-}
 
 function capexFlattenText(v){
   if(v==null)return'';
@@ -7255,34 +7175,6 @@ function capexZeevFieldText(z){
   ].filter(Boolean).join(' ');
 }
 
-function capexZeevCategoryInput(z){
-  return {
-    pedido:capexZeevDescricaoLancamento(z),
-    referencia:String(z?.zeev_instance_id||''),
-    setor:z?.setor||capexZeevKind(z),
-    fonte:'',
-    solicitante:[z?.requester_name,z?.requester_email].filter(Boolean).join(' '),
-    tipo:capexZeevType(z),
-    fluxo:[z?.flow_name,z?.request_name].filter(Boolean).join(' '),
-    itens:capexZeevItemSummary(z),
-    _autoText:[
-      capexZeevAnyField(z,['item','itens','descricao','descricaoServico','descricao do servico','justificativa do pedido','informacoes','informacoes referentes a solicitacao']),
-      capexZeevFieldText(z)
-    ].filter(Boolean).join(' ')
-  };
-}
-
-function capexSuggestedCategoryFromZeev(z){
-  return z?.categoria_capex||capexAutoCategoryId(capexZeevCategoryInput(z))||'capex_outros';
-}
-
-function capexCategoriaId(it){
-  return it?.categoria_capex||capexAutoCategoryId(it)||'capex_outros';
-}
-
-function capexCategoriaNome(it){
-  return capexCatById(capexCategoriaId(it)).nome;
-}
 
 function capexTrDigits(v){
   return String(v||'').toUpperCase().replace(/^TR[\s\-:]*/,'').replace(/\D/g,'');
@@ -7432,7 +7324,7 @@ function capexTrResultsHtml(){
     const idArg=JSON.stringify(it.id);
     const ref=escHtml(it.referencia||'');
     const title=escHtml(it.pedido||'Pedido sem descricao');
-    const meta=[it.ano,marca,it.unidade,capexCategoriaNome(it)].filter(Boolean).map(escHtml).join(' &middot; ');
+    const meta=[it.ano,marca,it.unidade].filter(Boolean).map(escHtml).join(' &middot; ');
     return`<button type="button" class="capex-tr-result ${exact?'exact':''}" onclick='openCapexItemFromSearch(${idArg})'>
       <span class="capex-tr-code">TR ${ref}</span>
       <span class="capex-tr-main"><span class="capex-tr-title">${title}</span><span class="capex-tr-meta">${meta}</span></span>
@@ -7695,9 +7587,7 @@ function capexZeevTypeCounts(list){
 }
 
 function capexZeevRequesterMeta(z){
-  const name=String(z?.requester_name||capexZeevAnyField(z,['solicitante','nomeSolicitante','nome do solicitante'])||'').trim();
-  const email=String(z?.requester_email||capexZeevAnyField(z,['emailSolicitante','email do solicitante','e-mail solicitante','email'])||'').trim();
-  const team=String(z?.requester_team||'').trim();
+  const {nome:name,email,equipe:team}=capexZeevRequester(z);
   const label=name||email||team||'Nao informado';
   const key=capexZeevNormField(email||label||team)||'naoinformado';
   return{key,label,email,team};
@@ -8181,12 +8071,7 @@ function capexFonteLegadaGenerica(v){
 }
 
 function capexZeevRequester(z){
-  if(!z)return{nome:'',email:'',equipe:''};
-  return{
-    nome:String(z.requester_name||capexZeevAnyField(z,['solicitante','nomeSolicitante','nome do solicitante'])||'').trim(),
-    email:String(z.requester_email||capexZeevAnyField(z,['emailSolicitante','email do solicitante','e-mail solicitante','email'])||'').trim(),
-    equipe:String(z.requester_team||'').trim()
-  };
+  return CapexTicketIntelligence.requester(z);
 }
 
 function capexSolicitanteFromItem(it){
@@ -9313,7 +9198,7 @@ function capexZeevRawField(z,names){
 }
 
 function capexZeevAnyField(z,names){
-  return capexZeevField(z,names)||capexZeevRawField(z,names);
+  return CapexTicketIntelligence.first(z,names);
 }
 
 const CAPEX_ZEEV_FISCAL_NUMBER_FIELDS=[
@@ -9351,14 +9236,7 @@ function capexZeevShort(v,max){
 }
 
 function capexCleanSummaryText(v){
-  return String(v||'')
-    .replace(/<\s*br\s*\/?\s*>/gi,'\n')
-    .replace(/<\/\s*(p|div|li|tr|h[1-6])\s*>/gi,'\n')
-    .replace(/<[^>]+>/g,' ')
-    .replace(/\u00a0/g,' ')
-    .replace(/[ \t\r\f\v]+/g,' ')
-    .replace(/\n\s*\n+/g,'\n')
-    .trim();
+  return CapexTicketIntelligence.clean(v);
 }
 
 function capexGenericPurchaseText(v){
@@ -9491,19 +9369,49 @@ function capexZeevItemSummary(z){
   return parts.join('; ');
 }
 
-function capexZeevDescricaoLancamento(z){
-  const stored=String(z?.pedido||'').trim();
-  const itemText=capexZeevItemSummary(z);
-  const justification=capexZeevAnyField(z,CAPEX_ZEEV_PURCHASE_JUSTIFICATION_FIELDS);
-  const service=capexZeevAnyField(z,CAPEX_ZEEV_PURCHASE_SERVICE_FIELDS);
-  const itemField=capexZeevAnyField(z,CAPEX_ZEEV_PURCHASE_ITEM_FIELDS);
-  if(capexZeevType(z)==='compras'){
-    if(itemText&&(capexGenericPurchaseText(service)||capexDescriptionScore(itemText)>capexDescriptionScore(service)+40))return itemText;
-    if(justification&&(!itemText||capexDescriptionScore(justification)>capexDescriptionScore(service)+35))return justification;
-    return capexBestDescription([stored,service,itemText,itemField,justification]);
+function capexZeevDescriptionSections(z){
+  const clean=CapexTicketIntelligence.clean;
+  const sections=[],seen=new Set();
+  const field=names=>CapexTicketIntelligence.firstGroup(z,names);
+  const add=(label,value)=>{
+    const text=clean(value),k=capexNormText(text);
+    if(!text||!k||!/[a-z]/.test(k)||['null','undefined','nao informado'].includes(k)||seen.has(k))return;
+    seen.add(k);sections.push({label,text});
+  };
+  if(capexZeevType(z)==='financeiras'){
+    const official=field(CAPEX_ZEEV_FINANCE_REQUEST_FIELDS);
+    const stored=capexZeevTrustedStoredFinanceDescription(z);
+    add('Solicitacao',stored&&(!official||clean(stored).startsWith(clean(official)))?stored:official);
+  }else{
+    const service=field(CAPEX_ZEEV_PURCHASE_SERVICE_FIELDS);
+    const stored=clean(z?.pedido);
+    add('Servico / pedido',stored&&service&&stored.startsWith(clean(service))?stored:service);
+    add('Justificativa',field(CAPEX_ZEEV_PURCHASE_JUSTIFICATION_FIELDS));
+    if(!sections.length)add('Pedido',z?.pedido);
+    const recovered=CapexTicketIntelligence.recoveredItemDescriptions(z);
+    const items=capexZeevItemSummary(z);
+    if(/[a-z]/.test(capexNormText(items)))add('Itens',items);
+    else add('Itens',recovered.join('\n')||field(CAPEX_ZEEV_PURCHASE_ITEM_FIELDS));
+    if(recovered.length&&/[a-z]/.test(capexNormText(items)))add('Outros itens',recovered.join('\n'));
   }
-  return capexZeevAnyField(z,CAPEX_ZEEV_FINANCE_REQUEST_FIELDS)
-    ||capexZeevTrustedStoredFinanceDescription(z);
+  return sections;
+}
+
+function capexZeevDescricaoLancamento(z){
+  return capexZeevDescriptionSections(z).map(s=>s.text).join('\n\n');
+}
+
+function capexZeevDescriptionHtml(z){
+  const sections=capexZeevDescriptionSections(z);
+  const recovered=CapexTicketIntelligence.recoveredItemDescriptions(z).length||
+    (z?.itens_json||[]).some(it=>it.descricao_origem==='texto_em_campo_quantidade');
+  const warning=z?.campos_extraidos?._descricao_alerta||
+    (z?.campos_extraidos?._descricao_status==='parcial'?'Descricao parcial retornada pelo Zeev.':
+      recovered?'Descricao recuperada de um campo de quantidade preenchido com texto. Confira a quantidade no ticket.':'');
+  return '<div class="capex-ticket-description">'+
+    (sections.length?sections.map(s=>'<div><b>'+escHtml(s.label)+'</b><p>'+escHtml(s.text)+'</p></div>').join(''):
+      '<p>Descricao nao retornada pelo Zeev.</p>')+
+    (warning?'<p class="capex-description-warning">'+escHtml(warning)+'</p>':'')+'</div>';
 }
 
 function capexZeevFirstItem(z){
@@ -9540,15 +9448,14 @@ function capexZeevPaymentSummary(z){
 
 function capexZeevFactsHtml(z){
   const fornecedor=capexZeevVendor(z);
-  const item=capexZeevFirstItem(z);
   const pagamento=capexZeevPaymentSummary(z);
   const parcelas=capexZeevInstallmentSummary(z);
-  const solicitante=[z.requester_name,z.requester_team].filter(Boolean).join(' · ');
+  const person=capexZeevRequester(z);
+  const solicitante=[person.nome||person.email,person.equipe].filter(Boolean).join(' · ');
   const descAlert=z?.campos_extraidos?._descricao_alerta||'';
   const facts=[
     {label:'Solicitante',value:solicitante||'Nao informado'},
     {label:'Fornecedor / favorecido',value:fornecedor||'Nao informado'},
-    {label:'Item / servico pedido',value:item||'Nao informado'},
     {label:'Pagamento / anexos',value:pagamento||'Nao informado'},
     parcelas?{label:'Parcelas',value:parcelas}:null,
     descAlert?{label:'Leitura Zeev',value:descAlert}:null
@@ -9613,6 +9520,7 @@ function capexStageForSummary(z){
 }
 
 function renderCapexZeevCards(pend){
+  capexUnitInferenceIndex=null;
   return pend.map(z=>{
     const id=+z.id;
     const code=escHtml(z.zeev_instance_id||id);
@@ -9629,9 +9537,13 @@ function renderCapexZeevCards(pend){
     const link=z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')">VISUALIZAR TICKET</a>`:'';
     const docsCount=capexZeevStoredDocs(z).length;
     const docsButton=docsCount?`<button class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexZeevDocsModal(${id})">Arquivos (${docsCount})</button>`:'';
-    const requester=[z.requester_name,z.requester_team].filter(Boolean).join(' / ')||'Nao informado';
+    const person=capexZeevRequester(z);
+    const requester=[person.nome||person.email,person.equipe].filter(Boolean).join(' / ')||'Nao informado';
+    const destination=capexZeevUnitInference(z);
     const details=[
-      {label:'Solicitante',value:requester},
+      {label:'E-mail do solicitante',value:person.email||'Nao informado'},
+      {label:'Identificacao da unidade',value:destination.unidade?destination.unidade+' / '+destination.source:(destination.candidates.length?'Conferir: '+destination.candidates.join(' / '):'Unidade nao identificada')},
+      {label:'Centro de custo',value:CapexTicketIntelligence.fieldValues(z,CapexTicketIntelligence.COST_FIELDS).join(' / ')||'Nao informado'},
       {label:'Etapa atual',value:capexZeevStageLabel(z)},
       {label:'Status no Zeev',value:capexZeevTicketStatus(z)}
     ].map(f=>`<div class="capex-detail-field"><b>${escHtml(f.label)}</b><span title="${escHtml(f.value)}">${escHtml(f.value)}</span></div>`).join('');
@@ -9647,9 +9559,9 @@ function renderCapexZeevCards(pend){
             <div class="capex-summary-meta">${meta||'Dados principais importados do Zeev'}</div>
           </div>
           ${capexSummaryFacts([
-            {label:'Fornecedor',value:fornecedor},
+            {label:'Unidade',value:destination.unidade||'A confirmar'},
             {label:'Solicitante',value:requester},
-            {label:'Etapa',value:stageSummary}
+            {label:'Fornecedor',value:fornecedor}
           ])}
           ${value}
           <div class="capex-summary-actions capex-actions-stack">
@@ -9665,7 +9577,7 @@ function renderCapexZeevCards(pend){
         <div class="capex-detail-grid">
           ${capexZeevFactsHtml(z)}
           ${details}
-          <div class="capex-detail-field full"><b>Descrição importada</b><span>${title}</span></div>
+          <div class="capex-detail-field full">${capexZeevDescriptionHtml(z)}</div>
         </div>
         <div class="capex-detail-actions">
           <span class="capex-detail-label">Aprovação manual antes de virar pedido CAPEX</span>
@@ -9692,7 +9604,8 @@ function renderCapexZeevNotCapexCards(rows){
     const valueInfo=capexZeevValueInfo(z);
     const value=`<div class="capex-zeev-money review" title="${escHtml(capexZeevValueLabel(z))}"><span class="capex-zeev-money-label">${escHtml(valueInfo.label)}</span><strong class="capex-zeev-money-value">${escHtml(valueInfo.value)}</strong></div>`;
     const fornecedor=capexZeevVendor(z);
-    const requester=[z.requester_name,z.requester_team].filter(Boolean).join(' / ')||'Nao informado';
+    const person=capexZeevRequester(z);
+    const requester=[person.nome||person.email,person.equipe].filter(Boolean).join(' / ')||'Nao informado';
     const stageSummary=capexStageForSummary(z);
     const marked=[z.ignorado_por,z.ignorado_em?capexZeevDate(z.ignorado_em):''].filter(Boolean).join(' &middot; ')||'Marcado na plataforma';
     const link=z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')">VISUALIZAR TICKET</a>`:'';
@@ -9929,6 +9842,7 @@ function renderRegistrosPendentes(){
 }
 
 function renderCapexZeevCurrentView(){
+  capexUnitInferenceIndex=null;
   if(capexZeevReturnState){
     capexZeevSearchQuery=capexZeevReturnState.query||'';
     capexZeevTypeFilter=capexZeevReturnState.typeFilter||'todos';
@@ -9968,6 +9882,7 @@ async function syncZeevCapexNow(){
 }
 
 async function openCapexZeevApproval(id){
+  capexUnitInferenceIndex=null;
   if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para aprovar.');return;}
   let z=capexZeevSolicitacoes.find(x=>+x.id===+id);
   z=await ensureCapexZeevDetail(id)||z;
@@ -9979,11 +9894,9 @@ async function openCapexZeevApproval(id){
   const ano=z.start_date_time?(new Date(z.start_date_time).getFullYear()):(capexDrillYear||new Date().getFullYear());
   const suggestedUnit=capexSuggestUnitFromZeev(z);
   const suggestedMarca=suggestedUnit?computeCapexMarca(suggestedUnit):'';
-  const suggestedCategory=capexSuggestedCategoryFromZeev(z);
   document.getElementById('ci-modal-title').textContent='Aprovar Ticket Raiz #'+(z.zeev_instance_id||id);
   populateCapexYearSelect(ano);
   populateEscolasSelect(suggestedMarca);
-  populateCapexCategorySelect(suggestedCategory);
   const requester=capexZeevRequester(z);
   document.getElementById('ci-m-fonte').value='';
   document.getElementById('ci-m-solicitante').value=requester.nome||'';
@@ -10045,10 +9958,12 @@ async function restoreCapexZeev(id,openAfter){
 function capexZeevContextHtml(){
   const z=capexZeevApproveId?capexZeevSolicitacoes.find(x=>+x.id===+capexZeevApproveId):null;
   if(!z)return'';
-  const detail=[capexZeevKind(z),z.requester_name,capexZeevDate(z.start_date_time),capexZeevStageLabel(z)].filter(Boolean).map(escHtml).join(' &middot; ');
+  const detail=[capexZeevKind(z),capexZeevRequester(z).nome,capexZeevDate(z.start_date_time),capexZeevStageLabel(z)].filter(Boolean).map(escHtml).join(' &middot; ');
   const selectedUnit=document.getElementById('ci-m-unidade')?.value||'';
   const selectedReg=selectedUnit?findCapexUnit(selectedUnit):null;
-  const centroCusto=capexZeevAnyField(z,['centroDeCusto','centroCusto','centro de custo','centro de custos','centro custos']);
+  const identity=capexZeevUnitInference(z);
+  const identityLabel=identity.unidade?identity.unidade+' / '+identity.source:(identity.candidates.length?'Conferir: '+identity.candidates.join(' / '):'Unidade nao identificada');
+  const centroCusto=CapexTicketIntelligence.fieldValues(z,CapexTicketIntelligence.COST_FIELDS).join(' / ');
   const cnpjRaw=capexZeevAnyField(z,[
     'cnpjFilial','cnpj da filial','cnpjDaFilial','cnpjColigada','cnpj da coligada','cnpjDaColigada',
     'filialCnpj','coligadaCnpj','cnpjUnidade','cnpj da unidade','cnpjDaUnidade',
@@ -10064,6 +9979,8 @@ function capexZeevContextHtml(){
   const docLine=docTotal?`${docTotal} arquivo${docTotal!==1?'s':''} ${docs.length?'salvo'+(docs.length!==1?'s':''):'identificado'+(docTotal!==1?'s':'')}`:'Nenhum anexo identificado';
   const fact=(label,value,source,missing)=>`<div class="capex-context-fact ${missing?'missing':''}" title="${escHtml(value||'')}"><b>${escHtml(label)}${source?` · ${escHtml(source)}`:''}</b><span>${escHtml(value||'Nao informado')}</span></div>`;
   const critical=`<div class="capex-context-facts">
+    ${fact('Unidade identificada',identityLabel,'',!identity.unidade)}
+    ${fact('E-mail do solicitante',capexZeevRequester(z).email,'',!capexZeevRequester(z).email)}
     ${fact('CNPJ filial/coligada',cnpjDisplay,'',!cnpjTicket&&!cnpjCadastro)}
     ${fact('Centro de custo',centroCusto||'Nao informado','',!centroCusto)}
     ${fact('Valor',capexZeevValueLabel(z)||'Nao informado','',!+z.valor_final&&!+z.valor)}
@@ -10079,9 +9996,10 @@ function capexZeevContextHtml(){
 function capexZeevContextHtmlFor(z,opts){
   opts=opts||{};
   if(!z)return'';
+  const identity=capexZeevUnitInference(z);
   const link=z.ticket_link?`<a class="capex-ticket-link" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener">Visualizar Ticket</a>`:'';
-  const detail=[capexZeevKind(z),z.requester_name,capexZeevDate(z.start_date_time),capexZeevStageLabel(z)].filter(Boolean).map(escHtml).join(' &middot; ');
-  const centroCusto=capexZeevAnyField(z,['centroDeCusto','centroCusto','centro de custo','centro de custos','centro custos']);
+  const detail=[capexZeevKind(z),capexZeevRequester(z).nome,capexZeevDate(z.start_date_time),capexZeevStageLabel(z)].filter(Boolean).map(escHtml).join(' &middot; ');
+  const centroCusto=CapexTicketIntelligence.fieldValues(z,CapexTicketIntelligence.COST_FIELDS).join(' / ');
   const cnpjRaw=capexZeevAnyField(z,[
     'cnpjFilial','cnpj da filial','cnpjDaFilial','cnpjColigada','cnpj da coligada','cnpjDaColigada',
     'filialCnpj','coligadaCnpj','cnpjUnidade','cnpj da unidade','cnpjDaUnidade',
@@ -10097,6 +10015,8 @@ function capexZeevContextHtmlFor(z,opts){
   return`<div class="capex-context-ticket capex-ticket-overview"><div class="mark">TR</div><div class="capex-ticket-main">
     <div class="capex-ticket-top"><div style="min-width:0"><div class="capex-context-title">Ticket Raiz #${escHtml(z.zeev_instance_id||z.id)}</div><div class="capex-ticket-meta">${detail}</div></div>${link}</div>
     <div class="capex-context-facts">
+      ${fact('Unidade identificada',identity.unidade||identity.candidates.join(' / ')||'A confirmar',identity.source,!identity.unidade)}
+      ${fact('E-mail do solicitante',capexZeevRequester(z).email,'',!capexZeevRequester(z).email)}
       ${fact('CNPJ filial/coligada',capexOnlyCnpj(cnpjRaw)||'Nao informado','',!capexOnlyCnpj(cnpjRaw))}
       ${fact('Centro de custo',centroCusto||'Nao informado','',!centroCusto)}
       ${fact('Valor',capexZeevValueLabel(z)||'Nao informado','',false)}
@@ -10198,6 +10118,7 @@ async function saveCapexZeevRealEstateApproval(){
   if(!im){toast('Selecione o imovel de destino.');return;}
   capexZeevRealEstateSaveInFlight=true;
   try{
+    if(!await capexCheckPendingBeforeSave(id))return;
     const tr=capexZeevSearchDigits(z.zeev_instance_id||'');
     const valor=parseCurrency(document.getElementById('zr-valor')?.value||'')||(+z.valor_final||+z.valor||0);
     const descricao=(document.getElementById('zr-descricao')?.value||capexZeevDescricaoLancamento(z)||z.request_name||'').trim();
@@ -10326,6 +10247,7 @@ async function saveCapexZeevObraApproval(){
     const z=capexZeevSolicitacoes.find(x=>+x.id===+id);
     if(!z){toast('Ticket Raiz nao encontrado.');return;}
     if(z.status!=='pendente'||z.capex_item_id){toast('Este Ticket Raiz ja foi tratado.');return;}
+    if(!await capexCheckPendingBeforeSave(id))return;
     if(id&&!capexZeevReturnState)capexCaptureZeevReturnState(id);
     const obra=obras.find(o=>+o.id===+(document.getElementById('zo-obra-id')?.value||0));
     if(!obra){toast('Selecione a obra relacionada.');return;}
@@ -10374,10 +10296,6 @@ async function saveCapexZeevObraApproval(){
   }
 }
 
-function capexCategoryOptions(selected){
-  const cats=(CAPEX_CATS.length?CAPEX_CATS:DEFAULT_CAPEX_CATS).slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
-  return cats.map(c=>`<option value="${escHtml(c.id)}"${c.id===selected?' selected':''}>${escHtml(c.nome)}</option>`).join('');
-}
 
 
 
@@ -11255,7 +11173,6 @@ function capexDashboardDimension(value){
     ano:{value:'ano',label:'Ano',title:'Comprometido por ano',sub:'Comparação do CAPEX entre ciclos.',fn:i=>String(i.ano||'Sem ano')},
     marca:{value:'marca',label:'Marca',title:'Comprometido por marca',sub:'Distribuição financeira por marca.',fn:i=>extractMarca(i)||'Sem marca'},
     unidade:{value:'unidade',label:'Unidade',title:'Comprometido por unidade',sub:'Concentração de pedidos por escola.',fn:i=>i.unidade||'Sem unidade'},
-    categoria:{value:'categoria',label:'Categoria',title:'Comprometido por categoria',sub:'Tipo de melhoria que concentra orçamento.',fn:i=>capexCategoriaNome(i)||'Sem categoria'},
     solicitante:{value:'solicitante',label:'Solicitante',title:'Pedidos por solicitante',sub:'Pessoa que solicitou o Ticket Raiz.',fn:i=>capexSolicitanteLabel(i,false)},
     setor:{value:'setor',label:'Setor',title:'Comprometido por setor',sub:'Setores informados nos pedidos de CAPEX.',fn:i=>i.setor||'Sem setor'},
     situacao:{value:'situacao',label:'Situação',title:'Pedidos por situação',sub:'Acompanhamento do status administrativo dos pedidos.',fn:i=>_ciSit(i)}
@@ -11507,7 +11424,7 @@ function renderCapexZeevPage(){
 
 function renderCapexUnitSimpleDashboard(its,accent){
   const k=_ciKpis(its);
-  const cats=_ciGroupStats(its,i=>capexCategoriaNome(i)).sort((a,b)=>b.orc-a.orc||b.total-a.total).slice(0,5);
+  const sectors=_ciGroupStats(its,i=>i.setor||'Sem setor').sort((a,b)=>b.orc-a.orc||b.total-a.total).slice(0,5);
   const open=its.filter(i=>_ciSit(i)==='Em Andamento').sort((a,b)=>(+b.orcamento||0)-(+a.orcamento||0)).slice(0,5);
   return`<div class="capex-unit-simple">
     <div class="capex-panel">
@@ -11528,9 +11445,9 @@ function renderCapexUnitSimpleDashboard(its,accent){
     </div>
     <div class="capex-panel">
       <h3>Recortes da unidade</h3>
-      <div class="sub">Categorias e pedidos que ainda estão em andamento.</div>
+      <div class="sub">Setores e pedidos que ainda estão em andamento.</div>
       <div style="display:grid;gap:14px">
-        <div>${_ciBars(cats,k.total,accent,'Sem categorias neste recorte.',null,'orc','categoria')}${capexFilterChips(cats,'categoria',null,5)}</div>
+        <div>${_ciBars(sectors,k.total,accent,'Sem setores neste recorte.',null,'orc','setor')}${capexFilterChips(sectors,'setor',null,5)}</div>
         <div>${capexInsightRows(open.map(i=>({label:i.pedido||'Pedido',value:(+i.orcamento||0)>0?fmt(i.orcamento):_ciSit(i),color:_ciStatusColor(i.situacao)})),'Nenhum item em andamento.')}</div>
       </div>
     </div>
@@ -11591,7 +11508,7 @@ function renderCapexScopedDashboard(){
 
     const bc=brandColor(capexDrillMarca);
 
-    html+=capexNavLine(`${capexDrillMarca} · ${capexDrillYear}`,'Comprometido, categorias e unidades da marca.',{
+    html+=capexNavLine(`${capexDrillMarca} · ${capexDrillYear}`,'Comprometido e unidades da marca.',{
       backTitle:'Voltar às marcas',
       right:capexBudgetAction(capexDrillYear,'','Adicionar CAPEX disponibilizado',capexDrillMarca,'ghost')
     });
@@ -11606,10 +11523,10 @@ function renderCapexScopedDashboard(){
       groupALabel:'Pedidos por unidade',
       groupASub:'Unidades da marca por valor comprometido.',
       groupAFocusDim:'unidade',
-      groupB:i=>capexCategoriaNome(i)||'Sem categoria',
-      groupBLabel:'Comprometido por categoria',
-      groupBSub:'Tipos de melhoria que concentram o comprometido da marca.',
-      groupBFocusDim:'categoria',
+      groupB:i=>i.setor||'Sem setor',
+      groupBLabel:'Comprometido por setor',
+      groupBSub:'Setores que concentram o comprometido da marca.',
+      groupBFocusDim:'setor',
       hidePriority:true,
       hideSummary:true
     });
@@ -11923,7 +11840,6 @@ function renderCapexDashboard(its,opt){
 
   const groupB=_ciGroupStats(its,opt.groupB||((i)=>extractMarca(i))).sort(financialSort).slice(0,+(opt.limitB||10));
 
-  const groupCat=_ciGroupStats(its,(i)=>capexCategoriaNome(i)).sort(financialSort).slice(0,+(opt.limitCat||10));
 
   const open=its.filter(i=>_ciSit(i)==='Em Andamento').slice().sort((a,b)=>(+b.orcamento||0)-(+a.orcamento||0)).slice(0,+(opt.priorityLimit||6));
 
@@ -11953,15 +11869,6 @@ function renderCapexDashboard(its,opt){
       </div>`).join('')}</div>`:'<p class="empty" style="padding:0;margin:0">Tudo resolvido ou sem orçamento aberto.</p>'}
     </div>`;
 
-  const categoryPanel=opt.hideCategory?'':`<div class="capex-panel">
-      <div class="capex-panel-titlebar">
-        <h3 style="margin:0">Categorias do CAPEX</h3>
-        ${currentProfile?.role==='admin'?'<button class="btn btn-ghost btn-sm" style="padding:5px 8px;font-size:12px" onclick="openCapexCategoryManager()">✎ Editar nomes</button>':''}
-      </div>
-      <div class="sub">Distribuição do comprometido por tipo de melhoria.</div>
-      ${_ciBars(groupCat,k.total,accent,'Sem categoria neste recorte.',null,'orc','categoria')}
-      ${capexFilterChips(groupCat,'categoria',null,6)}
-    </div>`;
 
   return`<div class="capex-dashboard">
     ${headerPanel}
@@ -11973,7 +11880,6 @@ function renderCapexDashboard(its,opt){
       ${_ciBars(groupA,k.total,accent,null,opt.groupAColorFn,'orc',opt.groupAFocusDim)}
       ${capexFilterChips(groupA,opt.groupAFocusDim,opt.groupAColorFn,6)}
     </div>
-    ${categoryPanel}
     <div class="capex-panel">
       <div class="capex-panel-titlebar">
         <div><h3>${opt.groupBLabel||'Recorte complementar'}</h3><div class="sub">${opt.groupBSub||'Leitura complementar do CAPEX.'}</div></div>
@@ -12388,8 +12294,6 @@ function renderCapexRegisteredCard(it){
   const obsTxt=obsRaw?escHtml(obsRaw).replace(/\n/g,'<br>'):'';
   const sit=_ciSit(it);
   const autoFinalizado=capexIsAutoFinalizedYear(it);
-  const catId=capexCategoriaId(it);
-  const catName=capexCategoriaNome(it);
   const valor=+it.orcamento||0;
   const valorCls=sit==='Cancelado'?'blocked':(capexIsFinalizado(it)?'final':(valor?'approval':'review'));
   const valorLabel=sit==='Cancelado'?'Valor cancelado':(capexIsFinalizado(it)?'Valor registrado':'Orçamento');
@@ -12424,7 +12328,6 @@ function renderCapexRegisteredCard(it){
     {label:'Solicitante',value:solicitanteLabel},
     ...(solicitante.email?[{label:'E-mail',value:solicitante.email}]:[]),
     {label:'Setor',value:it.setor||'Não informado'},
-    {label:'Categoria',value:catName},
     ...(compraTr?[{label:`TR de ${origemLabel.toLowerCase()} vinculado`,value:`TR ${compraTr}${compraLink?.status?' - '+compraLink.status:''}`},{label:`Descrição de ${origemLabel.toLowerCase()}`,value:compraLink?.pedido||'Descrição não importada'}]:[]),
     ...(financeiroTrs.length?[{label:'TR financeiro vinculado',value:financeiroTrs.map(tr=>`TR ${tr}`).join(' / ')}]:[]),
     {label:'Finalizado',value:capexIsFinalizado(it)?'Sim':'Não'}
@@ -12445,7 +12348,7 @@ function renderCapexRegisteredCard(it){
           <div class="capex-summary-meta" title="${escHtml(unidadesFull)}">${escHtml(unidadesLabel)} &middot; ${escHtml(marca)} &middot; ${escHtml(String(it.ano||capexDrillYear||''))}</div>
         </div>
         ${capexSummaryFacts([
-          {label:'Categoria',value:catName},
+          {label:'Solicitante',value:solicitanteLabel},
           {label:'Responsavel',value:respLabel}
         ])}
         <div class="capex-zeev-money ${valorCls}" title="${escHtml(valor?fmt(valor):'Sem valor registrado')}"><span class="capex-zeev-money-label">${valorLabel}</span><strong class="capex-zeev-money-value">${valor?fmt(valor):'A revisar'}</strong></div>
@@ -12468,10 +12371,6 @@ function renderCapexRegisteredCard(it){
           <div>
             <label class="fl" style="font-size:11px;margin-bottom:4px">Orçamento</label>
             <input class="fi num" value="${valor?fmt(valor).replace('R$ ',''):''}" onblur="updateCapexOrcamento(${it.id},this.value,this)" inputmode="decimal" placeholder="0,00">
-          </div>
-          <div>
-            <label class="fl" style="font-size:11px;margin-bottom:4px">Categoria</label>
-            <select class="fi" onchange="updateCapexCategoria(${it.id},this.value,this)">${capexCategoryOptions(catId)}</select>
           </div>
           <label class="capex-flag"><input type="checkbox" ${capexIsFinalizado(it)?'checked':''} ${autoFinalizado?'disabled title="Pedidos de 2024 ficam finalizados por exceção"':''} onchange="updateCapexFlag(${it.id},'realizado',this.checked,this)"> Finalizado</label>
         </div>
@@ -12562,29 +12461,6 @@ async function updateCapexSituacao(id,sit,sel){
 
 }
 
-async function updateCapexCategoria(id,categoria,sel){
-
-  const{error}=await db.from('capex_itens').update({categoria_capex:categoria}).eq('id',id);
-
-  if(error){toast('Erro ao salvar categoria.');return;}
-
-  const it=capexItens.find(i=>i.id===id);if(it)it.categoria_capex=categoria;
-
-  renderCapexDrill();
-
-  toast('Categoria atualizada.');
-
-}
-
-function openCapexCategoryManager(){
-
-  if(currentProfile?.role!=='admin'){toast('Edição de categorias disponível na Administração.');return;}
-
-  go('admin');
-
-  setTimeout(()=>document.getElementById('admin-cats')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
-
-}
 
 async function updateCapexOrcamento(id,raw,input){
 
@@ -12724,12 +12600,6 @@ function updateCapexUnitHint(){
 
 }
 
-function populateCapexCategorySelect(selected){
-  const sel=document.getElementById('ci-m-cat');if(!sel)return;
-  const val=selected||'capex_outros';
-  sel.innerHTML=capexCategoryOptions(val);
-  sel.value=val;
-}
 
 
 function capexSaldoUnits(){
@@ -12825,7 +12695,6 @@ function openCapexItemModal(id){
 
   populateEscolasSelect(it?extractMarca(it):capexDrillMarca);
 
-  populateCapexCategorySelect(it?capexCategoriaId(it):'capex_outros');
 
   const solicitanteAtual=capexSolicitanteFromItem(it);
   document.getElementById('ci-m-fonte').value='';
@@ -12883,6 +12752,20 @@ async function saveCapexItem(options){
   finally{capexSaveInFlight=false;}
 }
 
+async function capexCheckPendingBeforeSave(id){
+  if(!id)return true;
+  const{data,error}=await db.from('capex_zeev_solicitacoes')
+    .select('id,status,capex_item_id').eq('id',id).maybeSingle();
+  if(error){toast('Nao consegui conferir o status atual do ticket. Tente novamente.');return false;}
+  if(!data||data.status!=='pendente'||data.capex_item_id){
+    const local=capexZeevSolicitacoes.find(x=>+x.id===+id);
+    if(local&&data)Object.assign(local,data);
+    toast('Este ticket ja foi tratado em outra sessao. Nenhum registro foi alterado.');
+    return false;
+  }
+  return true;
+}
+
 async function saveCapexItemLocked(options){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para esta operacao.');return;}
 
   options=options||{};
@@ -12908,6 +12791,9 @@ async function saveCapexItemLocked(options){if(['leitor','doc'].includes(current
 
   const solicitanteNome=g('ci-m-solicitante');
   const solicitanteEmail=g('ci-m-solicitante-email');
+  if(solicitanteEmail&&CapexTicketIntelligence.email(solicitanteEmail)!==solicitanteEmail.toLowerCase()){
+    toast('Confira o e-mail do solicitante.');return;
+  }
   const fonte='';
   const referencia=g('ci-m-ref');
   const setor=g('ci-m-setor')||'COMPRAS';
@@ -12941,7 +12827,7 @@ async function saveCapexItemLocked(options){if(['leitor','doc'].includes(current
   const ticketDadosBase=zeevRow?{campos:zeevRow.campos_extraidos||{},itens:zeevRow.itens_json||[],pagamento:zeevRow.pagamento_json||{},rawFields:zeevRow.raw_fields||[]}:antigoDados;
   const ticketDados=(zeevRow||Object.keys(ticketDadosBase).length||compraCheck||obraCheck||solicitanteDados.nome||solicitanteDados.email)?{...ticketDadosBase,solicitante:solicitanteDados,compraVinculada,obraVinculada}:null;
   const unidadesObj=existingRateioInfo?(unidade?[unidade]:[]):unidadesJson;
-  const obj={ano,fonte,unidade,unidades_json:unidadesObj,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,categoria_capex:g('ci-m-cat')||capexAutoCategoryId({pedido,referencia,setor,fonte}),situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||'',ticket_raiz_url:zeevRow?.ticket_link||antigo?.ticket_raiz_url||'',ticket_raiz_instance_id:zeevRow?.zeev_instance_id||antigo?.ticket_raiz_instance_id||null,origem:zeevRow?'ZEEV':(antigo?.origem||''),ticket_raiz_dados:ticketDados,docs_json:zeevRow?capexZeevStoredDocs(zeevRow):(antigo?.docs_json||antigo?.docs||[])};
+  const obj={ano,fonte,unidade,unidades_json:unidadesObj,marca:regU?regU.marca:computeCapexMarca(unidade),pedido,referencia,setor,situacao,orcamento:parseCurrency(document.getElementById('ci-m-orc').value),realizado:autoFinalizado||situacao==='Resolvido'||document.getElementById('ci-m-real').checked,observacoes:antigo?.observacoes||'',ticket_raiz_url:zeevRow?.ticket_link||antigo?.ticket_raiz_url||'',ticket_raiz_instance_id:zeevRow?.zeev_instance_id||antigo?.ticket_raiz_instance_id||null,origem:zeevRow?'ZEEV':(antigo?.origem||''),ticket_raiz_dados:ticketDados,docs_json:zeevRow?capexZeevStoredDocs(zeevRow):(antigo?.docs_json||antigo?.docs||[])};
   const paymentSource=zeevRow||((antigo||obj.ticket_raiz_instance_id||obj.referencia)?{
     zeev_instance_id:obj.ticket_raiz_instance_id||capexZeevSearchDigits(obj.referencia),
     ticket_link:obj.ticket_raiz_url||'',
@@ -12959,6 +12845,7 @@ async function saveCapexItemLocked(options){if(['leitor','doc'].includes(current
   }:null);
 
   const shouldCheckDuplicateTr=(!options.skipDuplicateTr||rateioAtivo)&&!(wasEdit&&existingRateioInfo);
+  if(zeevApproveId&&!await capexCheckPendingBeforeSave(zeevApproveId))return;
 
   if(!wasEdit&&!rateioAtivo&&zeevRow&&compraVinculada){
     const consolidated=await capexConsolidateLinkedFinanceIntoPurchase({zeevRow,obj,compraVinculada,ano,unidade});
@@ -16436,8 +16323,8 @@ function capexItemDedupKey(it){
   const unidade=capexUnitKey(it?.unidade||'');
   const valor=Math.round((+it?.orcamento||0)*100);
   const pedido=capexNormText(it?.pedido||'');
-  const cat=capexCategoriaId(it);
-  return[+it?.ano||0,ref,unidade,valor,pedido,cat].join('|');
+  // Preserve separate historical records; the retired field is never edited or displayed.
+  return[+it?.ano||0,ref,unidade,valor,pedido,it?.categoria_capex||''].join('|');
 }
 
 function normalizeCapexItensList(rows){
@@ -16821,7 +16708,7 @@ async function deleteEscola(id){
 let catEditId=null;
 
 function openCatModal(id,tipo){
-  _catTipo=normalizeCatTipo(tipo||(CAPEX_CATS.some(c=>c.id===id)?'capex':DOC_CATS.some(c=>c.id===id)?'documento':'pagamento'));
+  _catTipo=normalizeCatTipo(tipo||(DOC_CATS.some(c=>c.id===id)?'documento':'pagamento'));
   if(_catTipo==='pagamento'){
     toast('Categorias de pagamento foram removidas do fluxo.');
     return;
@@ -16835,14 +16722,14 @@ function openCatModal(id,tipo){
 
     const c=categoryById(catEditId,_catTipo);
 
-    document.getElementById("cat-title").textContent=_catTipo==='capex'?'Editar categoria CAPEX':(_catTipo==='documento'?'Editar pasta de documentos':"Editar categoria");
+    document.getElementById("cat-title").textContent='Editar pasta de documentos';
     const sb=document.getElementById("cat-save-btn");if(sb)sb.innerHTML='<span class="ic">✓</span> Salvar alterações';
 
     inp.value=c.nome;
 
   }else{
 
-    document.getElementById("cat-title").textContent=_catTipo==='capex'?'Nova categoria CAPEX':(_catTipo==='documento'?'Nova pasta de documentos':"Nova categoria");
+    document.getElementById("cat-title").textContent='Nova pasta de documentos';
     const sb2=document.getElementById("cat-save-btn");if(sb2)sb2.innerHTML='<span class="ic">✓</span> Criar categoria';
 
     inp.value="";
@@ -16857,11 +16744,6 @@ function openCatModal(id,tipo){
     if(_catTitle2&&!catEditId)_catTitle2.textContent='Nova pasta de documentos';
     var _catInp2=document.getElementById("cat-input");
     if(_catInp2)_catInp2.placeholder='Ex.: Contratos, Projetos, Laudos, AVCB…';
-  }
-  if(_catTipo==='capex'){
-    if(_catSaveBtn2&&!catEditId)_catSaveBtn2.innerHTML='<span class="ic">✓</span> Criar categoria CAPEX';
-    var _catInp3=document.getElementById("cat-input");
-    if(_catInp3)_catInp3.placeholder='Ex.: Material de TI, Serviços, Mobiliário…';
   }
   document.getElementById("cat-overlay").classList.add("show");
 
@@ -16899,7 +16781,7 @@ function saveCatModal(){if(['leitor','doc'].includes(currentProfile?.role)){toas
 
   }else{
 
-    newId=_catTipo==='capex'?"capex_cat_"+(capexCatSeq++):(_catTipo==='documento'?"doc_cat_"+(docCatSeq++):"cat_"+(catSeq++));
+    newId="doc_cat_"+(docCatSeq++);
 
     targetCats.push({id:newId,nome:nm,subs,tipo:_catTipo||'pagamento'});
 
@@ -16958,7 +16840,7 @@ function saveCatModal(){if(['leitor','doc'].includes(currentProfile?.role)){toas
 
 let _catModalFromForm=false;
 let _catModalFromPm=false;
-let _catTipo='pagamento'; // contexto: 'pagamento', 'documento' ou 'capex'
+let _catTipo='pagamento'; // contexto: 'pagamento' ou 'documento'
 
 function openCatModalFromForm(){toast('Categorias de pagamento foram removidas do fluxo.');}
 function openCatModalFromPm(){toast('Categorias de pagamento foram removidas do fluxo.');}
@@ -17642,7 +17524,7 @@ async function persist(obraId){
 
     }
 
-    const allCats=[...CATS,...DOC_CATS,...CAPEX_CATS];
+    const allCats=[...CATS,...DOC_CATS];
     if(allCats.length)await db.from('categorias').upsert(allCats.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'})));
 
     const cl=Object.entries(CNPJS).map(([n,c])=>({nome:n,cnpj:c}));
@@ -17659,7 +17541,7 @@ async function persistCats(){
 
   try{
 
-    const allCats=[...CATS,...DOC_CATS,...CAPEX_CATS];
+    const allCats=[...CATS,...DOC_CATS];
     if(allCats.length)await db.from('categorias').upsert(allCats.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'})));
 
   }catch(e){console.error('persistCats:',e);}
@@ -17728,16 +17610,12 @@ async function loadFromDB(){
       const allCats=catR.data.map(c=>({id:c.id,nome:c.nome,subs:Array.isArray(c.subs)?c.subs:(c.subs||['Geral']),tipo:c.tipo||'pagamento'}));
       CATS=allCats.filter(c=>!['capex','documento','pasta'].includes(c.tipo)).map(c=>({...c,tipo:'pagamento'}));
       DOC_CATS=allCats.filter(c=>['documento','pasta'].includes(c.tipo)).map(c=>({...c,tipo:'documento'}));
-      CAPEX_CATS=allCats.filter(c=>c.tipo==='capex');
       if(!CATS.length)CATS=[...DEFAULT_CATS];
-      if(!CAPEX_CATS.length)CAPEX_CATS=[...DEFAULT_CAPEX_CATS];
       catSeq=Math.max(catSeq,...CATS.filter(c=>c.id.startsWith('cat_')).map(c=>parseInt(c.id.replace('cat_',''))||0))+1;
       docCatSeq=Math.max(docCatSeq,...DOC_CATS.filter(c=>c.id.startsWith('doc_cat_')).map(c=>parseInt(c.id.replace('doc_cat_',''))||0))+1;
-      capexCatSeq=Math.max(capexCatSeq,...CAPEX_CATS.filter(c=>c.id.startsWith('capex_cat_')).map(c=>parseInt(c.id.replace('capex_cat_',''))||0))+1;
     }else{
       CATS=[...DEFAULT_CATS];
       DOC_CATS=[];
-      CAPEX_CATS=[...DEFAULT_CAPEX_CATS];
     }
 
     if(uniR.error){console.error('loadFromDB unidades error:',uniR.error);}else if(uniR.data&&uniR.data.length){unidades=uniR.data.map(u=>({id:u.id,nome:u.nome,marca:u.marca||'—',obraId:u.obra_id||null,tipo:u.tipo||'Em operação',cnpj:u.cnpj||'',endereco:u.endereco||'',docs:{}}));uniSeq=unidades.reduce((m,u)=>Math.max(m,parseInt(u.id.replace('u',''))||0),1)+1;}
@@ -21054,33 +20932,22 @@ function renderAdminCats(){
 
     <td style="font-size:13px;color:var(--muted)">${(c.subs||[]).join(' · ')}</td>
 
-    <td><span class="badge ${isDef?'b-neutral':'b-ok'}" style="font-size:11px">${tipo==='capex'?'CAPEX':'Documento'}</span></td>
+    <td><span class="badge ${isDef?'b-neutral':'b-ok'}" style="font-size:11px">Documento</span></td>
 
     <td style="white-space:nowrap;display:flex;gap:6px">
 
       <button class="btn btn-ghost btn-sm" onclick="openCatModal('${c.id}','${tipo||'pagamento'}')">✎ Editar</button>
 
-      ${(!isDef||tipo==='capex'||tipo==='documento')?`<button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)88;font-size:12px" onclick="deleteCat('${c.id}')">Excluir</button>`:''}
+      ${(!isDef||tipo==='documento')?`<button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)88;font-size:12px" onclick="deleteCat('${c.id}')">Excluir</button>`:''}
 
     </td>
 
   </tr>`;
 
-  const capexRows=CAPEX_CATS.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
   const docRows=docCatsSorted();
 
   el.innerHTML=`
 
-    <div style="margin-bottom:18px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
-        <div>
-          <div style="font-size:11.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">Categorias de CAPEX</div>
-          <div class="sub">Nomes editáveis usados nos dashboards e nos lançamentos de CAPEX.</div>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="openCatModal(undefined,'capex')"><span class="ic">+</span> Nova categoria CAPEX</button>
-      </div>
-      <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Subcategorias</th><th>Tipo</th><th></th></tr></thead><tbody>${capexRows.map(c=>catRow(c,false,'capex')).join('')}</tbody></table></div>
-    </div>
 
     <div style="margin-bottom:18px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
@@ -21099,16 +20966,15 @@ function renderAdminCats(){
 
 function deleteCat(id){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
 
-  const isCapex=CAPEX_CATS.some(x=>x.id===id);
   const isDoc=DOC_CATS.some(x=>x.id===id);
 
-  const tipo=isCapex?'capex':(isDoc?'documento':'pagamento');
+  const tipo=isDoc?'documento':'pagamento';
 
   const c=categoryById(id,tipo);
 
-  const inUse=isCapex?capexItens.some(i=>capexCategoriaId(i)===id):(isDoc?unidades.some(u=>((u.docs&&u.docs[id])||[]).length>0):obras.some(o=>o.pag.some(p=>p.cat===id)));
+  const inUse=isDoc?unidades.some(u=>((u.docs&&u.docs[id])||[]).length>0):obras.some(o=>o.pag.some(p=>p.cat===id));
 
-  if(inUse){toast(`A categoria "${c.nome}" está em uso em ${isCapex?'CAPEX':isDoc?'documentos':'pagamentos'} — não pode ser excluída.`);return;}
+  if(inUse){toast(`A categoria "${c.nome}" está em uso em ${isDoc?'documentos':'pagamentos'} — não pode ser excluída.`);return;}
 
   askConfirm(`Excluir a categoria "${c.nome}"?`,async ()=>{
 
@@ -21116,8 +20982,7 @@ function deleteCat(id){if(['leitor','doc'].includes(currentProfile?.role)){toast
 
     if(error){toast('Erro ao excluir categoria.');return;}
 
-    if(isCapex)CAPEX_CATS=CAPEX_CATS.filter(x=>x.id!==id);
-    else if(isDoc)DOC_CATS=DOC_CATS.filter(x=>x.id!==id);
+    if(isDoc)DOC_CATS=DOC_CATS.filter(x=>x.id!==id);
     else CATS=CATS.filter(x=>x.id!==id);
 
     renderAdminCats();

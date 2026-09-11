@@ -1278,20 +1278,34 @@ function fieldsObject(fields: AnyRecord[]) {
 
 function extractItems(fields: AnyRecord[]) {
   const rows = new Map<number, AnyRecord>()
+  const misplacedDescriptions = new Map<number, string>()
   for (const f of fields || []) {
     const value = String(f?.value || '').trim()
     if (!value) continue
     const row = Number(f?.row || 1) || 1
     const bucket = rows.get(row) || { row }
+    if (fieldMatches(f, ['quantidadeItem', 'quantidadeMedicamento'])) {
+      if (/[a-z]/.test(norm(value)) && norm(value).split(/\s+/).length >= 2 && !/^\d+(?:[.,]\d+)?\s*(?:un|und|unid|unidade|unidades|peca|pecas|caixa|caixas|kg|m|m2|litro|litros)\.?$/.test(norm(value))) misplacedDescriptions.set(row, value)
+      else if (/^\d+(?:[.,]\d+)*$/.test(value)) bucket.quantidade = parseMoney(value)
+      rows.set(row, bucket)
+      continue
+    }
     if (fieldMatches(f, ITEM_DESC_FIELDS)) bucket.descricao = value
     else if (fieldMatches(f, ITEM_QTY_FIELDS)) bucket.quantidade = parseMoney(value)
     else if (fieldMatches(f, ITEM_UNIT_MEASURE_FIELDS)) bucket.unidade = value
     else if (fieldMatches(f, ITEM_UNIT_FIELDS)) bucket.valor_unitario = parseMoney(value)
     else if (fieldMatches(f, ITEM_TOTAL_FIELDS)) bucket.valor_total = parseMoney(value)
+    rows.set(row, bucket)
+  }
+  for (const bucket of rows.values()) {
+    // Recover misplaced descriptions without treating a row number as quantity.
+    if (!/[a-z]/.test(norm(bucket.descricao || ''))) {
+      bucket.descricao = misplacedDescriptions.get(bucket.row) || ''
+      if (bucket.descricao) bucket.descricao_origem = 'texto_em_campo_quantidade'
+    }
     if (bucket.valor_unitario && bucket.quantidade && !bucket.valor_total) {
       bucket.valor_total = Number((Number(bucket.valor_unitario) * Number(bucket.quantidade)).toFixed(2))
     }
-    rows.set(row, bucket)
   }
   return [...rows.values()].filter((r) => r.descricao || r.quantidade || r.valor_total || r.valor_unitario)
 }
@@ -1840,7 +1854,7 @@ async function summarizeWithHuggingFace(text: string) {
 
 async function cardSummaryCascade(text: string, items: AnyRecord[], compra: boolean, options: { skipAi?: boolean } = {}) {
   const clean = cleanSummaryText(text)
-  if (!clean) return { text: '', source: '' }
+  if (!clean || !/[a-z]/.test(norm(clean))) return { text: '', source: '' }
   const deterministic = deterministicCardSummary(clean, items, compra)
   if (options.skipAi) return { text: deterministic, source: 'texto-completo' }
   for (const [source, fn] of [
@@ -1928,7 +1942,6 @@ async function buildTicket(row: AnyRecord) {
   const descTruncada = Boolean(compra && serviceDesc && serviceDesc === desc && looksTruncatedZeevText(desc))
   const unidade = firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto']))
   const marca = firstField(fmap, ['marca'])
-  const categoria = firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra'])
   const pagamento = extractPagamento(fmap, financeiro)
   const campos = fieldsObject(fields)
   const financeDescriptionMatch = financeiro ? firstFieldMatch(fmap, FINANCE_REQUEST_DESCRIPTION_FIELDS) : null
@@ -1984,7 +1997,6 @@ async function buildTicket(row: AnyRecord) {
     unidade: canonicalCapexUnitName(unidade) || null,
     marca: marca || null,
     pedido: desc || null,
-    categoria_capex: categoria || null,
     fonte: 'UNIDADE',
     setor,
     situacao_sugerida: situacao,
@@ -5622,7 +5634,6 @@ function genericZeevTicket(enriched: AnyRecord, fallback: AnyRecord = {}) {
     unidade: canonicalCapexUnitName(firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto'])) || fallback.unidade) || null,
     marca: firstField(fmap, ['marca']) || fallback.marca || null,
     pedido: desc || fallback.pedido || null,
-    categoria_capex: firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra']) || fallback.categoria_capex || null,
     fonte: fallback.fonte || 'UNIDADE',
     setor: financeiro ? 'FINANCEIRO' : 'COMPRAS',
     raw_fields: canonicalizeLegacySchoolNames(fields),
@@ -6512,7 +6523,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
   }
 
   if (includeCapex && budget > 0) {
-    const capexBase = '/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at,pedido,orcamento,categoria_capex,origem&order=zeev_docs_checked_at.asc.nullsfirst,id.asc'
+    const capexBase = '/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at,pedido,orcamento,origem&order=zeev_docs_checked_at.asc.nullsfirst,id.asc'
     const rows = targetTicketIds.length ? await restAll(capexBase) : await rest(`${capexBase}&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
       .filter((row: AnyRecord) => {
@@ -7719,56 +7730,6 @@ function findTargetCapexUnit(unidades: AnyRecord[], name: string) {
   return null
 }
 
-const CAPEX_CATEGORY_RULES_EDGE: [string, string[]][] = [
-  ['capex_mobiliario', ['cadeira', 'mesa', 'armario', 'estante', 'bancada', 'sofa', 'marcenaria', 'movel', 'mobiliario', 'locker']],
-  ['capex_ti', ['computador', 'notebook', 'monitor', 'impressora', 'tablet', 'switch', 'roteador', 'wifi', 'rede logica', 'projetor', 'tv', 'audio', 'nobreak', 'software']],
-  ['capex_material_manutencao', ['chapa', 'parafuso', 'bucha', 'cola', 'silicone', 'cimento', 'areia', 'madeira', 'tubo', 'material de manutencao', 'ferragem', 'ferramenta', 'calha']],
-  ['capex_servicos', ['mao de obra', 'servico', 'servicos', 'laudo', 'vistoria', 'projeto', 'levantamento', 'frete', 'transporte', 'locacao', 'manutencao', 'retirada', 'montagem']],
-  ['capex_pintura', ['pintura', 'tinta', 'grafiato', 'revestimento', 'piso', 'porcelanato', 'ceramica', 'azulejo', 'forro', 'drywall', 'gesso']],
-  ['capex_obras_civis', ['obra', 'reforma', 'construcao', 'demolicao', 'alvenaria', 'concreto', 'estrutura', 'cobertura', 'telhado', 'escada', 'rampa', 'fachada', 'ampliacao']],
-  ['capex_hidraulica', ['hidraulica', 'vazamento', 'infiltracao', 'caixa d agua', 'bomba d agua', 'ralo', 'esgoto', 'vaso sanitario', 'torneira', 'pia', 'banheiro', 'bebedouro']],
-  ['capex_climatizacao', ['ar condicionado', 'split', 'climatizacao', 'ventilador', 'exaustao', 'duto', 'evaporadora', 'condensadora']],
-  ['capex_eletrica', ['eletrica', 'eletrico', 'iluminacao', 'luminaria', 'lampada', 'led', 'tomada', 'disjuntor', 'quadro eletrico', 'eletroduto', 'energia']],
-  ['capex_seguranca', ['cftv', 'camera', 'alarme', 'controle de acesso', 'catraca', 'fechadura', 'interfone', 'grade', 'portao', 'concertina', 'extintor', 'incendio']],
-  ['capex_comunicacao', ['comunicacao visual', 'sinalizacao', 'placa', 'adesivo', 'letreiro', 'totem', 'banner', 'lona', 'plotagem', 'logo']],
-  ['capex_playground', ['playground', 'parquinho', 'brinquedo', 'grama', 'jardim', 'quadra', 'rede de protecao', 'tatame', 'area externa', 'patio']],
-  ['capex_cozinha', ['cozinha', 'copa', 'geladeira', 'freezer', 'microondas', 'fogao', 'forno', 'refeitorio', 'coifa']],
-  ['capex_pedagogico', ['biblioteca', 'livro', 'laboratorio', 'microscopio', 'brinquedoteca', 'material pedagogico', 'lousa', 'quadro branco', 'instrumento musical']],
-  ['capex_ambientes', ['recepcao', 'auditorio', 'area de convivencia', 'sala de aula', 'secretaria', 'almoxarifado', 'hall', 'novo acesso']],
-]
-
-function capexNormTextEdge(value: unknown) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
-}
-
-function capexTextHasEdge(text: string, term: string) {
-  return ` ${text} `.includes(` ${capexNormTextEdge(term)} `)
-}
-
-function capexCategoryFromTicket(ticket: AnyRecord) {
-  const direct = String(ticket?.categoria_capex || ticketFirstField(ticket, ['categoria_capex', 'categoriaCapex']) || '').trim()
-  if (direct.startsWith('capex_')) return direct
-  const desc = capexNormTextEdge([
-    ticket?.pedido,
-    ticketDescriptionForPayment(ticket),
-    direct,
-    JSON.stringify(ticket?.itens_json || []),
-    JSON.stringify(ticket?.campos_extraidos || {}),
-  ].filter(Boolean).join(' '))
-  const meta = capexNormTextEdge([ticket?.setor, ticket?.fonte, flowName(ticket), ticket?.flow_name].filter(Boolean).join(' '))
-  const hits: { id: string; score: number; idx: number }[] = []
-  CAPEX_CATEGORY_RULES_EDGE.forEach(([id, terms], idx) => {
-    const score = terms.reduce((total, term) => total + (capexTextHasEdge(desc, term) ? 1 : 0), 0)
-    if (score) hits.push({ id, score, idx })
-  })
-  if (!hits.length) {
-    if (capexTextHasEdge(meta, 'ti')) return 'capex_ti'
-    if (capexTextHasEdge(meta, 'manutencao')) return 'capex_material_manutencao'
-    return 'capex_outros'
-  }
-  hits.sort((a, b) => b.score - a.score || a.idx - b.idx)
-  return hits[0]?.id || 'capex_outros'
-}
 
 function capexStatusFromTicket(ticket: AnyRecord) {
   const raw = String(ticket?.situacao_sugerida || '').trim()
@@ -7798,7 +7759,6 @@ function capexPayloadFromTicket(ticket: AnyRecord, unit: AnyRecord, ano: number)
     pedido,
     referencia: String(ticketId || ''),
     setor: ticket?.setor || (isFinanceiro(ticket) ? 'FINANCEIRO' : 'COMPRAS'),
-    categoria_capex: capexCategoryFromTicket(ticket),
     situacao: status.situacao,
     orcamento: value || 0,
     aprovado: true,
@@ -7839,8 +7799,6 @@ function capexRegisteredPatchFromTicket(ticket: AnyRecord, row: AnyRecord = {}) 
     patch.realizado = false
   }
 
-  const category = capexCategoryFromTicket(ticket)
-  if (category && !row.categoria_capex) patch.categoria_capex = category
 
   const pedido = ticketDescriptionForPayment(ticket)
   const currentPedido = String(row.pedido || '').trim()
@@ -8115,7 +8073,7 @@ async function registerCapexItems(input: AnyRecord = {}) {
         }),
       })
 
-      out.inserted.push({ tr: ticketId, capex_item_id: Number(saved.id), valor: payload.orcamento, situacao: payload.situacao, categoria_capex: payload.categoria_capex, docsAttached: Number(attach.attached || 0) })
+      out.inserted.push({ tr: ticketId, capex_item_id: Number(saved.id), valor: payload.orcamento, situacao: payload.situacao, docsAttached: Number(attach.attached || 0) })
       existingCapex.set(key, [saved])
     } catch (error) {
       out.errors.push({ tr: id, error: error instanceof Error ? error.message : String(error) })
@@ -8192,7 +8150,6 @@ function forcedPendingPayloadFromTicket(ticket: AnyRecord, reason: string) {
     unidade: canonicalCapexUnitName(ticket?.unidade || firstField(fmap, ['unidadeEscolar', 'unidade', 'escola', 'filial', 'localEntrega']) || cleanUnit(firstField(fmap, ['centroDeCusto', 'centroCusto']))) || null,
     marca: ticket?.marca || firstField(fmap, ['marca']) || null,
     pedido: desc || null,
-    categoria_capex: ticket?.categoria_capex || firstField(fmap, ['categoriaCompra', 'categoria', 'tipoCompra']) || null,
     fonte: 'UNIDADE',
     setor: ticket?.setor || (financeiro ? 'FINANCEIRO' : 'COMPRAS'),
     situacao_sugerida: ticket?.situacao_sugerida || status.situacao,
