@@ -4017,6 +4017,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 <script src="scripts/capex-ticket-intelligence.js?v=20260910"></script>
 <script src="scripts/real-estate-evidence.js?v=20260910"></script>
 <link rel="stylesheet" href="scripts/real-estate-evidence.css?v=20260910">
+<script src="scripts/real-estate-dossier.js?v=20260915"></script>
+<link rel="stylesheet" href="scripts/real-estate-dossier.css?v=20260915">
 <script>
 
 const fmt=n=>"R$ "+(+n||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -5892,8 +5894,8 @@ function realEstateCardHtml(i,idx){
   const dev=i.devolucao||realEstateNormalizeDevolucao({});
   const devActive=!realEstateNorm(dev.status).includes('sem devolucao');
   const statusCls=overdueOb.length?'danger':(i.revisao_pendente||ending?'warn':realEstateStatusClass(i.status));
-  const statusText=overdueOb.length?`${overdueOb.length} obrigacao${overdueOb.length!==1?'oes':''} em atraso`:(i.revisao_pendente?'Revisao de dados':(ending?'Vigencia vencendo':realEstateStatusLabel(i.status)));
-  const preview=nextObs.length?nextObs.map(o=>`<div class="realestate-ob-line"><span>${escHtml(o.tipo)} <small>${fmtD(o.vencimento)}</small></span><b>${fmt(o.valor)}</b></div>`).join(''):'<div class="realestate-muted">Nenhuma obrigacao aberta cadastrada.</div>';
+  const statusText=i.status==='Encerrado'?'Encerrado':overdueOb.length?`${overdueOb.length} obrigacao${overdueOb.length!==1?'oes':''} em atraso`:(i.revisao_pendente?'Revisao de dados':(ending?'Vigencia vencendo':realEstateStatusLabel(i.status)));
+  const preview=nextObs.length?nextObs.map(o=>`<div class="realestate-ob-line"><span>${escHtml(o.tipo)} <small>${fmtD(o.vencimento)}</small></span><b>${fmt(o.valor)}</b></div>`).join(''):'<div class="realestate-muted">Sem obrigacoes manuais cadastradas.</div>';
   const obCards=(i.obrigacoes||[]).length?(i.obrigacoes||[]).map((o,oi)=>`<div class="realestate-ob-card">
     <div class="top"><b>${escHtml(o.tipo)}</b><span class="badge ${o.status==='Pago'?'b-ok':o.status==='Dispensado'?'b-neutral':'b-warn'}">${escHtml(o.status||'Aberto')}</span></div>
     <div class="realestate-muted">${escHtml(o.descricao||'Sem descricao.')}</div>
@@ -5907,7 +5909,7 @@ function realEstateCardHtml(i,idx){
   const aditivos=(i.aditivos||[]).length?(i.aditivos||[]).map((a,ai)=>`<div class="realestate-ob-card"><div class="top"><b>${escHtml(a.titulo||'Aditivo')}</b><span class="badge b-neutral">${fmtD(a.data)}</span></div><div class="realestate-muted">${escHtml(a.resumo||'Sem resumo.')}</div>${a.valor?`<div class="realestate-muted" style="margin-top:6px"><b>Impacto:</b> ${fmt(a.valor)}</div>`:''}<div class="realestate-docs" style="margin-top:9px">${realEstateDocButtons(a.docs,i.id,'aditivo',ai)}</div></div>`).join(''):'<div class="realestate-muted">Nenhum aditivo cadastrado.</div>';
   const devTrs=(dev.trs||[]).length?dev.trs.map(t=>`<div class="realestate-ob-line"><span><b>TR ${escHtml(t.tr)}</b> ${escHtml(t.descricao||'')}</span><b>${t.valor?fmt(t.valor):escHtml(t.status||'Aberto')}</b></div>`).join(''):'<div class="realestate-muted">Nenhum TR vinculado a devolucao.</div>';
   const investidores=(i.investidores||[]).length?(i.investidores||[]).map(v=>`<div class="realestate-ob-line"><span><b>${escHtml(v.nome)}</b></span><span>${escHtml(v.detalhe||'Investidor / aportante')}</span></div>`).join(''):'<div class="realestate-muted">Nenhum investidor ou aportante informado.</div>';
-  return`<details class="realestate-card" style="--re-color:${color}" ${idx===0?'open':''}>
+  return`<details class="realestate-card" data-imovel-id="${escHtml(i.id)}" ontoggle="RealEstateDossier.open(this,'${realEstateJs(i.id)}')" style="--re-color:${color}" ${idx===0?'open':''}>
     <summary>
       <div>
         <div class="realestate-brandline"><span class="realestate-chip">${brandLogoImg(marca,'height:16px;width:28px;object-fit:contain')} ${escHtml(marca)}</span><span class="realestate-chip">${escHtml(i.modalidade||'Locacao comum')}</span>${i.contrato_numero?`<span class="realestate-chip">Contrato ${escHtml(i.contrato_numero)}</span>`:''}</div>
@@ -5918,13 +5920,15 @@ function realEstateCardHtml(i,idx){
       <div class="realestate-facts">
         <div class="realestate-fact"><b>Locador</b><span>${escHtml(i.locador||'Nao informado')}</span></div>
         <div class="realestate-fact"><b>Vigencia</b><span>${fmtD(i.contrato_inicio)} - ${fmtD(i.contrato_fim)}</span></div>
-        <div class="realestate-fact"><b>Custo mensal ref.</b><span>${fmt(realEstateMonthlyCost(i))}</span></div>
+        <div class="realestate-fact"><b>Custo mensal ref.</b><span>${i.fonte_chave?.startsWith('property-history|')&&!i.valor_aluguel?(i.status==='Encerrado'?'Encerrado':'Nao confirmado'):fmt(realEstateMonthlyCost(i))}</span></div>
         ${i.investimento_locador?`<div class="realestate-fact"><b>Investimento do locador</b><span>${fmt(i.investimento_locador)}</span></div>`:''}
       </div>
       <div class="realestate-ob-preview">${preview}${devActive?`<div class="realestate-ob-line"><span><b>Devolucao</b> <small>${fmtD(dev.previsao)}</small></span><b>${fmt(dev.valor_estimado)}</b></div>`:''}</div>
       <div class="realestate-status ${statusCls}">${escHtml(statusText)}</div>
     </summary>
     <div class="realestate-card-body">
+      ${RealEstateDossier.section(i.id)}
+      <section class="re-dossier-contract" role="tabpanel" id="re-panel-${escHtml(i.id)}-contrato" aria-labelledby="re-tab-${escHtml(i.id)}-contrato" hidden>
       <div class="realestate-section-title"><span>Obrigacoes do imovel</span><span>${(i.obrigacoes||[]).length} item${(i.obrigacoes||[]).length!==1?'s':''}</span></div>
       <div class="realestate-obligations">${obCards}</div>
       <div class="realestate-section-title"><span>Restituicao / devolucao</span><span>${escHtml(dev.status)}</span></div>
@@ -5940,7 +5944,7 @@ function realEstateCardHtml(i,idx){
       ${(i.investimento_locador||(i.investidores||[]).length)?`<div class="realestate-section-title"><span>Investimento do locador / estrutura built to suit</span><span>${i.investimento_locador?fmt(i.investimento_locador):'Valor nao quantificado'}</span></div><div class="realestate-ob-card">${investidores}</div>`:''}
       ${i.observacoes?`<div class="realestate-section-title"><span>Observacoes</span></div><div class="realestate-muted">${escHtml(i.observacoes)}</div>`:''}
       ${RealEstateEvidence.safeUrl(i.fonte_url)?`<div class="realestate-docs"><a href="${escHtml(RealEstateEvidence.safeUrl(i.fonte_url))}" target="_blank" rel="noopener noreferrer">Planilha de origem</a></div>`:''}
-      ${RealEstateEvidence.section(i.id,'imovel')}
+      </section>
       <div class="realestate-actions"><button class="btn btn-ghost btn-sm" onclick="openRealEstateModal('${realEstateJs(i.id)}')">Editar</button><button class="btn btn-ghost btn-sm" onclick="deleteRealEstateImovel('${realEstateJs(i.id)}')">Excluir</button></div>
     </div>
   </details>`;
