@@ -49,14 +49,14 @@
     return [...map.values()].sort((a,b)=>String(a.tipo).localeCompare(String(b.tipo))||String(a.nome).localeCompare(String(b.nome)));}
   function section(id){return `<section class="re-dossier" data-property="${esc(id)}"><div class="re-dossier-tabs" role="tablist" aria-label="Informações do imóvel">${tabs.map(([k,v],n)=>`<button type="button" role="tab" id="re-tab-${esc(id)}-${k}" aria-controls="re-panel-${esc(id)}-${k}" aria-selected="${n===0}" tabindex="${n===0?0:-1}" data-tab="${k}" onclick="RealEstateDossier.tab(this,'${k}')" onkeydown="RealEstateDossier.key(event)">${v}</button>`).join('')}</div><div class="re-dossier-content" aria-live="polite"><p>Carregando informações do imóvel...</p></div></section>`;}
   async function all(make){let rows=[];for(let offset=0;;offset+=250){const r=await make().range(offset,offset+249);if(r.error)throw r.error;rows.push(...(r.data||[]));if((r.data||[]).length<250)return rows;}}
-  async function open(card,id,force=false){if(!card.open)return;const el=card.querySelector('.re-dossier');if(!el)return;let state=caches.get(el);if(state?.loading)return;if(state&&!force){draw(el);return;}
+  async function open(card,id,force=false){if(card.tagName==='DETAILS'&&!card.open)return;const el=card.querySelector('.re-dossier');if(!el)return;let state=caches.get(el);if(state?.loading)return;if(state&&!force){draw(el);return;}
     state={id,loading:true,tab:'financeiro',year:'2026',type:'',query:'',hist:[],tickets:[],docs:[]};caches.set(el,state);
     try{state.hist=await all(()=>db.from('real_estate_lancamentos').select('*').eq('imovel_id',id).order('id'));state.docs=await all(()=>db.from('real_estate_documentos').select('*').contains('imovel_ids',[id]).order('id'));state.tickets=await all(()=>db.from('real_estate_tickets').select('*').contains('imovel_ids',[id]).order('ticket_raiz'));
       state.years=[...new Set(state.hist.map(h=>String(h.ano)))].sort().reverse();if(!state.years.includes(state.year))state.year=state.years[0]||'';state.loading=false;if(el.isConnected)draw(el);
     }catch(e){state.loading=false;state.error=e.message;if(el.isConnected){const content=el.querySelector('.re-dossier-content');content.textContent='Não foi possível carregar o dossiê: '+e.message;const b=document.createElement('button');b.className='btn btn-ghost btn-sm';b.textContent='Tentar novamente';b.onclick=()=>open(card,id,true);content.append(b);}}
   }
   function draw(el){const s=caches.get(el);if(!s||s.loading||!el.isConnected)return;
-    const contract=el.closest('.realestate-card').querySelector('.re-dossier-contract');if(contract)contract.hidden=s.tab!=='contrato';
+    const contract=el.closest('[data-dossier-host],.realestate-card').querySelector('.re-dossier-contract');if(contract)contract.hidden=s.tab!=='contrato';
     el.querySelectorAll('[role=tab]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.tab===s.tab));b.tabIndex=b.dataset.tab===s.tab?0:-1;});
     const target=el.querySelector('.re-dossier-content');target.hidden=s.tab==='contrato';if(s.tab==='contrato'){target.innerHTML='';return;}
     let rows=s.hist.filter(h=>(!s.year||String(h.ano)===s.year)&&(!s.type||h.tipo===s.type));

@@ -1,0 +1,60 @@
+#realestate-list-view[hidden],#realestate-property-view[hidden]{display:none!important}
+.re-property-count{font-size:12px;color:var(--muted);margin:4px 0 14px}
+.re-property-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:18px;align-items:stretch}
+.re-property-card{display:flex;flex-direction:column;min-width:0;padding:20px 20px 0;border:1px solid #d9e1de;border-top:4px solid var(--re-color);border-radius:8px;background:#fff;color:var(--text);text-decoration:none;transition:box-shadow .15s,border-color .15s;letter-spacing:0}
+.re-property-card:hover{border-color:var(--re-color);box-shadow:0 4px 14px #153d3510}
+.re-property-card:focus-visible,.re-property-back:focus-visible,.re-property-tool:focus-visible{outline:3px solid #168b92;outline-offset:3px}
+.re-property-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:18px;min-height:36px}
+.re-property-brand{display:flex;align-items:center;gap:9px;font-size:11px;font-weight:700;min-width:0}
+.re-property-brand img{flex-shrink:0}
+.re-property-status{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:600;color:#566863;line-height:1.4}
+.re-property-status:before{content:'';width:6px;height:6px;flex-shrink:0;border-radius:50%;background:#81938c}
+.re-property-status.warning{color:#9b541d}.re-property-status.warning:before{background:#dc9c29}
+.re-property-status.danger{color:#a22e36}.re-property-status.danger:before{background:#c5434b}
+.re-property-status.ok{color:#257b58}.re-property-status.ok:before{background:#35946c}
+.re-property-card h2{font-size:18px;font-weight:700;line-height:1.35;margin:0 0 8px;letter-spacing:0;overflow-wrap:anywhere}
+.re-property-address{font-size:12px;line-height:1.6;color:#62726c;margin:0 0 18px;white-space:pre-line;overflow-wrap:anywhere}
+.re-property-owner{display:grid;gap:4px;margin-bottom:22px;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.re-property-owner small,.re-property-card-bottom small{font-size:11px;color:#6a7771;display:block}
+.re-property-card-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #e7ece9;padding:16px 0;margin-top:auto}
+.re-property-card-bottom strong{display:block;font-size:20px;font-variant-numeric:tabular-nums;line-height:1.4;margin-top:3px;overflow-wrap:anywhere}
+.re-property-open{display:grid;place-items:center;width:32px;height:32px;flex-shrink:0;background:#f1f6f4;border-radius:50%}
+.re-property-icon{display:block;width:18px;height:18px;flex-shrink:0}
+#view-realestate.re-property-detail{background:#fff;min-height:100%}
+#view-realestate.re-property-detail>.page-art-layer{display:none}
+.main:has(#view-realestate.re-property-detail.active){background:#fff}
+.main:has(#view-realestate.re-property-detail.active)>.wrap{padding-top:16px}
+.main:has(#view-realestate.re-property-detail.active) .page-jump-top{display:none}
+.re-property-page{max-width:1440px;margin:0 auto;min-width:0;letter-spacing:0}
+.re-property-nav{display:flex;align-items:center;gap:18px;min-height:44px;margin-bottom:26px;color:#718079;font-size:12px}
+.re-property-back{display:inline-flex;align-items:center;gap:9px;min-height:42px;border:0;background:none;padding:8px 0;color:var(--text);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.re-property-tools{margin-left:auto;display:flex;gap:8px}
+.re-property-tool{width:42px;height:42px;display:grid;place-items:center;border:1px solid #dde5e0;border-radius:6px;background:#fff;cursor:pointer}
+.re-property-tool:hover{background:#eff6f2}.re-property-tool:disabled{opacity:.5;cursor:wait}
+.re-property-heading{display:flex;align-items:flex-start;gap:24px;padding-bottom:24px;border-bottom:3px solid var(--re-color);min-width:0}
+.re-property-logo{width:108px;height:80px;flex-shrink:0;align-self:center}
+.re-property-heading-text{flex:1;min-width:0}
+.re-property-eyebrow{display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:11px;font-weight:700;line-height:1.6;margin-bottom:8px}
+.re-property-eyebrow span{font-weight:400;color:#6b7972}
+.re-property-heading h1{font-size:28px;line-height:1.25;margin:0 0 10px;letter-spacing:0;overflow-wrap:anywhere;outline:none}
+.re-property-heading p{font-size:13px;line-height:1.6;color:#61716a;white-space:pre-line;margin:0;overflow-wrap:anywhere}
+.re-property-heading>.re-property-status{padding-top:5px;max-width:160px}
+.re-property-summary{display:grid;grid-template-columns:1.1fr 1.6fr 1.25fr 1fr;gap:24px;padding:22px 0;margin:0 0 14px;border-bottom:1px solid #e0e7e2}
+.re-property-summary>div,.re-property-contract-facts>div{min-width:0}
+.re-property-summary dt,.re-property-contract-facts dt{font-size:11px;color:#6c7a73;line-height:1.5}
+.re-property-summary dd{font-size:13px;font-weight:600;line-height:1.55;margin:5px 0 0;overflow-wrap:anywhere}
+.re-property-summary>div:first-child dd{font-size:21px;font-variant-numeric:tabular-nums;line-height:1.3}
+.re-property-page .re-dossier-tabs{gap:26px;margin-bottom:18px}
+.re-property-page .re-dossier-tabs button{font-size:13px}
+.re-property-page .re-dossier-metrics{border-top:0;padding:4px 0 20px;gap:24px}
+.re-property-page .re-dossier-metrics b{font-size:23px}
+.re-property-page .re-dossier-table th{background:#f2f6f4}
+.re-property-page .re-dossier-table{background:#fff}
+.re-property-page .re-dossier-table td{padding:16px 12px}
+.re-property-section-title{font-size:17px;margin:24px 0 16px;letter-spacing:0}
+.re-property-contract-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin:0 0 28px;padding-bottom:24px;border-bottom:1px solid #e0e7e2}
+.re-property-contract-facts dd{font-size:13px;line-height:1.6;margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.re-property-danger{border-top:1px solid #e0e7e2;margin-top:28px;padding-top:20px;display:flex;justify-content:flex-end}
+.re-property-danger .btn{color:#a83e41}
+@media(max-width:1000px){.re-property-heading{gap:18px}.re-property-heading>.re-property-status{max-width:100px}.re-property-summary{grid-template-columns:1fr 1fr;gap:20px}.re-property-contract-facts{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.re-property-grid{grid-template-columns:1fr;gap:14px}.re-property-nav{gap:12px;margin-bottom:20px}.re-property-nav>span{display:none}.re-property-heading{display:grid;grid-template-columns:72px 1fr;gap:14px}.re-property-logo{width:72px;height:60px;grid-column:1;grid-row:1;align-self:start}.re-property-heading-text{grid-column:1/-1;grid-row:2}.re-property-heading>.re-property-status{grid-column:2;grid-row:1;justify-self:end;max-width:180px}.re-property-heading h1{font-size:23px}.re-property-summary{gap:18px 16px;padding:18px 0}.re-property-summary dd{font-size:12px}.re-property-summary>div:first-child dd{font-size:19px}.re-property-page .re-dossier-tabs{gap:20px}.re-property-page .re-dossier-metrics{gap:16px}.re-property-page .re-dossier-metrics b{font-size:19px}.re-property-contract-facts{grid-template-columns:1fr}.re-property-page .re-dossier-toolbar label{min-width:100px}}
