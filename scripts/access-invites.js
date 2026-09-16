@@ -12,15 +12,26 @@
   const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.error||'N\u00e3o foi poss\u00edvel concluir a opera\u00e7\u00e3o.');error.status=response.status;throw error;}return data;
  }
  function mount(list){users=list;render();load();}
+ function syncInviteAvailability(){
+  const dlg=document.getElementById('invite-dialog');if(!dlg?.open)return;
+  const note=dlg.querySelector('#invite-availability'),retry=dlg.querySelector('#invite-check');
+  const checking=loading||emailEnabled===null&&!loadError;
+  note.hidden=!checking&&!loadError&&emailEnabled===true;
+  note.querySelector('b').textContent=checking?'Verificando envio de e-mail':loadError?'Falha ao verificar o envio':'Envio de e-mail indispon\u00edvel';
+  note.querySelector('small').textContent=checking?'Aguarde a verifica\u00e7\u00e3o da conex\u00e3o.':loadError||'A conex\u00e3o de envio ainda n\u00e3o est\u00e1 ativa.';
+  retry.hidden=checking;retry.disabled=saving||loading;
+  dlg.querySelector('#invite-send').disabled=saving||checking||!!loadError||emailEnabled!==true;
+ }
  async function load(){
   if(loading||!AccessControl.can('','admin'))return;loading=true;loadError='';
+  syncInviteAvailability();
   try{
    const {data,error}=await db.from('user_access_invitations').select('id,email,nome,access_config,status,created_at,sent_at,expires_at,accepted_at').order('created_at',{ascending:false}).limit(200);
    if(error)throw error;invites=data||[];
    const state=await api({action:'status'});emailEnabled=state.emailEnabled===true;
   }catch(e){loadError=e.message||'Falha ao carregar convites.';emailEnabled=null;}
   finally{
-   loading=false;render();clearTimeout(refreshTimer);
+   loading=false;render();syncInviteAvailability();clearTimeout(refreshTimer);
    if(invites.some(i=>i.status==='sending'))refreshTimer=setTimeout(()=>{
     if(document.visibilityState!=='hidden'&&document.getElementById('admin-users')?.offsetParent&&!document.getElementById('invite-dialog')?.open)load();
    },10000);
@@ -52,10 +63,10 @@
   let dlg=document.getElementById('invite-dialog');
   if(!dlg){dlg=document.createElement('dialog');dlg.id='invite-dialog';dlg.className='access-dialog';document.body.append(dlg);dlg.addEventListener('cancel',e=>{if(saving)e.preventDefault();});}
   dlg.innerHTML=`<form onsubmit="event.preventDefault();AccessInvites.send()"><header><div><span class="access-dialog-kicker">NOVO ACESSO</span><h2>Convidar pessoa</h2></div><button type="button" class="access-close" title="Fechar" aria-label="Fechar" onclick="AccessInvites.close()">${icon('x')}</button></header>
-   ${emailEnabled!==true?'<div class="access-service-note in-dialog"><span><b>Envio de e-mail indispon\u00edvel</b><small>A conex\u00e3o de envio ainda n\u00e3o est\u00e1 ativa.</small></span></div>':''}
+   <div id="invite-availability" class="access-service-note in-dialog" role="status" aria-live="polite" hidden><span><b></b><small></small></span><button id="invite-check" class="access-icon-button" type="button" title="Verificar conex\u00e3o" aria-label="Verificar conex\u00e3o" onclick="AccessInvites.load()">${icon('refresh-cw')}</button></div>
    <div class="access-invite-fields"><label>Nome<input id="invite-name" class="fi" required minlength="2" maxlength="120" autocomplete="name" value="${esc(source.nome||'')}"></label><label>E-mail<input id="invite-email" class="fi" type="email" required maxlength="254" autocomplete="email" value="${esc(source.email||'')}"></label></div>${AccessControl.matrix(source.access_config||{},'invite')}
    <div id="invite-error" class="access-error" role="alert" hidden></div><footer><span id="invite-selection">Permiss\u00f5es individuais</span><button class="btn btn-ghost" type="button" onclick="AccessInvites.close()">Cancelar</button><button id="invite-send" class="btn btn-primary" type="submit" ${emailEnabled===true?'':'disabled'}>${icon('send')} Enviar convite</button></footer></form>`;
-  dlg.showModal();dlg.querySelector('input').focus();
+  dlg.showModal();dlg.querySelector('input').focus();syncInviteAvailability();load();
  }
  function close(){if(!saving)document.getElementById('invite-dialog')?.close();}
  async function send(){
@@ -70,7 +81,7 @@
    if(!result.sent&&!result.queued)throw new Error('O envio n\u00e3o foi confirmado.');
    saving=false;close();tab='invites';search='';toast(result.queued?'Convite na fila. O envio pelo Google ocorre em cerca de um minuto.':'Convite enviado ao e-mail informado.');await load();
   }catch(e){if(e.status===502)requestId=crypto.randomUUID();err.textContent=e.message||'Falha no envio. Confira a lista antes de reenviar.';err.hidden=false;}
-  finally{saving=false;dlg.querySelectorAll('input,button').forEach(el=>el.disabled=false);if(emailEnabled!==true)document.getElementById('invite-send').disabled=true;}
+  finally{saving=false;dlg.querySelectorAll('input,button').forEach(el=>el.disabled=false);syncInviteAvailability();}
  }
  async function revoke(id){
   if(!AccessControl.can('','admin')||!confirm('Revogar este convite? O link n\u00e3o liberar\u00e1 acesso.'))return;
