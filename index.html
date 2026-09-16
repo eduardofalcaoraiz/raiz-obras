@@ -11278,7 +11278,7 @@ function capexActiveItems(its){
 }
 
 function capexSaldoCanEdit(){
-  returnAccessControl.canEdit();
+  return AccessControl.canEdit('capex');
 }
 
 function capexSaldoUnitKey(ano,unidade){
@@ -15544,7 +15544,7 @@ const OBRA_FASES_TEMPLATE=[
   {id:'f15',nome:'Passagem para o Time de Manutencao',itens:['Reuniao de handoff com o time de manutencao','Entrega do as built e manuais tecnicos','Entrega da lista de fornecedores e contatos de garantia','Treinamento da equipe local de manutencao (quando aplicavel)','Definicao do plano de manutencao preventiva','Registro de pendencias remanescentes e responsaveis','Encerramento formal do projeto (sign-off)']}
 ];
 
-function canEditObraFluxo(){returnAccessControl.canEdit();}
+function canEditObraFluxo(){return AccessControl.canEdit();}
 function _faseHoje(){return new Date().toISOString().slice(0,10);}
 function buildDefaultObraFases(){return{versao:2,atualizado_em:'',fases:OBRA_FASES_TEMPLATE.map((f,fi)=>({id:f.id,nome:f.nome,ordem:fi,itens:f.itens.map((nome,ii)=>({id:f.id+'_i'+String(ii).padStart(2,'0'),nome,status:'pending',done:false,doneAt:'',notDone:false,notDoneAt:'',notDoneReason:'',history:[],docs:[]}))}))};}
 function obraFaseStatus(it){if(!it)return'pending';if(it.status==='not_done'||it.status==='nao_realizado'||it.notDone)return'not_done';if(it.status==='done'||it.done)return'done';return'pending';}

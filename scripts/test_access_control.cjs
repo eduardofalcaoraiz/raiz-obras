@@ -1,5 +1,14 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const acl=require('./access-control.js');
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+function editHelper(name,profile,active='capex'){
+  const source=html.match(new RegExp('function '+name+'\\(\\)\\s*\\{[^}]*\\}'))?.[0];
+  assert(source,'Missing permission helper '+name);
+  return vm.runInNewContext(source+';'+name+'()',{
+    AccessControl:{canEdit:(module=active)=>acl.can(module,'edit',profile)}
+  });
+}
 const user=(extra={})=>({id:'test',role:'leitor',aprovado:true,access_config:{},...extra});
 test('pending admin cannot read or edit anything',()=>{const p=user({role:'admin',aprovado:false});for(const [m]of acl.modules){assert.equal(acl.can(m,'read',p),false);assert.equal(acl.can(m,'edit',p),false);}assert.equal(acl.can('','admin',p),false);});
 test('approved administrator retains every area',()=>{for(const [m]of acl.modules)assert.equal(acl.can(m,'edit',user({role:'admin'})),true);});
@@ -11,3 +20,16 @@ test('unknown module and invalid access levels fail closed',()=>{assert(!acl.can
 test('custom doc profile cannot inherit implicit upload rights',()=>{assert(!acl.can('escolas','document',user({role:'doc',access_config:{escolas:'read'}})));});
 test('profile summary does not leak markup',()=>assert.equal(acl.summary(user({access_config:{capex:'read',forn:'edit'}})),'1 leitura \u00b7 1 edi\u00e7\u00e3o'));
 test('sublease and property controls are independent',()=>{global.currentProfile=user({access_config:{realestate_sublocacoes:'read'}});assert(acl.allowedView('realestate'));assert(!acl.allowedView('capex'));assert(!acl.allowedView('admin'));delete global.currentProfile;});
+test('CAPEX budget helper preserves administrator access despite restrictive config',()=>{
+  assert.equal(editHelper('capexSaldoCanEdit',user({role:'admin',access_config:{capex:'none'}})),true);
+});
+test('CAPEX budget helper uses CAPEX permissions regardless of active area',()=>{
+  assert.equal(editHelper('capexSaldoCanEdit',user({access_config:{capex:'edit',escolas:'read'}}),'escolas'),true);
+  assert.equal(editHelper('capexSaldoCanEdit',user({access_config:{capex:'read',escolas:'edit'}}),'escolas'),false);
+  assert.equal(editHelper('capexSaldoCanEdit',user({role:'admin',aprovado:false})),false);
+});
+test('construction phase helper executes and respects active-area permissions',()=>{
+  assert.equal(editHelper('canEditObraFluxo',user({role:'admin'}),'escolas'),true);
+  assert.equal(editHelper('canEditObraFluxo',user({access_config:{escolas:'read'}}),'escolas'),false);
+  assert.equal(editHelper('canEditObraFluxo',user({access_config:{escolas:'edit'}}),'escolas'),true);
+});
