@@ -2,10 +2,10 @@
  'use strict';
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
- let users=[],invites=[],tab='active',search='',emailEnabled=null,loadError='',loading=false,saving=false,requestId=null,arrival=null;
+ let users=[],invites=[],tab='active',search='',emailEnabled=null,loadError='',loading=false,saving=false,requestId=null,arrival=null,refreshTimer=null;
  const icon=(name)=>`<img src="/assets/icons/lucide/${name}.svg" width="17" height="17" alt="">`;
  function invitationStatus(i){return i.status==='sent'&&new Date(i.expires_at).getTime()<=Date.now()?'expired':i.status;}
- const statuses={sending:'Enviando',sent:'Aguardando aceite',accepted:'Aceito',failed:'Falha no envio',revoked:'Revogado',expired:'Expirado'};
+ const statuses={sending:'Aguardando envio',sent:'Aguardando aceite',accepted:'Aceito',failed:'Envio n\u00e3o confirmado',revoked:'Revogado',expired:'Expirado'};
  async function api(body){
   const {data:{session}}=await db.auth.getSession();if(!session)throw new Error('Sua sess\u00e3o expirou. Entre novamente.');
   const response=await fetch(SUPA_URL+'/functions/v1/access-invitations',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,apikey:SUPA_ANON,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(25000)});
@@ -19,7 +19,12 @@
    if(error)throw error;invites=data||[];
    const state=await api({action:'status'});emailEnabled=state.emailEnabled===true;
   }catch(e){loadError=e.message||'Falha ao carregar convites.';emailEnabled=null;}
-  finally{loading=false;render();}
+  finally{
+   loading=false;render();clearTimeout(refreshTimer);
+   if(invites.some(i=>i.status==='sending'))refreshTimer=setTimeout(()=>{
+    if(document.visibilityState!=='hidden'&&document.getElementById('admin-users')?.offsetParent&&!document.getElementById('invite-dialog')?.open)load();
+   },10000);
+  }
  }
  function render(){
   const host=document.getElementById('admin-users');if(!host)return;
@@ -30,7 +35,7 @@
   const hadFocus=document.activeElement?.id==='access-search',caret=hadFocus?document.activeElement.selectionStart:0;
   host.innerHTML=`<div class="access-overview"><div><span>Pessoas ativas</span><strong>${active.length}</strong></div><div><span>Convites pendentes</span><strong>${pending.length}</strong></div><div><span>Sem acesso</span><strong>${inactive.length}</strong></div></div>
    <div class="access-toolbar"><div class="access-tabs" role="tablist" aria-label="Gest\u00e3o de acessos">${[['active','Pessoas',active.length],['invites','Convites',invites.length],['inactive','Sem acesso',inactive.length]].map(([id,label,count])=>`<button type="button" role="tab" aria-selected="${tab===id}" onclick="AccessInvites.setTab('${id}')">${label}<span>${count}</span></button>`).join('')}</div><label class="access-search">${icon('search')}<input id="access-search" type="search" placeholder="Buscar nome ou e-mail" aria-label="Buscar nome ou e-mail" value="${esc(search)}" oninput="AccessInvites.search(this.value)"></label></div>
-   ${loadError?`<div class="access-service-note is-error" role="alert">${esc(loadError)}<button class="btn btn-sm btn-ghost" onclick="AccessInvites.load()">Tentar novamente</button></div>`:emailEnabled===false?'<div class="access-service-note">'+icon('mail')+'<span><b>Envio de e-mails pendente de configura\u00e7\u00e3o</b><small>SMTP n\u00e3o configurado. Os convites ainda n\u00e3o podem ser enviados.</small></span></div>':''}
+   ${loadError?`<div class="access-service-note is-error" role="alert">${esc(loadError)}<button class="btn btn-sm btn-ghost" onclick="AccessInvites.load()">Tentar novamente</button></div>`:emailEnabled===false?'<div class="access-service-note">'+icon('mail')+'<span><b>Envio de e-mails indispon\u00edvel</b><small>A conex\u00e3o de envio precisa estar ativa para enviar convites.</small></span><button class="access-icon-button" title="Verificar conex\u00e3o" aria-label="Verificar conex\u00e3o" onclick="AccessInvites.load()">'+icon('refresh-cw')+'</button></div>':''}
    <div class="access-table-scroll">${tab==='invites'?renderInvites(rows):(list.length?AccessControl.renderUsers(list):'<div class="access-empty-state">Nenhuma pessoa neste filtro.</div>')}</div>`;
   if(hadFocus){const input=document.getElementById('access-search');input.focus();input.setSelectionRange?.(caret,caret);}
  }
@@ -47,7 +52,7 @@
   let dlg=document.getElementById('invite-dialog');
   if(!dlg){dlg=document.createElement('dialog');dlg.id='invite-dialog';dlg.className='access-dialog';document.body.append(dlg);dlg.addEventListener('cancel',e=>{if(saving)e.preventDefault();});}
   dlg.innerHTML=`<form onsubmit="event.preventDefault();AccessInvites.send()"><header><div><span class="access-dialog-kicker">NOVO ACESSO</span><h2>Convidar pessoa</h2></div><button type="button" class="access-close" title="Fechar" aria-label="Fechar" onclick="AccessInvites.close()">${icon('x')}</button></header>
-   ${emailEnabled!==true?'<div class="access-service-note in-dialog"><span><b>Envio de e-mail indispon\u00edvel</b><small>A configura\u00e7\u00e3o SMTP precisa ser conclu\u00edda antes do primeiro convite.</small></span></div>':''}
+   ${emailEnabled!==true?'<div class="access-service-note in-dialog"><span><b>Envio de e-mail indispon\u00edvel</b><small>A conex\u00e3o de envio ainda n\u00e3o est\u00e1 ativa.</small></span></div>':''}
    <div class="access-invite-fields"><label>Nome<input id="invite-name" class="fi" required minlength="2" maxlength="120" autocomplete="name" value="${esc(source.nome||'')}"></label><label>E-mail<input id="invite-email" class="fi" type="email" required maxlength="254" autocomplete="email" value="${esc(source.email||'')}"></label></div>${AccessControl.matrix(source.access_config||{},'invite')}
    <div id="invite-error" class="access-error" role="alert" hidden></div><footer><span id="invite-selection">Permiss\u00f5es individuais</span><button class="btn btn-ghost" type="button" onclick="AccessInvites.close()">Cancelar</button><button id="invite-send" class="btn btn-primary" type="submit" ${emailEnabled===true?'':'disabled'}>${icon('send')} Enviar convite</button></footer></form>`;
   dlg.showModal();dlg.querySelector('input').focus();
@@ -62,8 +67,8 @@
   saving=true;dlg.querySelectorAll('input,button').forEach(el=>el.disabled=true);
   try{
    const result=await api({action:'send',id:requestId,nome:document.getElementById('invite-name').value.trim(),email:document.getElementById('invite-email').value.trim(),permissions});
-   if(!result.sent)throw new Error('O envio n\u00e3o foi confirmado.');
-   saving=false;close();tab='invites';search='';toast('Convite enviado ao e-mail informado.');await load();
+   if(!result.sent&&!result.queued)throw new Error('O envio n\u00e3o foi confirmado.');
+   saving=false;close();tab='invites';search='';toast(result.queued?'Convite na fila. O envio pelo Google ocorre em cerca de um minuto.':'Convite enviado ao e-mail informado.');await load();
   }catch(e){if(e.status===502)requestId=crypto.randomUUID();err.textContent=e.message||'Falha no envio. Confira a lista antes de reenviar.';err.hidden=false;}
   finally{saving=false;dlg.querySelectorAll('input,button').forEach(el=>el.disabled=false);if(emailEnabled!==true)document.getElementById('invite-send').disabled=true;}
  }

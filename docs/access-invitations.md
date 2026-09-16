@@ -9,15 +9,54 @@ Invitations are managed by approved administrators in People and Access. Each in
 - Publish `scripts/access-invites.js`, the access-control assets and `index.html`.
 - Service-role credentials must stay in the Edge Function environment. Never expose them in the browser.
 
-## Email activation
+## Google Sending
 
-SMTP was not configured on 2026-09-16. Production therefore defaults to `INVITE_EMAIL_ENABLED=false` and rejects sends before creating invitations or sending email.
+The invitation transport is now a private Google Apps Script owned by
+`eduardo.falcao@raizeducacao.com.br`. No DNS change, SMTP password, inbox-reading
+permission, Google web-app deployment or new mail-provider account is required.
+
+- Project: `1u1xxjEB25uz1HWQzKe-MKpiKBHhDtfR9cjX9wd9QeJS5mvAXmETR7hZC`.
+- Source and explicit scopes: `scripts/google-invites/`.
+- The administrator prepares a scoped invitation; the server enqueues it and
+  reports `queued`, never `sent`. The UI refreshes while sends are pending.
+- A one-minute Apps Script trigger fetches at most five items. The worker checks
+  Google's RS256 signature, fixed issuer, expiration, exact OAuth audience,
+  verified email and the exact owner address. It does not trust decoded JWTs.
+- Deploy `access-mail-worker` without the Supabase JWT gateway because it accepts
+  Google OIDC tokens, not Supabase tokens. Its own verifier is mandatory. Keep
+  `access-invitations` behind the Supabase JWT gateway and administrator checks.
+- Queue tables/RPCs are service-role only. No email authentication link or Google
+  token is persisted in the queue. Links are generated at claim time, remain
+  bound to the invitation, and never leave the server except for Google delivery.
+- The worker rechecks the inviter and target profile before claiming. Revoked or
+  stale invitations do not release access. An uncertain send is not automatically
+  retried. A pending receipt survives a lost connection without resending mail.
+- A diagnostic test is hard-limited to the owner email and cannot grant access.
+- An inactive worker or exhausted daily quota blocks new invitations. Google
+  quotas are checked at runtime and should not be represented as guaranteed delivery.
+- Run `verificarConfiguracao` to authorize/check identity without sending. Run
+  `ativarEnvioDeConvites` after backend setup to install the one-minute trigger;
+  `pausarEnvioDeConvites` removes only this project's invitation trigger.
+
+This transport covers invitations only. Native Supabase password-recovery emails
+still require a separately configured email transport; do not claim otherwise.
+
+The public OAuth audience may be versioned in code; it is not a secret. No Google
+access token, app password or mailbox credential is stored in the repository.
+
+Official Google sending service: https://developers.google.com/apps-script/reference/mail/mail-app
+
+## Legacy SMTP Transport
+
+SMTP was not configured on 2026-09-16. The Google transport does not require SMTP.
+`INVITE_EMAIL_ENABLED=false` remains an emergency stop for all invitation sends.
+The following instructions apply only to a future migration back to SMTP.
 
 1. Configure a verified sender and custom SMTP in Supabase Authentication settings. Use the organization's approved provider and secret manager, not chat or source control.
 2. Check the sender domain, provider limits, one-hour token expiration and redirect allowlist for `https://raiz-obras.vercel.app/**`.
 3. Configure the Invite User and Magic Link email templates with the application's identity. Keep the built-in confirmation URL so authentication occurs before the application accepts the invitation.
 4. Set the Edge Function secret `INVITE_EMAIL_ENABLED=true` only after SMTP is configured.
-5. With explicit recipient authorization, send one test invitation through the administrator screen, verify delivery and open the link as its recipient. Verify the selected permissions and password setup. No delivery test has yet been made with real email.
+5. With explicit recipient authorization, test the replacement SMTP transport before switching. The Google transport was tested on 2026-09-16 with one non-authentication diagnostic email addressed only to the owner; MailApp confirmed the send. No real third-party invitation was created or sent.
 
 Official SMTP guidance: https://supabase.com/docs/guides/auth/auth-smtp
 
@@ -33,4 +72,5 @@ Official SMTP guidance: https://supabase.com/docs/guides/auth/auth-smtp
 ## Verification
 
 Run `node --test scripts/test_access_invites.mjs scripts/test_access_control.cjs`.
+Run `node --test scripts/test_google_invites.mjs` for Google identity, queueing and ambiguous-send coverage. Run `sql/test_google_invitation_mail.sql` only inside a transaction followed by rollback.
 Run `sql/test_user_invitations.sql` inside a transaction and always roll back. The SQL tests create temporary synthetic auth users inside that transaction and must not be committed. Browser tests must mock email sends and business writes.

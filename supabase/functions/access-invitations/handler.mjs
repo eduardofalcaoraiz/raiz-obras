@@ -2,7 +2,7 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 const MODULES=new Set(['escolas','capex','registros','realestate_locacoes','realestate_sublocacoes','expansao','nova','cobranca','forn','investidores']);
 export function validPermissions(value){return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([k,v])=>MODULES.has(k)&&['none','read','edit'].includes(v))&&Object.values(value).some(v=>v==='read'||v==='edit');}
 class Failure extends Error {constructor(status,message){super(message);this.status=status;}}
-export function createHandler({url,anonKey,serviceKey,emailEnabled=false,fetcher=fetch,origin='https://raiz-obras.vercel.app'}){
+export function createHandler({url,anonKey,serviceKey,emailEnabled=false,delivery='smtp',fetcher=fetch,origin='https://raiz-obras.vercel.app'}){
  return async function handle(req){
   const cors={'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization,apikey,content-type,x-client-info','Access-Control-Allow-Methods':'POST,OPTIONS','Vary':'Origin','Cache-Control':'no-store'};
   const reply=(status,body)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
@@ -36,19 +36,30 @@ export function createHandler({url,anonKey,serviceKey,emailEnabled=false,fetcher
    }
    const profiles=await api('/rest/v1/user_profiles?id=eq.'+user.id+'&select=role,aprovado',undefined,anonKey,token);
    if(!profiles?.[0]?.aprovado||profiles[0].role!=='admin')throw new Failure(403,'Somente o administrador pode gerenciar convites.');
-   if(body.action==='status')return reply(200,{emailEnabled});
+   if(body.action==='status'){
+    const mail=delivery==='google'?await rpc('app_mail_status',{}):{ready:true};
+    return reply(200,{emailEnabled:emailEnabled&&mail.ready===true,delivery});
+   }
    if(body.action==='revoke'){
     if(!UUID.test(body.id||''))throw new Failure(400,'Convite invalido.');
     await rpc('app_invite_revoke',{p_id:body.id,p_actor:user.id});return reply(200,{revoked:true});
    }
    if(body.action!=='send')throw new Failure(400,'Operacao invalida.');
-   if(!emailEnabled)throw new Failure(503,'Envio de convites pendente: configure o servico de e-mail SMTP da plataforma. Nenhum convite foi enviado.');
+   if(!emailEnabled)throw new Failure(503,'O envio de convites ainda nao esta ativo. Nenhum convite foi enviado.');
+   if(delivery==='google'&&!(await rpc('app_mail_status',{})).ready)throw new Failure(503,'A conexao de envio com o Google esta indisponivel. Aguarde antes de tentar novamente.');
    const email=String(body.email||'').trim().toLowerCase(),nome=String(body.nome||'').trim();
    if(!UUID.test(body.id||'')||!/^\S+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||nome.length<2||nome.length>120||!validPermissions(body.permissions))throw new Failure(400,'Informe nome, e-mail e ao menos uma area de acesso.');
    const invitation=await rpc('app_invite_prepare',{p_id:body.id,p_actor:user.id,p_email:email,p_nome:nome,p_config:body.permissions});
    if(invitation.duplicate){
     if(invitation.status==='sent')return reply(200,{sent:true,id:invitation.id});
+    if(delivery==='google'&&invitation.status==='sending'){
+     await rpc('app_mail_enqueue',{p_id:invitation.id,p_actor:user.id});return reply(200,{queued:true,id:invitation.id});
+    }
     throw new Failure(409,'Este envio ja foi solicitado. Confira a lista de convites antes de tentar novamente.');
+   }
+   if(delivery==='google'){
+    await rpc('app_mail_enqueue',{p_id:invitation.id,p_actor:user.id});
+    return reply(200,{queued:true,id:invitation.id});
    }
    const redirect=origin+'/?access_invite='+encodeURIComponent(invitation.id);
    try{
