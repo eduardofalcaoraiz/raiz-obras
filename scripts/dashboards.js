@@ -81,6 +81,7 @@
  }
  function project(){
   const o=cur;if(!o||!AccessControl.can(o.esfera||'nova'))return;
+  if(state.projectId!==o.id){state.projectId=o.id;state.projectScope='all';state.projectYear='';}
   const s=D.project(o),ph=D.phases(o),l=s.ledger;
   const scope=state.projectScope;const rows=l.rows.filter(r=>(scope==='all'||r.scope===scope));
   const years=[...new Set(rows.map(r=>r.state==='paid'?r.paidDate.slice(0,4):r.due.slice(0,4)).filter(Boolean))].sort().reverse();
@@ -153,7 +154,7 @@
   if(a.name==='export'){const areas={capex:'capex',works:curEsfera,'project-open':cur?.esfera||'nova',collections:'cobranca',suppliers:'forn',investors:'investidores'};if(AccessControl.can(areas[a.key]))csv(a.key);return;}
   if(a.name.startsWith('capex-')){
    if(!AccessControl.can('capex'))return;
-   if(a.name==='capex-unit-open'){capexDrillYear=a.year;capexDrillMarca=a.brand;capexDrillUnidade=a.unit;capexTab='dashboard';}
+   if(a.name==='capex-unit-open'){capexDrillYear=a.year;capexDrillMarca=a.brand;capexDrillUnidade=a.unit;capexTab='dashboard';capexListStatus='Todos';capexDashControls={focusDim:'',focusValue:''};}
    else{capexTab='pedidos';capexListStatus=a.status||'Todos';capexDashControls={focusDim:a.kind?'pendencia':'',focusValue:a.kind||''};}
    renderCapexView();return;
   }
@@ -170,7 +171,7 @@
  }
  function change(el){
   const key=el.dataset.dashChange,v=el.value;
-  if(key.startsWith('capex-')){if(!AccessControl.can('capex'))return;if(key==='capex-year'){capexDrillYear=v?+v:null;capexDrillMarca=null;capexDrillUnidade=null;}if(key==='capex-brand'){capexDrillMarca=v||null;capexDrillUnidade=null;}if(key==='capex-unit')capexDrillUnidade=v||null;capexTab='dashboard';renderCapexView();}
+  if(key.startsWith('capex-')){if(!AccessControl.can('capex'))return;if(key==='capex-year'){capexDrillYear=v?+v:null;capexDrillMarca=null;capexDrillUnidade=null;}if(key==='capex-brand'){capexDrillMarca=v||null;capexDrillUnidade=null;}if(key==='capex-unit')capexDrillUnidade=v||null;capexTab='dashboard';capexListStatus='Todos';capexDashControls={focusDim:'',focusValue:''};renderCapexView();}
   if(key==='collection-brand'){state.collectionBrand=v;collections();}
   if(key==='collection-state'){state.collections=v;collections();}
   if(key==='supplier-sort'){state.supplierSort=v;suppliers();}

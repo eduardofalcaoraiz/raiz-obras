@@ -41,6 +41,7 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
  await page.evaluate(()=>{esfFiltroMarca='MATRIZ';renderEsfera();});assert.match(await page.locator('#esf-kpis').innerText(),/80\.000,00/);
  await page.evaluate(()=>openObra(1));await shot('project-desktop');assert.match(await page.locator('#o-kpis').innerText(),/379\.500,00/);
  await page.locator('#pane-resumo [data-dash-change=project-scope]').selectOption('extra');await page.locator('#pane-resumo [data-dash-change=project-scope]').selectOption('all');
+ await page.locator('#pane-resumo [data-dash-change=project-year]').selectOption('2026');await page.evaluate(()=>openObra(2));assert.equal(await page.locator('[data-dash-change=project-year]').inputValue(),'');
  for(const view of ['cobranca','forn','investidores','escolas','realestate']){await page.evaluate(v=>go(v),view);await checkLayout(view);await shot(view+'-desktop');}
  await page.locator('#re-brand-filter').selectOption('MATRIZ');assert.match(await page.locator('#realestate-kpis').innerText(),/0 não encerrados/);
  await page.evaluate(()=>{realEstateArea='cantinas';renderRealEstate();});await shot('sublocacoes-desktop');
@@ -56,4 +57,3 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
  fs.writeFileSync(out+'/'+prefix+'-ui-validation.json',JSON.stringify({passed:true,errors,writes,screens,viewports:['1440x1000','390x844'],fixtureData:true},null,2));console.log('PASS dashboards: '+screens.length+' screenshots, filters, read permissions, empty states; zero writes.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});
-
