@@ -2328,11 +2328,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <section id="view-admin" class="view">
 
-      <div class="phead"><div><div class="eyebrow">Controle de acesso</div><h1>Administração</h1><p>Gerencie usuários e pastas documentais da plataforma.</p></div></div>
+      <div class="phead"><div><div class="eyebrow">Administração</div><h1>Pessoas e acessos</h1></div><button class="btn btn-primary" onclick="AccessInvites.open()"><img src="/assets/icons/lucide/mail-plus.svg" width="18" height="18" alt=""> Convidar pessoa</button></div>
 
-      <div class="card"><h2>Usuários</h2><div class="sub">Aprove ou revogue o acesso de cada cadastro.</div>
-
-        <div class="tablewrap" id="admin-users"></div></div>
+      <div class="access-workspace" id="admin-users"></div>
 
       <div class="card" style="margin-top:20px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px">
@@ -4024,8 +4022,9 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 <script src="scripts/real-estate-property-page.js?v=20260916-workspace"></script>
 <link rel="stylesheet" href="scripts/real-estate-property-page.css?v=20260916-workspace">
 <link rel="stylesheet" href="scripts/real-estate-workspace.css?v=20260916-workspace">
-<script src="scripts/access-control.js?v=20260916-access"></script>
-<link rel="stylesheet" href="scripts/access-control.css?v=20260916-access">
+<script src="scripts/access-control.js?v=20260916-invites"></script>
+<script src="scripts/access-invites.js?v=20260916-invites"></script>
+<link rel="stylesheet" href="scripts/access-control.css?v=20260916-invites">
 <script>
 
 const fmt=n=>"R$ "+(+n||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -20817,7 +20816,7 @@ async function renderAdmin(){
   const{data:users,error:usersError}=await db.from('user_profiles').select('*').order('criado_em');
   if(usersError){document.getElementById('admin-users').textContent='Erro ao carregar os usuarios. Tente novamente.';return;}
 
-  document.getElementById('admin-users').innerHTML=AccessControl.renderUsers(users||[]);
+  AccessInvites.mount(users||[]);
 
   refreshAdminZeevAudit(true);
 
@@ -21088,6 +21087,7 @@ async function doNewPassword(){
   const{error}=await db.auth.updateUser({password:s1});
   if(error){if(errEl){errEl.textContent=error.message;errEl.style.display='block';}return;}
   toast('✓ Senha atualizada com sucesso! Entrando…');
+  AccessInvites.clearArrival();
   const{data:{session}}=await db.auth.getSession();
   if(session)await onLogin(session.user);
   else lSwitch('login');
@@ -21450,6 +21450,7 @@ async function deleteInvestidor(id){if(!AccessControl.canEdit()){toast('Sem perm
 
 
 async function onLogin(user){
+  if(!await AccessInvites.acceptArrival(user))return;
   // Limpa localStorage legado
   try{const old=localStorage.getItem(LSKEY);if(old){const s=JSON.parse(old);if(s.uniExtra||s.obrasExtra||s.obraState)localStorage.removeItem(LSKEY);}}catch(e){}
 
@@ -21570,7 +21571,7 @@ AccessControl.installGuards();
 })();
 
 // Listener de mudança de estado — detecta aprovação enquanto aguarda e recuperação de senha
-db.auth.onAuthStateChange(async(event,session)=>{
+db.auth.onAuthStateChange((event,session)=>{
   if(event==='PASSWORD_RECOVERY'){
     // Usuário clicou no link de reset — mostrar formulário de nova senha
     document.getElementById('login-screen').style.display='flex';
@@ -21583,7 +21584,8 @@ db.auth.onAuthStateChange(async(event,session)=>{
     const pend=document.getElementById('lf-pend');
     if(pend&&pend.style.display!=='none'){
       // Usuário estava na tela "aguardando" — re-verificar aprovação
-      await onLogin(session.user);
+      // Defer auth work until the Supabase session notification releases its lock.
+      setTimeout(()=>onLogin(session.user).catch(e=>console.error('[auth]',e)),0);
     }
   }
   if(event==='SIGNED_OUT'){

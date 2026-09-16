@@ -82,15 +82,21 @@
     if(u.role==='admin') return 'Administrador: acesso completo';
     if(u.access_config==null)return 'Perfil atual (sem personaliza\u00e7\u00e3o)';
     const values=modules.map(([key])=>u.access_config[key]);
-    return `${values.filter(v=>v==='read').length} leitura \u00b7 ${values.filter(v=>v==='edit').length} edi\u00e7\u00e3o`;
+    const read=values.filter(v=>v==='read').length,edit=values.filter(v=>v==='edit').length;
+    return read+edit?`${read} leitura \u00b7 ${edit} edi\u00e7\u00e3o`:'Nenhuma \u00e1rea liberada';
+  }
+  function matrix(config={},prefix='access') {
+    return `<div class="access-matrix"><div class="access-matrix-head"><b>\u00c1reas da plataforma</b><span>Permiss\u00e3o</span></div>${modules.map(([key,label])=>`<fieldset><legend>${escape(label)}</legend><div class="access-options">${Object.entries(labels).map(([v,l])=>`<label><input type="radio" name="${prefix}-${key}" value="${v}" ${(config[key]||'none')===v?'checked':''}><span>${l}</span></label>`).join('')}</div></fieldset>`).join('')}</div>`;
   }
   function renderUsers(users) {
     profiles=new Map(users.map(u=>[u.id,u]));
-    const roles=[['leitor','Leitor'],['doc','Colaborador de documentos'],['editor','Editor'],['admin','Administrador']];
-    return '<table><thead><tr><th>Usu\u00e1rio</th><th>Perfil</th><th>Permiss\u00f5es</th><th>Status</th><th>A\u00e7\u00f5es</th></tr></thead><tbody>'+users.map(u=>{
+    return '<table class="access-people-table"><thead><tr><th>Pessoa</th><th>Permiss\u00f5es</th><th>Status</th><th class="access-actions-head">A\u00e7\u00f5es</th></tr></thead><tbody>'+users.map(u=>{
       const self=u.id===profile()?.id, id=escape(u.id);
-      const role=self?'<span class="badge b-neutral">Administrador</span>':`<select class="fi" aria-label="Perfil de ${escape(u.nome||u.email)}" onchange="setUserRole('${id}',this.value)">${roles.map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select>`;
-      return `<tr><td><b>${escape(u.nome||'Sem nome')}</b><br><span class="access-email">${escape(u.email)}</span></td><td>${role}</td><td><span class="access-summary">${escape(summary(u))}</span>${!self&&u.role!=='admin'?`<button class="btn btn-sm btn-ghost" onclick="AccessControl.open('${id}')"><img src="/assets/icons/lucide/settings-2.svg" alt="" width="15" height="15"> Permiss\u00f5es</button>`:''}</td><td><span class="badge ${u.aprovado?'b-ok':'b-warn'}">${u.aprovado?'Aprovado':'Pendente'}</span></td><td>${!u.aprovado?`<button class="btn btn-sm btn-primary" onclick="aprovarUser('${id}')">Aprovar</button>`:''}${!self&&u.aprovado?`<button class="btn btn-sm btn-ghost" onclick="revogarUser('${id}')">Revogar</button>`:''}</td></tr>`;
+      const name=u.nome||u.email.split('@')[0],initials=name.split(/\s+/).slice(0,2).map(s=>s[0]||'').join('').toUpperCase();
+      const areas=modules.filter(([key])=>['read','edit'].includes(u.access_config?.[key]));
+      const chips=areas.slice(0,2).map(([,label])=>`<span class="access-area-chip">${escape(label)}</span>`).join('')+(areas.length>2?`<span class="access-area-chip">+${areas.length-2}</span>`:'');
+      const ready=u.role==='admin'||u.access_config==null||areas.length>0;
+      return `<tr><td><div class="access-person"><span class="access-avatar ${self?'is-owner':''}" aria-hidden="true">${escape(initials)}</span><div><b>${escape(name)}${self?' <span class="access-you">Voc\u00ea</span>':''}</b><span class="access-email">${escape(u.email)}</span></div></div></td><td><span class="access-summary">${escape(summary(u))}</span><div class="access-area-list">${chips}</div></td><td><span class="access-status ${u.aprovado?'is-active':'is-blocked'}">${u.aprovado?'Ativo':'Sem acesso'}</span></td><td><div class="access-row-actions">${!self&&u.role!=='admin'?`<button class="btn btn-sm btn-ghost" onclick="AccessControl.open('${id}')"><img src="/assets/icons/lucide/settings-2.svg" alt="" width="15" height="15"> Permiss\u00f5es</button>`:''}${!self&&!u.aprovado?`<button class="btn btn-sm btn-ghost" onclick="AccessInvites.open('${id}')" title="Convidar por e-mail"><img src="/assets/icons/lucide/mail-plus.svg" alt="" width="16" height="16"> Convidar</button>${ready?`<button class="btn btn-sm btn-ghost" onclick="aprovarUser('${id}')">Aprovar</button>`:''}`:''}${!self&&u.aprovado?`<button class="access-icon-button danger" onclick="AccessInvites.revokeUser('${id}')" title="Revogar acesso" aria-label="Revogar acesso de ${escape(name)}"><img src="/assets/icons/lucide/ban.svg" alt="" width="17" height="17"></button>`:''}${self?'<span class="access-owner-label">Acesso completo</span>':''}</div></td></tr>`;
     }).join('')+'</tbody></table>';
   }
   function open(id) {
@@ -146,6 +152,6 @@
     }
     let frame=false;new MutationObserver(()=>{if(frame)return;frame=true;requestAnimationFrame(()=>{frame=false;decorate();});}).observe(document.body,{childList:true,subtree:true});
   }
-  root.AccessControl={modules,level,can,canEdit,enter,enterArea,allowedView,areaModule,start,landing,syncUi,renderUsers,open,close,save,summary,reset,installGuards};
+  root.AccessControl={modules,level,can,canEdit,enter,enterArea,allowedView,areaModule,start,landing,syncUi,renderUsers,open,close,save,summary,matrix,reset,installGuards};
   if(typeof module!=='undefined')module.exports=root.AccessControl;
 })(typeof window!=='undefined'?window:globalThis);
