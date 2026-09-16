@@ -7,7 +7,7 @@
   function parse(hash){const m=String(hash||'').match(/^#realestate\/imovel\/([^/?#]+)$/);return m&&uuid.test(m[1])?m[1].toLowerCase():null;}
   const href=id=>uuid.test(String(id))?'#realestate/imovel/'+String(id).toLowerCase():'#realestate';
   const label=i=>i.unidade_ocupante||i.nome||'Imovel sem nome';
-  function cost(i){return i.fonte_chave?.startsWith('property-history|')&&!i.valor_aluguel?(i.status==='Encerrado'?'Encerrado':'N\u00e3o confirmado'):fmt(realEstateMonthlyCost(i));}
+  function cost(i){return i.fonte_chave?.startsWith('property-history|')&&!i.valor_aluguel?(i.status==='Encerrado'?'Encerrado':'N\u00e3o confirmado'):i.valor_aluguel===null||i.valor_aluguel===undefined?'N\u00e3o informado':fmt(i.valor_aluguel);}
   function status(i){
     if(realEstateNorm(i.status).includes('encerr'))return {text:'Encerrado',kind:'neutral'};
     const overdue=(i.obrigacoes||[]).filter(o=>!['Pago','Dispensado'].includes(o.status)&&realEstateDaysTo(o.vencimento)!==null&&realEstateDaysTo(o.vencimento)<0).length;
@@ -25,7 +25,7 @@
       <div class="re-property-card-body"><h2>${esc(label(i))}</h2><p class="re-property-address">${esc(i.endereco||'Endere\u00e7o n\u00e3o informado')}</p>
       <div class="re-property-owner"><small>Locador</small><span>${esc(i.locador||'N\u00e3o informado')}</span></div>
       <div class="re-property-card-facts"><span><small>Reajuste</small>${esc(i.indice_reajuste||'A confirmar')}</span><span><small>Fim do contrato</small>${esc(i.contrato_fim?fmtD(i.contrato_fim):'A confirmar')}</span></div></div>
-      <div class="re-property-card-bottom"><div><small>Custo mensal de refer\u00eancia</small><strong>${esc(cost(i))}</strong></div><span class="re-property-open" aria-hidden="true">${icon('arrow-up-right')}</span></div>
+      <div class="re-property-card-bottom"><div><small>Aluguel de refer\u00eancia</small><strong>${esc(cost(i))}</strong></div><span class="re-property-open" aria-hidden="true">${icon('arrow-up-right')}</span></div>
     </a>`;
   }
   function contractFacts(i){
@@ -55,7 +55,7 @@
     page.innerHTML=`<article class="re-property-page" data-dossier-host data-imovel-id="${esc(id)}" style="--re-color:${esc(brandColor(brand))}">
       <nav class="re-property-nav" aria-label="Navega\u00e7\u00e3o do im\u00f3vel"><button class="re-property-back" onclick="RealEstatePropertyPage.back()">${icon('arrow-left')} Im\u00f3veis</button><span>Real Estate / Loca\u00e7\u00f5es</span><div class="re-property-tools"><button class="re-property-tool" title="Atualizar dossi\u00ea" aria-label="Atualizar dossi\u00ea" onclick="RealEstatePropertyPage.refresh(this)">${icon('refresh-cw')}</button>${editable?`<button class="re-property-tool" title="Editar im\u00f3vel" aria-label="Editar im\u00f3vel" onclick="openRealEstateModal('${id}')">${icon('pencil')}</button>`:''}</div></nav>
       <header class="re-property-heading"><div class="re-property-logo">${brandLogoImg(brand,'width:100%;height:100%;object-fit:contain')}</div><div class="re-property-heading-text"><div class="re-property-eyebrow">${esc(brand)}<span>${esc(i.modalidade||'Loca\u00e7\u00e3o')}</span></div><h1 id="re-property-title" tabindex="-1">${esc(label(i))}</h1><p>${esc(i.endereco||'Endere\u00e7o n\u00e3o informado')}</p></div><span class="re-property-status ${s.kind}">${esc(s.text)}</span></header>
-      <dl class="re-property-summary"><div><dt>Custo mensal de refer\u00eancia</dt><dd>${esc(cost(i))}</dd></div><div><dt>Locador</dt><dd>${esc(i.locador||'N\u00e3o informado')}</dd></div><div><dt>Vig\u00eancia contratual</dt><dd>${esc(fmtD(i.contrato_inicio))} a ${esc(fmtD(i.contrato_fim))}</dd></div><div><dt>\u00cdndice de reajuste</dt><dd>${esc(i.indice_reajuste||'N\u00e3o informado')}</dd></div></dl>
+      <dl class="re-property-summary"><div><dt>Aluguel de refer\u00eancia</dt><dd>${esc(cost(i))}</dd></div><div><dt>Locador</dt><dd>${esc(i.locador||'N\u00e3o informado')}</dd></div><div><dt>Vig\u00eancia contratual</dt><dd>${esc(fmtD(i.contrato_inicio))} a ${esc(fmtD(i.contrato_fim))}</dd></div><div><dt>\u00cdndice de reajuste</dt><dd>${esc(i.indice_reajuste||'N\u00e3o informado')}</dd></div></dl>
       ${RealEstateDossier.section(id)}${realEstateContractHtml(i)}
     </article>`;
     if(!editable)page.querySelector('.re-property-danger')?.remove();
