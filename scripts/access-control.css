@@ -1,0 +1,17 @@
+[data-nav][hidden],.realestate-area-tab[hidden]{display:none!important}
+.access-email{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.access-summary{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+#admin-users{overflow-x:auto}#admin-users .fi{min-width:130px;max-width:190px}
+.access-dialog{margin:auto;width:min(860px,calc(100% - 24px));max-height:calc(100dvh - 32px);border:1px solid var(--line);border-radius:8px;padding:0;background:var(--card,#fff);color:var(--text,#17372f);box-shadow:0 14px 50px #0003;letter-spacing:0}
+.access-dialog::backdrop{background:#10251f80}
+.access-dialog header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:22px 24px;border-bottom:1px solid var(--line)}
+.access-dialog h2{font-size:21px;margin:0 0 10px}.access-close{width:36px;height:36px;flex:none;border:1px solid var(--line);border-radius:6px;background:transparent;cursor:pointer;display:grid;place-items:center}
+.access-matrix{padding:0 24px}.access-matrix-head{display:grid;grid-template-columns:1fr 430px;gap:16px;padding:15px 0;color:var(--muted);font-size:12px}
+.access-matrix fieldset{position:relative;min-width:0;border:0;border-top:1px solid var(--line);margin:0;padding:14px 0 14px calc(100% - 430px);min-height:66px}
+.access-matrix legend{float:left;position:absolute;left:0;top:25px;max-width:calc(100% - 445px);padding:0;font-size:13px;font-weight:650;line-height:1.3}
+.access-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.access-options label{position:relative;cursor:pointer}.access-options input{position:absolute;opacity:0}
+.access-options span{min-height:37px;padding:7px 5px;border:1px solid var(--line);border-radius:5px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;line-height:1.3}
+.access-options input:checked+span{background:#e6f3ee;border-color:#23765c;color:#175a44;font-weight:700}.access-options input:focus-visible+span{outline:3px solid #72bab2;outline-offset:2px}
+.access-dialog footer{position:sticky;bottom:0;background:var(--card,#fff);padding:17px 24px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--line)}.access-dialog footer>span{margin-right:auto;color:var(--muted);font-size:12px}
+.access-dialog .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px}.access-error{margin:12px 24px;padding:10px;background:#fff0f0;color:#8c2424;border-radius:5px}
+@media(max-width:680px){.access-dialog header{padding:18px}.access-dialog h2{font-size:19px}.access-matrix{padding:0 18px}.access-matrix-head{display:none}.access-matrix fieldset{padding:13px 0}.access-matrix legend{position:static;float:none;max-width:none;padding-top:14px;font-size:13px}.access-options{margin-top:8px}.access-options span{min-height:42px;font-size:11px}.access-dialog footer{padding:12px 18px;flex-wrap:wrap}.access-dialog footer>span{width:100%}}

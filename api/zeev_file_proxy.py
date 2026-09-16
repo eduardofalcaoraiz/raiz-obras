@@ -52,7 +52,17 @@ def _auth_user(handler: BaseHTTPRequestHandler) -> bool:
     try:
         with urllib.request.urlopen(req, timeout=12) as resp:
             data = json.loads(resp.read().decode("utf-8", errors="replace") or "{}")
-        return bool(data.get("id"))
+        user_id = data.get("id")
+        if not user_id:
+            return False
+        profile_req = urllib.request.Request(
+            f"{SUPABASE_URL}/rest/v1/user_profiles?id=eq.{urllib.parse.quote(str(user_id))}&select=role,aprovado",
+            headers={"apikey": SUPABASE_ANON, "Authorization": f"Bearer {token}"},
+        )
+        with urllib.request.urlopen(profile_req, timeout=12) as resp:
+            profiles = json.loads(resp.read().decode("utf-8") or "[]")
+        # This proxy holds the administrator's Zeev token, not a scoped user token.
+        return bool(profiles and profiles[0].get("aprovado") and profiles[0].get("role") == "admin")
     except Exception:
         return False
 
@@ -62,12 +72,7 @@ def _safe_zeev_url(url: str) -> bool:
     host = (parsed.hostname or "").lower()
     if parsed.scheme not in {"http", "https"}:
         return False
-    allowed = (
-        host == "raizeducacao.zeev.it"
-        or host.endswith(".zeev.it")
-        or "zeev" in host
-    )
-    return allowed
+    return host == "raizeducacao.zeev.it" and parsed.scheme == "https" and not parsed.username
 
 
 def _filename_from_headers(headers: Any, fallback: str) -> str:

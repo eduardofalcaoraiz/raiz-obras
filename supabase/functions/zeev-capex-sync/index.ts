@@ -944,8 +944,8 @@ async function requireAppUser(req: Request) {
   const profileRows = await rest(`/user_profiles?id=eq.${encodeURIComponent(user.id)}&select=id,email,role,aprovado`)
   const profile = (profileRows || [])[0]
   if (!profile?.aprovado) throw new Error('Usuario ainda nao aprovado.')
-  if (['leitor', 'doc'].includes(String(profile.role || '').toLowerCase())) {
-    throw new Error('Perfil sem permissao para sincronizar o Zeev.')
+  if (String(profile.role || '').toLowerCase() !== 'admin') {
+    throw new Error('Operacoes globais do Zeev exigem perfil administrador.')
   }
   return { user, profile }
 }

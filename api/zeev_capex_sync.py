@@ -109,8 +109,8 @@ class handler(BaseHTTPRequestHandler):
             authorized = auth == f"Bearer {expected}" or sent_secret == expected
             sync_secret = expected
         else:
-            authorized = bool(sent_secret) and auth == f"Bearer {sent_secret}" and len(sent_secret) >= 16
-            sync_secret = sent_secret
+            authorized = False
+            sync_secret = ""
 
         if not authorized:
             _json(self, 401, {"ok": False, "error": "Nao autorizado."})

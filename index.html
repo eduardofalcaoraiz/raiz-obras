@@ -4024,6 +4024,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 <script src="scripts/real-estate-property-page.js?v=20260916-workspace"></script>
 <link rel="stylesheet" href="scripts/real-estate-property-page.css?v=20260916-workspace">
 <link rel="stylesheet" href="scripts/real-estate-workspace.css?v=20260916-workspace">
+<script src="scripts/access-control.js?v=20260916-access"></script>
+<link rel="stylesheet" href="scripts/access-control.css?v=20260916-access">
 <script>
 
 const fmt=n=>"R$ "+(+n||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -5471,7 +5473,7 @@ function openContrModal(idx){
 function closeContrModal(){document.getElementById("contr-overlay").classList.remove("show");contrEditIdx=null;}
 
 async function saveContr(){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
   const g=v=>document.getElementById(v);
   const nomeContr=g("cm-nome-contr").value.trim();if(!nomeContr){toast("Dê um nome ao contrato.");return;}
   const fornSel=g('cm-forn-select').value;
@@ -5544,7 +5546,7 @@ async function saveContr(){
 }
 
 
-function deleteContr(idx){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const c=cur.contratos[idx];const msg=`Excluir o contrato "${c.nome_contr||c.forn}"? Os pagamentos vinculados a ele perderão o vínculo. Esta ação não pode ser desfeita.`;askConfirm(msg,async()=>{const seq=c.seq;cur.pag.forEach(p=>{if(p.contratoSeq===seq)p.contratoSeq=null;});cur.contratos.splice(idx,1);const{error}=await db.from('contratos').delete().eq('obra_id',cur.id).eq('seq',seq);if(error)console.error('deleteContr:',error);renderObra();showTab("contr");toast("Contrato excluído e vínculos liberados.");});}
+function deleteContr(idx){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}const c=cur.contratos[idx];const msg=`Excluir o contrato "${c.nome_contr||c.forn}"? Os pagamentos vinculados a ele perderão o vínculo. Esta ação não pode ser desfeita.`;askConfirm(msg,async()=>{const seq=c.seq;cur.pag.forEach(p=>{if(p.contratoSeq===seq)p.contratoSeq=null;});cur.contratos.splice(idx,1);const{error}=await db.from('contratos').delete().eq('obra_id',cur.id).eq('seq',seq);if(error)console.error('deleteContr:',error);renderObra();showTab("contr");toast("Contrato excluído e vínculos liberados.");});}
 
 
 
@@ -5674,9 +5676,9 @@ function openAporteModal(idx){
 
 function closeAporteModal(){document.getElementById("apor-overlay").classList.remove("show");aporteEditIdx=null;}
 
-function saveAporte(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const g=v=>document.getElementById(v).value;const inv=g("am-inv");if(!inv){toast("Selecione o investidor.");return;}const v=parseCurrency(g("am-v"));if(!v){toast("Informe o valor.");return;}const obj={inv,v,d:g("am-d")};if(aporteEditIdx!==null){const old=cur.aportes[aporteEditIdx];cur.aportado+=(v-old.v);cur.aportes[aporteEditIdx]=obj;}else{cur.aportes.push(obj);cur.aportado+=v;}persist(cur.id);closeAporteModal();renderObra();showTab('resumo');toast(aporteEditIdx!==null?"Aporte atualizado.":"Aporte registrado.");}
+function saveAporte(){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}const g=v=>document.getElementById(v).value;const inv=g("am-inv");if(!inv){toast("Selecione o investidor.");return;}const v=parseCurrency(g("am-v"));if(!v){toast("Informe o valor.");return;}const obj={inv,v,d:g("am-d")};if(aporteEditIdx!==null){const old=cur.aportes[aporteEditIdx];cur.aportado+=(v-old.v);cur.aportes[aporteEditIdx]=obj;}else{cur.aportes.push(obj);cur.aportado+=v;}persist(cur.id);closeAporteModal();renderObra();showTab('resumo');toast(aporteEditIdx!==null?"Aporte atualizado.":"Aporte registrado.");}
 
-function deleteAporte(idx){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const a=cur.aportes[idx];askConfirm('Excluir aporte de '+fmt(a.v)+' ('+a.inv+')? Esta ação não pode ser desfeita.',()=>{cur.aportado-=a.v;cur.aportes.splice(idx,1);persist(cur.id);renderObra();showTab('resumo');toast("Aporte excluído.");});}
+function deleteAporte(idx){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}const a=cur.aportes[idx];askConfirm('Excluir aporte de '+fmt(a.v)+' ('+a.inv+')? Esta ação não pode ser desfeita.',()=>{cur.aportado-=a.v;cur.aportes.splice(idx,1);persist(cur.id);renderObra();showTab('resumo');toast("Aporte excluído.");});}
 
 
 
@@ -5928,6 +5930,7 @@ function realEstateContractHtml(i){
 }
 
 function setRealEstateArea(area){
+  if(!AccessControl.enterArea(area))return;
   realEstateArea=['cantinas','documentos','historico'].includes(area)?area:'locacoes';
   history.replaceState({},'',realEstateArea==='cantinas'?'#realestate/sublocacoes':'#realestate');
   const search=document.getElementById('realestate-search');if(search)search.value='';
@@ -5959,7 +5962,7 @@ function realEstateConfigureArea(){
   if(evidence&&searchLabel)searchLabel.textContent='Buscar unidade, documento, endereco, fornecedor, inscricao ou TR';
   if(description)description.textContent='';
   if(!evidence&&searchLabel)searchLabel.textContent=cantinas?'Buscar unidade ou operador':'Buscar unidade, endereço ou locador';
-  if(button&&['leitor','doc'].includes(currentProfile?.role))button.style.display='none';
+  if(button&&!AccessControl.canEdit())button.style.display='none';
 }
 
 function renderRealEstateLocacoes(){
@@ -6031,7 +6034,7 @@ function realEstateOpenExternal(url){
 }
 
 function openRealEstateSublocModal(id){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para editar Real Estate.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para editar Real Estate.');return;}
   const r=id?realEstateSublocacoes.find(x=>String(x.id)===String(id)):null,charge=r?realEstateLatestCharge(r):null;
   realEstateSublocEditId=r?.id||null;
   document.getElementById('realestate-subloc-modal-title').textContent=r?'Editar vinculo de Real Estate':'Novo vinculo de Real Estate';
@@ -6052,7 +6055,7 @@ async function realEstateSaveRow(table,row,existing){
 }
 
 async function saveRealEstateSublocacao(){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para editar Real Estate.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para editar Real Estate.');return;}
   const g=id=>(document.getElementById(id)?.value||'').trim(),unidade=g('res-unidade'),sublocatario=g('res-sublocatario');
   if(!unidade||!sublocatario){toast('Informe a unidade e o operador da cantina.');return;}
   const existing=realEstateSublocEditId?realEstateSublocacoes.find(x=>String(x.id)===String(realEstateSublocEditId)):null,id=existing?.id||realEstateUuid(),valor=parseCurrency(g('res-valor')),competencia=g('res-cobranca-competencia'),vencimento=g('res-cobranca-vencimento'),referencia=g('res-cobranca-referencia');
@@ -6064,7 +6067,7 @@ async function saveRealEstateSublocacao(){
 }
 
 async function deleteRealEstateSublocacao(id){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para excluir Real Estate.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para excluir Real Estate.');return;}
   const r=realEstateSublocacoes.find(x=>String(x.id)===String(id));if(!r)return;
   askConfirm('Excluir a sublocacao de '+(r.unidade||'cantina')+'?',async()=>{const{error}=await db.from('real_estate_sublocacoes').delete().eq('id',id);if(error){toast('Erro ao excluir: '+error.message);return;}realEstateSublocacoes=realEstateSublocacoes.filter(x=>String(x.id)!==String(id));renderRealEstate();toast('Sublocacao removida.');});
 }
@@ -6073,7 +6076,7 @@ function realEstateSetVal(id,value){const el=document.getElementById(id);if(el)e
 function realEstateSetMoney(id,value){setCurrencyValue(id,+value||0);}
 
 function openRealEstateModal(id){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para editar Real Estate.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para editar Real Estate.');return;}
   const im=id?realEstateImoveis.find(x=>String(x.id)===String(id)):null;
   realEstateEditId=im?im.id:null;realEstateContractFiles=[];realEstateDevolucaoFiles=[];
   realEstateDraftObrigacoes=im?JSON.parse(JSON.stringify(im.obrigacoes||[])):[];
@@ -6143,7 +6146,7 @@ function realEstateCollectAditivos(){return Array.from(document.querySelectorAll
 async function realEstateUploadFiles(files,imovelId,folder){const out=[];for(const original of Array.from(files||[])){const f=await prepareFileForStorage(original,{maxDim:2200,quality:.84});const path=`real_estate/${imovelId}/${folder}/${Date.now()}_${realEstateSafeName(f.name)}`;const{error}=await db.storage.from('contratos').upload(path,f,{upsert:true,contentType:f.type||inferType(f.name)});if(error)throw error;out.push({name:f.name,storagePath:path,bucket:'contratos',type:f.type||inferType(f.name)});}return out;}
 
 async function saveRealEstateImovel(){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para salvar Real Estate.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para salvar Real Estate.');return;}
   const g=id=>(document.getElementById(id)?.value||'').trim(),nome=g('re-nome');
   if(!nome){toast('Informe o nome do imovel ou contrato.');return;}
   const existing=realEstateEditId?realEstateImoveis.find(x=>String(x.id)===String(realEstateEditId)):null,id=existing?.id||realEstateUuid();
@@ -6164,7 +6167,7 @@ async function saveRealEstateImovel(){
 async function realEstatePersistImovel(im){const{data,error}=await db.from('real_estate_imoveis').upsert(realEstateToDbRow(realEstateNormalizeImovel(im)),{onConflict:'id'}).select().single();if(error)throw error;const normalized=realEstateNormalizeImovel(data||im),idx=realEstateImoveis.findIndex(x=>String(x.id)===String(normalized.id));if(idx>=0)realEstateImoveis[idx]=normalized;else realEstateImoveis.unshift(normalized);return normalized;}
 
 async function deleteRealEstateImovel(id){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para excluir Real Estate.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para excluir Real Estate.');return;}
   const im=realEstateImoveis.find(x=>String(x.id)===String(id));if(!im)return;
   askConfirm('Excluir o imovel "'+(im.nome||'')+'"? Esta acao nao remove arquivos ja enviados do Storage.',async()=>{const{error}=await db.from('real_estate_imoveis').delete().eq('id',id);if(error){toast('Erro ao excluir: '+error.message);return;}realEstateImoveis=realEstateImoveis.filter(x=>String(x.id)!==String(id));renderRealEstate();toast('Imovel removido.');});
 }
@@ -6700,6 +6703,7 @@ function pageJump(pos){
 
 
 function go(view){
+  if(!AccessControl.enter(view))return;
 
   RealEstatePropertyPage.leave(view);
 
@@ -9883,7 +9887,7 @@ function renderCapexZeevCurrentView(){
 }
 
 async function syncZeevCapexNow(){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para sincronizar.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para sincronizar.');return;}
   try{
     toast('Solicitando sincronizacao online do Zeev...');
     const{data:{session}}=await db.auth.getSession();
@@ -9910,7 +9914,7 @@ async function syncZeevCapexNow(){
 
 async function openCapexZeevApproval(id){
   capexUnitInferenceIndex=null;
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para aprovar.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para aprovar.');return;}
   let z=capexZeevSolicitacoes.find(x=>+x.id===+id);
   z=await ensureCapexZeevDetail(id)||z;
   if(!z){toast('Ticket Raiz nao encontrado.');return;}
@@ -9952,7 +9956,7 @@ async function openCapexZeevApproval(id){
 }
 
 async function ignoreCapexZeev(id){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para esta operacao.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para esta operacao.');return;}
   const z=capexZeevSolicitacoes.find(x=>+x.id===+id);
   if(!z)return;
   askConfirm('Marcar o Ticket Raiz #'+(z.zeev_instance_id||id)+' como NÃO É CAPEX?',async()=>{
@@ -9967,7 +9971,7 @@ async function ignoreCapexZeev(id){
 }
 
 async function restoreCapexZeev(id,openAfter){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para esta operacao.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para esta operacao.');return;}
   const z=capexZeevSolicitacoes.find(x=>+x.id===+id);
   if(!z)return;
   askConfirm('Mover o Ticket Raiz #'+(z.zeev_instance_id||id)+' de volta para registrar como CAPEX?',async()=>{
@@ -10066,7 +10070,7 @@ function capexZeevDocsPreviewHtml(z){
 }
 
 async function openCapexZeevDestination(id){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para aprovar.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para aprovar.');return;}
   let z=capexZeevSolicitacoes.find(x=>+x.id===+id);
   z=await ensureCapexZeevDetail(id)||z;
   if(!z){toast('Ticket Raiz nao encontrado.');return;}
@@ -10116,7 +10120,7 @@ function capexZeevSuggestedDueDate(z){
 }
 
 async function openCapexZeevRealEstateApproval(id){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para aprovar.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para aprovar.');return;}
   if(realEstateLoadError){toast('Real Estate ainda nao esta pronto no Supabase. Aplique a tabela antes de registrar.');return;}
   if(!realEstateImoveis.length){toast('Cadastre primeiro um imovel em Real Estate.');return;}
   let z=capexZeevSolicitacoes.find(x=>+x.id===+id);
@@ -10140,7 +10144,7 @@ async function openCapexZeevRealEstateApproval(id){
 
 async function saveCapexZeevRealEstateApproval(){
   if(capexZeevRealEstateSaveInFlight){toast('Salvamento em andamento.');return;}
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para salvar Real Estate.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para salvar Real Estate.');return;}
   const id=capexZeevRealEstateApproveId;
   const z=id?capexZeevSolicitacoes.find(x=>+x.id===+id):null;
   if(!z){toast('Ticket Raiz nao encontrado.');return;}
@@ -10230,7 +10234,7 @@ function capexZeevSuggestedFiscalType(z){
 }
 
 async function openCapexZeevObraApproval(id){
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para aprovar.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para aprovar.');return;}
   let z=capexZeevSolicitacoes.find(x=>+x.id===+id);
   z=await ensureCapexZeevDetail(id)||z;
   if(!z){toast('Ticket Raiz nao encontrado.');return;}
@@ -10271,7 +10275,7 @@ function closeCapexZeevObraApproval(preserveReturnState){
 
 async function saveCapexZeevObraApproval(){
   if(capexZeevObraSaveInFlight){toast('Salvamento em andamento. Aguarde concluir.');return;}
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para esta operacao.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissao para esta operacao.');return;}
   capexZeevObraSaveInFlight=true;
   try{
     const id=capexZeevObraApproveId;
@@ -11274,7 +11278,7 @@ function capexActiveItems(its){
 }
 
 function capexSaldoCanEdit(){
-  return!['leitor','doc'].includes(currentProfile?.role);
+  returnAccessControl.canEdit();
 }
 
 function capexSaldoUnitKey(ano,unidade){
@@ -11662,7 +11666,7 @@ async function syncCapexAutoFinalizedYear(year){
   const rows=capexItens.filter(i=>+i.ano===+year&&(_ciRawSit(i)!=='Resolvido'||!i.realizado));
   if(!rows.length)return;
   rows.forEach(i=>{i.situacao='Resolvido';i.realizado=true;});
-  if(['leitor','doc'].includes(currentProfile?.role))return;
+  if(!AccessControl.canEdit())return;
   const ids=rows.map(i=>i.id).filter(id=>id!==undefined&&id!==null);
   if(!ids.length||!db)return;
   capexAutoFinalizeSyncing[year]=true;
@@ -12538,7 +12542,7 @@ async function updateCapexFlag(id,field,checked,input){
 
 
 
-async function deleteCapexItem(id){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+async function deleteCapexItem(id){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
 
   const it=capexItens.find(i=>i.id===id);
 
@@ -12797,7 +12801,7 @@ async function capexCheckPendingBeforeSave(id){
   return true;
 }
 
-async function saveCapexItemLocked(options){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissao para esta operacao.');return;}
+async function saveCapexItemLocked(options){if(!AccessControl.canEdit()){toast('Sem permissao para esta operacao.');return;}
 
   options=options||{};
 
@@ -15455,7 +15459,7 @@ function openAditContrModal(ci,di){
   document.getElementById('adit-contr-overlay').classList.add('show');
 }
 function closeAditContrModal(){document.getElementById('adit-contr-overlay').classList.remove('show');}
-async function saveAditContr(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+async function saveAditContr(){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
   const valor=parseCurrency(document.getElementById('ac-valor').value);
   if(!valor&&valor!==0){toast('Informe o valor do aditivo.');return;}
   const motivo=document.getElementById('ac-motivo').value.trim();
@@ -15473,7 +15477,7 @@ async function saveAditContr(){if(['leitor','doc'].includes(currentProfile?.role
   closeAditContrModal();renderObra();showTab('contr');
   toast('Aditivo de '+fmt(valor)+' registrado.');
 }
-async function deleteAditContr(ci,di){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+async function deleteAditContr(ci,di){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
   const c=cur.contratos[ci];
   askConfirm('Excluir este aditivo?',async()=>{
     c.aditivos.splice(di,1);
@@ -15484,7 +15488,7 @@ async function deleteAditContr(ci,di){if(['leitor','doc'].includes(currentProfil
 }
 /* ── FIM ADITIVOS POR CONTRATO ── */
 
-function saveAditivo(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+function saveAditivo(){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
 
   const valor=parseCurrency(document.getElementById('adit-valor').value);
 
@@ -15513,7 +15517,7 @@ function saveAditivo(){if(['leitor','doc'].includes(currentProfile?.role)){toast
 
 }
 
-function deleteAditivo(idx){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+function deleteAditivo(idx){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
 
   if(!cur||!cur.aditivos_contrato)return;
 
@@ -15540,7 +15544,7 @@ const OBRA_FASES_TEMPLATE=[
   {id:'f15',nome:'Passagem para o Time de Manutencao',itens:['Reuniao de handoff com o time de manutencao','Entrega do as built e manuais tecnicos','Entrega da lista de fornecedores e contatos de garantia','Treinamento da equipe local de manutencao (quando aplicavel)','Definicao do plano de manutencao preventiva','Registro de pendencias remanescentes e responsaveis','Encerramento formal do projeto (sign-off)']}
 ];
 
-function canEditObraFluxo(){return!['leitor','doc'].includes(currentProfile?.role);}
+function canEditObraFluxo(){returnAccessControl.canEdit();}
 function _faseHoje(){return new Date().toISOString().slice(0,10);}
 function buildDefaultObraFases(){return{versao:2,atualizado_em:'',fases:OBRA_FASES_TEMPLATE.map((f,fi)=>({id:f.id,nome:f.nome,ordem:fi,itens:f.itens.map((nome,ii)=>({id:f.id+'_i'+String(ii).padStart(2,'0'),nome,status:'pending',done:false,doneAt:'',notDone:false,notDoneAt:'',notDoneReason:'',history:[],docs:[]}))}))};}
 function obraFaseStatus(it){if(!it)return'pending';if(it.status==='not_done'||it.status==='nao_realizado'||it.notDone)return'not_done';if(it.status==='done'||it.done)return'done';return'pending';}
@@ -15611,7 +15615,7 @@ function setObraStatus(id,st){const o=obras.find(x=>x.id===id);if(!o)return;o.st
 
 async function deleteObra(id,e){
 
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
 
   if(e)e.stopPropagation();
 
@@ -15976,7 +15980,7 @@ function confirmCsvImport(){if(!cur)return;const pagante=document.getElementById
 
 function saveObra(){
 
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
 
   const g=v=>document.getElementById(v);
 
@@ -16181,7 +16185,7 @@ async function applyPastDuePaidCheck(p,label){
   return true;
 }
 
-async function savePag(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const pmNfTipo=document.getElementById("pm-nf")?.value||'Sem nota';const nfNum=cleanImpDocNumber((document.getElementById("pm-nfnum")?.value||'').trim(),pmNfTipo);const cSeq=document.getElementById("pm-contrato")?.value||'';
+async function savePag(){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const pmNfTipo=document.getElementById("pm-nf")?.value||'Sem nota';const nfNum=cleanImpDocNumber((document.getElementById("pm-nfnum")?.value||'').trim(),pmNfTipo);const cSeq=document.getElementById("pm-contrato")?.value||'';
   // Preserva tipoCusto existente se for mat/svc/eqp; senão marca como 'outros' (categorizado)
   const oldPag=pagEditIdx!==null?cur.pag[pagEditIdx]:null;
   const _existTipo=oldPag?(oldPag.tipoCusto||''):'';
@@ -16610,7 +16614,7 @@ function openUniModal(id){
 
 function closeUniModal(){document.getElementById("uni-overlay").classList.remove("show");}
 
-async function saveUni(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+async function saveUni(){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
 
   const g=v=>document.getElementById(v);
 
@@ -16674,7 +16678,7 @@ async function saveUni(){if(['leitor','doc'].includes(currentProfile?.role)){toa
 
 async function deleteEscola(id){
 
-  if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+  if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
 
   const u=unidades.find(x=>x.id===id);
 
@@ -16784,7 +16788,7 @@ function openCatModal(id,tipo){
 
 function closeCatModal(){document.getElementById("cat-overlay").classList.remove("show");catEditId=null;_catModalFromForm=false;_catModalFromPm=false;_catTipo='pagamento';}
 
-function saveCatModal(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+function saveCatModal(){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
 
   const nm=document.getElementById("cat-input").value.trim();
 
@@ -17014,7 +17018,7 @@ async function resolveStorageUrl(bucket,storagePath){
   }catch(e){
     console.warn('[Storage signed URL]',safeBucket,storagePath,e);
   }
-  return getDocUrl(safeBucket,storagePath);
+  return null;
 }
 
 function inferType(path){
@@ -17250,6 +17254,7 @@ async function viewFile(d){
   if(d.storagePath){
     const bucket=d.bucket||'pagamentos';
     url=await resolveStorageUrl(bucket,d.storagePath);
+    if(!url){toast('Documento indisponivel ou acesso nao autorizado.');return;}
   }
 
   if(!url&&d.dataUrl)url=d.dataUrl; // fallback: arquivo em memória (sessão atual)
@@ -17257,6 +17262,10 @@ async function viewFile(d){
   if(!url&&d._signedUrl)url=d._signedUrl;
 
   if(!url)url=d.url||d.openUrl||d.downloadUrl||d.href||d.link||d.fileUrl||d.contentUrl||null;
+  if(url&&url.startsWith(SUPA_URL+'/storage/v1/object/public/')){
+    const parts=url.slice((SUPA_URL+'/storage/v1/object/public/').length).split('/');
+    url=await resolveStorageUrl(parts.shift(),parts.map(decodeURIComponent).join('/'));
+  }
 
 
 
@@ -17587,7 +17596,7 @@ async function loadFromDB(){
 
     if(error)throw error;
 
-    if(!od||!od.length){return;}
+    // Empty authorized sets are valid; never retain records from an earlier session.
 
     const[pagR,aprR,cntrR,catR,uniR,cnpjR]=await Promise.all([
 
@@ -17605,7 +17614,7 @@ async function loadFromDB(){
 
     ]);
 
-    obras=od.map(o=>({
+    obras=(od||[]).map(o=>({
 
       id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',construtoras:Array.isArray(o.construtoras)?o.construtoras.map(function(c){return{seq:c.seq||1,nome:c.nome||'',cnpj:c.cnpj||'',valor:+c.valor||0};}):[],status:o.status||'Em andamento',esfera:o.esfera||'nova',
 
@@ -20804,42 +20813,11 @@ document.getElementById("confirm-ok").onclick=()=>{const cb=confirmCb;closeConfi
 /* ===== ADMIN ===== */
 
 async function renderAdmin(){
+  if(!AccessControl.can('','admin'))return;
+  const{data:users,error:usersError}=await db.from('user_profiles').select('*').order('criado_em');
+  if(usersError){document.getElementById('admin-users').textContent='Erro ao carregar os usuarios. Tente novamente.';return;}
 
-  const{data:users}=await db.from('user_profiles').select('*').order('criado_em');
-
-  const roleSelect=(u)=>`<select class="fi" style="width:auto;padding:5px 9px;font-size:13px" onchange="setUserRole('${u.id}',this.value)">
-
-    <option value="leitor" ${(u.role==='leitor'||u.role==='user'||!u.role)?'selected':''}>Leitor</option>
-
-    <option value="doc" ${u.role==='doc'?'selected':''}>Contribuidor de docs</option>
-
-    <option value="editor" ${u.role==='editor'?'selected':''}>Editor</option>
-
-    <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
-
-  </select>`;
-
-  const rows=users?users.map(u=>`<tr>
-
-    <td style="font-weight:500">${u.nome||'—'}</td>
-
-    <td style="color:var(--muted);font-size:13.5px">${u.email||'—'}</td>
-
-    <td>${u.id!==currentUser?.id?roleSelect(u):`<span class="badge b-neutral">${u.role||'admin'}</span>`}</td>
-
-    <td>${u.aprovado?'<span class="badge b-ok">Aprovado</span>':'<span class="badge b-warn">Pendente</span>'}</td>
-
-    <td style="white-space:nowrap;display:flex;gap:6px;align-items:center">
-
-      ${!u.aprovado?`<button class="btn btn-sm btn-primary" onclick="aprovarUser('${u.id}')">Aprovar</button>`:''}
-
-      ${u.id!==currentUser?.id&&u.aprovado?`<button class="btn btn-sm btn-ghost" onclick="revogarUser('${u.id}')">Revogar</button>`:''}
-
-    </td>
-
-  </tr>`).join(''):'';
-
-  document.getElementById('admin-users').innerHTML=`<table><thead><tr><th>Nome</th><th>E-mail</th><th>Função</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="5"><p class="empty">Nenhum usuário cadastrado ainda.</p></td></tr>'}</tbody></table>`;
+  document.getElementById('admin-users').innerHTML=AccessControl.renderUsers(users||[]);
 
   refreshAdminZeevAudit(true);
 
@@ -20995,7 +20973,7 @@ function renderAdminCats(){
 
 
 
-function deleteCat(id){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+function deleteCat(id){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
 
   const isDoc=DOC_CATS.some(x=>x.id===id);
 
@@ -21026,11 +21004,11 @@ function deleteCat(id){if(['leitor','doc'].includes(currentProfile?.role)){toast
 
 }
 
-async function setUserRole(id,role){if(currentProfile?.role!=='admin'){toast('Sem permissão: acesso restrito a administradores.');return;}await db.from('user_profiles').update({role}).eq('id',id);toast('Função atualizada.');}
+async function setUserRole(id,role){if(!AccessControl.can('','admin'))return;const{error}=await db.from('user_profiles').update({role}).eq('id',id);if(error){toast(error.message);await renderAdmin();return;}await renderAdmin();toast('Função atualizada.');}
 
-async function aprovarUser(id){if(currentProfile?.role!=='admin'){toast('Sem permissão: acesso restrito a administradores.');return;}await db.from('user_profiles').update({aprovado:true}).eq('id',id);renderAdmin();toast('Usuário aprovado.');}
+async function aprovarUser(id){if(!AccessControl.can('','admin'))return;const{error}=await db.from('user_profiles').update({aprovado:true}).eq('id',id);if(error){toast(error.message);return;}await renderAdmin();toast('Usuário aprovado.');}
 
-async function revogarUser(id){if(currentProfile?.role!=='admin'){toast('Sem permissão: acesso restrito a administradores.');return;}await db.from('user_profiles').update({aprovado:false}).eq('id',id);renderAdmin();toast('Acesso revogado.');}
+async function revogarUser(id){if(!AccessControl.can('','admin'))return;const{error}=await db.from('user_profiles').update({aprovado:false}).eq('id',id);if(error){toast(error.message);return;}await renderAdmin();toast('Acesso revogado.');}
 
 
 
@@ -21078,7 +21056,7 @@ async function doCadastro(){
 
   if(data.user){
 
-    const{error:pe}=await db.from('user_profiles').upsert({id:data.user.id,nome,email,role,aprovado:false},{onConflict:'id'});
+    const{error:pe}=await db.from('user_profiles').insert({id:data.user.id,nome,email,role:'leitor',aprovado:false,access_config:{}});
 
     if(pe){errEl.textContent='Conta criada, mas erro ao salvar perfil: '+pe.message;errEl.style.display='block';return;}
 
@@ -21115,7 +21093,7 @@ async function doNewPassword(){
   else lSwitch('login');
 }
 
-async function doLogout(){await db.auth.signOut();currentUser=null;currentProfile=null;document.getElementById('app').style.display='none';document.getElementById('login-screen').style.display='flex';lSwitch('login');document.getElementById('l-email').value='';document.getElementById('l-senha').value='';}
+async function doLogout(){AccessControl.reset();await db.auth.signOut();currentUser=null;currentProfile=null;location.reload();}
 
 /* ===== INVESTIDORES EXTERNOS ===== */
 
@@ -21407,7 +21385,7 @@ function openInvAuto(nome){
 
 
 
-async function saveInvestidor(){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+async function saveInvestidor(){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
 
   const nome=document.getElementById('inv-nome').value.trim();
 
@@ -21451,7 +21429,7 @@ async function saveInvestidor(){if(['leitor','doc'].includes(currentProfile?.rol
 
 
 
-async function deleteInvestidor(id){if(['leitor','doc'].includes(currentProfile?.role)){toast('Sem permissão para esta operação.');return;}
+async function deleteInvestidor(id){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
 
   const inv=investidores.find(i=>i.id===id);
 
@@ -21475,7 +21453,10 @@ async function onLogin(user){
   // Limpa localStorage legado
   try{const old=localStorage.getItem(LSKEY);if(old){const s=JSON.parse(old);if(s.uniExtra||s.obrasExtra||s.obraState)localStorage.removeItem(LSKEY);}}catch(e){}
 
-  currentUser=user;
+  AccessControl.reset();currentUser=user;currentProfile=null;
+  document.getElementById('app').style.display='none';
+  obras=[];unidades=[];realEstateImoveis=[];realEstateSublocacoes=[];CNPJS={};FORN_DATA={};
+  capexItens=[];capexSaldos=[];capexZeevSolicitacoes=[];capexDataLoaded=false;capexZeevLoaded=false;
 
   // Query do perfil com tratamento de erro + retry único
   let profile=null,profileErr=null;
@@ -21509,7 +21490,7 @@ async function onLogin(user){
       id:user.id,
       nome:meta.nome||user.email.split('@')[0],
       email:user.email,
-      role:meta.role||'leitor',
+      role:'leitor',
       aprovado:false
     });
     if(!insertErr){
@@ -21531,6 +21512,7 @@ async function onLogin(user){
     profile.role='leitor';
   }
   currentProfile=profile;
+  AccessControl.start();
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='flex';
   applySideCollapsePreference();
@@ -21557,11 +21539,13 @@ async function onLogin(user){
   obras.forEach(o=>o.pag.forEach(p=>{if(p.nfTipo===undefined)p.nfTipo=p.comp?"NF-e":"Sem nota";}));
   renderEscolas();updateNavBadge();populateEscolasSelect();updateSideArt(["RAIZ"]);
   RealEstatePropertyPage.restore();
+  if(!location.hash.startsWith('#realestate'))AccessControl.landing();
 }
 
 
 
 // Inicialização com tratamento de erro
+AccessControl.installGuards();
 (async()=>{
   try{
     applySideCollapsePreference();
