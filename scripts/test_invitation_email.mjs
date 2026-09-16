@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {MODULE_LABELS,messageFor} from '../supabase/functions/access-mail-worker/email-template.mjs';
+const require=createRequire(import.meta.url);
+const fixture={nome:'Pessoa Teste',to:'pessoa@example.test',expires_at:'2026-09-16T21:00:00Z'};
+const link='https://project.supabase.co/auth/v1/verify?token=sample&redirect_to=https%3A%2F%2Fraiz-obras.vercel.app';
+test('mail area names match the actual permissions form',()=>assert.deepEqual(MODULE_LABELS,require('./access-control.js').modules));
+test('mixed permissions show exact read and edit sections with hidden areas omitted',()=>{
+ const mail=messageFor({...fixture,access_config:{capex:'read',realestate_locacoes:'edit',forn:'none',admin:'edit'}},link);
+ assert(mail.text.includes('Somente leitura\n- CAPEX de melhorias'));
+ assert(mail.text.includes('Leitura e edi\u00e7\u00e3o\n- Real Estate: im\u00f3veis e encargos'));
+ assert(!mail.text.includes('Fornecedores'));assert(!mail.text.includes('- admin'));
+ assert(mail.text.includes('Seu acesso n\u00e3o tem prazo de validade'));assert(mail.text.includes(fixture.to));
+ assert(mail.text.includes('at\u00e9 que o administrador o revogue'));assert(!mail.text.includes('v\u00e1lido at\u00e9'));
+ assert(mail.html.includes('token=sample&amp;redirect_to='));assert(mail.text.includes(link));
+});
+test('only read access never advertises an edit section',()=>{const m=messageFor({...fixture,access_config:{capex:'read'}},link);assert(!m.text.includes('Leitura e edi\u00e7\u00e3o'));assert(m.text.includes('sem alter\u00e1-las'));});
+test('only edit access never creates an empty read-only section',()=>{const m=messageFor({...fixture,access_config:{forn:'edit'}},link);assert(!m.text.includes('Somente leitura'));assert(m.text.includes('Fornecedores'));});
+test('no valid permissions rejects instead of promising access',()=>{for(const config of [{},{capex:'none'},{admin:'edit'}])assert.throws(()=>messageFor({...fixture,access_config:config},link));});
+test('user data is escaped and recipient cannot inject HTML',()=>{const m=messageFor({...fixture,nome:'<img src=x onerror=alert(1)>',to:'<b>test</b>',access_config:{capex:'read'}},link);assert(!m.html.includes('<img'));assert(m.html.includes('&lt;img'));assert(m.html.includes('&lt;b&gt;test&lt;/b&gt;'));});

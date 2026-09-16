@@ -2,6 +2,11 @@
 
 Invitations are managed by approved administrators in People and Access. Each invitation contains explicit module permissions; no invitation grants administrator status. Existing accounts remain blocked until the authenticated, email-confirmed recipient accepts the invitation. Invitation links expire after one hour.
 
+Accepted access itself has no expiration: it remains active until an administrator
+revokes it, and only an administrator can adjust the permissions. The email makes
+this distinction explicit and lists only the granted areas, grouped as read-only
+or read-and-edit, using the same labels as the permissions form.
+
 ## Deployment
 
 - Apply `sql/user_invitations.sql` in a transaction. It does not change existing profiles.

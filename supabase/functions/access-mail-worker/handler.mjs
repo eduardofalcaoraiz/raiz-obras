@@ -1,13 +1,8 @@
+import {messageFor} from './email-template.mjs';
+export {messageFor};
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OWNER='eduardo.falcao@raizeducacao.com.br';
 const ORIGIN='https://raiz-obras.vercel.app';
-const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-export function messageFor(job,link){
- if(job.is_test)return {subject:'Teste de convites - Obras e Real Estate',text:'Eduardo, o envio pela sua conta Google esta funcionando. Este teste nao concede acesso, nao muda suas permissoes e nao foi enviado a terceiros.',html:'<p>Eduardo, o envio pela sua conta Google esta funcionando.</p><p>Este teste nao concede acesso e nao muda suas permissoes.</p>'};
- const text=`Ola, ${job.nome}. Voce recebeu um convite para a plataforma Obras e Real Estate da Raiz Educacao.\n\nAcesse: ${link}\n\nO convite expira em ate uma hora apos a solicitacao. As areas disponiveis sao as definidas pelo administrador. Se nao esperava este convite, ignore esta mensagem.`;
- return {subject:'Seu convite - Obras e Real Estate | Raiz Educacao',text,html:`<div style="font-family:Arial,sans-serif;color:#173c36;max-width:560px;margin:0 auto;padding:28px"><h2 style="margin:0 0 22px">Obras e Real Estate</h2><p>Olá, ${escape(job.nome)}.</p><p>Você recebeu um convite para acessar a plataforma da Raiz Educação.</p><p style="margin:28px 0"><a href="${escape(link)}" style="background:#167c71;color:#fff;padding:13px 20px;text-decoration:none;border-radius:6px;display:inline-block">Aceitar convite</a></p><p>O convite expira em até uma hora após a solicitação. Seu acesso será limitado às permissões definidas pelo administrador.</p><p style="color:#60736e;font-size:12px">Se não esperava este convite, ignore esta mensagem.</p></div>`};
-}
 
 export function createWorker({url,serviceKey,audience,verifyGoogle,fetcher=fetch}){
  return async req=>{

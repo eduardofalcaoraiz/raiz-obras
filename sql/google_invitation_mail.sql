@@ -85,7 +85,7 @@ begin
     end if;
     update public.user_access_mail_queue set state='processing',lease=gen_random_uuid(),claimed_at=now() where id=q.id returning * into q;
     return jsonb_build_object('id',q.id,'lease',q.lease,'to',q.recipient,'is_test',q.is_test,'nome',i.nome,'expires_at',i.expires_at,'invitation_id',q.invitation_id,
-      'existing_user',exists(select 1 from auth.users where lower(email)=q.recipient));
+      'existing_user',exists(select 1 from auth.users where lower(email)=q.recipient),'access_config',i.access_config);
   end loop;
 end $$;
 

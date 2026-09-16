@@ -9,7 +9,7 @@ const owner='eduardo.falcao@raizeducacao.com.br',audience='script-client.apps.go
 function fixture(options={}){
  const calls=[];
  const link=url+'/auth/v1/verify?token=private-link&type=invite&redirect_to='+encodeURIComponent('https://raiz-obras.vercel.app/?access_invite='+id);
- const job={id,lease,to:options.test?owner:'person@example.test',is_test:!!options.test,nome:'<Test>',invitation_id:id,existing_user:!!options.existing,...options.job};
+ const job={id,lease,to:options.test?owner:'person@example.test',is_test:!!options.test,nome:'<Test>',invitation_id:id,access_config:{capex:'read'},expires_at:new Date(Date.now()+3600000).toISOString(),existing_user:!!options.existing,...options.job};
  const fetcher=async(u,init)=>{
   const path=new URL(u).pathname,body=JSON.parse(init.body);calls.push({path,body});
   let data=null;
