@@ -4018,10 +4018,12 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 <script src="scripts/capex-ticket-intelligence.js?v=20260910"></script>
 <script src="scripts/real-estate-evidence.js?v=20260910"></script>
 <link rel="stylesheet" href="scripts/real-estate-evidence.css?v=20260910">
-<script src="scripts/real-estate-dossier.js?v=20260915-expenses-2"></script>
-<link rel="stylesheet" href="scripts/real-estate-dossier.css?v=20260915-expenses">
-<script src="scripts/real-estate-property-page.js?v=20260915-payments"></script>
-<link rel="stylesheet" href="scripts/real-estate-property-page.css?v=20260915-payments">
+<script src="scripts/real-estate-dossier.js?v=20260916-workspace"></script>
+<link rel="stylesheet" href="scripts/real-estate-dossier.css?v=20260916-workspace">
+<script src="scripts/real-estate-workspace.js?v=20260916-workspace"></script>
+<script src="scripts/real-estate-property-page.js?v=20260916-workspace"></script>
+<link rel="stylesheet" href="scripts/real-estate-property-page.css?v=20260916-workspace">
+<link rel="stylesheet" href="scripts/real-estate-workspace.css?v=20260916-workspace">
 <script>
 
 const fmt=n=>"R$ "+(+n||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -5927,6 +5929,7 @@ function realEstateContractHtml(i){
 
 function setRealEstateArea(area){
   realEstateArea=['cantinas','documentos','historico'].includes(area)?area:'locacoes';
+  history.replaceState({},'',realEstateArea==='cantinas'?'#realestate/sublocacoes':'#realestate');
   const search=document.getElementById('realestate-search');if(search)search.value='';
   const status=document.getElementById('realestate-status-filter');if(status)status.value='';
   const review=document.getElementById('realestate-review-filter');if(review)review.checked=false;
@@ -5954,6 +5957,9 @@ function realEstateConfigureArea(){
   if(cantinas&&description)description.textContent='Cantinas, espacos, uso de marca e acordos por unidade.';
   if(evidence&&description)description.textContent='';
   if(evidence&&searchLabel)searchLabel.textContent='Buscar unidade, documento, endereco, fornecedor, inscricao ou TR';
+  if(description)description.textContent='';
+  if(!evidence&&searchLabel)searchLabel.textContent=cantinas?'Buscar unidade ou operador':'Buscar unidade, endereço ou locador';
+  if(button&&['leitor','doc'].includes(currentProfile?.role))button.style.display='none';
 }
 
 function renderRealEstateLocacoes(){
@@ -5963,7 +5969,7 @@ function renderRealEstateLocacoes(){
   if(!k||!body)return;
   const rows=(realEstateImoveis||[]).slice();
   const ativos=rows.filter(i=>realEstateNorm(i.status).includes('ativo')).length;
-  const mensal=rows.reduce((a,i)=>a+realEstateMonthlyCost(i),0);
+  const mensal=rows.filter(i=>!RealEstateWorkspace.closed(i)).reduce((a,i)=>a+realEstateMonthlyCost(i),0);
   const built=rows.filter(i=>realEstateNorm(i.modalidade).includes('built'));
   const investimento=built.reduce((a,i)=>a+(+i.investimento_locador||0),0);
   const revisar=rows.filter(i=>i.revisao_pendente).length;
@@ -5971,7 +5977,8 @@ function renderRealEstateLocacoes(){
   if(realEstateLoadError){body.innerHTML=`<div class="capex-zeev-empty" style="border-color:#C0392B;color:#7A1F18;background:#FFF7F4"><b>Real Estate ainda nao conseguiu carregar.</b><br>${escHtml(realEstateLoadError)}<br>Se for o primeiro acesso, aplique o script SQL de Real Estate no Supabase.</div>`;return;}
   const q=realEstateNorm(document.getElementById('realestate-search')?.value||''),st=document.getElementById('realestate-status-filter')?.value||'',onlyReview=!!document.getElementById('realestate-review-filter')?.checked;
   const filtered=rows.filter(i=>{const okStatus=!st||String(i.status||'')===st;const hay=realEstateNorm([i.nome,i.unidade_ocupante,i.marca,i.modalidade,i.endereco,i.locador,i.locataria,i.contrato_numero,i.observacoes,(i.investidores||[]).map(v=>[v.nome,v.detalhe].join(' ')).join(' '),(i.obrigacoes||[]).map(o=>[o.tipo,o.descricao,o.ticketRaiz].join(' ')).join(' ')].join(' '));return okStatus&&(!onlyReview||i.revisao_pendente)&&(!q||hay.includes(q));});
-  body.innerHTML=filtered.length?`<div class="re-property-count">${filtered.length} ${filtered.length===1?'im&oacute;vel':'im&oacute;veis'}</div><div class="re-property-grid">${filtered.map(realEstateCardHtml).join('')}</div>`:`<div class="capex-zeev-empty">Nenhum imovel encontrado para os filtros atuais.</div>`;
+  k.querySelectorAll('.kpi')[1].querySelector('.sub').textContent='Referência cadastral; exclui encerrados';
+  body.innerHTML=RealEstateWorkspace.portfolio(filtered,'locacoes');
   scheduleActivePageArt(['RAIZ']);
 }
 
@@ -6006,11 +6013,12 @@ function renderRealEstateSublocacoes(){
   const q=realEstateNorm(document.getElementById('realestate-search')?.value||''),st=realEstateNorm(document.getElementById('realestate-status-filter')?.value||''),onlyReview=!!document.getElementById('realestate-review-filter')?.checked;
   const type=realEstateNorm(document.getElementById('realestate-type-filter')?.value||'');
   const filtered=rows.filter(r=>{const hay=realEstateNorm([r.marca,r.unidade,r.localidade,r.sublocatario,r.tipo,r.email,r.telefone,r.regra_cobranca,r.contrato_status,r.documentacao_status,r.observacoes,(r.divergencias||[]).join(' ')].join(' '));return(!type||realEstateNorm(r.tipo)===type)&&(!st||realEstateNorm(r.status)===st)&&(!onlyReview||r.revisao_pendente)&&(!q||hay.includes(q));});
-  body.innerHTML=filtered.length?`<div class="realestate-subloc-grid">${filtered.map(realEstateSublocCardHtml).join('')}</div>`:'<div class="capex-zeev-empty">Nenhum vinculo encontrado para os filtros atuais.</div>';
+  body.innerHTML=RealEstateWorkspace.portfolio(filtered,'cantinas');
   scheduleActivePageArt([...new Set(filtered.map(r=>r.marca).filter(Boolean))]);
 }
 
 function renderRealEstate(){
+  if(RealEstateWorkspace.renderDetail())return;
   if(RealEstatePropertyPage.render())return;
   const view=document.getElementById('view-realestate');applyBrandVars(view,'RAIZ');realEstateConfigureArea();
   if(['documentos','historico'].includes(realEstateArea)){RealEstateEvidence.render(realEstateArea);return;}

@@ -1,0 +1,62 @@
+#view-realestate{letter-spacing:0}
+#view-realestate .phead{margin-bottom:16px}
+#view-realestate #realestate-page-description:empty{display:none}
+#view-realestate .realestate-area-tabs{display:flex;flex-wrap:wrap;gap:0;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:0;margin-bottom:20px}
+#view-realestate .realestate-area-tab{border-radius:0;min-height:46px;border-bottom:3px solid transparent;box-shadow:none;color:var(--muted);padding:10px 18px}
+#view-realestate .realestate-area-tab.active{border-bottom-color:var(--brand-cur);color:var(--brand-text);background:var(--surface)}
+#view-realestate .realestate-toolbar{gap:12px;margin:16px 0 0;align-items:end;padding-bottom:12px;border-bottom:1px solid var(--line)}
+#view-realestate .realestate-toolbar>.fl{margin-bottom:5px}
+#view-realestate .realestate-toolbar .fi{min-height:38px}
+#view-realestate .realestate-filter-check{min-height:38px;font-size:12px}
+#view-realestate .realestate-toolbar .fl{font-size:12px}
+#realestate-kpis:empty{display:none}
+#realestate-kpis .kpi{background:var(--raiz-card-gradient);padding:14px 18px}
+#realestate-kpis .lab{font-size:11px;letter-spacing:0}
+#realestate-kpis .val{font-size:22px}
+#realestate-kpis .sub{font-size:11px}
+.re-portfolio-controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:14px 0 20px}
+.re-portfolio-controls label{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)}
+.re-portfolio-controls .fi{width:auto;max-width:230px;min-width:150px;font-size:12px;min-height:34px;padding:6px 10px}
+.re-portfolio-controls>span{margin-left:auto;font-size:12px;color:var(--muted)}
+.re-brand-section{margin:0 0 28px;min-width:0}
+.re-brand-section-head{display:flex;align-items:center;gap:12px;margin:0 0 12px;padding:0 0 10px;border-bottom:2px solid var(--re-color)}
+.re-brand-section-head h2{font-size:14px;margin:0;letter-spacing:0}
+.re-brand-section-head>span{margin-left:auto;font-size:11px;color:var(--muted)}
+.re-brand-section .re-property-grid{gap:14px;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))}
+.re-brand-section .re-property-card h2{font-size:17px}
+.re-sub-tabs{margin-bottom:12px;overflow-x:auto;flex-wrap:nowrap;max-width:100%}
+.re-sub-tabs .tabbtn{white-space:nowrap;font-size:13px;letter-spacing:0}
+.re-sub-tabs .active{color:var(--brand-text);border-bottom-color:var(--brand-cur)}
+.re-sub-rule{font-size:13px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 22px;max-width:1000px}
+.re-sub-links{display:flex;flex-wrap:wrap;gap:8px}
+.re-sub-alerts{border-left:3px solid var(--warn);padding-left:16px;margin:24px 0;font-size:12px;line-height:1.7}
+.re-sub-alerts ul{padding-left:16px}
+#re-sub-content{min-height:200px;min-width:0}
+#view-realestate .re-evidence-doc-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px}
+#view-realestate .re-evidence-doc{background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:none}
+#view-realestate .re-evidence-table{background:var(--surface);font-size:12px}
+#view-realestate .re-evidence-table th{background:var(--brand-cur-light);color:var(--ink);font-size:11px;letter-spacing:0}
+#view-realestate .re-evidence-table tbody tr:hover{background:var(--surface-2)}
+#view-realestate .re-evidence-toolbar{background:none;padding:10px 0;border:0;border-bottom:1px solid var(--line)}
+#view-realestate .realestate-ob-card{border-radius:8px;background:var(--surface)}
+#view-realestate .realestate-section-title{font-size:14px;letter-spacing:0}
+#view-realestate .re-property-page{padding-bottom:30px}
+@media(max-width:760px){
+  #view-realestate .realestate-area-tabs{flex-wrap:nowrap;overflow-x:auto;max-width:100%}
+  #view-realestate .realestate-area-tab{flex:0 0 auto;font-size:12px;padding:8px 12px}
+  #realestate-kpis{grid-template-columns:1fr 1fr;gap:8px}
+  #realestate-kpis .kpi{padding:12px}
+  #realestate-kpis .val{font-size:18px}
+  #view-realestate .realestate-toolbar>div{min-width:0!important;flex:1 1 140px}
+  #view-realestate .realestate-toolbar>div:first-child{flex-basis:100%}
+  .re-portfolio-controls{gap:10px}
+  .re-portfolio-controls label{display:grid;flex:1}
+  .re-portfolio-controls .fi{width:100%;min-width:0;max-width:none}
+  .re-portfolio-controls>span{flex-basis:100%;margin:0}
+  .re-brand-section-head h2{font-size:12px;overflow-wrap:anywhere}
+  .re-brand-section-head>span{white-space:nowrap}
+  .re-dossier-metrics{gap:5px 14px}
+  .re-dossier-metrics>div{width:100%}
+  .re-sub-tabs .tabbtn{padding:10px 12px}
+}
+@media(prefers-reduced-motion:reduce){.re-property-card,.re-payment-chevron{transition:none}}

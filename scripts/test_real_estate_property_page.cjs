@@ -1,6 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const p=require('./real-estate-property-page.js');
 const id='55e476ba-8d5f-5e31-a5d1-8a3e031c63b0';
+global.brandLight=()=>'#e6f3ef';
 Object.assign(global,{realEstateNorm:v=>String(v||'').toLowerCase(),realEstateDaysTo:()=>null,realEstateStatusLabel:v=>v,realEstateStatusClass:()=>'',realEstateBrandLabel:i=>i.marca,brandColor:()=>'#146f75',brandLogoImg:()=>'<img src="brand.png" alt="">',fmt:n=>String(n),realEstateMonthlyCost:i=>i.valor_aluguel,fmtD:d=>d||'Nao informado'});
 const property=extra=>({id,marca:'QI',nome:'Escola',unidade_ocupante:'Tijuca',endereco:'Rua Um, 10',valor_aluguel:1000,status:'Ativo',obrigacoes:[],...extra});
 test('property route is bookmarkable and accepts only a complete UUID',()=>{assert.equal(p.parse(p.href(id)),id);for(const hash of ['#access_token=private','#realestate','#realestate/imovel/../admin','#realestate/imovel/'+id+'/x','#realestate/imovel/%22onclick'])assert.equal(p.parse(hash),null);assert.equal(p.href('unsafe'),'#realestate');});

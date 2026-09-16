@@ -20,10 +20,11 @@
   function card(i){
     if(!uuid.test(String(i.id)))return '';
     const brand=realEstateBrandLabel(i),s=status(i);
-    return `<a class="card re-property-card" data-imovel-id="${esc(i.id)}" href="${href(i.id)}" onclick="RealEstatePropertyPage.open(event,'${i.id}')" style="--re-color:${esc(brandColor(brand))}">
+    return `<a class="card re-property-card" data-imovel-id="${esc(i.id)}" href="${href(i.id)}" onclick="RealEstatePropertyPage.open(event,'${i.id}')" style="--re-color:${esc(brandColor(brand))};--re-tint:${esc(brandLight(brand))}">
       <div class="re-property-card-top"><span class="re-property-brand">${brandLogoImg(brand,'width:58px;height:36px;object-fit:contain')}<span>${esc(brand)}</span></span><span class="re-property-status ${s.kind}">${esc(s.text)}</span></div>
-      <h2>${esc(label(i))}</h2><p class="re-property-address">${esc(i.endereco||'Endere\u00e7o n\u00e3o informado')}</p>
+      <div class="re-property-card-body"><h2>${esc(label(i))}</h2><p class="re-property-address">${esc(i.endereco||'Endere\u00e7o n\u00e3o informado')}</p>
       <div class="re-property-owner"><small>Locador</small><span>${esc(i.locador||'N\u00e3o informado')}</span></div>
+      <div class="re-property-card-facts"><span><small>Reajuste</small>${esc(i.indice_reajuste||'A confirmar')}</span><span><small>Fim do contrato</small>${esc(i.contrato_fim?fmtD(i.contrato_fim):'A confirmar')}</span></div></div>
       <div class="re-property-card-bottom"><div><small>Custo mensal de refer\u00eancia</small><strong>${esc(cost(i))}</strong></div><span class="re-property-open" aria-hidden="true">${icon('arrow-up-right')}</span></div>
     </a>`;
   }
@@ -59,12 +60,13 @@
     </article>`;
     if(!editable)page.querySelector('.re-property-danger')?.remove();
     RealEstateDossier.open(page.querySelector('[data-dossier-host]'),id);
+    scheduleActivePageArt([brand]);
     return true;
   }
   async function refresh(button){const host=button.closest('[data-dossier-host]');button.disabled=true;button.setAttribute('aria-busy','true');try{await RealEstateDossier.open(host,host.dataset.imovelId,true);}finally{button.disabled=false;button.removeAttribute('aria-busy');}}
   async function retry(){await loadRealEstate();renderRealEstate();}
-  function leave(view){if(view==='realestate')return;if(root.location.hash==='#realestate'||parse(root.location.hash)){history.replaceState({...history.state,rePropertyFromList:false},'',root.location.pathname+root.location.search);document.title=originalTitle;}}
-  function route(){if(typeof currentProfile==='undefined'||!currentProfile)return;if(!parse(root.location.hash)&&root.location.hash!=='#realestate')return;realEstateArea='locacoes';applyListState();go('realestate');if(!parse(root.location.hash))restoreScroll();else focusHeading();}
+  function leave(view){if(view==='realestate')return;if(/^#realestate(?:\/|$)/.test(root.location.hash)){history.replaceState({...history.state,rePropertyFromList:false},'',root.location.pathname+root.location.search);document.title=originalTitle;}}
+  function route(){if(typeof currentProfile==='undefined'||!currentProfile)return;if(root.RealEstateWorkspace&&(RealEstateWorkspace.parse(root.location.hash)||root.location.hash==='#realestate/sublocacoes')){RealEstateWorkspace.restore();return;}if(!parse(root.location.hash)&&root.location.hash!=='#realestate')return;realEstateArea='locacoes';applyListState();go('realestate');if(!parse(root.location.hash))restoreScroll();else focusHeading();}
   let routePending=false;
   function scheduleRoute(){if(routePending)return;routePending=true;requestAnimationFrame(()=>{routePending=false;route();});}
   root.addEventListener?.('popstate',scheduleRoute);root.addEventListener?.('hashchange',scheduleRoute);
