@@ -237,6 +237,6 @@
    return [...renderContext.hosts.values()].join('');
   }finally{renderContext=null;}
  }
- function recordsScope(panel,brand){if(panel==='cobranca'){state.collectionBrand=brand||'';collections();}else if(panel in operationalBrands){operationalBrands[panel]=brand||'';if(panel==='forn')suppliers();else investors();}}
+ function recordsScope(panel,brand){if(panel==='cobranca'){state.collectionBrand=brand||'';collections();}else if(panel in operationalBrands){operationalBrands[panel]=brand||'';if(panel==='forn'){document.getElementById('forn-busca').value='';suppliers();}else{state.investorQuery='';investors();}}}
  root.Dashboards={capex,portfolio,project,collections,suppliers,investors,realEstate,documents,queue,render,csv,recordsScope};
 })(window);

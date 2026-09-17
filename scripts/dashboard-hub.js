@@ -60,9 +60,12 @@
    go('capex');capexDrillYear=scope.year?+scope.year:null;capexDrillMarca=scope.brand||null;capexDrillUnidade=scope.unit||null;capexListStatus='Todos';capexDashControls={focusDim:'',focusValue:''};capexTab='pedidos';renderCapexView();
   }else if(['nova','expansao'].includes(selected)){
    if(scope.project){const o=obras.find(o=>String(o.id)===String(scope.project)&&(o.esfera||'nova')===selected);if(o)openObra(o.id);}
-   else{go(selected);esfFiltroMarca=scope.brand||'Todas';esfBusca='';renderEsfera();}
+   else{go(selected);esfFiltroMarca=scope.brand||'Todas';esfBusca='';esfNfSearchQuery='';document.getElementById('esf-busca').value='';renderEsfera();}
   }else if(selected.startsWith('realestate_')){
-   realEstateArea=selected==='realestate_locacoes'?'locacoes':'cantinas';go('realestate');RealEstateWorkspace.filter(realEstateArea,'brand',scope.brand||'');
+   realEstateArea=selected==='realestate_locacoes'?'locacoes':'cantinas';go('realestate');
+   for(const id of ['realestate-search','realestate-status-filter','realestate-type-filter']){const el=document.getElementById(id);if(el)el.value='';}
+   document.getElementById('realestate-review-filter').checked=false;
+   RealEstateWorkspace.filter(realEstateArea,'brand',scope.brand||'');
   }else{go(selected);Dashboards.recordsScope(selected,scope.brand);if(selected==='escolas'){document.getElementById('esc-busca').value=scope.brand||'';renderEscolas();}if(selected==='registros'){capexZeevSearchQuery=scope.brand||'';renderRegistrosPendentes();}}
   root.PlatformNav?.replace();
  }
