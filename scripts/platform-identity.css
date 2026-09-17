@@ -1,0 +1,27 @@
+/* Shared brand treatment; tables stay neutral for scanning financial records. */
+#app>.main{--workspace-color:var(--raiz-primary);--workspace-soft:var(--raiz-soft);--workspace-text:var(--raiz-text);background:linear-gradient(120deg,color-mix(in srgb,var(--workspace-soft) 24%,#f0f4f1),#edf4f0)}
+.app .main .dash-shell{background:transparent}
+.app .main .view>.phead{border-top:4px solid var(--workspace-color);border-bottom:1px solid color-mix(in srgb,var(--workspace-color) 25%,#d7e2dc);background:linear-gradient(110deg,color-mix(in srgb,var(--workspace-soft) 85%,white),#edf5f1);padding:20px 20px 18px;margin-top:8px;gap:18px}
+.app .main .view>.phead h1{color:#173c34}
+.app .main .view>.phead .eyebrow{color:var(--workspace-text)}
+.app .main .view>.phead p,.app .main .view>.phead .desc{color:#48625a}
+#view-dashboards .hub-heading{padding:22px 20px;border-top:4px solid var(--hub-color);background:linear-gradient(110deg,var(--hub-tint),color-mix(in srgb,var(--hub-tint) 30%,#edf5f1));border-bottom-color:color-mix(in srgb,var(--hub-color) 24%,#dce5df)}
+#view-dashboards .hub-identity>img{background:#ffffffde;padding:8px;border-radius:6px}
+#view-dashboards .hub-heading>.btn{background:#ffffffbd;border-color:color-mix(in srgb,var(--hub-color) 25%,#d6dfd8)}
+#view-dashboards .hub-controls{background:#e4eee9;margin:0;padding:18px 20px;border-bottom-color:#cdded5}
+#view-dashboards .hub-brand-strip button{background:color-mix(in srgb,var(--brand-accent) 9%,white);border-color:color-mix(in srgb,var(--brand-accent) 25%,#dce5df);border-bottom:3px solid var(--brand-accent)}
+#view-dashboards .hub-brand-strip button:hover{background:color-mix(in srgb,var(--brand-accent) 17%,white)}
+#view-dashboards .dash-metrics{background:var(--hub-tint);border-bottom:1px solid color-mix(in srgb,var(--hub-color) 25%,#dce5df)}
+#view-dashboards .dash-metric{border-top:3px solid var(--hub-color)}
+#view-dashboards .dash-metric.blue{background:#e8f1fa;border-top-color:#347da4}
+#view-dashboards .dash-metric.green{background:#e2f0e7;border-top-color:#388261}
+#view-dashboards .dash-metric.amber{background:#fff0d9;border-top-color:#cd861e}
+#view-dashboards .dash-metric.red{background:#fbe9e4;border-top-color:#bc5944}
+#view-dashboards .dash-table th{background:color-mix(in srgb,var(--hub-tint) 65%,white)}
+.app .dash-section>header{border-left:3px solid var(--hub-color,var(--workspace-color));padding-left:12px}
+#view-realestate .re-brand-section-head{padding:12px;background:color-mix(in srgb,var(--re-color) 12%,#f7faf8);border-bottom-width:3px}
+#view-realestate .re-property-card-top{background:var(--re-tint);border-bottom-color:color-mix(in srgb,var(--re-color) 20%,#dce5df)}
+#view-realestate .re-property-heading{padding:18px;background:var(--brand-cur-light,var(--workspace-soft))}
+.app .platform-context-nav{padding-top:10px}
+@media(max-width:700px){.app .main .view>.phead{padding:16px 12px;gap:12px}#view-dashboards .hub-heading{padding:16px 12px}#view-dashboards .hub-controls{padding:16px 12px}}
+@media print{.app .main,#view-dashboards .hub-heading,.app .main .view>.phead{background:white}}

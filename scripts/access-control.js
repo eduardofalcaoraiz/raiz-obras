@@ -52,7 +52,7 @@
   }
   function syncUi() {
     if(!root.document)return;
-    document.querySelectorAll('[data-nav]').forEach(n=>{n.hidden=!allowedView(n.dataset.nav);});
+    document.querySelectorAll('[data-nav]').forEach(n=>{n.hidden=n.dataset.navArea?!can(areaModule(n.dataset.navArea)):!allowedView(n.dataset.nav);});
     [['locacoes','realestate_locacoes'],['cantinas','realestate_sublocacoes']].forEach(([area,key])=>{
       const el=document.getElementById('realestate-tab-'+area);if(el)el.hidden=!can(key);
     });

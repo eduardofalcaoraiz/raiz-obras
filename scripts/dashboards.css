@@ -1,6 +1,5 @@
 .dash-host{display:block!important;min-width:0}
 #view-obra #o-kpis.dash-host{display:block!important}
-.main:has(.view.active .dash-host),.main:has(#view-escolas.active){background:#fff}
 .view:has(.dash-host)>.page-art-layer,#view-escolas>.page-art-layer{display:none}
 .main:has(.view.active .dash-host) .phead{border-bottom:1px solid #e1e8e4;padding-bottom:18px}
 .dash-host,.dash-host *{text-shadow:none}

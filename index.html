@@ -2007,7 +2007,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
   <div class="mobile-topbar" id="mobile-topbar">
 
-    <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+    <button class="hamburger-btn" id="mobile-menu-trigger" onclick="toggleSidebar()" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false"><span class="menu-icon" style="--menu-icon:url('../assets/icons/lucide/menu.svg')" aria-hidden="true"></span></button>
 
     <span class="mobile-brand">Obras e Real Estate</span>
 
@@ -2019,38 +2019,46 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
   <div class="side-backdrop" id="side-backdrop" onclick="closeSidebar()"></div>
 
-  <aside class="side" id="sidebar">
+  <aside class="side" id="sidebar" aria-label="Menu principal">
     <div id="side-color-layer"></div>
-    <button class="side-collapse-btn" id="side-collapse-btn" onclick="toggleSideCollapse()" title="Recolher menu" aria-label="Recolher menu"><span id="side-collapse-ic">‹</span></button>
-    <div class="brand"><div class="mk"><img src="https://raw.githubusercontent.com/eduardofalcaoraiz/raiz-obras/main/LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png" style="width:100%;height:100%;object-fit:contain" alt="Raiz Educação"></div><div><b>Obras e Real Estate</b><span>Raiz Educação</span></div></div>
-
-    <nav class="nav" id="nav">
-
-      <button data-nav="dashboards" onclick="go('dashboards')"><img class="ic" src="assets/icons/lucide/list.svg" width="18" height="18" alt=""> Dashboards</button>
-      <button class="active" data-nav="escolas" onclick="go('escolas')"><span class="ic">🏫</span> Documentos das Escolas</button>
-
-      <button data-nav="investidores" onclick="go('investidores')"><span class="ic">💼</span> Investidores Externos</button>
-
-      <button data-nav="capex" onclick="go('capex')"><span class="ic">🔧</span> Capex de Melhorias</button>
-
-      <button data-nav="registros" onclick="go('registros')"><span class="ic">TR</span> Registros pendentes <span class="pill" id="nav-registros"></span></button>
-
-      <button data-nav="realestate" onclick="go('realestate')"><span class="ic">RE</span> Real Estate</button>
-
-      <button data-nav="expansao" onclick="go('expansao')"><span class="ic">🏗</span> Expansões de Unidades</button>
-
-      <button data-nav="nova" onclick="go('nova')"><span class="ic">🏢</span> Novas Unidades</button>
-
-      <button data-nav="cobranca" onclick="go('cobranca')"><span class="ic">◉</span> Cobrança <span class="pill" id="nav-cobr"></span></button>
-
-      <button data-nav="forn" onclick="go('forn')"><span class="ic">◍</span> Fornecedores</button>
-
-      <button data-nav="admin" id="nav-admin" style="display:none" onclick="go('admin')"><span class="ic">⚙</span> Administração</button>
-
+    <header class="side-header">
+      <div class="brand"><div class="mk"><img src="LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png" alt="Raiz Educação" width="44" height="54"></div><div class="brand-copy"><b>Obras e<br>Real Estate</b><span>Raiz Educação</span></div></div>
+      <button type="button" class="side-collapse-btn" id="side-collapse-btn" onclick="toggleSideCollapse()" title="Recolher menu" aria-label="Recolher menu" aria-expanded="true" aria-controls="nav"><span class="menu-icon" style="--menu-icon:url('../assets/icons/lucide/panel-left-close.svg')" aria-hidden="true"></span></button>
+      <button type="button" class="side-close-btn" onclick="closeSidebar()" title="Fechar menu" aria-label="Fechar menu"><span class="menu-icon" style="--menu-icon:url('../assets/icons/lucide/x.svg')" aria-hidden="true"></span></button>
+    </header>
+    <nav class="nav" id="nav" aria-label="Áreas da plataforma">
+      <section class="nav-group" aria-labelledby="nav-overview-title">
+        <h2 class="nav-group-title" id="nav-overview-title">Visão geral</h2>
+        <button type="button" data-nav="dashboards" onclick="go('dashboards')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/layout-dashboard.svg')" aria-hidden="true"></span><span class="nav-label">Dashboards</span></button>
+      </section>
+      <section class="nav-group" aria-labelledby="nav-schools-title">
+        <h2 class="nav-group-title" id="nav-schools-title">Escolas</h2>
+        <button type="button" class="active" data-nav="escolas" onclick="go('escolas')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/folder-check.svg')" aria-hidden="true"></span><span class="nav-label">Documentos das escolas</span></button>
+      </section>
+      <section class="nav-group" aria-labelledby="nav-works-title">
+        <h2 class="nav-group-title" id="nav-works-title">Obras e CAPEX</h2>
+        <button type="button" data-nav="capex" onclick="go('capex')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/hard-hat.svg')" aria-hidden="true"></span><span class="nav-label">CAPEX de melhorias</span></button>
+        <button type="button" data-nav="registros" onclick="go('registros')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/inbox.svg')" aria-hidden="true"></span><span class="nav-label">Registros pendentes</span><span class="pill" id="nav-registros"></span></button>
+        <button type="button" data-nav="expansao" onclick="go('expansao')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/construction.svg')" aria-hidden="true"></span><span class="nav-label">Expansões de unidades</span></button>
+        <button type="button" data-nav="nova" onclick="go('nova')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/building-2.svg')" aria-hidden="true"></span><span class="nav-label">Novas unidades</span></button>
+      </section>
+      <section class="nav-group" aria-labelledby="nav-realestate-title">
+        <h2 class="nav-group-title" id="nav-realestate-title">Real Estate</h2>
+        <button type="button" data-nav="realestate" data-nav-area="locacoes" onclick="PlatformMenu.openRealEstate('locacoes')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/landmark.svg')" aria-hidden="true"></span><span class="nav-label">Imóveis e encargos</span></button>
+        <button type="button" data-nav="realestate" data-nav-area="cantinas" onclick="PlatformMenu.openRealEstate('cantinas')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/handshake.svg')" aria-hidden="true"></span><span class="nav-label">Sublocações e uso de marca</span></button>
+      </section>
+      <section class="nav-group" aria-labelledby="nav-finance-title">
+        <h2 class="nav-group-title" id="nav-finance-title">Financeiro</h2>
+        <button type="button" data-nav="cobranca" onclick="go('cobranca')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/receipt-text.svg')" aria-hidden="true"></span><span class="nav-label">Cobrança</span><span class="pill" id="nav-cobr"></span></button>
+        <button type="button" data-nav="investidores" onclick="go('investidores')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/handshake.svg')" aria-hidden="true"></span><span class="nav-label">Investidores externos</span></button>
+        <button type="button" data-nav="forn" onclick="go('forn')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/truck.svg')" aria-hidden="true"></span><span class="nav-label">Fornecedores</span></button>
+      </section>
+      <section class="nav-group" aria-labelledby="nav-admin-title">
+        <h2 class="nav-group-title" id="nav-admin-title">Sistema</h2>
+        <button type="button" data-nav="admin" id="nav-admin" style="display:none" onclick="go('admin')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/shield-check.svg')" aria-hidden="true"></span><span class="nav-label">Administração</span></button>
+      </section>
     </nav>
-
-    <div class="foot"><div class="foot-user"><span id="foot-user-name">—</span><button class="btn-logout" onclick="doLogout()">Sair</button></div>Obras e Real Estate · Raiz Educação</div>
-
+    <footer class="foot"><div class="foot-user"><span class="menu-avatar" id="menu-avatar" aria-hidden="true">R</span><div class="menu-account"><span id="foot-user-name">—</span><small id="menu-user-role">Raiz Educação</small></div><button type="button" class="btn-logout" onclick="doLogout()" title="Sair da plataforma" aria-label="Sair da plataforma"><span class="menu-icon" style="--menu-icon:url('../assets/icons/lucide/log-out.svg')" aria-hidden="true"></span></button></div></footer>
   </aside>
 
 
@@ -4030,11 +4038,14 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 <link rel="stylesheet" href="scripts/real-estate-workspace.css?v=20260916-workspace">
 <script src="scripts/dashboard-data.js?v=20260916-rebuild"></script>
 <script src="scripts/dashboards.js?v=20260917-hub"></script>
-<link rel="stylesheet" href="scripts/dashboards.css?v=20260916-rebuild">
-<script src="scripts/access-control.js?v=20260917-hub"></script>
-<script src="scripts/dashboard-hub.js?v=20260917-hub"></script>
+<link rel="stylesheet" href="scripts/dashboards.css?v=20260917-menu">
+<script src="scripts/access-control.js?v=20260917-menu"></script>
+<script src="scripts/dashboard-hub.js?v=20260917-menu"></script>
 <script src="scripts/platform-navigation.js?v=20260917-hub"></script>
-<link rel="stylesheet" href="scripts/dashboard-hub.css?v=20260917-hub">
+<link rel="stylesheet" href="scripts/dashboard-hub.css?v=20260917-menu">
+<link rel="stylesheet" href="scripts/platform-menu.css?v=20260917-menu">
+<link rel="stylesheet" href="scripts/platform-identity.css?v=20260917-menu">
+<script defer src="scripts/platform-menu.js?v=20260917-menu"></script>
 <script src="scripts/access-invites.js?v=20260916-invite-availability"></script>
 <link rel="stylesheet" href="scripts/access-control.css?v=20260916-invite-availability">
 <script>
@@ -5948,6 +5959,7 @@ function setRealEstateArea(area){
   const status=document.getElementById('realestate-status-filter');if(status)status.value='';
   const review=document.getElementById('realestate-review-filter');if(review)review.checked=false;
   renderRealEstate();
+  window.PlatformMenu?.sync();
 }
 
 function realEstateConfigureArea(){
@@ -6465,6 +6477,8 @@ function updateSideArt(marcas){
   side.style.setProperty('--side-art-color',col);
   side.style.setProperty('--side-art-soft',soft);
   side.style.setProperty('--side-art-text',brandTextOnLight(marca)||'var(--raiz-text)');
+  const main=document.querySelector('.main');
+  if(main){main.style.setProperty('--workspace-color',col);main.style.setProperty('--workspace-soft',soft);main.style.setProperty('--workspace-text',brandTextOnLight(marca)||'var(--raiz-text)');}
   el.style.opacity='1';
   side.style.borderRight='none';
 }
@@ -6542,6 +6556,7 @@ function ensurePageArtLayer(elId){
 function _pageArtMarcasForActiveView(){
   var view=document.querySelector('.view.active');
   var id=view?.id||'';
+  if(id==='view-dashboards'&&window.DashboardHub)return [DashboardHub.scope().brand||'RAIZ'];
   if(id==='view-obra'&&cur&&cur.marca)return _normalizePageArtMarcas(cur.marca);
   if(id==='view-uni')return ['RAIZ'];
   if(id==='view-esfera'&&curEsfera==='capex'&&capexDrillMarca)return _normalizePageArtMarcas(capexDrillMarca);
@@ -6656,6 +6671,7 @@ function applySideCollapsePreference(){
     const label=collapsed?'Expandir menu':'Recolher menu';
     btn.title=label;
     btn.setAttribute('aria-label',label);
+    btn.setAttribute('aria-expanded',String(!collapsed));
   }
 }
 
@@ -6669,9 +6685,9 @@ function toggleSideCollapse(){
   applySideCollapsePreference();
 }
 
-function toggleSidebar(){document.querySelector('.side').classList.toggle('mobile-open');document.getElementById('side-backdrop').classList.toggle('show');}
+function toggleSidebar(){window.PlatformMenu?.setMobileOpen(!document.querySelector('.side').classList.contains('mobile-open'));}
 
-function closeSidebar(){document.querySelector('.side').classList.remove('mobile-open');document.getElementById('side-backdrop').classList.remove('show');}
+function closeSidebar(){window.PlatformMenu?.setMobileOpen(false);}
 
 
 function pageJumpScrollTarget(){
@@ -6732,6 +6748,7 @@ function go(view){
   if(view==="admin")renderAdmin();
   if(view==="investidores")renderInvestidores();
   updateNavBadge();scheduleActivePageArt();
+  window.PlatformMenu?.sync();
   PlatformNav.after();
 }
 

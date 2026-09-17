@@ -1,6 +1,5 @@
 #view-dashboards{--hub-color:#f88808;--hub-tint:#fef5ea;max-width:1600px;margin:auto;letter-spacing:0}
 #view-dashboards *{box-sizing:border-box;letter-spacing:0}
-.main:has(#view-dashboards.active){background:#fff}
 #view-dashboards>.page-art-layer{display:none}
 .hub-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 0;border-top:4px solid var(--hub-color);border-bottom:1px solid var(--line)}
 .hub-identity{display:flex;gap:20px;align-items:center;min-width:0}.hub-identity>img{flex:0 0 86px}.hub-heading h1{font-size:29px;line-height:1.2;margin:3px 0 5px;color:#153e39}.hub-heading p{margin:0;font-size:14px;color:#506762}.hub-heading .eyebrow{font-size:10px;letter-spacing:0;color:#667a73}.hub-heading>.btn{flex-shrink:0}
