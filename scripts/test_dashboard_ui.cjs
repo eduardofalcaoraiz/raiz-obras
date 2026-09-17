@@ -88,6 +88,21 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
    const widths=await page.locator('.capex-unit-card').evaluate(e=>({card:e.getBoundingClientRect().width,grid:e.parentElement.getBoundingClientRect().width}));
    assert(Math.abs(widths.card-widths.grid)<2,'Single CAPEX unit must fill its row');
   }
+  if(name==='requests'){
+   const selector='#esf-capex-drill .capex-summary-actions .btn-primary:visible',editButtons=page.locator(selector);
+   assert.equal(await editButtons.count(),2,'Both CAPEX edit actions must be rendered');
+   await unfilled(selector);
+   assert.deepEqual(await editButtons.evaluateAll(es=>es.map(e=>{const s=getComputedStyle(e);return {color:s.color,textShadow:s.textShadow};})),Array.from({length:2},()=>({color:'rgb(23, 60, 52)',textShadow:'none'})));
+   const newRequest=page.getByRole('button',{name:/Novo pedido$/});
+   assert.equal(await newRequest.evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(8, 184, 168)','Primary actions outside CAPEX summaries must keep their brand fill');
+   await editButtons.first().hover();
+   await page.waitForFunction(()=>document.querySelector('#esf-capex-drill .capex-summary-actions .btn-primary').getAnimations().length===0);
+   const hover=await editButtons.first().evaluate(e=>{const s=getComputedStyle(e);return {background:s.backgroundColor,image:s.backgroundImage,color:s.color,textShadow:s.textShadow};});
+   assert.match(hover.background,/^rgba?\(255, 255, 255(?:, 0\.\d+)?\)$/,'CAPEX edit hover must remain neutral');
+   assert.equal(hover.image,'none');assert.equal(hover.color,'rgb(23, 60, 52)');assert.equal(hover.textShadow,'none');
+   await page.mouse.move(0,0);
+   await page.waitForFunction(()=>document.querySelector('#esf-capex-drill .capex-summary-actions .btn-primary').getAnimations().length===0);
+  }
  }
  await page.evaluate(()=>{go('capex');drillCapex(2024,null,null);});assert.equal(writes.length,0,'Historical navigation cannot update financial records');
  await page.setViewportSize({width:390,height:844});

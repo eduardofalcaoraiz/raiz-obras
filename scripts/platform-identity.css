@@ -40,8 +40,8 @@
 .app .main .capex-summary-id,.app .main .capex-summary-data,.app .main .capex-expander-card .capex-zeev-money{border:0;border-radius:0;background:none}
 .app .main .capex-summary-data{padding:4px 0}
 .app .main .capex-summary-code{border:0;background:none;padding:0}
-.app .main .capex-summary-actions .btn-primary{background:none;border-color:#173c3420;color:var(--ink);text-shadow:none}
-.app .main .capex-summary-actions .btn-primary:hover{background:#ffffff80}
+#app .main .capex-summary-actions .btn-primary{background:none;border-color:#173c3420;color:var(--ink);text-shadow:none}
+#app .main .capex-summary-actions .btn-primary:hover{background:#ffffff80}
 .app .main .capex-zeev-list{max-height:none;overflow:visible}
 #esf-capex-drill .pgrid,#esf-grid.pgrid{grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));container-type:inline-size}
 .app .main .obra-card{border:0;border-bottom:1px solid #173c3417;border-radius:0;box-shadow:none;min-height:0;background:none}
