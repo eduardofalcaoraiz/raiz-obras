@@ -3,11 +3,11 @@
 #view-realestate #realestate-page-description:empty{display:none}
 #view-realestate .realestate-area-tabs{display:flex;flex-wrap:wrap;gap:0;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:0;margin-bottom:20px}
 #view-realestate .realestate-area-tab{border-radius:0;min-height:46px;border-bottom:3px solid transparent;box-shadow:none;color:var(--muted);padding:10px 18px}
-#view-realestate .realestate-area-tab.active{border-bottom-color:var(--brand-cur);color:var(--brand-text);background:var(--surface)}
+#view-realestate .realestate-area-tab.active{border-bottom-color:var(--brand-cur);color:var(--brand-text);background:none}
 #view-realestate .realestate-toolbar{gap:12px;margin:16px 0 0;align-items:end;padding-bottom:12px;border-bottom:1px solid var(--line)}
 #view-realestate .realestate-toolbar>.fl{margin-bottom:5px}
-#view-realestate .realestate-toolbar .fi{min-height:38px}
-#view-realestate .realestate-filter-check{min-height:38px;font-size:12px}
+#view-realestate .realestate-toolbar .fi{min-height:38px;max-width:none}
+#view-realestate .realestate-filter-check{min-height:38px;font-size:12px;border:0;background:none;padding-inline:0}
 #view-realestate .realestate-toolbar .fl{font-size:12px}
 #realestate-kpis:empty{display:none}
 #realestate-kpis .kpi{background:var(--raiz-card-gradient);padding:14px 18px}
@@ -22,7 +22,7 @@
 .re-brand-section-head{display:flex;align-items:center;gap:12px;margin:0 0 12px;padding:0 0 10px;border-bottom:2px solid var(--re-color)}
 .re-brand-section-head h2{font-size:14px;margin:0;letter-spacing:0}
 .re-brand-section-head>span{margin-left:auto;font-size:11px;color:var(--muted)}
-.re-brand-section .re-property-grid{gap:14px;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))}
+.re-brand-section .re-property-grid{gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
 .re-brand-section .re-property-card h2{font-size:17px}
 .re-sub-tabs{margin-bottom:12px;overflow-x:auto;flex-wrap:nowrap;max-width:100%}
 .re-sub-tabs .tabbtn{white-space:nowrap;font-size:13px;letter-spacing:0}

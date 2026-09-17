@@ -13,7 +13,7 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
   return r.fulfill({json:u.pathname.includes('/auth/')?{}:[]});
  });
  await ctx.route(base+'/api/**',r=>{writes.push(r.request().url());return r.fulfill({status:403,json:{error:'No API operations allowed'}});});
- if(!production)await ctx.route(base+'/**',r=>{const u=new URL(r.request().url()),f=path.resolve(root,'.'+(u.pathname==='/'?'/index.html':u.pathname));if(!f.startsWith(path.resolve(root)+path.sep)||!fs.existsSync(f))return r.fulfill({status:404,body:''});return r.fulfill({path:f,contentType:f.endsWith('.js')?'text/javascript':f.endsWith('.css')?'text/css':f.endsWith('.html')?'text/html':undefined});});
+ if(!production)await ctx.route(base+'/**',r=>{const u=new URL(r.request().url()),f=path.resolve(root,'.'+decodeURIComponent(u.pathname==='/'?'/index.html':u.pathname));if(!f.startsWith(path.resolve(root)+path.sep)||!fs.existsSync(f))return r.fulfill({status:404,body:''});return r.fulfill({path:f,contentType:f.endsWith('.js')?'text/javascript':f.endsWith('.css')?'text/css':f.endsWith('.html')?'text/html':undefined});});
  const page=await ctx.newPage();page.on('pageerror',e=>{errors.push(e.message);console.error(e.message);});
  page.on('console',m=>{if(['error','warning'].includes(m.type()))console.error(m.type()+': '+m.text());});
  await page.goto(base,{waitUntil:'networkidle'});
@@ -31,10 +31,20 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
   realEstateSublocacoes=[{id:'33333333-3333-4333-8333-333333333333',marca:'CUBO',unidade:'Barra Golfe',sublocatario:'Operador Exemplo',tipo:'Cantina',status:'Atencao',valor_referencia:1188,revisao_pendente:true,cobrancas:[],divergencias:[]}];
   capexZeevLoaded=true;AccessControl.syncUi();
  });
- async function shot(name){await page.locator('.main').evaluate(e=>e.scrollTop=0);await page.locator('.view.active img').evaluateAll(es=>Promise.all(es.filter(e=>e.getBoundingClientRect().top<innerHeight).map(e=>e.decode().catch(()=>{}))));await page.screenshot({path:out+'/'+prefix+'-'+name+'.png'});screens.push(name);}
+ async function shot(name){await page.locator('.main').evaluate(e=>e.scrollTop=0);await page.locator('.view.active img,#sidebar img').evaluateAll(es=>Promise.all(es.filter(e=>e.getBoundingClientRect().top<innerHeight).map(e=>e.decode().catch(()=>{}))));await page.screenshot({path:out+'/'+prefix+'-'+name+'.png'});screens.push(name);}
  async function checkLayout(name){const overflow=await page.evaluate(()=>[...document.querySelectorAll('.view.active .dash-shell,.view.active .dash-metrics')].filter(e=>e.getBoundingClientRect().width>0).filter(e=>e.getBoundingClientRect().right>innerWidth+2).map(e=>e.className));assert.deepEqual(overflow,[],name+' overflow');}
  const hub=page.locator('#dashboard-hub-body');
  await page.evaluate(()=>DashboardHub.open('capex',{year:'2026'}));await shot('capex-desktop');
+ async function fillsWorkspace(selector){
+  const widths=await page.locator(selector).evaluate(e=>({content:e.getBoundingClientRect().width,available:document.querySelector('.main').clientWidth}));
+  assert(widths.available-widths.content<=42,selector+' leaves unused horizontal space');
+ }
+ for(const width of [1920,2560]){
+  await page.setViewportSize({width,height:1080});await fillsWorkspace('#view-dashboards');await checkLayout('wide-'+width);await shot('capex-wide-'+width);
+  assert.equal(await page.locator('.dash-metric').first().evaluate(e=>getComputedStyle(e).borderTopWidth),'0px');
+  assert.equal(await page.locator('.dash-table-wrap').first().evaluate(e=>getComputedStyle(e).borderLeftWidth),'0px');
+ }
+ await page.setViewportSize({width:1440,height:1000});
  assert.match(await hub.locator('.dash-metrics').innerText(),/46\.000,00/);
  await page.locator('[data-hub-filter=brand]').selectOption('CUBO');assert.match(await hub.locator('.dash-metrics').innerText(),/31\.000,00/);await shot('capex-brand');
  assert.equal(await page.locator('#view-dashboards').evaluate(e=>e.style.getPropertyValue('--hub-color')),'#08B8A8');
@@ -56,12 +66,22 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
  await page.evaluate(()=>DashboardHub.open('realestate_locacoes',{brand:'MATRIZ'}));assert.match(await hub.locator('.dash-metrics').innerText(),/0 não encerrados/);
  await page.evaluate(()=>{go('realestate');document.getElementById('realestate-search').value='Unrelated previous query';document.getElementById('realestate-review-filter').checked=true;DashboardHub.open('realestate_locacoes',{brand:'MATRIZ'});DashboardHub.records();});assert.equal(await page.locator('#realestate-search').inputValue(),'');assert.equal(await page.locator('#realestate-review-filter').isChecked(),false);assert.equal(await page.locator('#re-brand-filter').inputValue(),'MATRIZ');
  await page.evaluate(()=>DashboardHub.open('realestate_locacoes',{brand:'SÁ PEREIRA'}));await hub.getByRole('button',{name:'Sá Pereira Matriz',exact:true}).click();await page.waitForFunction(()=>document.getElementById('realestate-property-view').hidden===false);assert.equal(await page.locator('#nav button.active').getAttribute('data-nav'),'realestate');
+ await page.setViewportSize({width:2560,height:1080});await fillsWorkspace('.re-property-page');await shot('property-wide');await page.setViewportSize({width:1440,height:1000});
  await page.getByRole('button',{name:'Voltar aos dashboards',exact:true}).click();assert.equal(await page.locator('[data-hub-filter=brand]').inputValue(),'SÁ PEREIRA');
  await page.evaluate(()=>DashboardHub.open('forn',{brand:'MATRIZ'}));await page.locator('[data-hub-records]').click();assert.equal(await page.locator('[data-dash-change=records-brand-forn]').inputValue(),'MATRIZ');assert.doesNotMatch(await page.locator('#forn-grid').innerText(),/Fornecedor B/);
  await page.evaluate(()=>DashboardHub.open('capex',{year:'2026',brand:'CUBO'}));const hubHash=await page.evaluate(()=>location.hash);await page.evaluate(()=>go('escolas'));await page.goBack();await page.waitForFunction(()=>DashboardHub.active());assert.equal(await page.evaluate(()=>location.hash),hubHash);
  await page.goForward();await page.waitForFunction(()=>document.getElementById('view-escolas').classList.contains('active'));
  await page.evaluate(()=>{location.hash='#dashboards/capex?year=2026&brand=CUBO&unit=Cubo+Marapendi';});await page.waitForFunction(()=>DashboardHub.active()&&DashboardHub.scope().unit==='Cubo Marapendi');
  for(const view of ['capex','nova','expansao','cobranca','forn','investidores','escolas','realestate']){await page.evaluate(v=>go(v),view);assert.equal(await page.locator('.view.active .dash-metrics').count(),0,view+' must remain operational');assert.equal(await page.locator('#nav button.active').getAttribute('data-nav'),view);await shot('records-'+view);}
+ const property=page.locator('.re-property-card:visible').first(),grid=page.locator('.re-property-grid:visible').first();
+ assert(Math.abs((await property.boundingBox()).width-(await grid.boundingBox()).width)<2,'Single property must fill its row');
+ for(const [name,brand,unit]of [['brands',null,null],['units','CUBO',null],['requests','CUBO','Cubo Marapendi']]){
+  await page.evaluate(({brand,unit})=>{go('capex');drillCapex(2026,brand,unit);},{brand,unit});await shot('capex-'+name);
+  if(name==='units'){
+   const widths=await page.locator('.capex-unit-card').evaluate(e=>({card:e.getBoundingClientRect().width,grid:e.parentElement.getBoundingClientRect().width}));
+   assert(Math.abs(widths.card-widths.grid)<2,'Single CAPEX unit must fill its row');
+  }
+ }
  await page.evaluate(()=>{go('capex');drillCapex(2024,null,null);});assert.equal(writes.length,0,'Historical navigation cannot update financial records');
  await page.setViewportSize({width:390,height:844});
  for(const panel of panels){await page.evaluate(p=>DashboardHub.open(p,{}),panel);await checkLayout(panel);await shot(panel+'-mobile');}
@@ -74,6 +94,6 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
  for(const panel of panels){await page.evaluate(p=>DashboardHub.open(p,{}),panel);assert(!/NaN|undefined/.test(await hub.innerText()));}
  await page.evaluate(async()=>{DashboardHub.open('capex',{});const original=loadCapexData;capexDataLoaded=false;loadCapexData=async()=>{throw new Error('Simulated read failure');};await DashboardHub.render();loadCapexData=original;capexDataLoaded=true;});assert(await hub.getByRole('alert').isVisible());assert.equal(await hub.locator('.dash-metrics').count(),0);
  assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);
- fs.writeFileSync(out+'/'+prefix+'-ui-validation.json',JSON.stringify({passed:true,errors,writes,screens,viewports:['1440x1000','390x844'],fixtureData:true},null,2));console.log('PASS dashboards: '+screens.length+' screenshots, filters, read permissions, empty states; zero writes.');
+ fs.writeFileSync(out+'/'+prefix+'-ui-validation.json',JSON.stringify({passed:true,errors,writes,screens,viewports:['2560x1080','1920x1080','1440x1000','390x844'],fixtureData:true},null,2));console.log('PASS dashboards: '+screens.length+' screenshots, full-width layouts, filters, read permissions, empty states; zero writes.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});

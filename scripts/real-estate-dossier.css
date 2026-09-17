@@ -5,26 +5,26 @@
 .re-dossier :focus-visible{outline:2px solid var(--brand-cur);outline-offset:2px}
 .re-dossier-content{min-height:100px;min-width:0}
 .re-expense-tabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:0 0 12px;max-width:100%;border:0;background:none}
-.re-expense-tabs .tabbtn{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;padding:10px 12px;font-size:12px;text-align:left;letter-spacing:0;border-radius:8px;border:1px solid var(--line);background:var(--surface)}
+.re-expense-tabs .tabbtn{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;padding:10px 12px;font-size:12px;text-align:left;letter-spacing:0;border-radius:0;border:0;border-bottom:2px solid transparent;background:none}
 .re-expense-tabs .tabbtn>span{font-weight:700;min-height:16px;line-height:1.3}
 .re-expense-tabs .tabbtn>strong{font-size:14px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .re-expense-tabs .tabbtn>small{font-size:10px;color:var(--muted)}
-.re-expense-tabs .tabbtn.active{color:var(--brand-text);border-color:var(--brand-cur);box-shadow:inset 0 3px var(--brand-cur);background:linear-gradient(135deg,var(--surface),var(--brand-cur-light))}
+.re-expense-tabs .tabbtn.active{color:var(--brand-text);border-bottom-color:var(--brand-cur);box-shadow:none;background:linear-gradient(0deg,var(--brand-cur-light),transparent)}
 .re-payment-tax{display:block;margin-top:7px;font-size:10.5px;color:var(--muted);line-height:1.5;overflow-wrap:anywhere}
 .re-dossier-warning{color:#845900}
 .re-payment-allocation{border-bottom:1px solid var(--line);padding-bottom:12px}
 @media(max-width:1000px){.re-expense-tabs{display:flex;flex-wrap:nowrap;overflow-x:auto}.re-expense-tabs .tabbtn{flex:0 0 155px}}
 .re-dossier-toolbar{display:flex;align-items:end;gap:10px;margin:0 0 14px;padding:14px 0;flex-wrap:wrap}
-.re-dossier-toolbar label{display:grid;gap:5px;font-size:11px;font-weight:600;flex:1;min-width:105px;max-width:170px;letter-spacing:0}
+.re-dossier-toolbar label{display:grid;gap:5px;font-size:11px;font-weight:600;flex:1;min-width:105px;letter-spacing:0}
 .re-dossier-toolbar label:first-child{flex:2;min-width:min(100%,220px);max-width:none}
-.re-dossier-toolbar .re-filter-supplier{flex:1.6;max-width:250px}
+.re-dossier-toolbar .re-filter-supplier{flex:1.6}
 .re-dossier-toolbar .fi{height:36px;width:100%;min-width:0;max-width:100%;font-size:12px;padding:6px 9px;border-radius:6px;background:var(--surface)}
 .re-dossier-toolbar .re-filter-clear{width:36px;height:36px;padding:8px;flex-shrink:0}
 .re-dossier-metrics{display:flex;align-items:baseline;gap:8px 22px;margin:0;flex-wrap:wrap;font-size:11px;color:var(--muted);padding:4px 0}
 .re-dossier-metrics>div{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .re-dossier-metrics .lab{font-size:11px!important;margin:0!important}
 .re-dossier-metrics .val{font-size:19px!important;color:var(--brand-text);line-height:1.3}
-.re-dossier-metrics .kpi{background:var(--surface);border-radius:8px;padding:14px 16px;border-top:3px solid var(--line)}
+.re-dossier-metrics .kpi{background:none;border-radius:0;padding:10px 0;border:0}
 .re-dossier-metrics .kpi:first-child{border-top-color:var(--brand-cur)}
 .re-dossier-metrics .kpi:first-child .val{color:var(--brand-text)}
 .re-dossier-metrics .re-metric-review{border-top-color:#bf841d}
@@ -40,7 +40,7 @@
 .re-dossier-pager>div{display:flex;align-items:center;gap:10px}
 .re-dossier-pager .btn{width:32px;height:32px;padding:7px;border-radius:6px}
 .re-payment-list{display:grid;gap:8px}
-.re-payment-row.card.pag-row{margin:0;padding:0;overflow:hidden;border-radius:var(--r-lg);background:linear-gradient(135deg,var(--surface),var(--brand-cur-light) 145%);border-left:4px solid var(--brand-cur);box-shadow:none;letter-spacing:0}
+.re-payment-row.card.pag-row{margin:0;padding:0;overflow:hidden;border:0;border-radius:6px;background:linear-gradient(135deg,var(--surface),var(--brand-cur-light) 145%);border-left:3px solid var(--brand-cur);box-shadow:none;letter-spacing:0}
 .re-payment-row.review{border-left-color:#bd861e!important}
 .re-payment-row.provisional{border-left-color:#458aa0!important}
 .re-payment-row.cancelled{border-left-color:#929e9b!important}
@@ -52,7 +52,7 @@
 .re-payment-tags{display:flex;align-items:center;flex-wrap:wrap;gap:5px 8px;margin-top:7px;font-size:10.5px;color:var(--muted)}
 .re-payment-ticket{font-weight:750;color:var(--brand-text);background:var(--brand-cur-light);border:1px solid var(--line);border-radius:5px;padding:2px 6px}
 .re-payment-period{display:block;font-size:11px;color:var(--muted);margin-top:7px;font-variant-numeric:tabular-nums}
-.re-payment-reference{border-inline:1px solid var(--line);padding:0 14px;font-size:13px;line-height:1.5}
+.re-payment-reference{padding:0 14px;font-size:13px;line-height:1.5}
 .re-payment-description{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .re-payment-stage{display:block;color:var(--muted);font-size:10.5px;margin-top:7px;overflow-wrap:anywhere}
 .re-payment-amount{display:flex;flex-direction:column;align-items:flex-end;gap:6px;text-align:right}

@@ -10,6 +10,11 @@ a solid dark sidebar or a generic white theme.
   The sidebar, page headings and dashboard highlights follow those tokens.
 - Keep gradients broad and light. Financial tables and documents need neutral,
   readable surfaces. Preserve semantic colors for financial indicators.
+- Use the full available workspace width. Avoid arbitrary page width caps,
+  boxed page headings, nested summary cards and excessive divider lines.
+  Group information with alignment, typography and purposeful spacing instead.
+- Preserve boundaries for real inputs, dialogs and individual repeated records.
+  A filtered single property expands into a horizontal summary on wide screens.
 - Keep the grouped menu, including Real Estate, accessible icons, counters,
   collapsed navigation, mobile drawer and permission-specific visibility.
 - Visual changes must not change data, permissions or financial calculations.

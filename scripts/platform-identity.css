@@ -1,27 +1,63 @@
 /* Gradients are part of the brand identity; tables remain neutral and readable. */
 #app>.main{--workspace-color:var(--raiz-primary);--workspace-soft:var(--raiz-soft);--workspace-text:var(--raiz-text);background:linear-gradient(145deg,color-mix(in srgb,var(--workspace-soft) 62%,#f5f7f4) 0%,#f8f7f3 45%,#eef5f1 100%)}
 .app .main .dash-shell{background:transparent}
-.app .main .view>.phead{border-top:3px solid var(--workspace-color);border-bottom:1px solid color-mix(in srgb,var(--workspace-color) 25%,#d7e2dc);background:linear-gradient(115deg,color-mix(in srgb,var(--workspace-color) 19%,white) 0%,var(--workspace-soft) 45%,#f7faf8 100%);padding:20px 20px 18px;margin-top:8px;gap:18px}
+.app .main .view>.phead{border:0;background:none;padding:18px 0 8px;margin:0 0 18px;gap:16px}
 .app .main .view>.phead h1{color:#173c34}
 .app .main .view>.phead .eyebrow{color:var(--workspace-text)}
 .app .main .view>.phead p,.app .main .view>.phead .desc{color:#48625a}
-#view-dashboards .hub-heading{padding:22px 20px;border-top:3px solid var(--hub-color);background:linear-gradient(115deg,color-mix(in srgb,var(--hub-color) 23%,white) 0%,var(--hub-tint) 48%,#f5faf7 100%);border-bottom-color:color-mix(in srgb,var(--hub-color) 24%,#dce5df)}
-#view-dashboards .hub-identity>img{background:#ffffffde;padding:8px;border-radius:6px}
+#view-dashboards .hub-heading{padding:22px 0 12px;border:0;background:none}
+#view-dashboards .hub-identity>img{background:none;padding:4px;border-radius:0}
 #view-dashboards .hub-heading>.btn{background:#ffffffbd;border-color:color-mix(in srgb,var(--hub-color) 25%,#d6dfd8)}
-#view-dashboards .hub-controls{background:linear-gradient(115deg,color-mix(in srgb,var(--hub-tint) 60%,white),#f4f8f5);margin:0;padding:18px 20px;border-bottom-color:#d3dfd7}
-#view-dashboards .hub-brand-strip button{background:linear-gradient(125deg,#fff,color-mix(in srgb,var(--brand-accent) 15%,white));border-color:color-mix(in srgb,var(--brand-accent) 25%,#dce5df);border-bottom:3px solid var(--brand-accent)}
-#view-dashboards .hub-brand-strip button:hover{background:linear-gradient(125deg,#fff,color-mix(in srgb,var(--brand-accent) 24%,white))}
-#view-dashboards .dash-metrics{background:linear-gradient(120deg,var(--hub-tint),#f8faf7);border-bottom:1px solid color-mix(in srgb,var(--hub-color) 25%,#dce5df)}
-#view-dashboards .dash-metric{background:linear-gradient(135deg,#fff,var(--hub-tint));border-top:3px solid var(--hub-color)}
-#view-dashboards .dash-metric.blue{background:linear-gradient(135deg,#f9fcff,#dcecf9);border-top-color:#347da4}
-#view-dashboards .dash-metric.green{background:linear-gradient(135deg,#f7fcf8,#daede0);border-top-color:#388261}
-#view-dashboards .dash-metric.amber{background:linear-gradient(135deg,#fffaf2,#ffe6be);border-top-color:#cd861e}
-#view-dashboards .dash-metric.red{background:linear-gradient(135deg,#fff9f7,#f8e0d9);border-top-color:#bc5944}
+#view-dashboards .hub-controls{background:none;margin:0;padding:10px 0 12px;border:0}
+#view-dashboards .hub-brand-strip button{background:none;border:0;border-bottom:2px solid transparent;border-radius:0}
+#view-dashboards .hub-brand-strip button:hover{background:color-mix(in srgb,var(--brand-accent) 9%,transparent);border-bottom-color:var(--brand-accent)}
+#view-dashboards .dash-metrics{background:linear-gradient(105deg,color-mix(in srgb,var(--hub-tint) 65%,transparent),transparent);border:0}
+#view-dashboards .dash-metric,#view-dashboards .dash-metric:first-child{background:none;border:0}
+#view-dashboards button.dash-metric:hover{background:#ffffff70}
 #view-dashboards .dash-table th{background:color-mix(in srgb,var(--hub-tint) 65%,white)}
-.app .dash-section>header{border-left:3px solid var(--hub-color,var(--workspace-color));padding-left:12px}
-#view-realestate .re-brand-section-head{padding:12px;background:linear-gradient(110deg,color-mix(in srgb,var(--re-color) 18%,white),#f7faf8);border-bottom-width:3px}
-#view-realestate .re-property-card-top{background:linear-gradient(125deg,#ffffffea,var(--re-tint));border-bottom-color:color-mix(in srgb,var(--re-color) 20%,#dce5df)}
-#view-realestate .re-property-heading{padding:18px;background:linear-gradient(115deg,var(--brand-cur-light,var(--workspace-soft)),#f8fbf9)}
-.app .platform-context-nav{padding-top:10px}
-@media(max-width:700px){.app .main .view>.phead{padding:16px 12px;gap:12px}#view-dashboards .hub-heading{padding:16px 12px}#view-dashboards .hub-controls{padding:16px 12px}}
+.app .dash-section>header{border:0;padding-left:0}
+#view-realestate .re-brand-section-head{padding:8px 0;background:none;border:0}
+#view-realestate .re-property-card-top{background:none;border:0}
+#view-realestate .re-property-heading{padding:12px 0 16px;background:none;border:0}
+.app .platform-context-nav{padding-top:8px;margin-bottom:4px}
+
+/* Unframe page sections and nested financial summaries, not inputs or dialogs. */
+.app .main>.wrap{padding-inline:20px}
+.app .main .capex-navline,.app .main .capex-context,.app .main .capex-tr-search,.app .main .capex-budget-band{border:0;border-radius:0;box-shadow:none;background:none;padding-inline:0}
+.app .main .capex-brand-card,.app .main .capex-unit-card,.app .main .capex-year-card{border:1px solid #173c3410;border-radius:8px;box-shadow:none;min-height:0}
+.app .main .capex-brand-head,.app .main .capex-unit-head,.app .main .capex-year-hero{border:0;background:none}
+.app .main .capex-brand-head:after,.app .main .capex-year-card:before{display:none}
+.app .main .capex-brand-logo,.app .main .capex-unit-logo{border:0;border-radius:6px;box-shadow:none;background:#ffffff80}
+.app .main .capex-brand-balance,.app .main .capex-unit-balance,.app .main .capex-year-balance,.app .main .capex-money-panel{border:0;background:none;border-radius:0;padding:4px 0 8px}
+.app .main .capex-brand-stat,.app .main .capex-unit-stat,.app .main .capex-year-mini,.app .main .cyear-metric{border:0;background:none;border-radius:0;padding:6px 0}
+.app .main .capex-brand-footer,.app .main .capex-unit-footer{border-color:#173c3410;background:none}
+.app .main .capex-expander-card{border:0;border-radius:6px;box-shadow:none;margin-bottom:8px}
+.app .main .capex-expander-card:hover{transform:none;box-shadow:none;background:linear-gradient(120deg,#fff,color-mix(in srgb,var(--card-soft) 55%,white))}
+.app .main .capex-summary-id,.app .main .capex-summary-data,.app .main .capex-expander-card .capex-zeev-money{border:0;border-radius:0;background:none}
+.app .main .capex-summary-data{padding:4px 0}
+.app .main .capex-summary-code{border:0;background:none;padding:0}
+.app .main .capex-zeev-list{max-height:none;overflow:visible}
+#esf-capex-drill .pgrid,#esf-grid.pgrid{grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));container-type:inline-size}
+.app .main .obra-card{border-radius:8px;border-color:#173c3410;box-shadow:none;min-height:0;background:linear-gradient(125deg,#fff,var(--brand-cur-light))}
+.app .main .obra-brand-pill,.app .main .obra-card-unit-chip,.app .main .obra-card-builder,.app .main .obra-card-pill{border:0;border-radius:0;background:none;padding-inline:0}
+.app .main .obra-card-constr{border:0;padding:0}
+.app .main .obra-card-meta-line{gap:8px 16px}
+@container(min-width:850px){
+ .app .main .obra-card:only-child{display:grid;grid-template-columns:minmax(0,1fr) 180px}
+ .app .main .obra-card:only-child .obra-card-head{grid-column:1/-1}
+ .app .main .obra-card:only-child .obra-card-body{display:grid;grid-template-columns:1.2fr 1fr;gap:8px 24px}
+ .app .main .obra-card:only-child .obra-card-body h3,.app .main .obra-card:only-child .obra-card-units,.app .main .obra-card:only-child .obra-card-subtitle{grid-column:1}
+ .app .main .obra-card:only-child .obra-card-constr{grid-column:2;grid-row:1/span 2}
+ .app .main .obra-card:only-child .obra-card-meta-line{grid-column:1/-1}
+ .app .main .obra-card:only-child .obra-card-btn{align-self:center}
+ .app .main .capex-unit-card:only-child,.app .main .capex-brand-card:only-child{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.4fr)}
+ .app .main .capex-unit-card:only-child .capex-unit-head,.app .main .capex-brand-card:only-child .capex-brand-head{align-content:start;padding-top:24px}
+ .app .main .capex-unit-card:only-child .capex-unit-body,.app .main .capex-brand-card:only-child .capex-brand-body{display:grid;grid-template-columns:1fr 1fr;align-items:start;gap:16px 24px;padding-top:24px}
+ .app .main .capex-unit-card:only-child .capex-unit-progress,.app .main .capex-brand-card:only-child .capex-brand-progress{grid-column:1/-1}
+ .app .main .capex-unit-card:only-child .capex-unit-footer,.app .main .capex-brand-card:only-child .capex-brand-footer{grid-column:1/-1}
+}
+@media(min-width:1000px){
+ .app .main .capex-expander-summary{min-width:0;grid-template-columns:minmax(112px,.6fr) minmax(0,2fr) minmax(130px,.7fr) 120px 28px;gap:8px 14px}
+}
+@media(max-width:700px){.app .main>.wrap{padding-inline:14px}.app .main .view>.phead{padding:16px 0 4px;gap:12px}#view-dashboards .hub-heading{padding:16px 0 8px}#view-dashboards .hub-controls{padding:10px 0}}
 @media print{.app .main,#view-dashboards .hub-heading,.app .main .view>.phead{background:white}}
