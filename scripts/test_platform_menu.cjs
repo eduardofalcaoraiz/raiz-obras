@@ -53,7 +53,8 @@ fs.mkdirSync(output,{recursive:true});
   assert.equal(await page.locator('#side-color-layer').evaluate(e=>e.getBoundingClientRect().height),1000);
   assert.equal(await page.locator('#sidebar .brand b').evaluate(e=>getComputedStyle(e).color),'rgb(23, 60, 52)');
   for(const selector of ['.dash-metrics','#sidebar .nav button.active']){
-   assert.match(await page.locator(selector).first().evaluate(e=>getComputedStyle(e).backgroundImage),/linear-gradient/,selector);
+   assert.equal(await page.locator(selector).first().evaluate(e=>getComputedStyle(e).backgroundImage),'none',selector+' should not be a colored rectangle');
+   assert.equal(await page.locator(selector).first().evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)',selector);
   }
   for(const selector of ['.hub-heading','.hub-controls','.dash-metric']){
    assert.equal(await page.locator(selector).first().evaluate(e=>getComputedStyle(e).borderTopWidth),'0px',selector+' must not be boxed');

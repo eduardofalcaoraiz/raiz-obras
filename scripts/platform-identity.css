@@ -1,5 +1,6 @@
 /* Gradients are part of the brand identity; tables remain neutral and readable. */
-#app>.main{--workspace-color:var(--raiz-primary);--workspace-soft:var(--raiz-soft);--workspace-text:var(--raiz-text);background:linear-gradient(145deg,color-mix(in srgb,var(--workspace-soft) 62%,#f5f7f4) 0%,#f8f7f3 45%,#eef5f1 100%)}
+#app>.main{--workspace-color:var(--raiz-primary);--workspace-soft:var(--raiz-soft);--workspace-text:var(--raiz-text);--raiz-card-gradient:linear-gradient(135deg,#ffffff40,#ffffff10);--raiz-panel-gradient:linear-gradient(135deg,#ffffff30,#ffffff08);background:linear-gradient(145deg,color-mix(in srgb,var(--workspace-soft) 24%,#f6f7f5) 0%,#f7f8f6 48%,#f1f6f3 100%)}
+#app>.main .page-art-layer{display:none}
 .app .main .dash-shell{background:transparent}
 .app .main .view>.phead{border:0;background:none;padding:18px 0 8px;margin:0 0 18px;gap:16px}
 .app .main .view>.phead h1{color:#173c34}
@@ -11,10 +12,12 @@
 #view-dashboards .hub-controls{background:none;margin:0;padding:10px 0 12px;border:0}
 #view-dashboards .hub-brand-strip button{background:none;border:0;border-bottom:2px solid transparent;border-radius:0}
 #view-dashboards .hub-brand-strip button:hover{background:color-mix(in srgb,var(--brand-accent) 9%,transparent);border-bottom-color:var(--brand-accent)}
-#view-dashboards .dash-metrics{background:linear-gradient(105deg,color-mix(in srgb,var(--hub-tint) 65%,transparent),transparent);border:0}
+#view-dashboards .dash-metrics{background:none;border:0}
 #view-dashboards .dash-metric,#view-dashboards .dash-metric:first-child{background:none;border:0}
 #view-dashboards button.dash-metric:hover{background:#ffffff70}
-#view-dashboards .dash-table th{background:color-mix(in srgb,var(--hub-tint) 65%,white)}
+#view-dashboards .dash-table{background:transparent}
+#view-dashboards .dash-table th{background:#173c3405}
+#view-dashboards .dash-metric.blue strong,#view-dashboards .dash-metric.green strong{color:var(--ink)}
 .app .dash-section>header{border:0;padding-left:0}
 #view-realestate .re-brand-section-head{padding:8px 0;background:none;border:0}
 #view-realestate .re-property-card-top{background:none;border:0}
@@ -24,24 +27,35 @@
 /* Unframe page sections and nested financial summaries, not inputs or dialogs. */
 .app .main>.wrap{padding-inline:20px}
 .app .main .capex-navline,.app .main .capex-context,.app .main .capex-tr-search,.app .main .capex-budget-band{border:0;border-radius:0;box-shadow:none;background:none;padding-inline:0}
-.app .main .capex-brand-card,.app .main .capex-unit-card,.app .main .capex-year-card{border:1px solid #173c3410;border-radius:8px;box-shadow:none;min-height:0}
+.app .main .capex-brand-card,.app .main .capex-unit-card,.app .main .capex-year-card{border:0;border-bottom:1px solid #173c3417;border-radius:0;box-shadow:none;min-height:0;background:none}
 .app .main .capex-brand-head,.app .main .capex-unit-head,.app .main .capex-year-hero{border:0;background:none}
-.app .main .capex-brand-head:after,.app .main .capex-year-card:before{display:none}
+.app .main .capex-brand-head:after,.app .main .capex-brand-card:before,.app .main .capex-unit-card:before,.app .main .capex-year-card:before,.app .main .capex-year-card:after{display:none}
 .app .main .capex-brand-logo,.app .main .capex-unit-logo{border:0;border-radius:6px;box-shadow:none;background:#ffffff80}
 .app .main .capex-brand-balance,.app .main .capex-unit-balance,.app .main .capex-year-balance,.app .main .capex-money-panel{border:0;background:none;border-radius:0;padding:4px 0 8px}
 .app .main .capex-brand-stat,.app .main .capex-unit-stat,.app .main .capex-year-mini,.app .main .cyear-metric{border:0;background:none;border-radius:0;padding:6px 0}
 .app .main .capex-brand-footer,.app .main .capex-unit-footer{border-color:#173c3410;background:none}
-.app .main .capex-expander-card{border:0;border-radius:6px;box-shadow:none;margin-bottom:8px}
-.app .main .capex-expander-card:hover{transform:none;box-shadow:none;background:linear-gradient(120deg,#fff,color-mix(in srgb,var(--card-soft) 55%,white))}
+.app .main .capex-expander-card{border:0;border-bottom:1px solid #173c3417;border-radius:0;box-shadow:none;background:none;margin-bottom:8px}
+.app .main .capex-expander-card:before{display:none}
+.app .main .capex-expander-card:hover{transform:none;box-shadow:none;background:#ffffff40}
 .app .main .capex-summary-id,.app .main .capex-summary-data,.app .main .capex-expander-card .capex-zeev-money{border:0;border-radius:0;background:none}
 .app .main .capex-summary-data{padding:4px 0}
 .app .main .capex-summary-code{border:0;background:none;padding:0}
+.app .main .capex-summary-actions .btn-primary{background:none;border-color:#173c3420;color:var(--ink);text-shadow:none}
+.app .main .capex-summary-actions .btn-primary:hover{background:#ffffff80}
 .app .main .capex-zeev-list{max-height:none;overflow:visible}
 #esf-capex-drill .pgrid,#esf-grid.pgrid{grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));container-type:inline-size}
-.app .main .obra-card{border-radius:8px;border-color:#173c3410;box-shadow:none;min-height:0;background:linear-gradient(125deg,#fff,var(--brand-cur-light))}
+.app .main .obra-card{border:0;border-bottom:1px solid #173c3417;border-radius:0;box-shadow:none;min-height:0;background:none}
+.app .main .obra-card:before{display:none}
+.app .main .obra-card:hover,.app .main .capex-brand-card:hover,.app .main .capex-unit-card:hover,.app .main .capex-year-card:hover{transform:none;box-shadow:none;background:#ffffff40}
 .app .main .obra-brand-pill,.app .main .obra-card-unit-chip,.app .main .obra-card-builder,.app .main .obra-card-pill{border:0;border-radius:0;background:none;padding-inline:0}
 .app .main .obra-card-constr{border:0;padding:0}
 .app .main .obra-card-meta-line{gap:8px 16px}
+.app .main .obra-card-btn{background:none;border-color:#173c3420;color:var(--ink);text-shadow:none}
+.app .main .obra-card-btn:hover{background:#ffffff80;box-shadow:none;transform:none}
+.app .main .view>.card,.app .main .tabpane>.card{background:none;border:0;box-shadow:none;border-radius:0}
+.app .main .kpi{background:none;border:0;border-radius:0;box-shadow:none}
+.app .main .capex-status-shell-simple .capex-status-card{background:none;border:0;border-bottom:1px solid #173c3417;border-radius:0;box-shadow:none}
+.app .main .capex-brand-stat b,.app .main .capex-unit-stat b,.app .main .capex-year-mini b{color:var(--ink)!important}
 @container(min-width:850px){
  .app .main .obra-card:only-child{display:grid;grid-template-columns:minmax(0,1fr) 180px}
  .app .main .obra-card:only-child .obra-card-head{grid-column:1/-1}

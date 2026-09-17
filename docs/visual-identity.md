@@ -10,6 +10,11 @@ a solid dark sidebar or a generic white theme.
   The sidebar, page headings and dashboard highlights follow those tokens.
 - Keep gradients broad and light. Financial tables and documents need neutral,
   readable surfaces. Preserve semantic colors for financial indicators.
+- The gradient belongs to the continuous page background, not individual
+  rectangles. Do not fill metric bands, property cards, work summaries or
+  payment rows with brand tints. Use logos, selected states and small accents.
+- Keep the sidebar gradient restrained. Active navigation needs a text/icon
+  emphasis and a small accent, not a colored capsule or a surrounding outline.
 - Use the full available workspace width. Avoid arbitrary page width caps,
   boxed page headings, nested summary cards and excessive divider lines.
   Group information with alignment, typography and purposeful spacing instead.

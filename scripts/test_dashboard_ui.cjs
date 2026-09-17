@@ -33,8 +33,13 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
  });
  async function shot(name){await page.locator('.main').evaluate(e=>e.scrollTop=0);await page.locator('.view.active img,#sidebar img').evaluateAll(es=>Promise.all(es.filter(e=>e.getBoundingClientRect().top<innerHeight).map(e=>e.decode().catch(()=>{}))));await page.screenshot({path:out+'/'+prefix+'-'+name+'.png'});screens.push(name);}
  async function checkLayout(name){const overflow=await page.evaluate(()=>[...document.querySelectorAll('.view.active .dash-shell,.view.active .dash-metrics')].filter(e=>e.getBoundingClientRect().width>0).filter(e=>e.getBoundingClientRect().right>innerWidth+2).map(e=>e.className));assert.deepEqual(overflow,[],name+' overflow');}
+ async function unfilled(selector){
+  const painted=await page.locator(selector).evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().width>0).filter(e=>{const s=getComputedStyle(e);return s.backgroundImage!=='none'||s.backgroundColor!=='rgba(0, 0, 0, 0)';}).map(e=>e.className));
+  assert.deepEqual(painted,[],selector+' must not paint colored panels');
+ }
  const hub=page.locator('#dashboard-hub-body');
  await page.evaluate(()=>DashboardHub.open('capex',{year:'2026'}));await shot('capex-desktop');
+ await unfilled('.dash-metrics,.dash-metric');
  async function fillsWorkspace(selector){
   const widths=await page.locator(selector).evaluate(e=>({content:e.getBoundingClientRect().width,available:document.querySelector('.main').clientWidth}));
   assert(widths.available-widths.content<=42,selector+' leaves unused horizontal space');
@@ -62,7 +67,7 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
  await page.evaluate(()=>{go('nova');esfFiltroMarca='MATRIZ';esfBusca='Recreio';renderEsfera();go('escolas');go('nova');});assert.equal(await page.evaluate(()=>esfFiltroMarca),'MATRIZ');assert.equal(await page.evaluate(()=>esfBusca),'Recreio');
  await page.evaluate(()=>go('expansao'));assert.equal(await page.evaluate(()=>esfFiltroMarca),'Todas');
  const panels=['capex','nova','expansao','cobranca','forn','investidores','escolas','realestate_locacoes','realestate_sublocacoes','registros'];
- for(const panel of panels){await page.evaluate(p=>DashboardHub.open(p,{}),panel);await checkLayout(panel);await shot(panel+'-desktop');assert(!/NaN|undefined/.test(await hub.innerText()));}
+ for(const panel of panels){await page.evaluate(p=>DashboardHub.open(p,{}),panel);await checkLayout(panel);await unfilled('.dash-metrics,.dash-metric');await shot(panel+'-desktop');assert(!/NaN|undefined/.test(await hub.innerText()));}
  await page.evaluate(()=>DashboardHub.open('realestate_locacoes',{brand:'MATRIZ'}));assert.match(await hub.locator('.dash-metrics').innerText(),/0 não encerrados/);
  await page.evaluate(()=>{go('realestate');document.getElementById('realestate-search').value='Unrelated previous query';document.getElementById('realestate-review-filter').checked=true;DashboardHub.open('realestate_locacoes',{brand:'MATRIZ'});DashboardHub.records();});assert.equal(await page.locator('#realestate-search').inputValue(),'');assert.equal(await page.locator('#realestate-review-filter').isChecked(),false);assert.equal(await page.locator('#re-brand-filter').inputValue(),'MATRIZ');
  await page.evaluate(()=>DashboardHub.open('realestate_locacoes',{brand:'SÁ PEREIRA'}));await hub.getByRole('button',{name:'Sá Pereira Matriz',exact:true}).click();await page.waitForFunction(()=>document.getElementById('realestate-property-view').hidden===false);assert.equal(await page.locator('#nav button.active').getAttribute('data-nav'),'realestate');
@@ -74,9 +79,11 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
  await page.evaluate(()=>{location.hash='#dashboards/capex?year=2026&brand=CUBO&unit=Cubo+Marapendi';});await page.waitForFunction(()=>DashboardHub.active()&&DashboardHub.scope().unit==='Cubo Marapendi');
  for(const view of ['capex','nova','expansao','cobranca','forn','investidores','escolas','realestate']){await page.evaluate(v=>go(v),view);assert.equal(await page.locator('.view.active .dash-metrics').count(),0,view+' must remain operational');assert.equal(await page.locator('#nav button.active').getAttribute('data-nav'),view);await shot('records-'+view);}
  const property=page.locator('.re-property-card:visible').first(),grid=page.locator('.re-property-grid:visible').first();
+ await page.mouse.move(0,0);await unfilled('.re-property-card');
  assert(Math.abs((await property.boundingBox()).width-(await grid.boundingBox()).width)<2,'Single property must fill its row');
  for(const [name,brand,unit]of [['brands',null,null],['units','CUBO',null],['requests','CUBO','Cubo Marapendi']]){
   await page.evaluate(({brand,unit})=>{go('capex');drillCapex(2026,brand,unit);},{brand,unit});await shot('capex-'+name);
+  await unfilled('.capex-brand-card,.capex-unit-card,.capex-expander-card');
   if(name==='units'){
    const widths=await page.locator('.capex-unit-card').evaluate(e=>({card:e.getBoundingClientRect().width,grid:e.parentElement.getBoundingClientRect().width}));
    assert(Math.abs(widths.card-widths.grid)<2,'Single CAPEX unit must fill its row');

@@ -1,7 +1,7 @@
 /* Keep the established light gradient; school context supplies the brand tokens. */
 #sidebar{width:286px;padding:0 12px;background:var(--paper);color:var(--ink);gap:0;box-shadow:inset -1px 0 #173c3414;isolation:isolate}
 #sidebar,#sidebar *{letter-spacing:0}
-#sidebar #side-color-layer{inset:0;height:auto;background:linear-gradient(155deg,color-mix(in srgb,var(--side-art-color) 23%,transparent) 0%,color-mix(in srgb,var(--side-art-soft) 76%,transparent) 22%,transparent 62%),linear-gradient(180deg,#fff8 0%,#fff2 68%,#dcece65c 100%);opacity:1!important}
+#sidebar #side-color-layer{inset:0;height:auto;background:linear-gradient(155deg,color-mix(in srgb,var(--side-art-color) 12%,transparent) 0%,color-mix(in srgb,var(--side-art-soft) 42%,transparent) 22%,transparent 62%),linear-gradient(180deg,#fff8 0%,#fff2 68%,#dcece630 100%);opacity:1!important}
 #sidebar #side-color-layer:before,#sidebar #side-color-layer:after{display:none}
 #sidebar .side-header{display:flex;align-items:center;gap:8px;flex:none;min-height:106px;padding:20px 4px 18px;border-bottom:1px solid color-mix(in srgb,var(--side-art-color) 20%,#173c3410)}
 #sidebar .brand{flex:1;min-width:0;gap:12px;padding:0;margin:0;border:0;border-radius:0;background:none;box-shadow:none;backdrop-filter:none}
@@ -22,8 +22,9 @@
 #sidebar .nav button,#sidebar .nav button .nav-label{font-weight:550!important}
 #sidebar .nav-label{flex:1;min-width:0;white-space:normal;overflow-wrap:break-word;overflow:visible;text-overflow:clip;opacity:1}
 #sidebar .nav .ic{width:19px;height:19px;flex:0 0 19px;color:#55766b;opacity:1}
-#sidebar .nav button:hover{color:var(--ink);background:#ffffff8c;border-color:#173c3412}
-#sidebar .nav button.active{color:var(--side-art-text);background:linear-gradient(110deg,#fffffff0 0%,color-mix(in srgb,var(--side-art-soft) 82%,white) 100%);border-color:color-mix(in srgb,var(--side-art-color) 27%,#fff);box-shadow:inset 3px 0 var(--side-art-color),0 2px 8px #173c3404}
+#sidebar .nav button:hover{color:var(--ink);background:#ffffff50;border-color:transparent}
+#sidebar .nav button.active{color:var(--side-art-text);background:none;border-color:transparent;box-shadow:none}
+#sidebar .nav button.active:after{content:'';position:absolute;left:0;top:50%;width:2px;height:18px;transform:translateY(-50%);border-radius:1px;background:var(--side-art-color)}
 #sidebar .nav button.active .nav-label{font-weight:750!important}
 #sidebar .nav button.active .ic{color:var(--side-art-text)}
 #sidebar .nav .pill{position:static;flex:none;max-width:58px;min-width:24px;min-height:20px;border-radius:5px;background:var(--side-art-soft);color:var(--side-art-text);text-align:center;padding:2px 5px;font-size:10px;line-height:16px;font-weight:700!important}
@@ -40,7 +41,7 @@
 #sidebar .btn-logout{display:grid;place-items:center;flex:0 0 30px;width:30px;height:34px;padding:0;border:0;border-radius:6px;background:none;color:#4c6c5e}
 #sidebar .btn-logout .menu-icon{width:18px;height:18px;flex-basis:18px}
 #sidebar .btn-logout:hover{color:var(--ink);background:#fff9}
-.mobile-topbar{background:linear-gradient(115deg,#fbd8b0,#fbf1e6 58%,#e0eeea);border-bottom:1px solid #d8c6ae}
+.mobile-topbar{background:linear-gradient(115deg,#f5e8d8,#f7f3ed 58%,#edf3ef);border-bottom:1px solid #173c3412}
 .mobile-topbar .mobile-brand{color:var(--ink)}
 .mobile-topbar .hamburger-btn{align-items:center;justify-content:center;border-radius:6px;color:var(--ink)}
 .mobile-topbar .hamburger-btn:hover{background:#ffffff80}
