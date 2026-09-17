@@ -2026,6 +2026,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
     <nav class="nav" id="nav">
 
+      <button data-nav="dashboards" onclick="go('dashboards')"><img class="ic" src="assets/icons/lucide/list.svg" width="18" height="18" alt=""> Dashboards</button>
       <button class="active" data-nav="escolas" onclick="go('escolas')"><span class="ic">🏫</span> Documentos das Escolas</button>
 
       <button data-nav="investidores" onclick="go('investidores')"><span class="ic">💼</span> Investidores Externos</button>
@@ -2078,6 +2079,11 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <div id="esc-body"></div>
 
+    </section>
+
+    <section id="view-dashboards" class="view" aria-label="Dashboards">
+      <div id="dashboard-hub-header"></div>
+      <div id="dashboard-hub-body" aria-live="polite"></div>
     </section>
 
     <!-- REGISTROS PENDENTES -->
@@ -2240,7 +2246,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <div class="tabs">
 
-        <button class="tabbtn active" data-tab="resumo" onclick="showTab('resumo')">Dashboard</button>
+        <button class="tabbtn" data-tab="resumo" onclick="showTab('resumo')">Cadastro e aportes</button>
 
         <button class="tabbtn" data-tab="pag" onclick="showTab('pag')">Pagamentos</button>
 
@@ -4016,16 +4022,19 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 <script src="scripts/capex-ticket-intelligence.js?v=20260910"></script>
 <script src="scripts/real-estate-evidence.js?v=20260910"></script>
 <link rel="stylesheet" href="scripts/real-estate-evidence.css?v=20260910">
-<script src="scripts/real-estate-dossier.js?v=20260916-dashboards"></script>
+<script src="scripts/real-estate-dossier.js?v=20260917-hub"></script>
 <link rel="stylesheet" href="scripts/real-estate-dossier.css?v=20260916-workspace">
 <script src="scripts/real-estate-workspace.js?v=20260916-workspace"></script>
-<script src="scripts/real-estate-property-page.js?v=20260916-dashboards"></script>
+<script src="scripts/real-estate-property-page.js?v=20260917-hub"></script>
 <link rel="stylesheet" href="scripts/real-estate-property-page.css?v=20260916-workspace">
 <link rel="stylesheet" href="scripts/real-estate-workspace.css?v=20260916-workspace">
 <script src="scripts/dashboard-data.js?v=20260916-rebuild"></script>
-<script src="scripts/dashboards.js?v=20260916-rebuild"></script>
+<script src="scripts/dashboards.js?v=20260917-hub"></script>
 <link rel="stylesheet" href="scripts/dashboards.css?v=20260916-rebuild">
-<script src="scripts/access-control.js?v=20260916-invites"></script>
+<script src="scripts/access-control.js?v=20260917-hub"></script>
+<script src="scripts/dashboard-hub.js?v=20260917-hub"></script>
+<script src="scripts/platform-navigation.js?v=20260917-hub"></script>
+<link rel="stylesheet" href="scripts/dashboard-hub.css?v=20260917-hub">
 <script src="scripts/access-invites.js?v=20260916-invite-availability"></script>
 <link rel="stylesheet" href="scripts/access-control.css?v=20260916-invite-availability">
 <script>
@@ -6697,6 +6706,8 @@ function pageJump(pos){
 function go(view){
   if(!AccessControl.enter(view))return;
 
+  PlatformNav.before(view);
+
   RealEstatePropertyPage.leave(view);
 
   if(window.innerWidth<=768)closeSidebar();
@@ -6711,7 +6722,8 @@ function go(view){
   if(target)target.classList.add("active");
   document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===view||(view==="obra"&&b.dataset.nav===(cur?.esfera||curEsfera))||(view==="uni"&&b.dataset.nav==="escolas")));
   const _main=document.querySelector(".main");if(_main)_main.scrollTo(0,0);window.scrollTo(0,0);
-  if(esferaViews.includes(view)){curEsfera=view;esfBusca='';esfFiltroMarca='Todas';esfNfSearchQuery='';renderEsfera();}
+  if(esferaViews.includes(view)){curEsfera=view;renderEsfera();}
+  if(view==="dashboards")DashboardHub.render();
   if(view==="escolas")renderEscolas();
   if(view==="registros")renderRegistrosPendentes();
   if(view==="realestate")renderRealEstate();
@@ -6720,6 +6732,7 @@ function go(view){
   if(view==="admin")renderAdmin();
   if(view==="investidores")renderInvestidores();
   updateNavBadge();scheduleActivePageArt();
+  PlatformNav.after();
 }
 
 function updateNavBadge(){
@@ -6940,7 +6953,7 @@ function renderEsfera(){
 
   if(curEsfera==='capex'){
 
-    document.getElementById('esf-desc').textContent='Controle de pedidos de melhoria por ano, marca e unidade, com dashboard consolidado.';
+    document.getElementById('esf-desc').textContent='Pedidos de melhoria por ciclo, marca e unidade.';
 
     document.getElementById('esf-obras-section').style.display='none';
 
@@ -6949,8 +6962,9 @@ function renderEsfera(){
     document.getElementById('esf-alert').innerHTML='';
 
     document.getElementById('esf-acts').innerHTML=`<button class="btn btn-ghost btn-sm" onclick="openCapexSaldoModal(capexDrillYear||new Date().getFullYear(),capexDrillUnidade||'',capexDrillMarca||'')"><span class="ic">+</span> CAPEX disponibilizado</button><button class="btn btn-primary btn-sm" onclick="openCapexItemModal(null)"><span class="ic">+</span> Novo pedido</button>`;
+    document.getElementById('esf-acts').hidden=!AccessControl.canEdit('capex');
 
-    capexTab='dashboard';capexShowEmpty=false;capexDrillYear=null;capexDrillMarca=null;capexDrillUnidade=null;
+    capexTab='pedidos';
 
     renderCapexView();
 
@@ -10597,11 +10611,11 @@ function drillCapex(year,marca,unidade,tab){
     capexDashControls={focusDim:'',focusValue:''};
   }
 
-  capexTab=tab||(unidade?'dashboard':(marca?'pedidos':(year?'dashboard':'pedidos')));
-
-  if(capexIsAutoFinalizedYear(year))syncCapexAutoFinalizedYear(year);
+  capexTab='pedidos';
 
   renderCapexView();
+
+  PlatformNav.push();
 
   document.querySelector('.main').scrollTo(0,0);
 
@@ -10626,7 +10640,7 @@ function capexBack(){
   if(capexDrillUnidade){drillCapex(capexDrillYear,capexDrillMarca,null,'pedidos');return;}
   if(capexDrillMarca){drillCapex(capexDrillYear,null,null,'pedidos');return;}
   if(capexDrillYear){drillCapex(null,null,null,'pedidos');return;}
-  capexTab='dashboard';renderCapexView();
+  capexTab='pedidos';renderCapexView();
 }
 
 function capexNavLine(title,sub,opts){
@@ -10999,8 +11013,7 @@ async function generateCapexReport(){
 function renderCapexTabs(){
   const labels=capexTabLabels();
   return`<div class="capex-tabs-shell"><div class="tabs capex-tabs">
-    <button class="tabbtn ${capexTab==='dashboard'?'active':''}" data-capex-tab="dashboard" onclick="showCapexTab('dashboard')">${labels.dashboard}</button>
-    <button class="tabbtn ${capexTab==='pedidos'?'active':''}" data-capex-tab="pedidos" onclick="showCapexTab('pedidos')">${labels.pedidos}</button>
+    <span class="tabbtn active">${labels.pedidos}</span>
   </div><button class="btn btn-primary btn-sm capex-report-open" onclick="openCapexReportModal()"><span class="ic">↓</span> Relatórios</button></div>`;
 }
 
@@ -11012,10 +11025,11 @@ function capexTabLabels(){
 }
 
 function showCapexTab(tab){
+  if(tab==='dashboard'){DashboardHub.open('capex',{year:capexDrillYear,brand:capexDrillMarca,unit:capexDrillUnidade});return;}
   if(tab==='tickets'){
     go('registros');
     return;
-  }else capexTab=tab==='pedidos'?'pedidos':'dashboard';
+  }else capexTab='pedidos';
   renderCapexView();
 }
 
@@ -11032,11 +11046,8 @@ function renderCapexView(){
     go('registros');
     return;
   }
-  if(capexTab==='dashboard'){
-    if(!capexDrillYear)renderCapexOverview();
-    else renderCapexScopedDashboard();
-  }
-  else renderCapexDrill();
+  capexTab='pedidos';
+  renderCapexDrill();
   scheduleActivePageArt();
 }
 
@@ -11065,6 +11076,7 @@ function capexClearFocus(){
 function capexSetListStatus(value){
   capexListStatus=value||'Todos';
   renderCapexDrill();
+  PlatformNav.replace();
 }
 
 function capexListStatusSelect(){
@@ -12274,17 +12286,7 @@ function renderCapexUnitItems(){
 
   html+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">${viewingStatus?'Pedidos · '+escHtml(capexListStatus):'Pedidos da unidade'}</h2>${viewingStatus?`<button class="btn btn-ghost btn-sm" onclick="capexSetListStatus('Todos')">Voltar aos status</button>`:''}</div>`;
 
-  html+=capexBudgetSummary(capexBudgetStats(itsBase,{ano:capexDrillYear,marca:capexDrillMarca,unidade:capexDrillUnidade}),brandColor(capexDrillMarca),capexBudgetAction(capexDrillYear,capexDrillUnidade));
-
-  if(!viewingStatus){
-
-    html+=renderCapexUnitStatusCards(itsBase);
-
-    document.getElementById('esf-capex-drill').innerHTML=html;
-
-    return;
-
-  }
+  html+=`<div class="chips" style="margin-bottom:18px" aria-label="Situação dos pedidos">${['Todos','Em Andamento','Resolvido','Cancelado'].map(status=>`<button class="chip ${capexListStatus===status?'active':''}" aria-pressed="${capexListStatus===status}" onclick="capexSetListStatus('${status}')">${status}</button>`).join('')}</div>`;
 
   if(!its.length){html+=`<p class="empty">Nenhum pedido ${String(capexListStatus||'').toLowerCase()} para esta unidade.</p>`;}
 
@@ -12852,7 +12854,8 @@ function openObra(id){
 
   applyBrandVars(_voEl,_marcaP);
 
-  renderObra();showTab('resumo');go("obra");
+  pagEscopo='obra';
+  renderObra();showTab('pag');go("obra");
 
   setTimeout(()=>{var _ms=(cur&&cur.marca?cur.marca:'RAIZ').split(' + ');updateSideArt(_ms);updatePageArt('o-page-art',[_ms[0]].concat(_ms.slice(1)));},100);
 
@@ -13691,38 +13694,7 @@ function renderPag(){const o=cur;
   const allObra=allPag.filter(r=>!r.p.escopoFin||r.p.escopoFin==='obra');
   const allExtra=allPag.filter(r=>r.p.escopoFin==='extra');
 
-  // ── NÍVEL 1: Dois cards de resumo clicáveis ──────────────────────
-  if(!pagEscopo){
-    const summaryCard=(rows,allRows,titulo,icon,escopo,accentColor)=>{
-      const tp=sumPago(allRows),tpe=sumPend(allRows),natr=allRows.filter(r=>isAtraso(r.p)).length,ncancel=allRows.filter(r=>isPagamentoCancelado(r.p)).length;
-      return`<div class="card interactive-card" role="button" tabindex="0" onclick="drillPag('${escopo}')" onkeydown="if(cardKeyOpen(event))drillPag('${escopo}')" style="cursor:pointer;border-top:4px solid ${accentColor};padding:22px 24px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
-          <div>
-            <div style="font-size:22px;font-weight:800;color:${accentColor};margin-bottom:2px">${icon} ${titulo}</div>
-            <div style="font-size:13px;color:var(--muted)">${allRows.length} lançamento${allRows.length!==1?'s':''}${ncancel?` · ${ncancel} cancelado${ncancel!==1?'s':''}`:''}</div>
-          </div>
-          <span style="font-size:22px;opacity:.25">${icon}</span>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(${natr?3:2},1fr);gap:12px;margin-bottom:18px">
-          <div style="background:var(--ok-bg);border-radius:var(--r);padding:12px"><div style="font-size:10.5px;color:var(--ok);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:4px">Pago</div><div style="font-size:18px;font-weight:800;color:var(--ok)">${fmt(tp)}</div></div>
-          <div style="background:${tpe>0?'var(--warn-bg)':'var(--surface-2)'};border-radius:var(--r);padding:12px"><div style="font-size:10.5px;color:${tpe>0?'var(--warn)':'var(--muted)'};text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:4px">Pendente</div><div style="font-size:18px;font-weight:800;color:${tpe>0?'var(--warn)':'var(--muted)'}">${fmt(tpe)}</div></div>
-          ${natr?`<div style="background:var(--danger)10;border-radius:var(--r);padding:12px"><div style="font-size:10.5px;color:var(--danger);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:4px">Em atraso</div><div style="font-size:18px;font-weight:800;color:var(--danger)">${natr} pgto${natr!==1?'s':''}</div></div>`:''}
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding-top:14px;border-top:1px solid var(--line)">
-          <span style="font-size:13.5px;color:${accentColor};font-weight:600">Ver lançamentos →</span>
-          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();drillPag('${escopo}')" style="font-size:12px;padding:5px 12px">Ver lançamentos →</button>
-        </div>
-      </div>`;
-    };
-    document.getElementById("pane-pag").innerHTML=`
-      <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px">
-        ${summaryCard(allObra,allObra,'Dentro da Obra','🏗','obra','var(--brand-cur)')}
-        ${summaryCard(allExtra,allExtra,'Fora da Obra','📤','extra','var(--warn)')}
-      </div>`;
-    return;
-  }
+  if(!pagEscopo)pagEscopo='obra';
 
   // ── NÍVEL 2: Lista detalhada da seção selecionada ─────────────────
   const isObra=pagEscopo==='obra';
@@ -13909,7 +13881,7 @@ function renderPag(){const o=cur;
 
   document.getElementById("pane-pag").innerHTML=`
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
-    <button class="btn btn-ghost btn-sm" onclick="backPag()" style="font-size:13px">← Voltar</button>
+    <div class="chips" aria-label="Escopo do pagamento"><button class="chip ${isObra?'active':''}" aria-pressed="${isObra}" onclick="drillPag('obra')">Dentro da obra</button><button class="chip ${!isObra?'active':''}" aria-pressed="${!isObra}" onclick="drillPag('extra')">Fora da obra</button></div>
     <span style="font-size:17px;font-weight:700;color:${accentColor}">${icon} ${titulo}</span>
     <div style="display:flex;gap:6px;align-items:center;margin-left:8px">
       ${tp>0?`<span style="font-size:13px;font-weight:700;color:var(--ok)">Pago: ${fmt(tp)}</span>`:''}
@@ -20463,7 +20435,7 @@ async function onLogin(user){
   obras.forEach(o=>o.pag.forEach(p=>{if(p.nfTipo===undefined)p.nfTipo=p.comp?"NF-e":"Sem nota";}));
   renderEscolas();updateNavBadge();populateEscolasSelect();updateSideArt(["RAIZ"]);
   RealEstatePropertyPage.restore();
-  if(!location.hash.startsWith('#realestate'))AccessControl.landing();
+  if(!location.hash.startsWith('#realestate')&&!PlatformNav.restore())AccessControl.landing();
 }
 
 

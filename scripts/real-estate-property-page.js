@@ -65,7 +65,7 @@
   }
   async function refresh(button){const host=button.closest('[data-dossier-host]');button.disabled=true;button.setAttribute('aria-busy','true');try{await RealEstateDossier.open(host,host.dataset.imovelId,true);}finally{button.disabled=false;button.removeAttribute('aria-busy');}}
   async function retry(){await loadRealEstate();renderRealEstate();}
-  function leave(view){if(view==='realestate')return;if(/^#realestate(?:\/|$)/.test(root.location.hash)){history.replaceState({...history.state,rePropertyFromList:false},'',root.location.pathname+root.location.search);document.title=originalTitle;}}
+  function leave(view){if(view==='realestate')return;if(/^#realestate(?:\/|$)/.test(root.location.hash)){if(!root.PlatformNav)history.replaceState({...history.state,rePropertyFromList:false},'',root.location.pathname+root.location.search);document.title=originalTitle;}}
   function route(){if(typeof currentProfile==='undefined'||!currentProfile)return;if(root.RealEstateWorkspace&&(RealEstateWorkspace.parse(root.location.hash)||root.location.hash==='#realestate/sublocacoes')){RealEstateWorkspace.restore();return;}if(!parse(root.location.hash)&&root.location.hash!=='#realestate')return;realEstateArea='locacoes';applyListState();go('realestate');if(!parse(root.location.hash))restoreScroll();else focusHeading();}
   let routePending=false;
   function scheduleRoute(){if(routePending)return;routePending=true;requestAnimationFrame(()=>{routePending=false;route();});}

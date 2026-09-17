@@ -7,12 +7,22 @@
  const icon=n=>`<img src="assets/icons/lucide/${n}.svg" alt="" width="16" height="16">`;
  const state={collections:'all',collectionBrand:'',projectScope:'all',projectYear:'',supplierSort:'paid',investorQuery:''};
  const exports=new Map();
+ let renderContext=null;
+ const operationalBrands={forn:'',investidores:''};
+ const scopedWorks=panel=>{const brand=renderContext?renderContext.scope.brand:operationalBrands[panel];return obras.filter(o=>!brand||obraMarcaNames(o).includes(brand));};
+ const operationalBrandFilter=panel=>renderContext?'':select('Marca','records-brand-'+panel,[['','Todas as marcas'],...[...new Set(obras.flatMap(obraMarcaNames))].sort().map(b=>[b,b])],operationalBrands[panel]);
  const action=(name,args={})=>`data-dash-action="${esc(JSON.stringify({name,...args}))}"`;
  const button=(label,name,args={},kind='dash-link')=>`<button type="button" class="${kind}" ${action(name,args)}>${esc(label)}${icon('arrow-up-right')}</button>`;
  const badge=(label,tone='neutral')=>`<span class="dash-badge ${tone}">${esc(label)}</span>`;
  const note=(text,tone='neutral')=>`<p class="dash-note ${tone}">${esc(text)}</p>`;
  function metrics(items){return `<div class="dash-metrics">${items.map(m=>`<${m.action?'button type="button"':'div'} class="dash-metric ${m.tone||''}" ${m.action?action(m.action,m.args):''}><span>${esc(m.label)}</span><strong>${esc(m.value)}</strong><small>${esc(m.sub||'')}</small></${m.action?'button':'div'}>`).join('')}</div>`;}
- function host(id,html){const el=document.getElementById(id);if(!el)return;el.classList.add('dash-host');el.innerHTML=html;}
+ function host(id,html){
+  if(renderContext){renderContext.hosts.set(id,html);return;}
+  const el=document.getElementById(id);if(!el)return;
+  if(['esf-kpis','esf-alert','o-kpis','cobr-kpis','forn-kpis','inv-kpis','realestate-kpis'].includes(id)){el.innerHTML='';el.classList.remove('dash-host');return;}
+  if(id==='forn-grid'||id==='inv-list')html='<div class="dash-filters">'+operationalBrandFilter(id==='forn-grid'?'forn':'investidores')+'</div>'+html;
+  el.classList.add('dash-host');el.innerHTML=html;
+ }
  const empty=text=>`<p class="dash-empty">${esc(text||'Nenhum registro neste recorte.')}</p>`;
  function section(title,body,sub='',actions=''){return `<section class="dash-section"><header><div><h2>${esc(title)}</h2>${sub?`<p>${esc(sub)}</p>`:''}</div>${actions}</header>${body}</section>`;}
  function table(headers,rows,key){
@@ -33,19 +43,18 @@
  function capexRows(){
   const all=capexConsolidatedItems(capexItens),rows=all.map(i=>({raw:i,key:`${i.ano}|${capexUnitKey(i.unidade)}`,year:+i.ano,unit:i.unidade||'Sem unidade',brand:extractMarca(i)||'Sem marca',value:D.amount(i.orcamento),status:D.norm(i.situacao)==='cancelado'?'Cancelado':_ciSit(i)}));
   const budgets=capexSaldos.map(b=>({key:`${b.ano}|${capexUnitKey(b.unidade)}`,year:+b.ano,unit:b.unidade,brand:capexSaldoMarca(b)||'Sem marca',value:D.amount(b.valor)}));
-  const matches=r=>(!capexDrillYear||r.year===+capexDrillYear)&&(!capexDrillMarca||r.brand===capexDrillMarca)&&(!capexDrillUnidade||capexUnitKey(r.unit)===capexUnitKey(capexDrillUnidade));
+  const scope=renderContext?.scope||{year:capexDrillYear,brand:capexDrillMarca,unit:capexDrillUnidade};
+  const matches=r=>(!scope.year||r.year===+scope.year)&&(!scope.brand||r.brand===scope.brand)&&(!scope.unit||capexUnitKey(r.unit)===capexUnitKey(scope.unit));
   return {all:rows,allBudgets:budgets,items:rows.filter(matches),budgets:budgets.filter(matches),excluded:capexItens.length-all.length};
  }
  function capex(){
   if(!AccessControl.can('capex'))return;
-  const controls=document.getElementById('esf-acts');if(controls)controls.hidden=!AccessControl.canEdit('capex');
-  clearCapexLooseKpis();renderCapexCrumb();
-  const source=capexRows(),s=D.capex(source.items,source.budgets),year=capexDrillYear||'',brand=capexDrillMarca||'',unit=capexDrillUnidade||'';
+  if(!renderContext){DashboardHub.open('capex',{year:capexDrillYear,brand:capexDrillMarca,unit:capexDrillUnidade});return;}
+  const source=capexRows(),s=D.capex(source.items,source.budgets),{year='',brand='',unit=''}=renderContext.scope;
   const years=[...new Set([...source.all,...source.allBudgets].map(r=>r.year))].sort((a,b)=>b-a);
   const brands=[...new Set([...source.all,...source.allBudgets].filter(r=>!year||r.year===+year).map(r=>r.brand))].sort();
   const units=[...new Set([...source.all,...source.allBudgets].filter(r=>(!year||r.year===+year)&&(!brand||r.brand===brand)).map(r=>r.unit))].sort();
-  let html=renderCapexTabs()+`<div class="dash-shell">`+context(`CAPEX ${year||'· todos os ciclos'}${brand?' / '+brand:''}${unit?' / '+unit:''}`);
-  html+=`<div class="dash-filters">${select('Ciclo','capex-year',[['','Todos os ciclos'],...years.map(y=>[y,y])],year)}${select('Marca','capex-brand',[['','Todas as marcas'],...brands.map(b=>[b,b])],brand)}${select('Unidade','capex-unit',[['','Todas as unidades'],...units.map(u=>[u,u])],unit)}</div>`;
+  let html=`<div class="dash-shell">`+context(`CAPEX ${year||'· todos os ciclos'}${brand?' / '+brand:''}${unit?' / '+unit:''}`);
   html+=metrics([
    {label:'Disponibilizado',value:s.coverage?money(s.authorized):'Não cadastrado',sub:`${s.coverage} unidades/ciclos com verba`,tone:'blue'},
    {label:'Comprometido',value:money(s.committed),sub:`${s.active.length} registros ativos consolidados`},
@@ -70,7 +79,7 @@
   return table(['Fornecedor','Referência','Obra','Vencimento','Situação',{label:'Valor',money:true}],cells.slice(0,limit))+(cells.length>limit?note(`${limit} de ${cells.length} registros exibidos. A composição CSV contém todos os registros deste recorte.`):'');
  }
  function portfolio(list){
-  const controls=document.getElementById('esf-acts');if(controls)controls.hidden=!AccessControl.canEdit(curEsfera);
+  if(!renderContext){const controls=document.getElementById('esf-acts');if(controls)controls.hidden=!AccessControl.canEdit(curEsfera);host('esf-kpis','');host('esf-alert','');return;}
   const s=D.portfolio(list),missing=s.missingContract.length;
   host('esf-kpis',metrics([{label:'Contrato + aditivos',value:money(s.contract),sub:missing?`${missing} obras sem contrato valorizado`:`${list.length} obras neste recorte`,tone:'blue'},
    {label:'Pago no contrato',value:money(s.paid),sub:s.legacy?money(s.legacy)+' de saldo histórico sem lançamentos':'Pagamentos registrados dentro da obra',tone:'green'},
@@ -80,7 +89,8 @@
   host('esf-alert',`<div class="dash-shell">${context(`${list.length} obras no filtro atual`)}<div class="dash-columns">${section('Contratos e exposição',table(['Obra',{label:'Contratado',money:true},{label:'Pago',money:true},{label:'Pendente',money:true},{label:'Saldo após pendências',money:true}],rows.map(r=>[cell(mark(r.o.marca)+button(r.o.nome,'project',{id:r.o.id}),r.o.nome),cash(r.contract),cash(r.paid),cash(r.open),cash(r.projected)]),'works'),'Saldo contratual projetado não inclui demandas ainda não lançadas.',download('works'))}${section('Prioridades de pagamento',bars([{label:'Vencidos',value:s.ledger.overdueValue,tone:'red',sub:s.ledger.overdue.length+' lançamentos'},{label:'Vencem hoje',value:s.ledger.todayValue,tone:'amber',sub:s.ledger.dueToday.length+' lançamentos'},{label:'Próximos 30 dias',value:D.sum(s.ledger.next30,r=>r.value),tone:'blue',sub:s.ledger.next30.length+' lançamentos'},{label:'Sem vencimento',value:s.ledger.undatedValue,tone:'neutral',sub:s.ledger.undated.length+' lançamentos'}]))}</div></div>`);
  }
  function project(){
-  const o=cur;if(!o||!AccessControl.can(o.esfera||'nova'))return;
+  const o=renderContext?.project||cur;if(!o||!AccessControl.can(o.esfera||'nova'))return;
+  if(!renderContext){projectRecords(o);return;}
   if(state.projectId!==o.id){state.projectId=o.id;state.projectScope='all';state.projectYear='';}
   const s=D.project(o),ph=D.phases(o),l=s.ledger;
   const scope=state.projectScope;const rows=l.rows.filter(r=>(scope==='all'||r.scope===scope));
@@ -105,36 +115,40 @@
  function collections(){
   if(!AccessControl.can('cobranca'))return;
   const brands=[...new Set(obras.map(o=>o.marca).filter(Boolean))].sort();
-  const all=D.ledger(D.entries(obras.filter(o=>!state.collectionBrand||o.marca===state.collectionBrand)));
+  const all=D.ledger(D.entries(scopedWorks().filter(o=>renderContext||!state.collectionBrand||o.marca===state.collectionBrand)));
   const rows=state.collections==='all'?all.open:all.open.filter(r=>r.state===state.collections);
   host('cobr-kpis',metrics([{label:'Em aberto',value:money(all.openValue),sub:all.open.length+' lançamentos',tone:'blue'},{label:'Vencidos',value:money(all.overdueValue),sub:all.overdue.length+' lançamentos',tone:'red'},{label:'Vencem hoje',value:money(all.todayValue),sub:all.dueToday.length+' lançamentos',tone:'amber'},{label:'Sem vencimento',value:money(all.undatedValue),sub:all.undated.length+' lançamentos a conferir'}]));
   host('cobr-body',`<div class="dash-shell">${context('Contas a pagar das obras · marca selecionada')}<div class="dash-filters">${select('Marca','collection-brand',[['','Todas as marcas'],...brands.map(b=>[b,b])],state.collectionBrand)}${select('Composição exibida','collection-state',[['all','Todos em aberto'],['overdue','Vencidos'],['today','Vencem hoje'],['upcoming','A vencer'],['undated','Sem vencimento']],state.collections)}</div>${section('Agenda de pagamentos',paymentTable(rows,'collections',80),`${rows.length} lançamentos · ${money(D.sum(rows,r=>r.value))}`,download('collections'))}${all.unclassified.length?note(all.unclassified.length+' lançamentos com situação não classificada ficam fora dos totais de aberto e pago.','amber'):''}${all.unknown.length?note(all.unknown.length+' lançamentos sem valor numérico.','amber'):''}</div>`);
  }
  function suppliers(){
   if(!AccessControl.can('forn'))return;
-  const q=D.norm(document.getElementById('forn-busca')?.value),all=D.suppliers(obras);
+  const q=D.norm(renderContext?'':document.getElementById('forn-busca')?.value),all=D.suppliers(scopedWorks('forn'));
   const rows=all.filter(r=>!q||D.norm(r.name+' '+(CNPJS[r.name]||'')).includes(q)).sort((a,b)=>(b[state.supplierSort]||0)-(a[state.supplierSort]||0)||a.name.localeCompare(b.name));
   host('forn-kpis',metrics([{label:'Fornecedores no filtro',value:number(rows.length),sub:'Agrupados pelo nome cadastrado'},{label:'Pago registrado',value:money(D.sum(rows,r=>r.paid)),sub:'Status pago, em ambos os escopos',tone:'green'},{label:'Em aberto',value:money(D.sum(rows,r=>r.pending)),sub:'Inclui pendentes sem vencimento',tone:'blue'},{label:'Vencido',value:money(D.sum(rows,r=>r.overdue)),sub:'Em aberto com vencimento anterior a hoje',tone:'red'}]));
-  const count=document.getElementById('forn-count');if(count)count.textContent=rows.length+' fornecedores';
+  const count=document.getElementById('forn-count');if(count&&!renderContext)count.textContent=rows.length+' fornecedores';
   host('forn-grid',`<div class="dash-shell">${context('Fornecedores · composição do filtro atual')}<div class="dash-filters">${select('Ordenar por','supplier-sort',[['paid','Maior valor pago'],['pending','Maior valor em aberto'],['overdue','Maior valor vencido']],state.supplierSort)}</div>${section('Posição por fornecedor',table(['Fornecedor','Obras','Lançamentos pagos',{label:'Pago',money:true},{label:'Em aberto',money:true},{label:'Vencido',money:true}],rows.map(r=>[cell(button(r.name,'supplier',{nameValue:r.name}),r.name),r.projects,r.count,cash(r.paid),cash(r.pending),cash(r.overdue)]),'suppliers'),'Quantidade de lançamentos não representa quantidade de notas fiscais distintas.',download('suppliers'))}</div>`);
  }
  function investors(){
   if(!AccessControl.can('investidores'))return;
-  const all=D.investors(obras,root.investidores||investidores,(name,o)=>!!name&&_isInvestidorExternoPagador(name,o));
+  const all=D.investors(scopedWorks('investidores'),(renderContext?.scope.brand||!renderContext&&operationalBrands.investidores)?[]:(root.investidores||investidores),(name,o)=>!!name&&_isInvestidorExternoPagador(name,o));
   const rows=all.rows.filter(r=>!state.investorQuery||D.norm(r.name).includes(D.norm(state.investorQuery)));
   host('inv-kpis',metrics([{label:'Depósitos registrados',value:money(D.sum(rows,r=>r.received)),sub:'Somente aportes cadastrados',tone:'blue'},{label:'Pagamentos vinculados',value:money(D.sum(rows,r=>r.paid)),sub:'Pago pelo investidor dentro da obra',tone:'green'},{label:'Compromissos pendentes',value:money(D.sum(rows,r=>r.pending)),sub:'Cancelados e rejeitados excluídos',tone:'amber'},{label:'Diferença de conciliação',value:money(D.sum(rows,r=>r.balance)),sub:'Depósitos menos pagamentos vinculados'}]));
   const cells=rows.sort((a,b)=>b.paid-a.paid).map(r=>[cell(esc(r.name)+(AccessControl.canEdit('investidores')?button(r.registration?'Editar cadastro':'Cadastrar','investor',{id:r.registration?.id,nameValue:r.name}):''),r.name),r.projects.size,cash(r.received),cash(r.paid),cash(r.pending),cash(r.balance)]);
   host('inv-list',`<div class="dash-shell">${context('Fontes externas · posição registrada')}<label class="dash-filter">Buscar investidor<input class="fi" type="search" data-dash-change="investor-query" value="${esc(state.investorQuery)}"></label>${section('Aportes e pagamentos',table(['Investidor','Obras',{label:'Depósitos',money:true},{label:'Pagamentos',money:true},{label:'Pendentes',money:true},{label:'Diferença',money:true}],cells,'investors'),'Diferença negativa pode indicar pagamento direto sem depósito vinculado; não comprova dívida.',download('investors'))}</div>`);
  }
  function realEstate(rows,area){
-  const scoped=RealEstateWorkspace.groups(rows,area).flatMap(([,items])=>items),s=D.properties(scoped,area);
+  if(!renderContext){host('realestate-kpis','');return;}
+  const scoped=rows,s=D.properties(scoped,area);
   host('realestate-kpis',metrics([{label:area==='locacoes'?'Imóveis no filtro':'Vínculos no filtro',value:number(s.rows.length),sub:`${s.active.length} não encerrados · ${s.closed.length} encerrados`},{label:area==='locacoes'?'Aluguel de referência':'Cobrança de referência',value:s.known.length?money(s.reference):'Não informado',sub:`${s.known.length} valores cadastrados · ${s.unknown.length} sem valor`,tone:'blue'},{label:'Término em até 90 dias',value:number(s.ending.length),sub:`${s.expired.length} com término passado · ${s.noEnd.length} sem data`,tone:'amber'},{label:'Revisão pendente',value:number(s.review.length),sub:`${s.documents.length} com documento vinculado`,tone:s.review.length?'amber':'green'}])+note('Referência cadastral dos vínculos não encerrados, não é fluxo de caixa nem comprovação de pagamento. IPTU, condomínio e demais encargos estão separados no imóvel.'));
+  host('realestate-composition',section(area==='locacoes'?'Imóveis e contratos':'Sublocações e uso de marca',table(['Unidade','Imóvel / contraparte','Situação',{label:'Referência mensal',money:true},'Fim do contrato'],scoped.map(r=>[cell(mark(realEstateBrandLabel(r))+button(r.unidade_ocupante||r.unidade||r.nome||'Sem unidade','property',{id:r.id,area}),r.unidade_ocupante||r.unidade||r.nome),area==='locacoes'?r.endereco:r.sublocatario,r.status||'Não informado',cash(D.amount(area==='locacoes'?r.valor_aluguel:r.valor_referencia)),date(r.contrato_fim)]))));
  }
  function documents(units){
+  if(!renderContext)return '';
   const s=D.documents(units);
   return `<div class="dash-shell dash-documents">${metrics([{label:'Unidades no filtro',value:number(units.length),sub:'Cadastro de escolas'},{label:'Com documentos',value:number(s.covered),sub:'Ao menos um arquivo cadastrado',tone:'green'},{label:'Sem documentos',value:number(s.missing),sub:'Nenhum arquivo vinculado',tone:'amber'},{label:'Arquivos cadastrados',value:number(s.count),sub:'Quantidade não indica validade jurídica',tone:'blue'}])}</div>`;
  }
  function queue(rows){
+  if(!renderContext)return '';
   const missing=rows.filter(r=>!(D.amount(r.valor_final)||D.amount(r.valor))),final=rows.filter(r=>(r.pronto_valor_final||r.valor_status==='final')&&(D.amount(r.valor_final)||D.amount(r.valor)));
   return metrics([{label:'Registros no filtro',value:number(rows.length),sub:'Ainda fora do CAPEX aprovado'},{label:'Com valor final',value:number(final.length),sub:'Requer conferência antes do registro',tone:'green'},{label:'Sem valor definido',value:number(missing.length),sub:'Não presumidos como custo zero',tone:'amber'},{label:'Valor não final',value:number(rows.length-final.length-missing.length),sub:'Estimativa ou aprovação em curso',tone:'blue'}]);
  }
@@ -151,6 +165,7 @@
   if(AccessControl.canEdit(o.esfera||'nova'))openPagModal(a.index);
  }
  function act(a){
+  if(root.DashboardHub?.active()&&DashboardHub.action(a))return;
   if(a.name==='export'){const areas={capex:'capex',works:curEsfera,'project-open':cur?.esfera||'nova',collections:'cobranca',suppliers:'forn',investors:'investidores'};if(AccessControl.can(areas[a.key]))csv(a.key);return;}
   if(a.name.startsWith('capex-')){
    if(!AccessControl.can('capex'))return;
@@ -171,6 +186,7 @@
  }
  function change(el){
   const key=el.dataset.dashChange,v=el.value;
+  if(key.startsWith('records-brand-')){const panel=key.slice(14);if(!AccessControl.can(panel))return;operationalBrands[panel]=v;if(panel==='forn')suppliers();else investors();return;}
   if(key.startsWith('capex-')){if(!AccessControl.can('capex'))return;if(key==='capex-year'){capexDrillYear=v?+v:null;capexDrillMarca=null;capexDrillUnidade=null;}if(key==='capex-brand'){capexDrillMarca=v||null;capexDrillUnidade=null;}if(key==='capex-unit')capexDrillUnidade=v||null;capexTab='dashboard';capexListStatus='Todos';capexDashControls={focusDim:'',focusValue:''};renderCapexView();}
   if(key==='collection-brand'){state.collectionBrand=v;collections();}
   if(key==='collection-state'){state.collections=v;collections();}
@@ -180,7 +196,47 @@
   if(key==='investor-query'){state.investorQuery=v;investors();}
  }
  document.addEventListener('click',e=>{const el=e.target.closest('[data-dash-action]');if(el){e.preventDefault();act(JSON.parse(el.dataset.dashAction));}});
- document.addEventListener('change',e=>{if(e.target.dataset.dashChange)captureFocus(()=>change(e.target));});
- document.addEventListener('input',e=>{if(e.target.dataset.dashChange==='investor-query')captureFocus(()=>change(e.target));});
- root.Dashboards={capex,portfolio,project,collections,suppliers,investors,realEstate,documents,queue};
+ function onChange(el){
+  if(root.DashboardHub?.active()){
+   const keys={'collection-state':'collections','supplier-sort':'supplierSort','project-scope':'projectScope','project-year':'projectYear','investor-query':'investorQuery'};
+   if(keys[el.dataset.dashChange])state[keys[el.dataset.dashChange]]=el.value;
+   DashboardHub.render();return;
+  }
+  change(el);
+ }
+ document.addEventListener('change',e=>{if(e.target.dataset.dashChange)captureFocus(()=>onChange(e.target));});
+ document.addEventListener('input',e=>{if(e.target.dataset.dashChange==='investor-query')captureFocus(()=>onChange(e.target));});
+ function projectRecords(o){
+  host('o-kpis','');
+  const editable=AccessControl.canEdit(o.esfera||'nova');
+  host('pane-resumo',`<div class="dash-shell">${section('Cadastro da obra',table(['Campo','Valor'],[['Contrato base',money(D.amount(o.contratado))],['Investimento previsto',D.amount(o.investimento_disponivel)>0?money(o.investimento_disponivel):'Não definido'],['Teto do caixa da escola',D.amount(o.teto_escola)>0?money(o.teto_escola):'Não definido']]),'',editable?`<div class="dash-tools">${button('Editar obra','project-settings')}${button('Teto escolar','school-ceiling')}${button('Aditivos','project-additions')}</div>`:'')}${section('Depósitos registrados',table(['Data','Fonte',{label:'Valor',money:true},'Observação',''],(o.aportes||[]).map((a,index)=>[date(a.d),a.inv||'Sem fonte',cash(D.amount(a.v)),a.obs||'',cell(editable?button('Editar','deposit',{index}):'','')])), '',editable?button('Registrar depósito','deposit'):'')}</div>`);
+ }
+ function render(panel,scope={}){
+  if(!AccessControl.can(panel))return '';
+  renderContext={scope,hosts:new Map(),project:null};
+  try{
+   if(panel==='capex')capex();
+   else if(['nova','expansao'].includes(panel)){
+    const list=scopedWorks().filter(o=>(o.esfera||'nova')===panel);
+    const chosen=list.find(o=>String(o.id)===String(scope.project));
+    if(chosen){renderContext.project=chosen;project();}else portfolio(list);
+   }
+   else if(panel==='cobranca')collections();
+   else if(panel==='forn')suppliers();
+   else if(panel==='investidores')investors();
+   else if(panel.startsWith('realestate_')){
+    const area=panel==='realestate_locacoes'?'locacoes':'cantinas';
+    realEstate((area==='locacoes'?realEstateImoveis:realEstateSublocacoes).filter(r=>!scope.brand||realEstateBrandLabel(r)===scope.brand),area);
+   }else if(panel==='escolas'){
+    const units=unidades.filter(u=>!scope.brand||u.marca===scope.brand);
+    host('docs',documents(units)+section('Cobertura documental',table(['Unidade','Arquivos'],units.map(u=>[cell(mark(u.marca)+button(u.nome,'unit',{id:u.id}),u.nome),D.documents([u]).count]))));
+   }else if(panel==='registros'){
+    const rows=capexZeevPendingList().filter(r=>!scope.brand||(r.marca||extractMarca(r))===scope.brand);
+    host('queue',queue(rows)+section('Registros aguardando conferência',table(['Ticket','Unidade','Descrição',{label:'Valor informado',money:true}],rows.map(r=>[r.zeev_instance_id||r.instance_id||r.ticket_raiz_instance_id||r.id,r.unidade||r.unidade_nome||'A identificar',capexZeevFirstItem(r)||'A conferir',cash(D.amount(r.valor_final)||D.amount(r.valor))]))));
+   }
+   return [...renderContext.hosts.values()].join('');
+  }finally{renderContext=null;}
+ }
+ function recordsScope(panel,brand){if(panel==='cobranca'){state.collectionBrand=brand||'';collections();}else if(panel in operationalBrands){operationalBrands[panel]=brand||'';if(panel==='forn')suppliers();else investors();}}
+ root.Dashboards={capex,portfolio,project,collections,suppliers,investors,realEstate,documents,queue,render,csv,recordsScope};
 })(window);

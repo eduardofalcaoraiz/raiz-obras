@@ -1,5 +1,6 @@
 const fs=require('fs'),path=require('path'),assert=require('node:assert/strict');
 const {chromium}=require('playwright');
+process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY='1';
 const root=path.resolve(__dirname,'..'),production=process.argv.includes('--production'),base=production?'https://raiz-obras.vercel.app':'https://dashboards.test';
 const prefix=production?'production':'local';
 const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'raiz-dashboard-tests');fs.mkdirSync(out,{recursive:true});
@@ -14,6 +15,7 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
  await ctx.route(base+'/api/**',r=>{writes.push(r.request().url());return r.fulfill({status:403,json:{error:'No API operations allowed'}});});
  if(!production)await ctx.route(base+'/**',r=>{const u=new URL(r.request().url()),f=path.resolve(root,'.'+(u.pathname==='/'?'/index.html':u.pathname));if(!f.startsWith(path.resolve(root)+path.sep)||!fs.existsSync(f))return r.fulfill({status:404,body:''});return r.fulfill({path:f,contentType:f.endsWith('.js')?'text/javascript':f.endsWith('.css')?'text/css':f.endsWith('.html')?'text/html':undefined});});
  const page=await ctx.newPage();page.on('pageerror',e=>{errors.push(e.message);console.error(e.message);});
+ page.on('console',m=>{if(['error','warning'].includes(m.type()))console.error(m.type()+': '+m.text());});
  await page.goto(base,{waitUntil:'networkidle'});
  await page.evaluate(()=>{
   currentProfile={id:'test-owner',role:'admin',aprovado:true,email:'owner@example.test'};currentUser={id:'test-owner'};
@@ -27,32 +29,49 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
   investidores=[{id:'i1',nome:'Investidor A'}];
   realEstateImoveis=[{id:'11111111-1111-4111-8111-111111111111',nome:'Rua da Matriz, 25',unidade_ocupante:'Sá Pereira Matriz',marca:'SÁ PEREIRA',endereco:'Rua da Matriz, 25 - Botafogo',locador:'Locador Exemplo',status:'Ativo',valor_aluguel:155622.02,contrato_docs:[],obrigacoes:[],investidores:[],observacoes:'',contrato_fim:'2026-12-01'},{id:'22222222-2222-4222-8222-222222222222',nome:'Encerrado',unidade_ocupante:'Matriz',marca:'MATRIZ',status:'Encerrado',valor_aluguel:10000,contrato_docs:[],obrigacoes:[],investidores:[]}];
   realEstateSublocacoes=[{id:'33333333-3333-4333-8333-333333333333',marca:'CUBO',unidade:'Barra Golfe',sublocatario:'Operador Exemplo',tipo:'Cantina',status:'Atencao',valor_referencia:1188,revisao_pendente:true,cobrancas:[],divergencias:[]}];
-  AccessControl.start();
+  capexZeevLoaded=true;AccessControl.syncUi();
  });
- async function shot(name){await page.locator('.main').evaluate(e=>e.scrollTop=0);await page.screenshot({path:out+'/'+prefix+'-'+name+'.png'});screens.push(name);}
+ async function shot(name){await page.locator('.main').evaluate(e=>e.scrollTop=0);await page.locator('.view.active img').evaluateAll(es=>Promise.all(es.filter(e=>e.getBoundingClientRect().top<innerHeight).map(e=>e.decode().catch(()=>{}))));await page.screenshot({path:out+'/'+prefix+'-'+name+'.png'});screens.push(name);}
  async function checkLayout(name){const overflow=await page.evaluate(()=>[...document.querySelectorAll('.view.active .dash-shell,.view.active .dash-metrics')].filter(e=>e.getBoundingClientRect().width>0).filter(e=>e.getBoundingClientRect().right>innerWidth+2).map(e=>e.className));assert.deepEqual(overflow,[],name+' overflow');}
- await page.evaluate(()=>go('capex'));await page.locator('[data-dash-change=capex-year]').selectOption('2026');await shot('capex-desktop');
- assert.match(await page.locator('#esf-capex-drill .dash-metrics').innerText(),/46\.000,00/);
- await page.locator('[data-dash-change=capex-brand]').selectOption('CUBO');assert.match(await page.locator('#esf-capex-drill .dash-metrics').innerText(),/31\.000,00/);await shot('capex-brand');
- assert(await page.getByRole('button',{name:'Resumo da marca',exact:true}).isVisible());
- await page.locator('[data-dash-change=capex-unit]').selectOption('Cubo Marapendi');assert.match(await page.locator('#esf-capex-drill .dash-metrics').innerText(),/-R\$\s*6\.000,00/);
+ const hub=page.locator('#dashboard-hub-body');
+ await page.evaluate(()=>DashboardHub.open('capex',{year:'2026'}));await shot('capex-desktop');
+ assert.match(await hub.locator('.dash-metrics').innerText(),/46\.000,00/);
+ await page.locator('[data-hub-filter=brand]').selectOption('CUBO');assert.match(await hub.locator('.dash-metrics').innerText(),/31\.000,00/);await shot('capex-brand');
+ assert.equal(await page.locator('#view-dashboards').evaluate(e=>e.style.getPropertyValue('--hub-color')),'#08B8A8');
+ await page.locator('[data-hub-filter=unit]').selectOption('Cubo Marapendi');assert.match(await hub.locator('.dash-metrics').innerText(),/-R\$\s*6\.000,00/);
  await page.getByRole('button',{name:'Abrir pedidos',exact:true}).click();assert.equal(await page.evaluate(()=>capexListStatus),'Em Andamento');
- await page.evaluate(()=>go('nova'));await shot('works-desktop');assert.match(await page.locator('#esf-kpis').innerText(),/200\.000,00/);
- await page.evaluate(()=>{esfFiltroMarca='MATRIZ';renderEsfera();});assert.match(await page.locator('#esf-kpis').innerText(),/80\.000,00/);
- await page.evaluate(()=>openObra(1));await shot('project-desktop');assert.match(await page.locator('#o-kpis').innerText(),/379\.500,00/);
- await page.locator('#pane-resumo [data-dash-change=project-scope]').selectOption('extra');await page.locator('#pane-resumo [data-dash-change=project-scope]').selectOption('all');
- await page.locator('#pane-resumo [data-dash-change=project-year]').selectOption('2026');await page.evaluate(()=>openObra(2));assert.equal(await page.locator('[data-dash-change=project-year]').inputValue(),'');
- for(const view of ['cobranca','forn','investidores','escolas','realestate']){await page.evaluate(v=>go(v),view);await checkLayout(view);await shot(view+'-desktop');}
- await page.locator('#re-brand-filter').selectOption('MATRIZ');assert.match(await page.locator('#realestate-kpis').innerText(),/0 não encerrados/);
- await page.evaluate(()=>{realEstateArea='cantinas';renderRealEstate();});await shot('sublocacoes-desktop');
- await page.evaluate(()=>go('forn'));await page.locator('#forn-busca').fill('Fornecedor B');await page.locator('#forn-busca').dispatchEvent('input');assert.match(await page.locator('#forn-kpis').innerText(),/20\.000,00/);assert.doesNotMatch(await page.locator('#forn-kpis').innerText(),/200\.000,00/);
+ assert.equal(await page.locator('.view.active .dash-metrics').count(),0);assert.match(await page.locator('#esf-capex-drill').innerText(),/Equipamentos esportivos/);
+ await page.getByRole('button',{name:'Voltar aos dashboards',exact:true}).click();assert.equal(await page.locator('[data-hub-filter=unit]').inputValue(),'Cubo Marapendi');
+ await page.evaluate(()=>DashboardHub.open('nova',{}));assert.match(await hub.locator('.dash-metrics').first().innerText(),/200\.000,00/);await shot('works-desktop');
+ await page.locator('[data-hub-filter=brand]').selectOption('MATRIZ');assert.match(await hub.locator('.dash-metrics').first().innerText(),/80\.000,00/);
+ await page.locator('[data-hub-filter=brand]').selectOption('');await page.locator('[data-hub-filter=project]').selectOption('1');await shot('project-desktop');assert.match(await hub.locator('.dash-metrics').first().innerText(),/379\.500,00/);
+ await hub.locator('[data-dash-change=project-year]').selectOption('2026');await page.locator('[data-hub-filter=project]').selectOption('2');assert.equal(await hub.locator('[data-dash-change=project-year]').inputValue(),'');
+ await page.locator('[data-hub-records]').click();assert.equal(await page.locator('#pane-pag').evaluate(e=>e.classList.contains('active')),true);assert.equal(await page.locator('#o-kpis').innerText(),'');
+ assert.equal(await page.locator('#pane-resumo').isVisible(),false);await page.getByRole('button',{name:'Fora da obra',exact:true}).click();assert.equal(await page.evaluate(()=>pagEscopo),'extra');await page.getByRole('button',{name:'Dentro da obra',exact:true}).click();assert.equal(await page.evaluate(()=>pagEscopo),'obra');
+ await page.getByRole('button',{name:'Cadastro e aportes',exact:true}).click();assert(await page.getByRole('button',{name:'Registrar depósito',exact:true}).isVisible());
+ await page.evaluate(()=>{go('nova');esfFiltroMarca='MATRIZ';esfBusca='Recreio';renderEsfera();go('escolas');go('nova');});assert.equal(await page.evaluate(()=>esfFiltroMarca),'MATRIZ');assert.equal(await page.evaluate(()=>esfBusca),'Recreio');
+ await page.evaluate(()=>go('expansao'));assert.equal(await page.evaluate(()=>esfFiltroMarca),'Todas');
+ const panels=['capex','nova','expansao','cobranca','forn','investidores','escolas','realestate_locacoes','realestate_sublocacoes','registros'];
+ for(const panel of panels){await page.evaluate(p=>DashboardHub.open(p,{}),panel);await checkLayout(panel);await shot(panel+'-desktop');assert(!/NaN|undefined/.test(await hub.innerText()));}
+ await page.evaluate(()=>DashboardHub.open('realestate_locacoes',{brand:'MATRIZ'}));assert.match(await hub.locator('.dash-metrics').innerText(),/0 não encerrados/);
+ await page.evaluate(()=>DashboardHub.open('realestate_locacoes',{brand:'SÁ PEREIRA'}));await hub.getByRole('button',{name:'Sá Pereira Matriz',exact:true}).click();await page.waitForFunction(()=>document.getElementById('realestate-property-view').hidden===false);assert.equal(await page.locator('#nav button.active').getAttribute('data-nav'),'realestate');
+ await page.getByRole('button',{name:'Voltar aos dashboards',exact:true}).click();assert.equal(await page.locator('[data-hub-filter=brand]').inputValue(),'SÁ PEREIRA');
+ await page.evaluate(()=>DashboardHub.open('forn',{brand:'MATRIZ'}));await page.locator('[data-hub-records]').click();assert.equal(await page.locator('[data-dash-change=records-brand-forn]').inputValue(),'MATRIZ');assert.doesNotMatch(await page.locator('#forn-grid').innerText(),/Fornecedor B/);
+ await page.evaluate(()=>DashboardHub.open('capex',{year:'2026',brand:'CUBO'}));const hubHash=await page.evaluate(()=>location.hash);await page.evaluate(()=>go('escolas'));await page.goBack();await page.waitForFunction(()=>DashboardHub.active());assert.equal(await page.evaluate(()=>location.hash),hubHash);
+ await page.goForward();await page.waitForFunction(()=>document.getElementById('view-escolas').classList.contains('active'));
+ await page.evaluate(()=>{location.hash='#dashboards/capex?year=2026&brand=CUBO&unit=Cubo+Marapendi';});await page.waitForFunction(()=>DashboardHub.active()&&DashboardHub.scope().unit==='Cubo Marapendi');
+ for(const view of ['capex','nova','expansao','cobranca','forn','investidores','escolas','realestate']){await page.evaluate(v=>go(v),view);assert.equal(await page.locator('.view.active .dash-metrics').count(),0,view+' must remain operational');assert.equal(await page.locator('#nav button.active').getAttribute('data-nav'),view);await shot('records-'+view);}
+ await page.evaluate(()=>{go('capex');drillCapex(2024,null,null);});assert.equal(writes.length,0,'Historical navigation cannot update financial records');
  await page.setViewportSize({width:390,height:844});
- for(const view of ['capex','nova','cobranca','forn','investidores','escolas','realestate']){await page.evaluate(v=>go(v),view);await checkLayout(view);await shot(view+'-mobile');}
- await page.evaluate(()=>openObra(1));await checkLayout('project');await shot('project-mobile');
- await page.evaluate(()=>{currentProfile={id:'test-reader',role:'reader',aprovado:true,access_config:{capex:'read',nova:'read',forn:'read'}};AccessControl.start();go('capex');});
- assert.equal(await page.locator('#esf-acts').evaluate(e=>e.hidden),true);await page.evaluate(()=>openObra(1));assert.equal(await page.getByRole('button',{name:'Registrar depósito',exact:true}).count(),0);
+ for(const panel of panels){await page.evaluate(p=>DashboardHub.open(p,{}),panel);await checkLayout(panel);await shot(panel+'-mobile');}
+ await page.evaluate(()=>openObra(1));await checkLayout('project');await shot('project-records-mobile');
+ await page.evaluate(()=>{currentProfile={id:'test-reader',role:'reader',aprovado:true,access_config:{capex:'read',nova:'read'}};AccessControl.syncUi();DashboardHub.open('capex',{});});
+ assert.deepEqual(await page.locator('[data-hub-filter=panel] option').evaluateAll(es=>es.map(e=>e.value)),['capex','nova']);
+ await page.evaluate(()=>DashboardHub.open('realestate_locacoes',{}));assert.equal(await page.evaluate(()=>DashboardHub.panel()),'capex');
+ await page.evaluate(()=>go('capex'));assert.equal(await page.locator('#esf-acts').evaluate(e=>e.hidden),true);await page.evaluate(()=>openObra(1));assert.equal(await page.getByRole('button',{name:'Registrar depósito',exact:true}).count(),0);
  await page.evaluate(()=>{currentProfile={role:'admin',aprovado:true};obras=[];capexItens=[];capexSaldos=[];capexDataLoaded=true;});
- for(const v of ['capex','nova','cobranca','forn','investidores']){await page.evaluate(v=>go(v),v);assert(!await page.locator('.view.active').innerText().then(t=>/NaN|undefined/.test(t)));}
+ for(const panel of panels){await page.evaluate(p=>DashboardHub.open(p,{}),panel);assert(!/NaN|undefined/.test(await hub.innerText()));}
+ await page.evaluate(async()=>{DashboardHub.open('capex',{});const original=loadCapexData;capexDataLoaded=false;loadCapexData=async()=>{throw new Error('Simulated read failure');};await DashboardHub.render();loadCapexData=original;capexDataLoaded=true;});assert(await hub.getByRole('alert').isVisible());assert.equal(await hub.locator('.dash-metrics').count(),0);
  assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);
  fs.writeFileSync(out+'/'+prefix+'-ui-validation.json',JSON.stringify({passed:true,errors,writes,screens,viewports:['1440x1000','390x844'],fixtureData:true},null,2));console.log('PASS dashboards: '+screens.length+' screenshots, filters, read permissions, empty states; zero writes.');
  }finally{await browser.close();}

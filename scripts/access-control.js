@@ -32,6 +32,7 @@
     return view;
   }
   function allowedView(view) {
+    if(view==='dashboards') return modules.some(([key])=>can(key));
     if(view==='admin') return can('', 'admin');
     if(view==='realestate') return can('realestate_locacoes')||can('realestate_sublocacoes');
     return can(viewModule(view));
@@ -64,7 +65,7 @@
     clearInterval(poll);poll=setInterval(checkCurrent,60000);
   }
   function landing() {
-    const preferred=['escolas','capex','realestate','registros','expansao','nova','cobranca','forn','investidores','admin'];
+    const preferred=['dashboards','escolas','capex','realestate','registros','expansao','nova','cobranca','forn','investidores','admin'];
     const view=preferred.find(allowedView);
     if(view){go(view);return;}
     document.querySelectorAll('.view').forEach(n=>n.classList.remove('active'));
