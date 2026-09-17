@@ -48,6 +48,13 @@ fs.mkdirSync(output,{recursive:true});
   }
   await counters();await geometry();await shot('desktop');
   assert.notEqual(await page.locator('.main').evaluate(e=>getComputedStyle(e).backgroundImage),'none');
+  const sidebarGradient=()=>page.locator('#side-color-layer').evaluate(e=>getComputedStyle(e).backgroundImage);
+  const raizGradient=await sidebarGradient();assert.match(raizGradient,/linear-gradient/);
+  assert.equal(await page.locator('#side-color-layer').evaluate(e=>e.getBoundingClientRect().height),1000);
+  assert.equal(await page.locator('#sidebar .brand b').evaluate(e=>getComputedStyle(e).color),'rgb(23, 60, 52)');
+  for(const selector of ['.hub-heading','.hub-controls','.dash-metric','#sidebar .nav button.active']){
+   assert.match(await page.locator(selector).first().evaluate(e=>getComputedStyle(e).backgroundImage),/linear-gradient/,selector);
+  }
   assert.equal(await nav.locator('[aria-current=page]').count(),1);
   assert.equal(await nav.locator('[aria-current=page]').getAttribute('data-nav'),'dashboards');
   const masks=await page.locator('#sidebar .menu-icon').evaluateAll(es=>es.map(e=>getComputedStyle(e).maskImage));
@@ -55,8 +62,11 @@ fs.mkdirSync(output,{recursive:true});
   await page.locator('[data-hub-filter=brand]').selectOption('CUBO');await shot('brand-cubo');
   assert.equal(await page.locator('#view-dashboards').evaluate(e=>e.style.getPropertyValue('--hub-color')),'#08B8A8');
   assert.equal(await page.locator('#sidebar').evaluate(e=>e.style.getPropertyValue('--side-art-color')),'#08B8A8');
+  const cuboGradient=await sidebarGradient();assert.notEqual(cuboGradient,raizGradient);
   await page.locator('[data-hub-filter=brand]').selectOption('APOGEU');await shot('brand-apogeu');
+  assert.notEqual(await sidebarGradient(),cuboGradient);
   await page.locator('[data-hub-filter=brand]').selectOption('');
+  assert.equal(await sidebarGradient(),raizGradient);
   await page.locator('#side-collapse-btn').click();await counters();await shot('collapsed');
   assert.equal(await page.locator('#sidebar').evaluate(e=>e.getBoundingClientRect().width),78);
   assert.equal(await page.locator('#side-collapse-btn').getAttribute('aria-expanded'),'false');
@@ -86,6 +96,8 @@ fs.mkdirSync(output,{recursive:true});
   const bottom=await nav.locator('[data-nav=admin]').boundingBox(),footer=await page.locator('#sidebar .foot').boundingBox();assert(bottom.y+bottom.height<=footer.y+1);
   for(const width of [390,320]){
    await page.setViewportSize({width,height:844});
+   assert.match(await page.locator('.mobile-topbar').evaluate(e=>getComputedStyle(e).backgroundImage),/linear-gradient/);
+   assert.equal(await page.locator('.mobile-topbar .mobile-brand').evaluate(e=>getComputedStyle(e).color),'rgb(23, 60, 52)');
    await page.locator('#mobile-menu-trigger').click();await counters();await geometry();await shot('mobile-'+width);
    assert.equal(await page.locator('#sidebar').getAttribute('aria-modal'),'true');
    await page.locator('#sidebar .btn-logout').focus();await page.keyboard.press('Tab');assert(await page.locator('#sidebar .side-close-btn').evaluate(e=>e===document.activeElement));
@@ -101,6 +113,6 @@ fs.mkdirSync(output,{recursive:true});
   assert.equal(await page.locator('.main').evaluate(e=>e.inert),false);
   assert.equal(await page.locator('#sidebar').evaluate(e=>e.inert),false);
   assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);
-  console.log(JSON.stringify({passed:true,production,output,errors,writes,checks:['groups','badge layout','icons','brand colors','collapsed menu','permissions','Real Estate routing','history','mobile','keyboard','responsive resizing']}));
+  console.log(JSON.stringify({passed:true,production,output,errors,writes,checks:['groups','badge layout','icons','light gradients','brand colors','collapsed menu','permissions','Real Estate routing','history','mobile','keyboard','responsive resizing']}));
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});
