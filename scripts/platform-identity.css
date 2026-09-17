@@ -1,8 +1,10 @@
 /* Gradients are part of the brand identity; tables remain neutral and readable. */
-#app>.main{--workspace-color:var(--raiz-primary);--workspace-soft:var(--raiz-soft);--workspace-text:var(--raiz-text);--raiz-card-gradient:linear-gradient(135deg,#ffffff40,#ffffff10);--raiz-panel-gradient:linear-gradient(135deg,#ffffff30,#ffffff08);background:linear-gradient(145deg,color-mix(in srgb,var(--workspace-soft) 24%,#f6f7f5) 0%,#f7f8f6 48%,#f1f6f3 100%)}
+#app>.main{--workspace-color:var(--raiz-primary);--workspace-soft:var(--raiz-soft);--workspace-text:var(--raiz-text);--raiz-card-gradient:linear-gradient(135deg,#fffffff0,#ffffffc4);--raiz-panel-gradient:linear-gradient(135deg,#ffffffc4,#ffffff80);--muted:#5c6b64;--line:#dbe2dd;--line-2:#cad4ce;background:linear-gradient(120deg,color-mix(in srgb,var(--workspace-soft) 95%,#fff) 0%,color-mix(in srgb,var(--workspace-soft) 48%,#f5f8f1) 44%,#def1eb 100%)}
 #app>.main .page-art-layer{display:none}
 .app .main .dash-shell{background:transparent}
-.app .main .view>.phead{border:0;background:none;padding:18px 0 8px;margin:0 0 18px;gap:16px}
+.app .main .view>.phead{border:0;background:none;padding:16px 0 8px;margin:0 0 12px;gap:16px}
+.app .main .view>.phead h1{font-size:28px;line-height:1.2;font-weight:700}
+.app .main .view>.phead p{font-size:14px;font-weight:400;line-height:1.5;margin-top:8px}
 .app .main .view>.phead h1{color:#173c34}
 .app .main .view>.phead .eyebrow{color:var(--workspace-text)}
 .app .main .view>.phead p,.app .main .view>.phead .desc{color:#48625a}
@@ -27,16 +29,16 @@
 /* Unframe page sections and nested financial summaries, not inputs or dialogs. */
 .app .main>.wrap{padding-inline:20px}
 .app .main .capex-navline,.app .main .capex-context,.app .main .capex-tr-search,.app .main .capex-budget-band{border:0;border-radius:0;box-shadow:none;background:none;padding-inline:0}
-.app .main .capex-brand-card,.app .main .capex-unit-card,.app .main .capex-year-card{border:0;border-bottom:1px solid #173c3417;border-radius:0;box-shadow:none;min-height:0;background:none}
+.app .main .capex-brand-card,.app .main .capex-unit-card,.app .main .capex-year-card{border:0;border-radius:8px;box-shadow:0 2px 8px #173c3408;min-height:0;background:#ffffffe0}
 .app .main .capex-brand-head,.app .main .capex-unit-head,.app .main .capex-year-hero{border:0;background:none}
 .app .main .capex-brand-head:after,.app .main .capex-brand-card:before,.app .main .capex-unit-card:before,.app .main .capex-year-card:before,.app .main .capex-year-card:after{display:none}
 .app .main .capex-brand-logo,.app .main .capex-unit-logo{border:0;border-radius:6px;box-shadow:none;background:#ffffff80}
 .app .main .capex-brand-balance,.app .main .capex-unit-balance,.app .main .capex-year-balance,.app .main .capex-money-panel{border:0;background:none;border-radius:0;padding:4px 0 8px}
 .app .main .capex-brand-stat,.app .main .capex-unit-stat,.app .main .capex-year-mini,.app .main .cyear-metric{border:0;background:none;border-radius:0;padding:6px 0}
 .app .main .capex-brand-footer,.app .main .capex-unit-footer{border-color:#173c3410;background:none}
-.app .main .capex-expander-card{border:0;border-bottom:1px solid #173c3417;border-radius:0;box-shadow:none;background:none;margin-bottom:8px}
+.app .main .capex-expander-card{border:0;border-radius:8px;box-shadow:0 1px 4px #173c3407;background:#ffffffdb;margin-bottom:8px}
 .app .main .capex-expander-card:before{display:none}
-.app .main .capex-expander-card:hover{transform:none;box-shadow:none;background:#ffffff40}
+.app .main .capex-expander-card:hover{transform:none;box-shadow:0 2px 10px #173c3410;background:#fffffff5}
 .app .main .capex-summary-id,.app .main .capex-summary-data,.app .main .capex-expander-card .capex-zeev-money{border:0;border-radius:0;background:none}
 .app .main .capex-summary-data{padding:4px 0}
 .app .main .capex-summary-code{border:0;background:none;padding:0}
@@ -44,14 +46,40 @@
 #app .main .capex-summary-actions .btn-primary:hover{background:#ffffff80}
 .app .main .capex-zeev-list{max-height:none;overflow:visible}
 #esf-capex-drill .pgrid,#esf-grid.pgrid{grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));container-type:inline-size}
-.app .main .obra-card{border:0;border-bottom:1px solid #173c3417;border-radius:0;box-shadow:none;min-height:0;background:none}
+.app .main .obra-card{border:0;border-radius:8px;box-shadow:0 2px 8px #173c3408;min-height:240px;background:#ffffffe0}
 .app .main .obra-card:before{display:none}
-.app .main .obra-card:hover,.app .main .capex-brand-card:hover,.app .main .capex-unit-card:hover,.app .main .capex-year-card:hover{transform:none;box-shadow:none;background:#ffffff40}
+.app .main .obra-card:hover,.app .main .capex-brand-card:hover,.app .main .capex-unit-card:hover,.app .main .capex-year-card:hover{transform:none;box-shadow:0 4px 16px #173c3412;background:#fffffff5}
 .app .main .obra-brand-pill,.app .main .obra-card-unit-chip,.app .main .obra-card-builder,.app .main .obra-card-pill{border:0;border-radius:0;background:none;padding-inline:0}
 .app .main .obra-card-constr{border:0;padding:0}
 .app .main .obra-card-meta-line{gap:8px 16px}
-.app .main .obra-card-btn{background:none;border-color:#173c3420;color:var(--ink);text-shadow:none}
-.app .main .obra-card-btn:hover{background:#ffffff80;box-shadow:none;transform:none}
+.app .main .obra-card-btn{width:auto;align-self:flex-start;gap:8px;margin:0 18px 14px;padding:0;border:0;border-radius:0;background:none;color:var(--brand-text);font-weight:600;text-shadow:none}
+.app .main .obra-card-btn .menu-icon{width:16px;height:16px;flex-basis:16px}
+.app .main .obra-card-btn:hover{background:none;box-shadow:none;transform:none;text-decoration:underline}
+.app .main .obra-card-head{padding:16px 18px 0}
+.app .main .obra-card-body{padding:12px 18px 8px;gap:12px}
+.app .main .obra-brand-logo{width:36px;height:26px;background:none;border:0}
+.app .main .obra-brand-pill{font-size:10px;font-weight:600;gap:7px}
+.app .main .obra-card h3{font-size:18px;line-height:1.3;font-weight:700}
+.app .main .obra-card-subtitle,.app .main .obra-card-unit-chip{font-size:12px;font-weight:400;color:var(--muted)}
+.app .main .obra-card-builder{font-size:12px;font-weight:500;line-height:1.45}
+.app .main .obra-card-label{font-size:10px;font-weight:500;letter-spacing:0}
+.app .main .obra-card-meta-line{gap:6px 12px}
+.app .main .obra-card-pill{font-size:11px;font-weight:400;color:var(--muted)}
+.app .main .obra-card-pill.entrega{font-size:10px;font-weight:600;color:var(--brand-text)}
+.app .main .obra-status-select{min-width:0;max-width:145px;height:28px;font-size:11px;font-weight:500;border-color:#dbe2dd!important;border-radius:6px}
+.obra-list-toolbar{display:grid;grid-template-columns:minmax(90px,1fr) minmax(240px,380px) minmax(180px,260px);gap:18px;align-items:end;margin:20px 0 14px}
+.obra-list-toolbar h2{font-size:18px;line-height:38px;font-weight:650}
+.obra-list-toolbar label{display:block;margin-bottom:5px;font-size:11px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
+.obra-list-toolbar .fi,.obra-list-toolbar #esf-nf-search-input{width:100%;height:38px;padding:8px 11px;font-size:13px;font-weight:400;background:#ffffffd9;border:1px solid #173c3420;border-radius:6px}
+.obra-list-toolbar #esf-nf-search{min-width:0}
+.app .main .obra-list-toolbar .obra-nf-search{display:block;padding:0;margin:0;background:none;border:0;box-shadow:none}
+.obra-list-toolbar .capex-tr-results:empty{display:none}
+.obra-list-toolbar:has(.capex-tr-results:not(:empty)){grid-template-columns:1fr 1fr}
+.obra-list-toolbar:has(.capex-tr-results:not(:empty)) #esf-nf-search{grid-column:1/-1}
+.app .main #esf-chips{gap:4px 12px;margin:0 0 18px;padding:0 0 4px;border-bottom:1px solid #173c3412}
+.app .main #esf-chips .chip{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:8px 4px;font-size:11px;font-weight:500;color:var(--muted)}
+.app .main #esf-chips .chip.active{background:none;color:var(--ink);border-bottom-color:var(--workspace-color);font-weight:700}
+.app .main #esf-chips .chip:hover{background:#ffffff60;color:var(--ink)}
 .app .main .view>.card,.app .main .tabpane>.card{background:none;border:0;box-shadow:none;border-radius:0}
 .app .main .kpi{background:none;border:0;border-radius:0;box-shadow:none}
 .app .main .capex-status-shell-simple .capex-status-card{background:none;border:0;border-bottom:1px solid #173c3417;border-radius:0;box-shadow:none}
@@ -73,5 +101,6 @@
 @media(min-width:1000px){
  .app .main .capex-expander-summary{min-width:0;grid-template-columns:minmax(112px,.6fr) minmax(0,2fr) minmax(130px,.7fr) 120px 28px;gap:8px 14px}
 }
-@media(max-width:700px){.app .main>.wrap{padding-inline:14px}.app .main .view>.phead{padding:16px 0 4px;gap:12px}#view-dashboards .hub-heading{padding:16px 0 8px}#view-dashboards .hub-controls{padding:10px 0}}
+@media(max-width:1000px){.obra-list-toolbar{grid-template-columns:1fr 1fr;gap:10px 16px}.obra-list-toolbar h2{grid-column:1/-1;line-height:1.3}.obra-list-toolbar:has(.capex-tr-results:not(:empty)) #esf-nf-search{grid-column:auto}}
+@media(max-width:700px){.app .main>.wrap{padding-inline:14px}.app .main .view>.phead{padding:16px 0 4px;gap:12px}.app .main .view>.phead h1{font-size:25px}#view-dashboards .hub-heading{padding:16px 0 8px}#view-dashboards .hub-controls{padding:10px 0}.obra-list-toolbar{grid-template-columns:minmax(0,1fr) minmax(0,.8fr)}}
 @media print{.app .main,#view-dashboards .hub-heading,.app .main .view>.phead{background:white}}

@@ -1,9 +1,9 @@
 /* Keep the established light gradient; school context supplies the brand tokens. */
 #sidebar{width:286px;padding:0 12px;background:var(--paper);color:var(--ink);gap:0;box-shadow:inset -1px 0 #173c3414;isolation:isolate}
 #sidebar,#sidebar *{letter-spacing:0}
-#sidebar #side-color-layer{inset:0;height:auto;background:linear-gradient(155deg,color-mix(in srgb,var(--side-art-color) 12%,transparent) 0%,color-mix(in srgb,var(--side-art-soft) 42%,transparent) 22%,transparent 62%),linear-gradient(180deg,#fff8 0%,#fff2 68%,#dcece630 100%);opacity:1!important}
+#sidebar #side-color-layer{inset:0;height:auto;background:linear-gradient(155deg,color-mix(in srgb,var(--side-art-color) 24%,transparent) 0%,color-mix(in srgb,var(--side-art-soft) 76%,transparent) 34%,transparent 78%),linear-gradient(180deg,#ffffff50 0%,#f4f5ed60 52%,#d7ebe2 100%);opacity:1!important}
 #sidebar #side-color-layer:before,#sidebar #side-color-layer:after{display:none}
-#sidebar .side-header{display:flex;align-items:center;gap:8px;flex:none;min-height:106px;padding:20px 4px 18px;border-bottom:1px solid color-mix(in srgb,var(--side-art-color) 20%,#173c3410)}
+#sidebar .side-header{display:flex;align-items:center;gap:8px;flex:none;min-height:94px;padding:16px 4px 14px;border-bottom:1px solid color-mix(in srgb,var(--side-art-color) 20%,#173c3410)}
 #sidebar .brand{flex:1;min-width:0;gap:12px;padding:0;margin:0;border:0;border-radius:0;background:none;box-shadow:none;backdrop-filter:none}
 #sidebar .brand .mk{width:50px;height:60px;flex:0 0 50px;padding:5px;background:#fffc;border-radius:6px;box-shadow:0 2px 10px #173c3406}
 #sidebar .brand img{width:100%;height:100%;object-fit:contain}
@@ -15,10 +15,10 @@
 #sidebar .side-collapse-btn .menu-icon{width:17px;height:17px}
 #sidebar .side-close-btn{display:none}
 #sidebar .nav{min-height:0;flex:1;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#a9bbb2 transparent;padding:12px 0 18px}
-#sidebar .nav-group{padding:0;margin:0 0 12px}
+#sidebar .nav-group{padding:0;margin:0 0 6px}
 #sidebar .nav-group:last-child{margin-bottom:0}
 #sidebar .nav-group-title{font-size:10px;font-weight:600!important;text-transform:uppercase;color:#606e63;padding:8px 12px 7px;line-height:1.4}
-#sidebar .nav button{display:flex;align-items:center;gap:11px;min-height:43px;margin:2px 0;padding:10px 12px;width:100%;border:1px solid transparent;border-radius:6px;background:transparent;color:#36584e;font-size:13px;line-height:1.4;text-align:left;box-shadow:none}
+#sidebar .nav button{display:flex;align-items:center;gap:11px;min-height:39px;margin:2px 0;padding:8px 12px;width:100%;border:1px solid transparent;border-radius:6px;background:transparent;color:#36584e;font-size:13px;line-height:1.4;text-align:left;box-shadow:none}
 #sidebar .nav button,#sidebar .nav button .nav-label{font-weight:550!important}
 #sidebar .nav-label{flex:1;min-width:0;white-space:normal;overflow-wrap:break-word;overflow:visible;text-overflow:clip;opacity:1}
 #sidebar .nav .ic{width:19px;height:19px;flex:0 0 19px;color:#55766b;opacity:1}

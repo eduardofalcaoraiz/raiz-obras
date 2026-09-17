@@ -56,11 +56,10 @@ body{min-height:100vh;min-height:100dvh;font-family:var(--font-ui);background:va
 
 h1,h2,h3{font-family:var(--font-ui);font-weight:700;line-height:1.15;letter-spacing:0}
 
-body,body :where(p,span,div,label,small,a,button,input,select,textarea,td,th,li,option){
-  font-weight:700!important
-}
+body{font-weight:400}
+body :where(p,span,div,label,small,a,button,input,select,textarea,td,th,li,option){font-weight:inherit}
 body :where(h1,h2,h3,h4,h5,h6,b,strong,.brand b,.mobile-brand,.phead .eyebrow,.kpi .val,.num,.cyear-num,.obra-fases-title){
-  font-weight:800!important
+  font-weight:700
 }
 #login-screen .lbrand b{font-weight:900!important}
 
@@ -2197,9 +2196,11 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 
       <div id="esf-obras-section">
 
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:24px 0 14px"><h2 style="font-size:18px;flex:1;margin:0">Obras</h2><input class="fi" id="esf-busca" style="width:240px;padding:8px 12px;font-size:13px" placeholder="Buscar obra, marca, construtora…" oninput="setEsfBusca(this.value)"></div>
-
-        <div id="esf-nf-search"></div>
+        <div class="obra-list-toolbar">
+          <h2>Obras</h2>
+          <div class="obra-search-field"><label for="esf-busca">Buscar obra</label><input class="fi" id="esf-busca" placeholder="Obra, marca ou construtora" oninput="setEsfBusca(this.value)"></div>
+          <div id="esf-nf-search"></div>
+        </div>
 
         <div class="chips" id="esf-chips"></div>
 
@@ -4034,7 +4035,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 <link rel="stylesheet" href="scripts/real-estate-dossier.css?v=20260917-calm">
 <script src="scripts/real-estate-workspace.js?v=20260916-workspace"></script>
 <script src="scripts/real-estate-property-page.js?v=20260917-hub"></script>
-<link rel="stylesheet" href="scripts/real-estate-property-page.css?v=20260917-calm">
+<link rel="stylesheet" href="scripts/real-estate-property-page.css?v=20260917-rebalanced">
 <link rel="stylesheet" href="scripts/real-estate-workspace.css?v=20260917-flow">
 <script src="scripts/dashboard-data.js?v=20260916-rebuild"></script>
 <script src="scripts/dashboards.js?v=20260917-hub"></script>
@@ -4043,8 +4044,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 <script src="scripts/dashboard-hub.js?v=20260917-menu"></script>
 <script src="scripts/platform-navigation.js?v=20260917-hub"></script>
 <link rel="stylesheet" href="scripts/dashboard-hub.css?v=20260917-flow">
-<link rel="stylesheet" href="scripts/platform-menu.css?v=20260917-calm">
-<link rel="stylesheet" href="scripts/platform-identity.css?v=20260917-calm-edit">
+<link rel="stylesheet" href="scripts/platform-menu.css?v=20260917-rebalanced">
+<link rel="stylesheet" href="scripts/platform-identity.css?v=20260917-rebalanced">
 <script defer src="scripts/platform-menu.js?v=20260917-menu"></script>
 <script src="scripts/access-invites.js?v=20260916-invite-availability"></script>
 <link rel="stylesheet" href="scripts/access-control.css?v=20260916-invite-availability">
@@ -6780,9 +6781,7 @@ function renderObraCard(o,i){
   const brandShadow=textShadowOnColor(bc);
   const safe=v=>escHtml(String(v==null?'':v).trim()||'A definir');
   const marcaPills=(marcas.length?marcas:['RAIZ']).map(m=>{
-    const mc=brandColor(m);
-    const mb=mc&&String(mc).startsWith('#')?mc+'40':`color-mix(in srgb, ${mc} 32%, var(--line))`;
-    return`<span class="obra-brand-pill" style="background:${brandLight(m)};color:${brandTextOnLight(m)};border-color:${mb}"><span class="obra-brand-logo">${brandLogoImg(m,'height:14px;width:24px;object-fit:contain')}</span>${escHtml(m)}</span>`;
+    return`<span class="obra-brand-pill" style="color:${brandTextOnLight(m)}"><span class="obra-brand-logo">${brandLogoImg(m,'height:22px;width:36px;object-fit:contain')}</span>${escHtml(m)}</span>`;
   }).join('');
   const statusDone='Conclu\u00eddo';
   const st=String(o.status||'Planejamento');
@@ -6794,8 +6793,10 @@ function renderObraCard(o,i){
   const constrNames=o.tem_construtora===false?['Sem construtora contratada']:(constrList.length?constrList:[fallbackConstr]);
   const constrFull=constrNames.join(' \u00b7 ');
   const constrHtml=constrNames.map(n=>`<span class="obra-card-builder">${escHtml(n)}</span>`).join('');
-  const subtitulo=String(o.subtitulo_obra||'').trim();
-  const unitChips=units.length?`<div class="obra-card-units" title="${escHtml(units.map(u=>u.nome).join(' · '))}">${units.map((u,idx)=>`<span class="obra-card-unit-chip ${idx===0?'primary':''}">${escHtml(u.nome)}</span>`).join('')}</div>`:'';
+  const subtitleRaw=String(o.subtitulo_obra||'').trim();
+  const subtitulo=_obraUnitMatchKey(subtitleRaw)===_obraUnitMatchKey(o.nome)?'':subtitleRaw;
+  const relatedUnits=units.filter(u=>_obraUnitMatchKey(u.nome)!==_obraUnitMatchKey(o.nome));
+  const unitChips=relatedUnits.length?`<div class="obra-card-units" title="${escHtml(relatedUnits.map(u=>u.nome).join(' · '))}">${relatedUnits.map(u=>`<span class="obra-card-unit-chip">${escHtml(u.nome)}</span>`).join('')}</div>`:'';
   const anoFim=_obraEndYear(o)||'a definir';
   const entregaText=isDone?(anoFim==='a definir'?'ENTREGUE':`ENTREGUE EM ${anoFim}`):(anoFim==='a definir'?'PREVIS\u00c3O DE ENTREGA A DEFINIR':`PREVIS\u00c3O DE ENTREGA EM ${anoFim}`);
   return `<div class="pcard obra-card interactive-card" role="button" tabindex="0" onclick="openObra(${o.id})" onkeydown="if(cardKeyOpen(event))openObra(${o.id})" style="animation-delay:${i*55}ms;--brand-cur:${bc};--brand-text:${brandText};--brand-cur-light:${brandLight(marcaBase)};--brand-readable:${brandReadable};--brand-readable-shadow:${brandShadow}">
@@ -6820,7 +6821,7 @@ function renderObraCard(o,i){
         <span class="obra-card-pill entrega">${escHtml(entregaText)}</span>
       </div>
     </div>
-    <button type="button" class="obra-card-btn" onclick="event.stopPropagation();openObra(${o.id})">Abrir obra</button>
+    <button type="button" class="obra-card-btn" onclick="event.stopPropagation();openObra(${o.id})">Abrir obra <span class="menu-icon" style="--menu-icon:url('/assets/icons/lucide/arrow-up-right.svg')" aria-hidden="true"></span></button>
   </div>`;
 }
 

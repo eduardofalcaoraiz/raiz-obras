@@ -13,6 +13,15 @@ a solid dark sidebar or a generic white theme.
 - The gradient belongs to the continuous page background, not individual
   rectangles. Do not fill metric bands, property cards, work summaries or
   payment rows with brand tints. Use logos, selected states and small accents.
+- The gradient must remain visible across the workspace, not fade into an
+  almost-white theme. Preserve the warm Raiz-to-soft-green transition.
+- Individual work, CAPEX and property records need a light neutral surface
+  and subtle separation. Removing every record surface destroys hierarchy.
+  Do not restore nested cards, strong brand borders or decorative stripes.
+- Use regular-weight supporting text and distinct headings. Never force all
+  page text to bold. Avoid repeating the work title as its unit or subtitle.
+- Keep work and invoice searches together in a compact toolbar. Validate
+  populated multi-brand lists, not only empty or single-record screenshots.
 - Keep the sidebar gradient restrained. Active navigation needs a text/icon
   emphasis and a small accent, not a colored capsule or a surrounding outline.
 - Use the full available workspace width. Avoid arbitrary page width caps,
