@@ -38,10 +38,10 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
   const painted=await page.locator(selector).evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().width>0).filter(e=>{const s=getComputedStyle(e);return s.backgroundImage!=='none'||s.backgroundColor!=='rgba(0, 0, 0, 0)';}).map(e=>e.className));
   assert.deepEqual(painted,[],selector+' must not paint colored panels');
  }
- async function neutralRecord(selector){
+ async function brandedRecord(selector){
   const styles=await page.locator(selector).evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().width>0).map(e=>{const s=getComputedStyle(e);return {background:s.backgroundColor,image:s.backgroundImage,border:s.borderTopWidth,radius:s.borderTopLeftRadius};}));
   assert(styles.length>0,selector+' must be rendered');
-  for(const s of styles){assert.match(s.background,/^rgba?\(255, 255, 255(?:, 0\.\d+)?\)$/);assert.equal(s.image,'none');assert.equal(s.border,'0px');assert.equal(s.radius,'8px');}
+  for(const s of styles){assert.match(s.image,/linear-gradient\(/,selector+' must retain the brand gradient');assert.equal(s.border,'0px');assert.equal(s.radius,'8px');}
  }
  const hub=page.locator('#dashboard-hub-body');
  await page.evaluate(()=>DashboardHub.open('capex',{year:'2026'}));await shot('capex-desktop');
@@ -85,11 +85,12 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
  await page.evaluate(()=>{location.hash='#dashboards/capex?year=2026&brand=CUBO&unit=Cubo+Marapendi';});await page.waitForFunction(()=>DashboardHub.active()&&DashboardHub.scope().unit==='Cubo Marapendi');
  for(const view of ['capex','nova','expansao','cobranca','forn','investidores','escolas','realestate']){await page.evaluate(v=>go(v),view);assert.equal(await page.locator('.view.active .dash-metrics').count(),0,view+' must remain operational');assert.equal(await page.locator('#nav button.active').getAttribute('data-nav'),view);await shot('records-'+view);}
  const property=page.locator('.re-property-card:visible').first(),grid=page.locator('.re-property-grid:visible').first();
- await page.mouse.move(0,0);await neutralRecord('.re-property-card');
+ await page.mouse.move(0,0);await brandedRecord('.re-property-card');
  assert(Math.abs((await property.boundingBox()).width-(await grid.boundingBox()).width)<2,'Single property must fill its row');
  for(const [name,brand,unit]of [['brands',null,null],['units','CUBO',null],['requests','CUBO','Cubo Marapendi']]){
   await page.evaluate(({brand,unit})=>{go('capex');drillCapex(2026,brand,unit);},{brand,unit});await shot('capex-'+name);
-  await neutralRecord('.capex-brand-card,.capex-unit-card,.capex-expander-card');
+  await brandedRecord('.capex-brand-card,.capex-unit-card,.capex-expander-card');
+  if(name==='brands')assert((await page.locator('.capex-brand-card').evaluateAll(es=>new Set(es.map(e=>getComputedStyle(e).backgroundImage)).size))>1,'School cards must retain distinct brand gradients');
   if(name==='units'){
    const widths=await page.locator('.capex-unit-card').evaluate(e=>({card:e.getBoundingClientRect().width,grid:e.parentElement.getBoundingClientRect().width}));
    assert(Math.abs(widths.card-widths.grid)<2,'Single CAPEX unit must fill its row');
@@ -125,7 +126,7 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
   go('nova');esfFiltroMarca='Todas';esfBusca='';document.getElementById('esf-busca').value='';renderEsfera();
  });
  for(const width of [1920,1440,390]){
-  await page.setViewportSize({width,height:width===390?844:1000});await shot('populated-works-'+width);await neutralRecord('.obra-card');
+  await page.setViewportSize({width,height:width===390?844:1000});await shot('populated-works-'+width);await brandedRecord('.obra-card');
   const bounds=await page.locator('.obra-card').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,width:r.width};}));
   assert(bounds.every(r=>r.left>=0&&r.right<=width+1),'Work cards overflow '+width);
   assert.equal(await page.locator('#esf-desc').evaluate(e=>getComputedStyle(e).fontWeight),'400','Supporting text must not be forced bold');

@@ -10,12 +10,13 @@ a solid dark sidebar or a generic white theme.
   The sidebar, page headings and dashboard highlights follow those tokens.
 - Keep gradients broad and light. Financial tables and documents need neutral,
   readable surfaces. Preserve semantic colors for financial indicators.
-- The gradient belongs to the continuous page background, not individual
-  rectangles. Do not fill metric bands, property cards, work summaries or
-  payment rows with brand tints. Use logos, selected states and small accents.
+- The continuous workspace and individual CAPEX, property and work cards
+  carry light, visible gradients using their existing school brand tokens.
+  Do not flatten these records to white, including on hover. Keep metric bands
+  and payment rows unframed and readable, without nested tinted rectangles.
 - The gradient must remain visible across the workspace, not fade into an
   almost-white theme. Preserve the warm Raiz-to-soft-green transition.
-- Individual work, CAPEX and property records need a light neutral surface
+- Individual work, CAPEX and property records need a light branded surface
   and subtle separation. Removing every record surface destroys hierarchy.
   Do not restore nested cards, strong brand borders or decorative stripes.
 - Use regular-weight supporting text and distinct headings. Never force all
