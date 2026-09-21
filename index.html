@@ -4042,6 +4042,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <script src="scripts/dashboards.js?v=20260921-readable-cards"></script>
 <link rel="stylesheet" href="scripts/dashboards.css?v=20260921-readable">
 <script src="scripts/access-control.js?v=20260917-menu"></script>
+<link rel="stylesheet" href="scripts/capex-reviews.css?v=20260921-1">
+<script src="scripts/capex-reviews.js?v=20260921-1"></script>
 <script src="scripts/dashboard-hub.js?v=20260921-realestate-labels"></script>
 <script src="scripts/platform-navigation.js?v=20260917-hub"></script>
 <link rel="stylesheet" href="scripts/dashboard-hub.css?v=20260921-readable">
@@ -4166,6 +4168,7 @@ async function refreshCapexZeevQueue(opts){
     capexZeevLastSyncStamp=capexZeevSyncStamp(capexZeevSyncState)||capexZeevLastSyncStamp;
     capexZeevRecordQueueNotifications(capexZeevSolicitacoes);
     capexZeevLoaded=true;
+    CapexReviews.refreshCount().catch(()=>{});
     updateNavBadge();
     return capexZeevSolicitacoes;
   })().catch(error=>{
@@ -6764,6 +6767,7 @@ function updateNavBadge(){
   if(reg){
     let pend=0;
     try{pend=capexZeevPendingList().length||0;}catch(e){pend=0;}
+    pend+=CapexReviews.pendingCount();
     reg.textContent=pend||"";
     reg.style.display=pend?"inline-block":"none";
   }
@@ -9871,7 +9875,8 @@ function renderRegistrosPendentes(){
   const view=document.getElementById('view-registros');
   applyBrandVars(view,'RAIZ');
   const body=document.getElementById('registros-pendentes-body');
-  if(body)body.innerHTML=renderCapexZeevQueue();
+  if(body)body.innerHTML=CapexReviews.layout(renderCapexZeevQueue());
+  CapexReviews.mount();
   updateNavBadge();
   scheduleCapexZeevLiveRefresh();
   scheduleActivePageArt(['RAIZ']);
@@ -12257,6 +12262,7 @@ function renderCapexRegisteredCard(it){
         <div class="capex-zeev-money ${valorCls}" title="${escHtml(valor?fmt(valor):'Sem valor registrado')}"><span class="capex-zeev-money-label">${valorLabel}</span><strong class="capex-zeev-money-value">${valor?fmt(valor):'A revisar'}</strong></div>
         <div class="capex-summary-actions">
           <button class="btn btn-primary btn-sm" title="Editar pedido" onclick="event.preventDefault();event.stopPropagation();openCapexItemModal(${it.id})">Editar</button>
+          ${CapexReviews.button(it)}
           ${it.ticket_raiz_url?`<a href="${escHtml(it.ticket_raiz_url)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')">VISUALIZAR TICKET</a>`:''}
           ${docsButton}
         </div>
@@ -12281,7 +12287,7 @@ function renderCapexRegisteredCard(it){
           ${ticketLink}
           ${docsButton}
           <button class="btn btn-ghost btn-sm" onclick="openCapexItemModal(${it.id})">Editar completo</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteCapexItem(${it.id})">Excluir</button>
+          ${CapexReviews.owner()?`<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteCapexItem(${it.id})">Excluir</button>`:''}
         </div>
       </div>
     </div>
@@ -12400,7 +12406,7 @@ async function updateCapexFlag(id,field,checked,input){
 
 
 
-async function deleteCapexItem(id){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}
+async function deleteCapexItem(id){if(!CapexReviews.owner()){toast('Solicite uma revisão para retirar este gasto do CAPEX.');return;}
 
   const it=capexItens.find(i=>i.id===id);
 
