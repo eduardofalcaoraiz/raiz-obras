@@ -117,6 +117,7 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
  for(const [view,selector]of [['escolas','.uni-card'],['capex','.capex-brand-card'],['realestate','.re-property-card']]){
   await page.evaluate(v=>{go(v);if(v==='capex')drillCapex(2026,null,null);if(v==='realestate'){realEstateArea='locacoes';RealEstateWorkspace.restoreFilters('locacoes',{brand:'',sort:'unit',attention:''});document.getElementById('realestate-search').value='';document.getElementById('realestate-review-filter').checked=false;renderRealEstate();}},view);
   await brandedRecord(selector);await shot('cards-'+view+'-mobile');
+  if(view==='realestate')assert(await page.locator('#realestate-search').evaluate(e=>e.getBoundingClientRect().width>300),'Property search must occupy a full mobile row');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,view+' mobile overflow');
  }
  await page.evaluate(()=>openObra(1));await checkLayout('project');await shot('project-records-mobile');

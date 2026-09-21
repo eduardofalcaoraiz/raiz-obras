@@ -48,7 +48,7 @@
   #realestate-kpis .kpi{padding:12px}
   #realestate-kpis .val{font-size:18px}
   #view-realestate .realestate-toolbar>div{min-width:0!important;flex:1 1 140px}
-  #view-realestate .realestate-toolbar>div:first-child{flex-basis:100%}
+  #view-realestate .realestate-toolbar>div:first-child{flex:1 1 100%!important}
   .re-portfolio-controls{gap:10px}
   .re-portfolio-controls label{display:grid;flex:1}
   .re-portfolio-controls .fi{width:100%;min-width:0;max-width:none}
