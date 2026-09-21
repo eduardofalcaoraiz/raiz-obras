@@ -18,7 +18,12 @@ a solid dark sidebar or a generic white theme.
   almost-white theme. Preserve the warm Raiz-to-soft-green transition.
 - Individual work, CAPEX and property records need a light branded surface
   and subtle separation. Removing every record surface destroys hierarchy.
-  Do not restore nested cards, strong brand borders or decorative stripes.
+  Documentos das Escolas is the visual reference for repeated records:
+  `_brandSoftGradient` uses 135 degrees, the surface at 0% and brand light at
+  132%. Match its 1px neutral border, existing 10px radius, 5px brand rail,
+  compact spacing and gentle hover shadow. Do not redesign the reference
+  cards or invent separate gradients per feature. Avoid nested cards and
+  strong colored borders; the single brand rail is intentional.
 - Use regular-weight supporting text and distinct headings. Never force all
   page text to bold. Avoid repeating the work title as its unit or subtitle.
 - Keep work and invoice searches together in a compact toolbar. Validate
@@ -38,3 +43,6 @@ a solid dark sidebar or a generic white theme.
 
 Shared visual overrides live in `scripts/platform-menu.css` and
 `scripts/platform-identity.css`; core brand tokens remain in `index.html`.
+Repeated-record surfaces are unified in `scripts/record-cards.css`, loaded
+after the legacy area styles. Feature-specific fields and actions remain
+intact. Financial tables and full-page sections are not converted to cards.
