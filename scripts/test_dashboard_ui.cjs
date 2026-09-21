@@ -32,7 +32,11 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
   realEstateSublocacoes=[{id:'33333333-3333-4333-8333-333333333333',marca:'CUBO',unidade:'Barra Golfe',sublocatario:'Operador Exemplo',tipo:'Cantina',status:'Atencao',valor_referencia:1188,revisao_pendente:true,cobrancas:[],divergencias:[]}];
   capexZeevLoaded=true;AccessControl.syncUi();
  });
- async function shot(name){await page.locator('.main').evaluate(e=>e.scrollTop=0);await page.locator('.view.active img,#sidebar img').evaluateAll(es=>Promise.all(es.filter(e=>e.getBoundingClientRect().top<innerHeight).map(e=>e.decode().catch(()=>{}))));await page.screenshot({path:out+'/'+prefix+'-'+name+'.png'});screens.push(name);}
+ async function shot(name){await page.locator('.main').evaluate(e=>e.scrollTop=0);await page.locator('.view.active img,#sidebar img').evaluateAll(es=>Promise.all(es.filter(e=>e.getBoundingClientRect().top<innerHeight).map(e=>e.decode().catch(()=>{}))));await page.screenshot({path:out+'/'+prefix+'-'+name+'.png'});screens.push(name);await readable(name);}
+ async function readable(name){
+  const small=await page.locator('.view.active *,#sidebar *,body>.overlay.show *').evaluateAll(es=>es.filter(e=>e.namespaceURI==='http://www.w3.org/1999/xhtml'&&[...e.childNodes].some(n=>n.nodeType===3&&/[a-zA-Z0-9À-ÿ]/.test(n.textContent))).filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&parseFloat(s.fontSize)<14;}).map(e=>({tag:e.tagName,cls:e.className,text:e.textContent.trim().slice(0,65),size:getComputedStyle(e).fontSize})));
+  assert.deepEqual(small,[],name+' has text below 14px');
+ }
  async function checkLayout(name){const overflow=await page.evaluate(()=>[...document.querySelectorAll('.view.active .dash-shell,.view.active .dash-metrics')].filter(e=>e.getBoundingClientRect().width>0).filter(e=>e.getBoundingClientRect().right>innerWidth+2).map(e=>e.className));assert.deepEqual(overflow,[],name+' overflow');}
  async function unfilled(selector){
   const painted=await page.locator(selector).evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().width>0).filter(e=>{const s=getComputedStyle(e);return s.backgroundImage!=='none'||s.backgroundColor!=='rgba(0, 0, 0, 0)';}).map(e=>e.className));
@@ -84,6 +88,11 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
  await page.goForward();await page.waitForFunction(()=>document.getElementById('view-escolas').classList.contains('active'));
  await page.evaluate(()=>{location.hash='#dashboards/capex?year=2026&brand=CUBO&unit=Cubo+Marapendi';});await page.waitForFunction(()=>DashboardHub.active()&&DashboardHub.scope().unit==='Cubo Marapendi');
  for(const view of ['capex','nova','expansao','cobranca','forn','investidores','escolas','realestate']){await page.evaluate(v=>go(v),view);assert.equal(await page.locator('.view.active .dash-metrics').count(),0,view+' must remain operational');assert.equal(await page.locator('#nav button.active').getAttribute('data-nav'),view);await shot('records-'+view);}
+ await page.evaluate(()=>{go('forn');Dashboards.recordsScope('forn','');});assert.equal(await page.locator('.supplier-card').count(),4);assert.equal(await page.locator('#forn-grid table').count(),0);
+ await page.locator('.supplier-card').filter({has:page.getByRole('button',{name:'Fornecedor A',exact:true})}).getByRole('button',{name:'Ver lançamentos',exact:true}).click();assert(await page.locator('#forn-detail-overlay').isVisible());await readable('supplier-detail');await page.evaluate(()=>closeFornDetail());
+ await page.evaluate(()=>{go('investidores');Dashboards.recordsScope('investidores','');});assert.equal(await page.locator('.investor-card').count(),2);assert.equal(await page.locator('#inv-list table').count(),0);const investorCard=page.locator('.investor-card').filter({has:page.getByRole('heading',{name:'Investidor A',exact:true})});assert.match(await investorCard.innerText(),/450\.000,00/);
+ await investorCard.locator('summary').click();assert(await investorCard.locator('.dash-link').count()>0);await page.getByRole('button',{name:'Editar cadastro',exact:true}).click();assert(await page.locator('#inv-overlay').isVisible());await readable('investor-form');await page.evaluate(()=>closeInvModal());
+ await page.evaluate(()=>{currentProfile={role:'leitor',aprovado:true};renderInvestidores();});assert.equal(await page.locator('.party-edit').count(),0);await page.evaluate(()=>{currentProfile={role:'admin',aprovado:true};go('realestate');});
  const property=page.locator('.re-property-card:visible').first(),grid=page.locator('.re-property-grid:visible').first();
  await page.mouse.move(0,0);await brandedRecord('.re-property-card');
  assert(Math.abs((await property.boundingBox()).width-(await grid.boundingBox()).width)<2,'Single property must fill its row');
@@ -114,7 +123,7 @@ const out=process.env.DASHBOARD_TEST_OUTPUT||path.join(require('os').tmpdir(),'r
  await page.evaluate(()=>{go('capex');drillCapex(2024,null,null);});assert.equal(writes.length,0,'Historical navigation cannot update financial records');
  await page.setViewportSize({width:390,height:844});
  for(const panel of panels){await page.evaluate(p=>DashboardHub.open(p,{}),panel);await checkLayout(panel);await shot(panel+'-mobile');}
- for(const [view,selector]of [['escolas','.uni-card'],['capex','.capex-brand-card'],['realestate','.re-property-card']]){
+ for(const [view,selector]of [['escolas','.uni-card'],['capex','.capex-brand-card'],['realestate','.re-property-card'],['forn','.supplier-card'],['investidores','.investor-card']]){
   await page.evaluate(v=>{go(v);if(v==='capex')drillCapex(2026,null,null);if(v==='realestate'){realEstateArea='locacoes';RealEstateWorkspace.restoreFilters('locacoes',{brand:'',sort:'unit',attention:''});document.getElementById('realestate-search').value='';document.getElementById('realestate-review-filter').checked=false;renderRealEstate();}},view);
   await brandedRecord(selector);await shot('cards-'+view+'-mobile');
   if(view==='realestate')assert(await page.locator('#realestate-search').evaluate(e=>e.getBoundingClientRect().width>300),'Property search must occupy a full mobile row');

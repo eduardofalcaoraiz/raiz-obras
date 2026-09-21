@@ -60,26 +60,26 @@
 .app .main .obra-card-head{padding:16px 18px 0}
 .app .main .obra-card-body{padding:12px 18px 8px;gap:12px}
 .app .main .obra-brand-logo{width:36px;height:26px;background:none;border:0}
-.app .main .obra-brand-pill{font-size:10px;font-weight:600;gap:7px}
+.app .main .obra-brand-pill{font-size:14px;font-weight:600;gap:7px}
 .app .main .obra-card h3{font-size:18px;line-height:1.3;font-weight:700}
-.app .main .obra-card-subtitle,.app .main .obra-card-unit-chip{font-size:12px;font-weight:400;color:var(--muted)}
-.app .main .obra-card-builder{font-size:12px;font-weight:500;line-height:1.45}
-.app .main .obra-card-label{font-size:10px;font-weight:500;letter-spacing:0}
+.app .main .obra-card-subtitle,.app .main .obra-card-unit-chip{font-size:14px;font-weight:400;color:var(--muted)}
+.app .main .obra-card-builder{font-size:14px;font-weight:500;line-height:1.45}
+.app .main .obra-card-label{font-size:14px;font-weight:500;letter-spacing:0}
 .app .main .obra-card-meta-line{gap:6px 12px}
-.app .main .obra-card-pill{font-size:11px;font-weight:400;color:var(--muted)}
-.app .main .obra-card-pill.entrega{font-size:10px;font-weight:600;color:var(--brand-text)}
-.app .main .obra-status-select{min-width:0;max-width:145px;height:28px;font-size:11px;font-weight:500;border-color:#dbe2dd!important;border-radius:6px}
+.app .main .obra-card-pill{font-size:14px;font-weight:400;color:var(--muted)}
+.app .main .obra-card-pill.entrega{font-size:14px;font-weight:600;color:var(--brand-text)}
+.app .main .obra-status-select{min-width:0;max-width:145px;height:28px;font-size:14px;font-weight:500;border-color:#dbe2dd!important;border-radius:6px}
 .obra-list-toolbar{display:grid;grid-template-columns:minmax(90px,1fr) minmax(240px,380px) minmax(180px,260px);gap:18px;align-items:end;margin:20px 0 14px}
 .obra-list-toolbar h2{font-size:18px;line-height:38px;font-weight:650}
-.obra-list-toolbar label{display:block;margin-bottom:5px;font-size:11px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
-.obra-list-toolbar .fi,.obra-list-toolbar #esf-nf-search-input{width:100%;height:38px;padding:8px 11px;font-size:13px;font-weight:400;background:#ffffffd9;border:1px solid #173c3420;border-radius:6px}
+.obra-list-toolbar label{display:block;margin-bottom:5px;font-size:14px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
+.obra-list-toolbar .fi,.obra-list-toolbar #esf-nf-search-input{width:100%;height:38px;padding:8px 11px;font-size:14px;font-weight:400;background:#ffffffd9;border:1px solid #173c3420;border-radius:6px}
 .obra-list-toolbar #esf-nf-search{min-width:0}
 .app .main .obra-list-toolbar .obra-nf-search{display:block;padding:0;margin:0;background:none;border:0;box-shadow:none}
 .obra-list-toolbar .capex-tr-results:empty{display:none}
 .obra-list-toolbar:has(.capex-tr-results:not(:empty)){grid-template-columns:1fr 1fr}
 .obra-list-toolbar:has(.capex-tr-results:not(:empty)) #esf-nf-search{grid-column:1/-1}
 .app .main #esf-chips{gap:4px 12px;margin:0 0 18px;padding:0 0 4px;border-bottom:1px solid #173c3412}
-.app .main #esf-chips .chip{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:8px 4px;font-size:11px;font-weight:500;color:var(--muted)}
+.app .main #esf-chips .chip{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:8px 4px;font-size:14px;font-weight:500;color:var(--muted)}
 .app .main #esf-chips .chip.active{background:none;color:var(--ink);border-bottom-color:var(--workspace-color);font-weight:700}
 .app .main #esf-chips .chip:hover{background:#ffffff60;color:var(--ink)}
 .app .main .view>.card,.app .main .tabpane>.card{background:none;border:0;box-shadow:none;border-radius:0}

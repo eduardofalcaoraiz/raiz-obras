@@ -8,7 +8,7 @@
 #sidebar .brand .mk{width:50px;height:60px;flex:0 0 50px;padding:5px;background:#fffc;border-radius:6px;box-shadow:0 2px 10px #173c3406}
 #sidebar .brand img{width:100%;height:100%;object-fit:contain}
 #sidebar .brand b{color:var(--ink);font-size:17px;line-height:1.18;font-weight:750!important}
-#sidebar .brand-copy>span{display:block;margin-top:6px;color:#52655c;font-size:10.5px;font-weight:500!important}
+#sidebar .brand-copy>span{display:block;margin-top:6px;color:#52655c;font-size:14px;font-weight:500!important}
 .menu-icon{display:inline-block;width:20px;height:20px;flex:0 0 20px;background:currentColor;mask:var(--menu-icon) center/contain no-repeat;-webkit-mask:var(--menu-icon) center/contain no-repeat;pointer-events:none}
 #sidebar .side-collapse-btn,#sidebar .side-close-btn{display:grid;place-items:center;flex:0 0 30px;width:30px;height:34px;margin:0;padding:0;border:1px solid #173c3420;border-radius:6px;background:#ffffff70;color:#34584c}
 #sidebar .side-collapse-btn:hover,#sidebar .side-close-btn:hover{background:#fffc;color:var(--ink)}
@@ -17,8 +17,8 @@
 #sidebar .nav{min-height:0;flex:1;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#a9bbb2 transparent;padding:12px 0 18px}
 #sidebar .nav-group{padding:0;margin:0 0 6px}
 #sidebar .nav-group:last-child{margin-bottom:0}
-#sidebar .nav-group-title{font-size:10px;font-weight:600!important;text-transform:uppercase;color:#606e63;padding:8px 12px 7px;line-height:1.4}
-#sidebar .nav button{display:flex;align-items:center;gap:11px;min-height:39px;margin:2px 0;padding:8px 12px;width:100%;border:1px solid transparent;border-radius:6px;background:transparent;color:#36584e;font-size:13px;line-height:1.4;text-align:left;box-shadow:none}
+#sidebar .nav-group-title{font-size:14px;font-weight:600!important;text-transform:uppercase;color:#606e63;padding:8px 12px 7px;line-height:1.4}
+#sidebar .nav button{display:flex;align-items:center;gap:11px;min-height:39px;margin:2px 0;padding:8px 12px;width:100%;border:1px solid transparent;border-radius:6px;background:transparent;color:#36584e;font-size:14px;line-height:1.4;text-align:left;box-shadow:none}
 #sidebar .nav button,#sidebar .nav button .nav-label{font-weight:550!important}
 #sidebar .nav-label{flex:1;min-width:0;white-space:normal;overflow-wrap:break-word;overflow:visible;text-overflow:clip;opacity:1}
 #sidebar .nav .ic{width:19px;height:19px;flex:0 0 19px;color:#55766b;opacity:1}
@@ -27,17 +27,17 @@
 #sidebar .nav button.active:after{content:'';position:absolute;left:0;top:50%;width:2px;height:18px;transform:translateY(-50%);border-radius:1px;background:var(--side-art-color)}
 #sidebar .nav button.active .nav-label{font-weight:750!important}
 #sidebar .nav button.active .ic{color:var(--side-art-text)}
-#sidebar .nav .pill{position:static;flex:none;max-width:58px;min-width:24px;min-height:20px;border-radius:5px;background:var(--side-art-soft);color:var(--side-art-text);text-align:center;padding:2px 5px;font-size:10px;line-height:16px;font-weight:700!important}
+#sidebar .nav .pill{position:static;flex:none;max-width:58px;min-width:24px;min-height:20px;border-radius:5px;background:var(--side-art-soft);color:var(--side-art-text);text-align:center;padding:2px 5px;font-size:14px;line-height:16px;font-weight:700!important}
 #sidebar .nav .pill:empty{display:none}
 #sidebar .nav button.active .pill{background:#ffffffb8;color:var(--side-art-text)}
 #sidebar [hidden]{display:none!important}
 #sidebar :focus-visible,.mobile-topbar :focus-visible{outline:2px solid #315c4f;outline-offset:2px}
 #sidebar .foot{flex:none;margin:0;padding:14px 4px;border-top:1px solid #173c3420;color:var(--ink)}
 #sidebar .foot-user{display:flex;align-items:center;gap:10px;margin:0;min-width:0}
-#sidebar .menu-avatar{display:grid;place-items:center;flex:0 0 33px;height:33px;background:linear-gradient(135deg,#fff,var(--side-art-soft));border:1px solid color-mix(in srgb,var(--side-art-color) 28%,white);color:var(--side-art-text);border-radius:50%;font-size:11px;font-weight:750!important}
+#sidebar .menu-avatar{display:grid;place-items:center;flex:0 0 33px;height:33px;background:linear-gradient(135deg,#fff,var(--side-art-soft));border:1px solid color-mix(in srgb,var(--side-art-color) 28%,white);color:var(--side-art-text);border-radius:50%;font-size:14px;font-weight:750!important}
 #sidebar .menu-account{flex:1;min-width:0}
-#sidebar #foot-user-name{display:block;color:var(--ink);font-size:12px;font-weight:600!important;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-#sidebar #menu-user-role{display:block;color:#586e61;font-size:10px;font-weight:500!important;margin-top:3px}
+#sidebar #foot-user-name{display:block;color:var(--ink);font-size:14px;font-weight:600!important;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#sidebar #menu-user-role{display:block;color:#586e61;font-size:14px;font-weight:500!important;margin-top:3px}
 #sidebar .btn-logout{display:grid;place-items:center;flex:0 0 30px;width:30px;height:34px;padding:0;border:0;border-radius:6px;background:none;color:#4c6c5e}
 #sidebar .btn-logout .menu-icon{width:18px;height:18px;flex-basis:18px}
 #sidebar .btn-logout:hover{color:var(--ink);background:#fff9}
@@ -56,7 +56,7 @@
 #sidebar.collapsed .nav-group:last-child{border:0}
 #sidebar.collapsed .nav button{justify-content:center;min-height:44px;padding:10px 0;gap:0}
 #sidebar.collapsed .nav .ic{width:20px;height:20px;flex-basis:20px}
-#sidebar.collapsed .nav .pill{position:absolute;top:1px;right:0;min-width:16px;min-height:14px;max-width:50px;font-size:9px;line-height:12px;padding:1px 3px;background:var(--side-art-soft);color:var(--side-art-text);border:1px solid color-mix(in srgb,var(--side-art-color) 32%,white)}
+#sidebar.collapsed .nav .pill{position:absolute;top:1px;right:0;min-width:16px;min-height:14px;max-width:50px;font-size:14px;line-height:12px;padding:1px 3px;background:var(--side-art-soft);color:var(--side-art-text);border:1px solid color-mix(in srgb,var(--side-art-color) 32%,white)}
 #sidebar.collapsed .foot{display:block;padding:10px 0}
 #sidebar.collapsed .foot-user{justify-content:center}
 @media(max-width:768px){

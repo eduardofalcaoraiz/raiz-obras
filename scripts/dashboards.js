@@ -20,7 +20,10 @@
   if(renderContext){renderContext.hosts.set(id,html);return;}
   const el=document.getElementById(id);if(!el)return;
   if(['esf-kpis','esf-alert','o-kpis','cobr-kpis','forn-kpis','inv-kpis','realestate-kpis'].includes(id)){el.innerHTML='';el.classList.remove('dash-host');return;}
-  if(id==='forn-grid'||id==='inv-list')html='<div class="dash-filters">'+operationalBrandFilter(id==='forn-grid'?'forn':'investidores')+'</div>'+html;
+  if(id==='forn-grid'||id==='inv-list'){
+   const filter=operationalBrandFilter(id==='forn-grid'?'forn':'investidores');
+   html=html.startsWith('<div class="party-toolbar">')?html.replace('<div class="party-toolbar">','<div class="party-toolbar">'+filter):'<div class="dash-filters">'+filter+'</div>'+html;
+  }
   el.classList.add('dash-host');el.innerHTML=html;
  }
  const empty=text=>`<p class="dash-empty">${esc(text||'Nenhum registro neste recorte.')}</p>`;
@@ -120,12 +123,22 @@
   host('cobr-kpis',metrics([{label:'Em aberto',value:money(all.openValue),sub:all.open.length+' lançamentos',tone:'blue'},{label:'Vencidos',value:money(all.overdueValue),sub:all.overdue.length+' lançamentos',tone:'red'},{label:'Vencem hoje',value:money(all.todayValue),sub:all.dueToday.length+' lançamentos',tone:'amber'},{label:'Sem vencimento',value:money(all.undatedValue),sub:all.undated.length+' lançamentos a conferir'}]));
   host('cobr-body',`<div class="dash-shell">${context('Contas a pagar das obras · marca selecionada')}<div class="dash-filters">${select('Marca','collection-brand',[['','Todas as marcas'],...brands.map(b=>[b,b])],state.collectionBrand)}${select('Composição exibida','collection-state',[['all','Todos em aberto'],['overdue','Vencidos'],['today','Vencem hoje'],['upcoming','A vencer'],['undated','Sem vencimento']],state.collections)}</div>${section('Agenda de pagamentos',paymentTable(rows,'collections',80),`${rows.length} lançamentos · ${money(D.sum(rows,r=>r.value))}`,download('collections'))}${all.unclassified.length?note(all.unclassified.length+' lançamentos com situação não classificada ficam fora dos totais de aberto e pago.','amber'):''}${all.unknown.length?note(all.unknown.length+' lançamentos sem valor numérico.','amber'):''}</div>`);
  }
+ const partyStyle=brand=>`--record-accent:${esc(brandColor(brand))};--record-soft:${esc(brandLight(brand))}`;
+ const partyBrands=brands=>`<div class="party-brands">${(brands.length?brands:['RAIZ']).map(brand=>mark(brand)).join('')}</div>`;
+ const partyValue=(label,value,tone='')=>`<div class="${tone}"><dt>${esc(label)}</dt><dd>${esc(money(value))}</dd></div>`;
  function suppliers(){
   if(!AccessControl.can('forn'))return;
   const q=D.norm(renderContext?'':document.getElementById('forn-busca')?.value),all=D.suppliers(scopedWorks('forn'));
   const rows=all.filter(r=>!q||D.norm(r.name+' '+(CNPJS[r.name]||'')).includes(q)).sort((a,b)=>(b[state.supplierSort]||0)-(a[state.supplierSort]||0)||a.name.localeCompare(b.name));
   host('forn-kpis',metrics([{label:'Fornecedores no filtro',value:number(rows.length),sub:'Agrupados pelo nome cadastrado'},{label:'Pago registrado',value:money(D.sum(rows,r=>r.paid)),sub:'Status pago, em ambos os escopos',tone:'green'},{label:'Em aberto',value:money(D.sum(rows,r=>r.pending)),sub:'Inclui pendentes sem vencimento',tone:'blue'},{label:'Vencido',value:money(D.sum(rows,r=>r.overdue)),sub:'Em aberto com vencimento anterior a hoje',tone:'red'}]));
   const count=document.getElementById('forn-count');if(count&&!renderContext)count.textContent=rows.length+' fornecedores';
+  if(!renderContext){
+   table(['Fornecedor','Obras','Lançamentos pagos','Pago','Em aberto','Vencido'],rows.map(r=>[r.name,r.projects,r.count,r.paid,r.pending,r.overdue]),'suppliers');
+   host('forn-grid',`<div class="party-toolbar">${select('Ordenar por','supplier-sort',[['paid','Maior valor pago'],['pending','Maior valor em aberto'],['overdue','Maior valor vencido']],state.supplierSort)}${download('suppliers')}</div><div class="party-grid">${rows.map(r=>{
+    const brands=[...new Set(r.entries.flatMap(x=>obraMarcaNames(x.o)))],brand=brands.length===1?brands[0]:'RAIZ';
+    return `<article class="party-card supplier-card" style="${partyStyle(brand)}"><header>${partyBrands(brands)}<h2>${button(r.name,'supplier',{nameValue:r.name},'party-title')}</h2><p>${esc(CNPJS[r.name]||'CNPJ não informado')}</p></header><dl class="party-values">${partyValue('Pago registrado',r.paid)}${partyValue('Em aberto',r.pending)}${partyValue('Vencido',r.overdue,r.overdue>0?'danger':'')}</dl><footer><span>${number(r.projects)} obra(s) · ${number(r.count)} lançamento(s) pago(s)</span>${button('Ver lançamentos','supplier',{nameValue:r.name},'btn btn-ghost')}</footer></article>`;
+   }).join('')||empty('Nenhum fornecedor neste filtro.')}</div>`);return;
+  }
   host('forn-grid',`<div class="dash-shell">${context('Fornecedores · composição do filtro atual')}<div class="dash-filters">${select('Ordenar por','supplier-sort',[['paid','Maior valor pago'],['pending','Maior valor em aberto'],['overdue','Maior valor vencido']],state.supplierSort)}</div>${section('Posição por fornecedor',table(['Fornecedor','Obras','Lançamentos pagos',{label:'Pago',money:true},{label:'Em aberto',money:true},{label:'Vencido',money:true}],rows.map(r=>[cell(button(r.name,'supplier',{nameValue:r.name}),r.name),r.projects,r.count,cash(r.paid),cash(r.pending),cash(r.overdue)]),'suppliers'),'Quantidade de lançamentos não representa quantidade de notas fiscais distintas.',download('suppliers'))}</div>`);
  }
  function investors(){
@@ -134,6 +147,14 @@
   const rows=all.rows.filter(r=>!state.investorQuery||D.norm(r.name).includes(D.norm(state.investorQuery)));
   host('inv-kpis',metrics([{label:'Depósitos registrados',value:money(D.sum(rows,r=>r.received)),sub:'Somente aportes cadastrados',tone:'blue'},{label:'Pagamentos vinculados',value:money(D.sum(rows,r=>r.paid)),sub:'Pago pelo investidor dentro da obra',tone:'green'},{label:'Compromissos pendentes',value:money(D.sum(rows,r=>r.pending)),sub:'Cancelados e rejeitados excluídos',tone:'amber'},{label:'Diferença de conciliação',value:money(D.sum(rows,r=>r.balance)),sub:'Depósitos menos pagamentos vinculados'}]));
   const cells=rows.sort((a,b)=>b.paid-a.paid).map(r=>[cell(esc(r.name)+(AccessControl.canEdit('investidores')?button(r.registration?'Editar cadastro':'Cadastrar','investor',{id:r.registration?.id,nameValue:r.name}):''),r.name),r.projects.size,cash(r.received),cash(r.paid),cash(r.pending),cash(r.balance)]);
+  if(!renderContext){
+   table(['Investidor','Obras','Depósitos','Pagamentos','Pendentes','Diferença'],cells,'investors');
+   host('inv-list',`<div class="party-toolbar"><label class="dash-filter">Buscar investidor<input class="fi" type="search" data-dash-change="investor-query" value="${esc(state.investorQuery)}"></label>${download('investors')}</div><div class="party-grid">${rows.map(r=>{
+    const projects=[...r.projects.values()],brands=[...new Set(projects.flatMap(obraMarcaNames))],brand=brands.length===1?brands[0]:'RAIZ';
+    const edit=AccessControl.canEdit('investidores')?`<button type="button" class="party-edit" title="${r.registration?'Editar cadastro':'Cadastrar investidor'}" aria-label="${r.registration?'Editar cadastro':'Cadastrar investidor'}" ${action('investor',{id:r.registration?.id,nameValue:r.name})}>${icon('pencil')}</button>`:'';
+    return `<article class="party-card investor-card" style="${partyStyle(brand)}"><header>${partyBrands(brands)}${edit}<h2>${esc(r.name)}</h2><p>${esc(r.registration?.cnpj_cpf||'Documento não informado')}</p>${r.registration?.email?`<p>${esc(r.registration.email)}</p>`:''}</header><dl class="party-values">${partyValue('Depósitos registrados',r.received)}${partyValue('Pagamentos vinculados',r.paid)}${partyValue('Pendentes',r.pending)}${partyValue('Diferença de conciliação',r.balance,r.balance<0?'danger':'')}</dl><details class="party-projects"><summary>Obras vinculadas (${projects.length})</summary>${projects.map(o=>`<div>${AccessControl.can(o.esfera||'nova')?button(o.nome,'project',{id:o.id}):esc(o.nome)}</div>`).join('')||'<p>Nenhuma obra vinculada.</p>'}</details><footer><span>Diferença = depósitos − pagamentos; não comprova dívida.</span></footer></article>`;
+   }).join('')||empty('Nenhum investidor neste filtro.')}</div>`);return;
+  }
   host('inv-list',`<div class="dash-shell">${context('Fontes externas · posição registrada')}<label class="dash-filter">Buscar investidor<input class="fi" type="search" data-dash-change="investor-query" value="${esc(state.investorQuery)}"></label>${section('Aportes e pagamentos',table(['Investidor','Obras',{label:'Depósitos',money:true},{label:'Pagamentos',money:true},{label:'Pendentes',money:true},{label:'Diferença',money:true}],cells,'investors'),'Diferença negativa pode indicar pagamento direto sem depósito vinculado; não comprova dívida.',download('investors'))}</div>`);
  }
  function realEstate(rows,area){

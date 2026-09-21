@@ -46,3 +46,13 @@ Shared visual overrides live in `scripts/platform-menu.css` and
 Repeated-record surfaces are unified in `scripts/record-cards.css`, loaded
 after the legacy area styles. Feature-specific fields and actions remain
 intact. Financial tables and full-page sections are not converted to cards.
+
+Operational Suppliers and Investors use the same repeated-record cards as
+School Documents. Comparative tables stay in Dashboards. Preserve filtering,
+detail navigation and permission-aware editing in both presentations.
+
+Screen typography uses Geist with a 16px body and form controls, a 14px minimum
+for supporting text, and 18px record titles. Shared readability overrides live
+in `scripts/typography.css`. Print-specific report typography is independent.
+Validate long labels, monetary values, mobile wrapping and dialogs when changing
+font sizes; do not reduce text to hide overflow.

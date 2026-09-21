@@ -16,7 +16,7 @@
   --record-accent:var(--re-color,var(--raiz-primary));
   --record-soft:var(--re-tint,var(--raiz-soft));
 }
-#app>.main :is(.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-expander-card,.obra-card,.re-property-card,.re-evidence-doc){
+#app>.main :is(.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-expander-card,.obra-card,.re-property-card,.re-evidence-doc,.party-card){
   position:relative;
   min-width:0;
   overflow:hidden;
@@ -27,11 +27,11 @@
   transition:box-shadow .15s;
   letter-spacing:0;
 }
-#app>.main :is(.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-expander-card,.obra-card,.re-property-card,.re-evidence-doc):hover{
+#app>.main :is(.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-expander-card,.obra-card,.re-property-card,.re-evidence-doc,.party-card):hover{
   transform:none;
   box-shadow:0 3px 14px rgba(0,0,0,.09);
 }
-#app>.main :is(.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-expander-card,.obra-card,.re-property-card,.re-evidence-doc)::before{
+#app>.main :is(.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-expander-card,.obra-card,.re-property-card,.re-evidence-doc,.party-card)::before{
   content:"";
   display:block;
   position:absolute;
@@ -55,11 +55,33 @@
 #app>.main :is(.capex-brand-body,.capex-unit-body,.re-property-card-body){padding:8px 14px 12px 16px;gap:8px}
 #app>.main :is(.capex-brand-footer,.capex-unit-footer,.re-property-card-bottom){padding:10px 14px 12px 16px;background:none}
 #app>.main :is(.capex-brand-title,.capex-unit-title,.re-property-card h2,.obra-card h3){font-size:14px;font-weight:600;line-height:1.3;letter-spacing:0}
-#app>.main :is(.re-property-address,.re-property-owner,.re-property-card-facts){font-size:11.5px;line-height:1.4}
+#app>.main :is(.re-property-address,.re-property-owner,.re-property-card-facts){font-size:14px;line-height:1.4}
 #app>.main .obra-card-head{padding:12px 14px 0 16px}
 #app>.main .obra-card-body{padding:10px 14px 12px 16px;gap:8px}
 #app>.main .obra-card-btn{margin:0 14px 12px 16px}
 #app>.main .re-evidence-doc{padding:12px 14px 12px 16px}
+.party-toolbar{display:flex;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.party-toolbar>.dash-icon{margin-left:auto}
+.party-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,350px),1fr));gap:16px;align-items:start}
+.party-card{display:flex;flex-direction:column;padding:18px 18px 16px 22px;gap:18px}
+.party-card header{position:relative;min-width:0}
+.party-brands{display:flex;flex-wrap:wrap;gap:8px;margin:0 36px 12px 0}
+.party-brands .dash-brand{font-size:14px;max-width:100%}
+.party-card h2,.party-title{font-family:var(--font-ui);font-size:18px;line-height:1.4;font-weight:650;color:var(--ink);overflow-wrap:anywhere}
+.party-title{border:0;background:none;padding:0;text-align:left;cursor:pointer}
+.party-title img{display:none}
+.party-title:hover{text-decoration:underline}
+.party-card header p{margin-top:6px;font-size:14px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
+.party-values{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 18px}
+.party-values dt{font-size:14px;line-height:1.5;color:var(--muted)}
+.party-values dd{font-size:20px;line-height:1.4;font-weight:650;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;margin-top:4px}
+.party-values .danger dd{color:var(--danger)}
+.party-card footer{margin-top:auto;display:flex;align-items:start;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line);font-size:14px;line-height:1.5;color:var(--muted)}
+.party-edit{position:absolute;top:0;right:0;display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--line);border-radius:6px;background:#ffffff90;color:var(--ink)}
+.party-projects{font-size:15px;line-height:1.5}
+.party-projects summary{cursor:pointer;padding:8px 0;color:var(--ink);font-weight:600}
+.party-projects>div{padding:8px 0}
+.party-card :is(button,summary):focus-visible{outline:3px solid var(--record-accent);outline-offset:3px}
 @media(prefers-reduced-motion:reduce){
   #app>.main :is(.uni-card,.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-expander-card,.obra-card,.re-property-card,.re-evidence-doc){transition:none}
 }
