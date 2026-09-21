@@ -1,5 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 global.RealEstateEvidence=require('./real-estate-evidence.js');
+global.RealEstateLedger=require('./real-estate-ledger-utils.js');
 const workspace=require('./real-estate-workspace.js'),dossier=require('./real-estate-dossier.js');
 Object.assign(global,{realEstateBrandLabel:r=>r.marca,brandColor:()=>'#346b45',brandLight:()=>'#eff7ed',brandLogoImg:()=>'<img alt="" src="brand.png">',realEstateLatestCharge:r=>r.cobrancas?.[0],fmt:v=>String(v)});
 const id='55e476ba-8d5f-5e31-a5d1-8a3e031c63b0',sub={id,marca:'QI',unidade:'Tijuca',sublocatario:'Operador',tipo:'Cantina',status:'Ativo',contrato_status:'Assinado',valor_referencia:100,cobrancas:[]};
@@ -9,6 +10,11 @@ test('sublease cards are native links without eager financial queries or edit ac
 test('sublease source fields are escaped and identifiers cannot inject handlers',()=>{assert(!workspace.subCard({...sub,sublocatario:'<script>x</script>',contrato_status:'<img onerror="x">'}).includes('<script>'));assert.equal(workspace.subCard({...sub,id:"' onclick='x"}), '');});
 test('latest recorded charge is not labeled as rent received or current recurring income',()=>{const html=workspace.subCard({...sub,cobrancas:[{valor:125,competencia:'2025-12',status:'Pago'}]});assert(html.includes('2025-12'));assert(html.includes('125'));assert(html.includes('Última cobrança cadastrada'));assert(!html.includes('recebido'));assert(!html.includes('Receita mensal'));});
 test('unknown sublease reference is not shown as zero rent',()=>assert(workspace.subCard({...sub,valor_referencia:0}).includes('A confirmar')));
+test('portfolio filters can be restored independently for each area',()=>{
+ const old=workspace.snapshot('locacoes');workspace.restoreFilters('locacoes',{brand:'QI',sort:'review',attention:'ending'});
+ const copy=workspace.snapshot('locacoes');copy.brand='changed';assert.equal(workspace.snapshot('locacoes').brand,'QI');assert.equal(workspace.snapshot('cantinas').brand,'');
+ workspace.restoreFilters('locacoes',{brand:'QI',sort:'invalid',attention:'invalid'});assert.deepEqual(workspace.snapshot('locacoes'),{brand:'QI',sort:'unit',attention:''});workspace.restoreFilters('locacoes',old);
+});
 test('closed records remain detectable even with inconsistent accents/casing',()=>{assert(workspace.closed({status:'ENCERRADO'}));assert(!workspace.closed({status:'Em renovação'}));});
 test('document grouping is display-only and preserves uncategorized files',()=>{const docs=[{tipo:'Aditivo',nome:'1.pdf'},{nome:'boleto.pdf'},{nome:'comprovante.pdf'},{nome:'foto.jpg'}],before=JSON.stringify(docs);assert.deepEqual(docs.map(dossier.documentKind),['contract','charge','proof','other']);assert.equal(JSON.stringify(docs),before);});
 test('explicit document type takes precedence over a filename reference to another document',()=>{assert.equal(dossier.documentKind({tipo:'Comprovante',nome:'Pagamento contrato 2026.pdf'}),'proof');assert.equal(dossier.documentKind({tipo:'Contrato',nome:'Regra sobre comprovantes.pdf'}),'contract');});

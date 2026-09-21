@@ -12,8 +12,9 @@
     if(realEstateNorm(i.status).includes('encerr'))return {text:'Encerrado',kind:'neutral'};
     const overdue=(i.obrigacoes||[]).filter(o=>!['Pago','Dispensado'].includes(o.status)&&realEstateDaysTo(o.vencimento)!==null&&realEstateDaysTo(o.vencimento)<0).length;
     if(overdue)return {text:overdue+' em atraso',kind:'danger'};
-    if(i.revisao_pendente)return {text:'Dados a revisar',kind:'warning'};
     const days=realEstateDaysTo(i.contrato_fim);
+    if(days!==null&&days<0)return {text:'Vig\u00eancia cadastrada vencida',kind:'warning'};
+    if(i.revisao_pendente)return {text:'Dados a revisar',kind:'warning'};
     if(days!==null&&days>=0&&days<=180)return {text:'Vig\u00eancia vencendo',kind:'warning'};
     return {text:realEstateStatusLabel(i.status),kind:realEstateStatusClass(i.status)==='ok'?'ok':'neutral'};
   }
@@ -32,8 +33,8 @@
     const rows=[['Locador',i.locador],['Locat\u00e1ria',i.locataria],['CNPJ da locat\u00e1ria',i.cnpj_locataria],['Centro de custo',i.centro_custo],['Contrato',i.contrato_numero],['Modalidade',i.modalidade],['\u00c1rea',i.area_m2?Number(i.area_m2).toLocaleString('pt-BR')+' m\u00b2':''],['\u00cdndice de reajuste',i.indice_reajuste],['Data de reajuste',i.data_reajuste?fmtD(i.data_reajuste):''],['Garantia',i.garantia],['Multa e aviso',i.multa_aviso]];
     return `<h2 class="re-property-section-title">Dados do contrato</h2><dl class="re-property-contract-facts">${rows.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v||'N\u00e3o informado')}</dd></div>`).join('')}</dl>`;
   }
-  function capture(){return {search:document.getElementById('realestate-search')?.value||'',status:document.getElementById('realestate-status-filter')?.value||'',review:!!document.getElementById('realestate-review-filter')?.checked,mainScroll:document.querySelector('.main')?.scrollTop||0,windowScroll:root.scrollY||0};}
-  function applyListState(){const s=history.state?.rePropertyList;if(!s)return;for(const [id,k]of [['realestate-search','search'],['realestate-status-filter','status']]){const el=document.getElementById(id);if(el)el.value=s[k]||'';}const review=document.getElementById('realestate-review-filter');if(review)review.checked=!!s.review;}
+  function capture(){return {portfolio:root.RealEstateWorkspace?.snapshot('locacoes'),search:document.getElementById('realestate-search')?.value||'',status:document.getElementById('realestate-status-filter')?.value||'',review:!!document.getElementById('realestate-review-filter')?.checked,mainScroll:document.querySelector('.main')?.scrollTop||0,windowScroll:root.scrollY||0};}
+  function applyListState(){const s=history.state?.rePropertyList;if(!s)return;root.RealEstateWorkspace?.restoreFilters('locacoes',s.portfolio);for(const [id,k]of [['realestate-search','search'],['realestate-status-filter','status']]){const el=document.getElementById(id);if(el)el.value=s[k]||'';}const review=document.getElementById('realestate-review-filter');if(review)review.checked=!!s.review;}
   function restoreScroll(){const s=history.state?.rePropertyList;if(!s)return;requestAnimationFrame(()=>{const card=[...document.querySelectorAll('.re-property-card')].find(c=>c.dataset.imovelId===s.focusId);card?.focus({preventScroll:true});document.querySelector('.main')?.scrollTo(0,s.mainScroll||0);root.scrollTo(0,s.windowScroll||0);});}
   function open(event,id){
     if(event&&(event.button>0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey))return;

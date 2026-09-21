@@ -29,4 +29,9 @@ test('source and component category conflict is never silently classified',()=>{
 test('shared and cancelled component amounts remain excluded in every section',()=>{for(const extra of [{imovel_ids:['p1','p2']},{status:'Cancelado'}]){const g=d.groupHistory([history()],[ticket({...extra,componentes:[{tipo:'Aluguel',valor:800},{tipo:'IPTU',valor:200}]})],'p1');assert.equal(d.totals(d.expenseGroups(g,'rent')).total,0);assert.equal(d.totals(d.expenseGroups(g,'iptu')).total,0);}});
 test('expense projections do not mutate the original records',()=>{const g=d.groupHistory([history()],[ticket({componentes:[{tipo:'Aluguel',valor:1000}]})],'p1'),copy=JSON.stringify(g);d.expenseParts(g[0]);assert.equal(JSON.stringify(g),copy);});
 test('unknown or multiple source types require classification when components are absent',()=>{const g=d.groupHistory([history(),history({tipo:'IPTU'})],[],'p1');assert.equal(d.expenseGroups(g,'unclassified').length,1);assert.equal(d.expenseGroups(g,'rent').length,0);const noSource=d.groupHistory([],[ticket()],'p1');assert.equal(d.expenseGroups(noSource,'unclassified').length,1);});
-test('unrelated charges and null values are preserved',()=>{const g=d.groupHistory([history({tipo:'Seguro patrimonial',valor:null})],[],'p1');const rows=d.expenseGroups(g,'other');assert.equal(rows.length,1);assert.equal(rows[0].value,null);assert.match(d.financeHtml(rows),/Não informado/);});
+test('unrelated charges and null values are preserved',()=>{const g=d.groupHistory([history({tipo:'Seguro patrimonial',valor:null})],[],'p1');const rows=d.expenseGroups(g,'insurance');assert.equal(rows.length,1);assert.equal(rows[0].value,null);assert.match(d.financeHtml(rows),/Não informado/);});
+test('fire, insurance and utilities have their own expense sections',()=>{
+ for(const [tipo,section]of [['Taxa de incendio','fire'],['Seguro patrimonial','insurance'],['Agua','utilities'],['Energia','utilities'],['Gas','utilities']]){
+  const g=d.groupHistory([history({tipo})],[ticket()],'p1');assert.equal(d.expenseGroups(g,section).length,1);assert.equal(d.expenseGroups(g,'other').length,0);assert.equal(d.totals(g).total,1000);
+ }
+});
