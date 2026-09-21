@@ -1,7 +1,7 @@
 (function(root){
  'use strict';
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const panels=[['capex','CAPEX de melhorias'],['nova','Novas unidades'],['expansao','Expansões'],['realestate_locacoes','Imóveis e encargos'],['realestate_sublocacoes','Sublocações e uso de marca'],['cobranca','Contas a pagar das obras'],['forn','Fornecedores'],['investidores','Investidores'],['escolas','Documentos das escolas'],['registros','Registros pendentes']];
+ const panels=[['capex','CAPEX de melhorias'],['nova','Novas unidades'],['expansao','Expansões'],['realestate_locacoes','Aluguéis e Taxas'],['realestate_sublocacoes','Sublocações e Usos de Marca'],['cobranca','Contas a pagar das obras'],['forn','Fornecedores'],['investidores','Investidores'],['escolas','Documentos das escolas'],['registros','Registros pendentes']];
  const saved=new Map();let selected='capex',scope={year:String(new Date().getFullYear())},generation=0;
  const active=()=>!!document.getElementById('view-dashboards')?.classList.contains('active');
  const available=()=>panels.filter(([key])=>AccessControl.can(key));

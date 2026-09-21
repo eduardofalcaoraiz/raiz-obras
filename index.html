@@ -2043,8 +2043,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       </section>
       <section class="nav-group" aria-labelledby="nav-realestate-title">
         <h2 class="nav-group-title" id="nav-realestate-title">Real Estate</h2>
-        <button type="button" data-nav="realestate" data-nav-area="locacoes" onclick="PlatformMenu.openRealEstate('locacoes')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/landmark.svg')" aria-hidden="true"></span><span class="nav-label">Imóveis e encargos</span></button>
-        <button type="button" data-nav="realestate" data-nav-area="cantinas" onclick="PlatformMenu.openRealEstate('cantinas')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/handshake.svg')" aria-hidden="true"></span><span class="nav-label">Sublocações e uso de marca</span></button>
+        <button type="button" data-nav="realestate" data-nav-area="locacoes" onclick="PlatformMenu.openRealEstate('locacoes')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/landmark.svg')" aria-hidden="true"></span><span class="nav-label">Aluguéis e Taxas</span></button>
+        <button type="button" data-nav="realestate" data-nav-area="cantinas" onclick="PlatformMenu.openRealEstate('cantinas')"><span class="ic menu-icon" style="--menu-icon:url('../assets/icons/lucide/handshake.svg')" aria-hidden="true"></span><span class="nav-label">Sublocações e Usos de Marca</span></button>
       </section>
       <section class="nav-group" aria-labelledby="nav-finance-title">
         <h2 class="nav-group-title" id="nav-finance-title">Financeiro</h2>
@@ -2123,8 +2123,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
       </div>
 
       <div class="realestate-area-tabs" role="tablist" aria-label="&Aacute;reas de Real Estate">
-        <button class="realestate-area-tab active" id="realestate-tab-locacoes" type="button" role="tab" aria-selected="true" onclick="setRealEstateArea('locacoes')">Loca&ccedil;&otilde;es de im&oacute;veis</button>
-        <button class="realestate-area-tab" id="realestate-tab-cantinas" type="button" role="tab" aria-selected="false" onclick="setRealEstateArea('cantinas')">Subloca&ccedil;&otilde;es e uso de marca</button>
+        <button class="realestate-area-tab active" id="realestate-tab-locacoes" type="button" role="tab" aria-selected="true" onclick="setRealEstateArea('locacoes')">Alugu&eacute;is e Taxas</button>
+        <button class="realestate-area-tab" id="realestate-tab-cantinas" type="button" role="tab" aria-selected="false" onclick="setRealEstateArea('cantinas')">Subloca&ccedil;&otilde;es e Usos de Marca</button>
         <button class="realestate-area-tab" id="realestate-tab-documentos" type="button" role="tab" aria-selected="false" onclick="setRealEstateArea('documentos')">Acervo documental</button>
         <button class="realestate-area-tab" id="realestate-tab-historico" type="button" role="tab" aria-selected="false" onclick="setRealEstateArea('historico')">Hist&oacute;rico e TRs</button>
       </div>
@@ -4042,7 +4042,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:13px}
 <script src="scripts/dashboards.js?v=20260917-hub"></script>
 <link rel="stylesheet" href="scripts/dashboards.css?v=20260917-flow">
 <script src="scripts/access-control.js?v=20260917-menu"></script>
-<script src="scripts/dashboard-hub.js?v=20260917-menu"></script>
+<script src="scripts/dashboard-hub.js?v=20260921-realestate-labels"></script>
 <script src="scripts/platform-navigation.js?v=20260917-hub"></script>
 <link rel="stylesheet" href="scripts/dashboard-hub.css?v=20260917-flow">
 <link rel="stylesheet" href="scripts/platform-menu.css?v=20260917-rebalanced">
@@ -5968,7 +5968,7 @@ function setRealEstateArea(area){
 function realEstateConfigureArea(){
   const cantinas=realEstateArea==='cantinas';
   const title=document.getElementById('realestate-page-title'),description=document.getElementById('realestate-page-description'),button=document.getElementById('realestate-new-button'),searchLabel=document.getElementById('realestate-search-label'),statusLabel=document.getElementById('realestate-status-label'),status=document.getElementById('realestate-status-filter'),review=document.getElementById('realestate-review-filter-wrap');
-  if(title)title.innerHTML=cantinas?'Subloca&ccedil;&otilde;es de cantinas':'Loca&ccedil;&otilde;es de im&oacute;veis';
+  if(title)title.innerHTML=cantinas?'Subloca&ccedil;&otilde;es e Usos de Marca':'Alugu&eacute;is e Taxas';
   if(description)description.innerHTML=cantinas?'Operadores, contratos, documenta&ccedil;&atilde;o e cobran&ccedil;as das cantinas por unidade escolar.':'Contratos, obriga&ccedil;&otilde;es e documentos dos im&oacute;veis ocupados pelas escolas.';
   if(button){button.setAttribute('onclick',cantinas?'openRealEstateSublocModal(null)':'openRealEstateModal(null)');button.innerHTML=cantinas?'<span class="ic">+</span> Nova cantina':'<span class="ic">+</span> Novo im&oacute;vel';}
   if(searchLabel)searchLabel.innerHTML=cantinas?'Buscar unidade, marca, operador ou regra de cobran&ccedil;a':'Buscar im&oacute;vel, locador, unidade ocupante ou contrato';
@@ -5981,7 +5981,7 @@ function realEstateConfigureArea(){
   if(button)button.style.display=evidence?'none':'';
   if(statusLabel?.parentElement)statusLabel.parentElement.style.display=evidence?'none':'';
   if(review)review.style.display=evidence?'none':'block';
-  if(title)title.textContent=evidence?(realEstateArea==='documentos'?'Acervo documental':'Historico e TRs'):cantinas?'Sublocacoes e uso de marca':'Locacoes de imoveis';
+  if(title)title.textContent=evidence?(realEstateArea==='documentos'?'Acervo documental':'Historico e TRs'):cantinas?'Sublocações e Usos de Marca':'Aluguéis e Taxas';
   if(cantinas&&button)button.innerHTML='<span class="ic">+</span> Novo vinculo';
   if(cantinas&&description)description.textContent='Cantinas, espacos, uso de marca e acordos por unidade.';
   if(evidence&&description)description.textContent='';
