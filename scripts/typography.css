@@ -1,5 +1,5 @@
 /* The same Geist family and brand surfaces, with readable operational text. */
-:root{--text-caption:14px;--text-body:16px;--text-card-title:18px}
+:root{--text-caption:13px;--text-body:14px;--text-card-title:16px}
 body{font-size:var(--text-body);line-height:1.5}
 body small{font-size:var(--text-caption);line-height:1.5}
 body :is(input,select,textarea):not([type="checkbox"]):not([type="radio"]):not([type="range"]){font-size:var(--text-body)!important}
@@ -7,23 +7,23 @@ body :is(input,select,textarea):not([type="checkbox"]):not([type="radio"]):not([
 body :is(input.fi,select.fi,textarea.fi){font-family:var(--font-ui);font-size:var(--text-body)!important;line-height:1.5;min-height:42px}
 body textarea.fi{height:auto}
 body :is(.fl,.dash-filter,.re-portfolio-controls label,.re-dossier-toolbar label,.access-field label){font-size:var(--text-caption);line-height:1.5}
-body :is(.btn,.tabbtn,.chip){font-size:15px;line-height:1.4;min-height:36px;white-space:normal}
+body :is(.btn,.tabbtn,.chip){font-size:14px;line-height:1.4;min-height:36px;white-space:normal}
 body :is(.badge,.tag,.pill){line-height:1.4;min-height:24px;height:auto}
-#app>.main :is(table td,table th){font-size:15px;line-height:1.5}
+#app>.main :is(table td,table th){font-size:14px;line-height:1.45}
 #app>.main :is(.phead p,.phead .desc,.re-sub-rule,.re-property-owner){font-size:var(--text-body);line-height:1.5}
 #app>.main :is(.uc-nome,.obra-card h3,.capex-brand-title,.capex-unit-title,.re-property-card h2){font-size:var(--text-card-title);line-height:1.35;font-weight:650;overflow-wrap:anywhere}
 #app>.main :is(.uc-body,.re-property-card-body,.obra-card-body){gap:10px}
-#app>.main :is(.re-property-address,.re-property-card-facts,.uc-meta,.capex-card-desc){font-size:15px;line-height:1.5}
+#app>.main :is(.re-property-address,.re-property-card-facts,.uc-meta,.capex-card-desc){font-size:14px;line-height:1.45}
 #app>.main :is(.obra-card-label,.obra-card-pill,.obra-card-subtitle,.obra-card-builder){line-height:1.5}
 #app>.main .obra-status-select{font-size:14px;min-height:34px;height:auto;max-width:100%}
 #app>.main .obra-card-head{flex-wrap:wrap;gap:10px}
 #app>.main .obra-list-toolbar{grid-template-columns:minmax(100px,1fr) minmax(240px,400px) minmax(200px,300px)}
-#app>.main .obra-list-toolbar :is(.fi,#esf-nf-search-input){font-size:16px;min-height:42px;height:auto;line-height:1.5}
-#sidebar .nav button{font-size:16px;line-height:1.4;min-height:44px;padding-block:10px}
-#sidebar .nav-group-title{font-size:14px;line-height:1.4;text-transform:none}
-#sidebar :is(.brand-copy>span,#foot-user-name,#menu-user-role){font-size:14px;line-height:1.4}
-#sidebar .nav .pill{font-size:14px;line-height:1.4;min-height:24px;max-width:64px}
-#sidebar.collapsed .nav .pill{font-size:14px;line-height:1.4;min-height:22px;max-width:50px}
+#app>.main .obra-list-toolbar :is(.fi,#esf-nf-search-input){font-size:14px;min-height:42px;height:auto;line-height:1.45}
+#sidebar .nav button{font-size:14px;line-height:1.4;min-height:44px;padding-block:10px}
+#sidebar .nav-group-title{font-size:13px;line-height:1.4;text-transform:none}
+#sidebar :is(.brand-copy>span,#foot-user-name,#menu-user-role){font-size:13px;line-height:1.4}
+#sidebar .nav .pill{font-size:12px;line-height:1.4;min-height:22px;max-width:64px}
+#sidebar.collapsed .nav .pill{font-size:12px;line-height:1.4;min-height:22px;max-width:50px}
 #app>.main .re-portfolio-controls{gap:12px 18px}
 #app>.main .re-portfolio-controls label{min-width:170px;flex-wrap:wrap}
 #app>.main .re-portfolio-controls .fi{min-width:170px;max-width:260px}
@@ -32,6 +32,7 @@ body :is(.badge,.tag,.pill){line-height:1.4;min-height:24px;height:auto}
   #app>.main .obra-list-toolbar{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 }
 @media(max-width:700px){
+  body :is(input,select,textarea):not([type="checkbox"]):not([type="radio"]):not([type="range"]){font-size:16px!important}
   body :is(.btn,.tabbtn){min-height:40px}
   #app>.main .obra-list-toolbar{grid-template-columns:minmax(0,1fr)}
   #app>.main .obra-list-toolbar h2{grid-column:auto}

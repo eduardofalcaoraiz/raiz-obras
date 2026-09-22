@@ -2,23 +2,23 @@
 #view-esfera.capex-unit-active :is(#esf-eyebrow,#esf-desc,#esf-acts>button:first-child){display:none}
 #view-esfera.capex-unit-active>.phead{margin-bottom:10px;padding-top:8px}
 #view-esfera.capex-unit-active .capex-nav-actions{display:flex;flex-wrap:wrap;gap:8px}
-#app>.main :is(.capex-summary-title,.capex-nav-title){font-size:18px;font-weight:650;line-height:1.4}
+#app>.main :is(.capex-summary-title,.capex-nav-title){font-size:16px;font-weight:650;line-height:1.4}
 #app>.main .capex-summary-fact b{font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)}
 #app>.main .capex-summary-fact span{font-weight:500;line-height:1.45}
 #app>.main .capex-summary-meta{font-weight:400;line-height:1.5}
 #app>.main .capex-zeev-money-label{font-weight:500;letter-spacing:0;text-transform:none}
-#app>.main .capex-zeev-money-value{font-size:22px;line-height:1.3;font-weight:750;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#app>.main .capex-zeev-money-value{font-size:19px;line-height:1.3;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 #app>.main .capex-zeev-money.review .capex-zeev-money-value{font-size:16px;font-weight:600}
 .capex-unit-priority{display:flex;align-items:baseline;gap:18px 32px;flex-wrap:wrap;padding:0 0 18px;margin:0 0 16px;border-bottom:1px solid var(--line)}
 .capex-unit-priority>div{min-width:0}.capex-unit-priority span{display:block;font-size:14px;color:var(--muted);font-weight:400;line-height:1.5}
-.capex-unit-priority strong{display:block;font-size:20px;font-weight:650;line-height:1.5;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.capex-unit-priority .priority-balance strong{font-size:26px;font-weight:750;color:var(--ink)}
+.capex-unit-priority strong{display:block;font-size:18px;font-weight:650;line-height:1.4;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.capex-unit-priority .priority-balance strong{font-size:22px;font-weight:700;color:var(--ink)}
 .capex-unit-priority .is-negative strong{color:var(--danger)}.capex-unit-priority .priority-warning{font-size:14px;color:#94530e;font-weight:500;margin:4px 0 0}
 .capex-unit-list-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}.capex-unit-list-heading h2{font-size:18px;margin:0}
 #app>.main .re-property-card-value{margin:10px 0 14px;min-width:0}.re-property-card-value small{display:block;font-size:14px;line-height:1.5;color:var(--muted)}
-#app>.main .re-property-card-value strong{display:block;font-size:24px;font-weight:750;line-height:1.4;letter-spacing:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;color:var(--ink)}
+#app>.main .re-property-card-value strong{display:block;font-size:20px;font-weight:700;line-height:1.4;letter-spacing:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;color:var(--ink)}
 #app>.main .re-property-status:is(.warning,.danger){font-weight:650}.re-property-card-bottom>span:first-child{font-size:15px;font-weight:600;color:var(--ink)}
-#app>.main .re-property-summary>div:first-child dd{font-size:24px;font-weight:750;line-height:1.4}
+#app>.main .re-property-summary>div:first-child dd{font-size:20px;font-weight:700;line-height:1.4}
 #app>.main :is(.dash-metric.red strong,.dash-red,.party-values.danger dd){color:#a82f2b}
 #app>.main :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible,.overlay :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible{outline:2px solid #246858;outline-offset:3px}
 .overlay .modal:focus{outline:none}.overlay .modal{overscroll-behavior:contain;scroll-padding-block:20px}
@@ -33,12 +33,12 @@
  #app>.main .capex-summary-data{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
  #app>.main .capex-summary-fact+.capex-summary-fact{border:0;padding:0}
  #app>.main .capex-summary-actions{gap:8px}#app>.main .capex-summary-actions .btn{min-height:44px;min-width:0;flex:1 1 auto}
- .capex-unit-priority{gap:12px 24px}.capex-unit-priority .priority-balance{flex-basis:100%}.capex-unit-priority strong{font-size:18px}.capex-unit-priority .priority-balance strong{font-size:24px}
+ .capex-unit-priority{gap:12px 24px}.capex-unit-priority .priority-balance{flex-basis:100%}.capex-unit-priority strong{font-size:18px}.capex-unit-priority .priority-balance strong{font-size:22px}
  #app>.main .realestate-filter-check{white-space:normal;line-height:1.5;align-items:flex-start}#realestate-review-filter-wrap{max-width:100%}
  #app>.main .realestate-toolbar{gap:12px;align-items:end}#app>.main .realestate-toolbar>div{min-width:0!important}
  #app>.main :is(.dash-icon,.re-property-tool,.party-edit,.capex-arrow-btn){min-width:44px;min-height:44px}
  #app>.main .capex-navline{gap:12px;margin-bottom:12px}#app>.main .capex-nav-actions{gap:8px}
- #app>.main .capex-summary-title{font-size:17px}.capex-review-dialog{margin:auto}
+ #app>.main .capex-summary-title{font-size:16px}.capex-review-dialog{margin:auto}
 }
 @media(max-width:420px){#app>.main .capex-detail-grid{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto!important}#app *,body>.overlay *,dialog *{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
