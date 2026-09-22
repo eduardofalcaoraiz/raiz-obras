@@ -2133,11 +2133,11 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 
       <div class="realestate-toolbar">
         <div style="flex:1;min-width:260px">
-          <label class="fl" id="realestate-search-label">Buscar im&oacute;vel, locador, unidade ocupante ou contrato</label>
+          <label class="fl" id="realestate-search-label" for="realestate-search">Buscar im&oacute;vel, locador, unidade ocupante ou contrato</label>
           <input class="fi" id="realestate-search" placeholder="Digite para filtrar..." oninput="renderRealEstate()">
         </div>
         <div style="min-width:210px">
-          <label class="fl" id="realestate-status-label">Status contratual</label>
+          <label class="fl" id="realestate-status-label" for="realestate-status-filter">Status contratual</label>
           <select class="fi" id="realestate-status-filter" onchange="renderRealEstate()">
             <option value="">Todos</option>
             <option value="Ativo">Ativos</option>
@@ -4034,8 +4034,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <script src="scripts/real-estate-ledger-utils.js?v=20260921-audit"></script>
 <script src="scripts/real-estate-dossier.js?v=20260921-audit"></script>
 <link rel="stylesheet" href="scripts/real-estate-dossier.css?v=20260921-readable">
-<script src="scripts/real-estate-workspace.js?v=20260921-audit"></script>
-<script src="scripts/real-estate-property-page.js?v=20260921-audit"></script>
+<script src="scripts/real-estate-workspace.js?v=20260922-priority"></script>
+<script src="scripts/real-estate-property-page.js?v=20260922-priority"></script>
 <link rel="stylesheet" href="scripts/real-estate-property-page.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/real-estate-workspace.css?v=20260921-readable">
 <script src="scripts/dashboard-data.js?v=20260916-rebuild"></script>
@@ -4045,7 +4045,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <link rel="stylesheet" href="scripts/capex-reviews.css?v=20260921-1">
 <script src="scripts/capex-reviews.js?v=20260921-1"></script>
 <script src="scripts/dashboard-hub.js?v=20260921-realestate-labels"></script>
-<script src="scripts/platform-navigation.js?v=20260917-hub"></script>
+<script src="scripts/platform-navigation.js?v=20260922-usability"></script>
 <link rel="stylesheet" href="scripts/dashboard-hub.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/platform-menu.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/platform-identity.css?v=20260921-readable">
@@ -4054,6 +4054,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <script defer src="scripts/platform-menu.js?v=20260917-menu"></script>
 <script src="scripts/access-invites.js?v=20260916-invite-availability"></script>
 <link rel="stylesheet" href="scripts/access-control.css?v=20260921-readable">
+<link rel="stylesheet" href="scripts/platform-usability.css?v=20260922-1">
+<script defer src="scripts/platform-usability.js?v=20260922-1"></script>
 <script>
 
 const fmt=n=>"R$ "+(+n||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -6726,8 +6728,10 @@ function pageJump(pos){
 
 
 
+let uniNavigationVersion=0;
 function go(view){
   if(!AccessControl.enter(view))return;
+  uniNavigationVersion++;
 
   PlatformNav.before(view);
 
@@ -6966,6 +6970,7 @@ function renderGeral(){
 
 
 function renderEsfera(){
+  document.getElementById('view-esfera').classList.toggle('capex-unit-active',curEsfera==='capex'&&!!capexDrillUnidade);
 
   const e=ESFERAS[curEsfera];
   applyBrandVars(document.getElementById('view-esfera'),curEsfera==='capex'?(capexDrillMarca||'RAIZ'):'RAIZ');
@@ -11464,6 +11469,7 @@ function renderCapexUnitSimpleDashboard(its,accent){
 function renderCapexScopedDashboard(){ Dashboards.capex(); }
 
 function renderCapexDrill(){
+  document.getElementById('view-esfera').classList.toggle('capex-unit-active',!!capexDrillUnidade);
 
   renderCapexCrumb();
 
@@ -12304,14 +12310,18 @@ function renderCapexUnitItems(){
 
   clearCapexLooseKpis();
 
-  let html=renderCapexTabs();
+  let html='';
 
-  html+=capexNavLine(capexDrillUnidade,`${capexDrillMarca} · ${capexDrillYear}. Volte para comparar outras unidades.`,{
+  html+=capexNavLine(capexDrillUnidade,`${capexDrillMarca} · ${capexDrillYear}`,{
     backTitle:viewingStatus?'Voltar aos status':'Voltar às unidades',
-    right:capexBudgetAction(capexDrillYear,capexDrillUnidade,null,capexDrillMarca,'ghost')
+    right:capexBudgetAction(capexDrillYear,capexDrillUnidade,'Ajustar verba',capexDrillMarca,'ghost')+'<button class="btn btn-ghost btn-sm capex-report-open" onclick="openCapexReportModal()"><img src="assets/icons/lucide/file-text.svg" alt="" width="18" height="18"> Relatórios</button>'
   });
 
-  html+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap"><h2 style="font-size:18px;margin:0">${viewingStatus?'Pedidos · '+escHtml(capexListStatus):'Pedidos da unidade'}</h2>${viewingStatus?`<button class="btn btn-ghost btn-sm" onclick="capexSetListStatus('Todos')">Voltar aos status</button>`:''}</div>`;
+  const unitBudget=capexBudgetStats(itsBase,{ano:capexDrillYear,marca:capexDrillMarca,unidade:capexDrillUnidade});
+  const hasUnitBudget=unitBudget.rows.length>0;
+  const missingBudget=capexPendenciaItems(itsBase,'sem_orcamento').length;
+  html+=`<div class="capex-unit-priority" aria-label="Valores do ciclo da unidade"><div class="priority-balance ${hasUnitBudget&&unitBudget.saldo<0?'is-negative':''}"><span>${hasUnitBudget?'Saldo disponível':'Verba não cadastrada'}</span><strong>${hasUnitBudget?fmt(unitBudget.saldo):'A confirmar'}</strong></div><div><span>Comprometido no ciclo</span><strong>${fmt(unitBudget.comprometido)}</strong></div><div><span>CAPEX disponibilizado</span><strong>${hasUnitBudget?fmt(unitBudget.autorizado):'A confirmar'}</strong></div>${missingBudget?`<p class="priority-warning">${missingBudget} pedido(s) sem valor informado</p>`:''}</div>`;
+  html+=`<div class="capex-unit-list-heading"><h2>${viewingStatus?'Pedidos · '+escHtml(capexListStatus):'Pedidos'} <span class="capex-list-count">(${its.length})</span></h2>${viewingStatus?`<button class="btn btn-ghost btn-sm" onclick="capexSetListStatus('Todos')">Todos os pedidos</button>`:''}</div>`;
 
   html+=`<div class="chips" style="margin-bottom:18px" aria-label="Situação dos pedidos">${['Todos','Em Andamento','Resolvido','Cancelado'].map(status=>`<button class="chip ${capexListStatus===status?'active':''}" aria-pressed="${capexListStatus===status}" onclick="capexSetListStatus('${status}')">${status}</button>`).join('')}</div>`;
 
@@ -14057,7 +14067,18 @@ function renderDocs(){
 
 
 
-async function openUni(id){curUni=unidades.find(u=>u.id===id);curUni.docs={};const snap=curUni.docs;const{data}=await db.from('documentos_unidade').select('*').eq('unidade_id',id);if(curUni.docs!==snap)return;if(data)data.forEach(d=>{(curUni.docs[d.cat_id]=curUni.docs[d.cat_id]||[]).push({dbId:d.id,name:d.name,storagePath:d.storage_path||null,type:d.type});if(d.cat_id&&!DOC_CATS.some(c=>c.id===d.cat_id))DOC_CATS.push({...docCatById(d.cat_id),id:d.cat_id,tipo:'documento'});});renderUni();go("uni");}
+async function openUni(id){
+  if(!AccessControl.can('escolas'))return;
+  const unit=unidades.find(u=>u.id===id);if(!unit){toast('Unidade não encontrada.');return;}
+  const version=++uniNavigationVersion,identity=currentProfile?.id;
+  try{
+    const{data,error}=await db.from('documentos_unidade').select('*').eq('unidade_id',id);
+    if(version!==uniNavigationVersion||identity!==currentProfile?.id||!AccessControl.can('escolas')||!unidades.includes(unit))return;
+    if(error)throw error;
+    const docs={};(data||[]).forEach(d=>{(docs[d.cat_id]=docs[d.cat_id]||[]).push({dbId:d.id,name:d.name,storagePath:d.storage_path||null,type:d.type});if(d.cat_id&&!DOC_CATS.some(c=>c.id===d.cat_id))DOC_CATS.push({...docCatById(d.cat_id),id:d.cat_id,tipo:'documento'});});
+    unit.docs=docs;curUni=unit;renderUni();go('uni');
+  }catch(e){if(version===uniNavigationVersion&&identity===currentProfile?.id)toast('Não foi possível carregar os documentos. Tente abrir a unidade novamente.');}
+}
 
 function renderUni(){const u=curUni;const uv=document.getElementById("view-uni");if(uv){const _bc=brandColor(u.marca);uv.style.setProperty('--brand-cur',_bc);uv.style.setProperty('--brand-cur-light',brandLight(u.marca));uv.style.setProperty('--brand-text',brandTextOnLight(u.marca));uv.style.setProperty('--brand-readable',readableTextOnColor(_bc));uv.style.setProperty('--brand-readable-soft',softTextOnColor(_bc));uv.style.setProperty('--brand-readable-shadow',textShadowOnColor(_bc));}document.getElementById("u-crumb").innerHTML=`<span style="display:inline-flex;align-items:center;gap:7px;background:${brandLight(u.marca)};border:1.5px solid ${brandColor(u.marca)}44;border-radius:20px;padding:3px 10px 3px 4px"><span style="display:inline-flex;background:white;border-radius:5px;overflow:hidden;height:20px;width:32px;align-items:center;flex-shrink:0;border:1px solid ${brandColor(u.marca)}22">${brandLogoImg(u.marca,'height:16px;width:28px;object-fit:contain')}</span><span style="font-size:14px;font-weight:600;color:${brandColor(u.marca)}">${u.marca}</span></span>`;document.getElementById("u-nome").textContent=u.nome;const _uobra=u.obraId?obras.find(x=>x.id===u.obraId):null;document.getElementById("u-meta").innerHTML=`<span class="badge ${u.tipo==='Em obra'?'b-info':'b-ok'}">${u.tipo||'Em operação'}</span>${_uobra?` <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="openObra(${_uobra.id})">↗ ${_uobra.nome}</button>`:""}`;
 

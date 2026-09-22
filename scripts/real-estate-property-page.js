@@ -23,10 +23,10 @@
     const brand=realEstateBrandLabel(i),s=status(i);
     return `<a class="card re-property-card" data-imovel-id="${esc(i.id)}" href="${href(i.id)}" onclick="RealEstatePropertyPage.open(event,'${i.id}')" style="--re-color:${esc(brandColor(brand))};--re-tint:${esc(brandLight(brand))}">
       <div class="re-property-card-top"><span class="re-property-brand">${brandLogoImg(brand,'width:58px;height:36px;object-fit:contain')}<span>${esc(brand)}</span></span><span class="re-property-status ${s.kind}">${esc(s.text)}</span></div>
-      <div class="re-property-card-body"><h2>${esc(label(i))}</h2><p class="re-property-address">${esc(i.endereco||'Endere\u00e7o n\u00e3o informado')}</p>
+      <div class="re-property-card-body"><h2>${esc(label(i))}</h2><div class="re-property-card-value"><small>Aluguel de refer\u00eancia</small><strong>${esc(cost(i))}</strong></div><p class="re-property-address">${esc(i.endereco||'Endere\u00e7o n\u00e3o informado')}</p>
       <div class="re-property-owner"><small>Locador</small><span>${esc(i.locador||'N\u00e3o informado')}</span></div>
       <div class="re-property-card-facts"><span><small>Reajuste</small>${esc(i.indice_reajuste||'A confirmar')}</span><span><small>Fim do contrato</small>${esc(i.contrato_fim?fmtD(i.contrato_fim):'A confirmar')}</span></div></div>
-      <div class="re-property-card-bottom"><div><small>Aluguel de refer\u00eancia</small><strong>${esc(cost(i))}</strong></div><span class="re-property-open" aria-hidden="true">${icon('arrow-up-right')}</span></div>
+      <div class="re-property-card-bottom"><span>Abrir im\u00f3vel</span><span class="re-property-open" aria-hidden="true">${icon('arrow-up-right')}</span></div>
     </a>`;
   }
   function contractFacts(i){

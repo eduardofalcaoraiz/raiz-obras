@@ -1,6 +1,6 @@
 (function(root){
  'use strict';
- const memory=new Map();let current='',routing=false,navigating=false,returnHub='';
+ const memory=new Map();let current='',routing=false,navigating=false,returnHub='',restoring=null,revision=0;
  const fields=['esc-busca','forn-busca','realestate-search','realestate-status-filter','realestate-type-filter','realestate-review-filter'];
  function snapshot(){
   const inputs={};for(const id of fields){const e=document.getElementById(id);if(e)inputs[id]=e.type==='checkbox'?e.checked:e.value;}
@@ -12,15 +12,18 @@
   if(current==='capex'){capexDrillYear=s.year||null;capexDrillMarca=s.capexBrand||null;capexDrillUnidade=s.unit||null;capexListStatus=s.status||'Todos';capexDashControls=s.focus||{focusDim:'',focusValue:''};}
  }
  function before(view){
+  if(view==='docs'||view==='geral')view='escolas';
+  if(restoring?.view&&(restoring.view!==view||restoring.hash!==location.hash))restoring=null;
+  revision++;
   navigating=true;
-  if(current&&!routing){memory.set(current,snapshot());if(history.state?.platform)history.replaceState({...history.state,screen:memory.get(current)},'');}
+  if(current&&!routing&&!restoring){memory.set(current,snapshot());if(history.state?.platform)history.replaceState({...history.state,screen:memory.get(current)},'');}
   const previous=current;current=view;
-  if(!routing&&previous!==view){apply(memory.get(view)||{});}
-  if(view==='realestate'&&!/^#realestate(?:\/|$)/.test(location.hash))history.pushState({platform:true,hubReturn:returnHub},'',realEstateArea==='cantinas'?'#realestate/sublocacoes':'#realestate');
+  if(restoring)apply(restoring.screen);
+  else if(!routing&&previous!==view){apply(memory.get(view)||{});}
  }
  function routeHash(){
   if(current==='dashboards')return DashboardHub.hash();
-  if(current==='realestate')return /^#realestate(?:\/|$)/.test(location.hash)?location.hash:'#realestate';
+  if(current==='realestate')return /^#realestate(?:\/|$)/.test(location.hash)?location.hash:realEstateArea==='cantinas'?'#realestate/sublocacoes':'#realestate';
   const q=new URLSearchParams();
   if(current==='capex'){for(const [k,v]of Object.entries({year:capexDrillYear,brand:capexDrillMarca,unit:capexDrillUnidade,status:capexListStatus==='Todos'?'':capexListStatus}))if(v)q.set(k,v);}
   if(current==='obra'&&cur)q.set('id',cur.id);
@@ -34,9 +37,12 @@
  }
  function after(){
   navigating=false;
-  commit(false);toolbar();
-  const scroll=routing?history.state?.screen?.scroll:memory.get(current)?.scroll;
-  if(scroll)requestAnimationFrame(()=>document.querySelector('.main')?.scrollTo(0,scroll));
+  const scroll=restoring?.screen?.scroll??0,version=revision;
+  document.querySelector('.main')?.scrollTo(0,scroll);
+  if(restoring){history.replaceState({...history.state,platform:true,view:current,screen:snapshot(),hubReturn:returnHub},'',routeHash());restoring=null;}
+  else commit(false);
+  toolbar();
+  requestAnimationFrame(()=>{if(version===revision)document.querySelector('.main')?.scrollTo(0,scroll);});
  }
  function toolbar(){
   document.querySelectorAll('.platform-context-nav').forEach(e=>e.remove());
@@ -50,22 +56,46 @@
  function restore(){
   if(typeof currentProfile==='undefined'||!currentProfile?.aprovado)return false;
   const hub=DashboardHub.parse(location.hash),m=location.hash.match(/^#app\/([a-z]+)(?:\?(.*))?$/);
-  if(!hub&&!m)return false;
+  if(!hub&&!m){if(location.hash.startsWith('#app/'))return fallback();return false;}
   const old=routing;routing=true;
   try{
-   returnHub=history.state?.hubReturn||returnHub;
-   if(hub)return DashboardHub.restore(hub);
+   if(hub){restoring={screen:history.state?.screen};returnHub=history.state?.hubReturn||'';if(DashboardHub.restore(hub))return true;return fallback();}
    const view=m[1],q=new URLSearchParams(m[2]||'');
-   if(!['capex','nova','expansao','registros','escolas','forn','cobranca','investidores','obra','uni','admin'].includes(view))return false;
-   current=view;apply(history.state?.screen);
-   if(view==='obra'){const o=obras.find(o=>String(o.id)===q.get('id'));if(!o||!AccessControl.can(o.esfera||'nova'))return false;openObra(o.id);return true;}
-   if(!AccessControl.allowedView(view))return false;
-   if(view==='uni'){const u=unidades.find(u=>String(u.id)===q.get('id'));if(!u)return false;openUni(u.id);return true;}
-   if(view==='capex'){capexDrillYear=q.get('year')?Number(q.get('year')):null;capexDrillMarca=q.get('brand')||null;capexDrillUnidade=q.get('unit')||null;capexListStatus=q.get('status')||'Todos';}
+   if(!['capex','nova','expansao','registros','escolas','forn','cobranca','investidores','obra','uni','admin'].includes(view))return fallback();
+   const record=view==='obra'?obras.find(o=>String(o.id)===q.get('id')):view==='uni'?unidades.find(u=>String(u.id)===q.get('id')):null;
+   if(view==='obra'?(!record||!AccessControl.can(record.esfera||'nova')):(!AccessControl.allowedView(view)||(view==='uni'&&!record)))return fallback();
+   restoring={view,hash:location.hash,screen:history.state?.screen};returnHub=history.state?.hubReturn||'';
+   if(view==='obra'){openObra(record.id);return true;}
+   if(view==='uni'){openUni(record.id);return true;}
+   if(view==='capex'){const year=Number(q.get('year'));restoring.screen={...restoring.screen,year:Number.isFinite(year)&&year>0?year:null,capexBrand:q.get('brand')||null,unit:q.get('unit')||null,status:q.get('status')||'Todos'};}
    go(view);return true;
   }finally{routing=old;}
  }
- let pending=false;function onRoute(){if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;restore();});}
+ function fallback(){
+  const old=routing;routing=true;restoring={screen:{scroll:0}};returnHub='';
+  try{AccessControl.landing();if(restoring){current='';restoring=null;history.replaceState({platform:true},'','#app');}return true;}finally{routing=old;}
+ }
+ function saveScreen(){
+  if(!current||routing||navigating||restoring||history.state?.view!==current)return;
+  const screen=snapshot();memory.set(current,screen);history.replaceState({...history.state,screen},'');
+ }
+ let scrollPending=false;
+ function onScroll(event){
+  if(event.target!==document.querySelector('.main')||scrollPending)return;
+  scrollPending=true;
+  const version=revision,entry=history.state;
+  requestAnimationFrame(()=>{
+   scrollPending=false;
+   if(version===revision&&entry===history.state)saveScreen();
+  });
+ }
+ document.addEventListener('scroll',onScroll,true);
+ document.addEventListener('input',saveScreen);
+ document.addEventListener('change',saveScreen);
+ let pending=false;function onRoute(){
+  if(/^#realestate(?:\/|$)/.test(location.hash))restoring={view:'realestate',hash:location.hash,screen:history.state?.screen};
+  if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;restore();});
+ }
  root.addEventListener('popstate',onRoute);root.addEventListener('hashchange',onRoute);
- root.PlatformNav={before,after,restore,replace:()=>commit(true),push:()=>commit(false),rememberHub:value=>{returnHub=value;},reset:()=>{memory.clear();current='';returnHub='';}};
+ root.PlatformNav={before,after,restore,replace:()=>commit(true),push:()=>commit(false),rememberHub:value=>{returnHub=value;},reset:()=>{memory.clear();current='';returnHub='';restoring=null;routing=false;navigating=false;revision++;}};
 })(window);
