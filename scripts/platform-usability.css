@@ -1,4 +1,32 @@
 /* Operational hierarchy: important amounts first; preserve existing brand surfaces. */
+/* Allow descriptive content to grow; keep controls and financial figures legible. */
+#app>.main :is(.phead,.hub-heading,.party-toolbar,.capex-navline,.capex-report-toolbar){flex-wrap:wrap;min-width:0}
+#app>.main :is(.phead,.hub-identity,.party-toolbar,.capex-navline,.capex-report-toolbar)>div{min-width:0;max-width:100%}
+#app>.main :is(h1,h2,h3,.fl,.hub-filter,.re-property-heading-text,.party-card header,.uc-nome,.uc-meta){min-width:0;overflow-wrap:anywhere;word-break:normal}
+#app>.main :is(.capex-nav-title,.capex-nav-sub,.capex-summary-line,.capex-summary-stage b,.capex-summary-stage em,.capex-item-title,.capex-report-unit span,.capex-year-facts small,.capex-mini .lab,.capex-card-dash .mini span,.capex-status-card h3,.capex-status-brand b,.capex-status-brand span,.capex-status-metric span,.capex-budget-cell span,.cyear-metric span){white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.4}
+#app>.main :is(.btn,.chip),.overlay :is(.btn,.chip),dialog .btn{max-width:100%;height:auto;white-space:normal;overflow-wrap:anywhere;word-break:normal;flex-shrink:1}
+#app>.main :is(.btn,.chip) :is(img,svg,.menu-icon),.overlay .btn :is(img,svg,.menu-icon),dialog .btn :is(img,svg,.menu-icon){flex-shrink:0}
+#app>.main :is(.capex-brand-stat,.capex-unit-stat,.capex-year-mini,.party-values,.re-property-card-facts)>*{min-width:0}
+#app>.main :is(.capex-zeev-money-value,.capex-unit-priority strong,.re-property-card-value strong,.party-values dd,.dash-metric strong,.capex-budget-cell b,.cyear-metric b){overflow-wrap:normal;word-break:normal;white-space:normal;text-overflow:clip;overflow:visible}
+#app>.main :is(.hub-filter,.re-portfolio-controls label,.re-evidence-toolbar label){max-width:100%}
+#app>.main :is(.access-row-actions,.capex-budget-actions){flex-wrap:wrap}
+.overlay :is(.mhead,.mfoot),dialog :is(header,footer){min-width:0;flex-wrap:wrap}
+.overlay :is(.fl,.mhead h2,.mhead h3),dialog :is(h2,label,.access-area-name){min-width:0;overflow-wrap:anywhere}
+#sidebar .nav :is(.nav-label,.pill){min-width:0}#sidebar .nav .pill{flex-shrink:0}
+@media(max-width:999px){
+ #app>.main .capex-expander-summary{min-width:0;grid-template-columns:minmax(0,1fr);grid-template-areas:"id" "main" "value" "data" "actions" "toggle"}
+ #app>.main .capex-summary-data{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-width:0}
+ #app>.main .capex-summary-fact+.capex-summary-fact{border:0;padding:0}
+ #app>.main .capex-summary-actions{flex-wrap:wrap;gap:8px;min-width:0}
+ #app>.main .capex-summary-actions .btn{width:auto;flex:1 1 120px;white-space:normal;min-height:40px}
+}
+@media(max-width:600px){
+ #app>.main #view-realestate .realestate-area-tabs{flex-wrap:wrap;overflow:visible}
+ #app>.main #view-realestate .realestate-area-tab{flex:1 1 140px;min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.4;height:auto;min-height:48px}
+ #app>.main .hub-filter,#app>.main .hub-filter:first-child{min-width:0;flex-basis:100%}
+ #app>.main :is(.capex-brand-stats,.capex-unit-stats,.party-values){grid-template-columns:minmax(0,1fr)}
+ #app>.main .hub-identity>img{flex-basis:52px;width:52px}
+}
 /* Shared row tracks keep variable-length content aligned without hiding it. */
 #app>.main .pgrid:has(>.obra-card){align-items:stretch}
 #app>.main .pgrid>.obra-card{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:subgrid;grid-row:span 5;row-gap:10px;min-height:0}
