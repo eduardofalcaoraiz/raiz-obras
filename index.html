@@ -2561,6 +2561,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
               <option value="Fatura">Fatura / cobrança</option>
 
               <option value="Recibo">Recibo</option>
+              <option value="ORÇAMENTO - COBRAR NF">ORÇAMENTO - COBRAR NF</option>
 
               <option value="Guia">Guia / tributo</option>
 
@@ -2939,7 +2940,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
           <span>Documento fiscal</span>
           <button id="pm-ler-nf-btn" type="button" onclick="closePagModal();openImport()" style="display:none;font-size:14px;color:var(--accent);font-weight:600;background:none;border:0;cursor:pointer;padding:0">📄 Ler nota automaticamente →</button>
         </label>
-        <select class="fi" id="pm-nf" onchange="pmNfChange()"><option>Sem nota</option><option>NF-e</option><option>NFC-e</option><option>NFS-e</option><option>CT-e</option><option>Boleto</option><option>Fatura</option><option value="Adiantamento">Adiantamento</option><option>Recibo</option><option>Guia</option></select>
+        <select class="fi" id="pm-nf" onchange="pmNfChange()"><option>Sem nota</option><option>NF-e</option><option>NFC-e</option><option>NFS-e</option><option>CT-e</option><option>Boleto</option><option>Fatura</option><option value="Adiantamento">Adiantamento</option><option>Recibo</option><option value="ORÇAMENTO - COBRAR NF">ORÇAMENTO - COBRAR NF</option><option>Guia</option></select>
       </div>
       <div class="frow" id="pm-emissao-row" style="display:none"><label class="fl">Data de emissão da nota</label><input class="fi" id="pm-emissao" type="date"></div>
     </div>
@@ -3894,7 +3895,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
       </div>
       <input type="hidden" id="zo-cat" value="outros">
       <div class="frow"><label class="fl">Número do documento fiscal</label><input class="fi" id="zo-nf-num" placeholder="NF, fatura ou recibo"></div>
-      <div class="frow"><label class="fl">Tipo de documento</label><select class="fi" id="zo-nf-tipo"><option>NFS-e</option><option>NF-e</option><option>Fatura</option><option>Boleto</option><option>Recibo</option><option>Sem nota</option></select></div>
+      <div class="frow"><label class="fl">Tipo de documento</label><select class="fi" id="zo-nf-tipo"><option>NFS-e</option><option>NF-e</option><option>Fatura</option><option>Boleto</option><option>Recibo</option><option value="ORÇAMENTO - COBRAR NF">ORÇAMENTO - COBRAR NF</option><option>Sem nota</option></select></div>
     </div>
 
     <div class="capex-form-card optional">
@@ -4056,6 +4057,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <link rel="stylesheet" href="scripts/access-control.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/platform-usability.css?v=20260922-wrapping">
 <script defer src="scripts/platform-usability.js?v=20260922-1"></script>
+<script defer src="vendor/pdf-lib/pdf-lib.min.js?v=1.17.1"></script>
+<script defer src="scripts/payment-bundle.js?v=20260922-1"></script>
 <script>
 
 const fmt=n=>"R$ "+(+n||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -4750,6 +4753,7 @@ function paymentDocDisplayType(doc,p){
   if(kind)return kind;
   const tipo=String(p?.nfTipo||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
   if(tipo.includes('FATURA'))return'FATURA';
+  if(tipo.includes('ORCAMENTO'))return'ORÇAMENTO - COBRAR NF';
   if(tipo.includes('RECIBO'))return'RECIBO';
   if(tipo.includes('BOLETO'))return'BOLETO';
   if(tipo&&tipo!=='SEM NOTA')return'NF';
@@ -4759,6 +4763,7 @@ function paymentDocDisplayType(doc,p){
 function paymentDocKindPretty(kind,tipo){
   const k=String(kind||'').toUpperCase();
   const t=String(tipo||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  if(/OR[CÇ]AMENTO/.test(k)||t.includes('ORCAMENTO'))return'ORÇAMENTO - COBRAR NF';
   if(k==='FATURA'||t.includes('FATURA'))return'Fatura';
   if(k==='RECIBO'||t.includes('RECIBO'))return'Recibo';
   if(t.includes('NFS'))return'NFS-e';
@@ -8883,6 +8888,8 @@ function paymentDocUrlFileName(doc){
 }
 
 function paymentDocKindLabel(doc){
+  if(/orcamento/i.test(String([doc?.kind,doc?.name,paymentDocUrlFileName(doc)].filter(Boolean).join(' ')).normalize('NFD').replace(/[\u0300-\u036f]/g,'')))return'ORCAMENTO';
+  if(doc?.generatedBundle)return doc.kind||'NF';
   const original=capexZeevNormField([doc?.name,paymentDocUrlFileName(doc)].filter(Boolean).join(' '));
   const rawStored=String(doc?.storagePath||doc?.path||'').replace(/\\/g,'/');
   const stored=capexZeevNormField(rawStored);
@@ -8943,6 +8950,7 @@ function paymentChargeDocs(p){
 
 function hydratePaymentDocs(p){
   if(!p)return p;
+  p.docs=normalizePaymentDocs(p);
   if(p.nfDoc){
     const kind=paymentDocKindLabel(p.nfDoc);
     p.nfDoc=kind?{...p.nfDoc,kind}:p.nfDoc;
@@ -8955,7 +8963,7 @@ function hydratePaymentDocs(p){
   }
   p.docs=normalizePaymentDocs(p);
   if(!p.nfDoc){
-    const nf=p.docs.find(paymentIsFiscalDoc);
+    const nf=p.docs.find(d=>d.generatedBundle&&paymentIsFiscalDoc(d))||p.docs.find(paymentIsFiscalDoc);
     if(nf)p.nfDoc={...nf,kind:nf.kind||'NF',bucket:nf.bucket||'pagamentos'};
   }
   if(!p.compDoc){
@@ -9055,6 +9063,7 @@ function paymentDocsCount(p){
 }
 
 function capexZeevDocKind(doc,z){
+  if(/orcamento/i.test(String([doc?.kind,doc?.name,paymentDocUrlFileName(doc)].filter(Boolean).join(' ')).normalize('NFD').replace(/[\u0300-\u036f]/g,'')))return'ORCAMENTO';
   const original=capexZeevNormField([doc?.name,paymentDocUrlFileName(doc)].filter(Boolean).join(' '));
   const stored=capexZeevNormField([doc?.storagePath,doc?.path].filter(Boolean).join(' '));
   const n=capexZeevNormField([doc?.name,paymentDocUrlFileName(doc),doc?.source,doc?.type,doc?.storagePath,doc?.path].filter(Boolean).join(' '));
@@ -13619,7 +13628,7 @@ async function togglePagRow(i){
   renderPag();
 }
 
-function docCell(o,i,p){if(paymentDocsAreLoaded(p))hydratePaymentDocs(p);let nf;const nfLabel=paymentNfNumberLabel(p);if(p.nfDoc){const fileName=p.nfDoc.name||p.nfDoc.storagePath||'documento fiscal';nf=`<button class="linkbtn" title="${escHtml(fileName)}" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">${escHtml(nfLabel||paymentDocKindPretty(paymentDocDisplayType(p.nfDoc,p),p.nfTipo)||'Documento fiscal')} ↓</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:14px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${escHtml(nfLabel||paymentDocKindPretty('',p.nfTipo)||'NF')}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
+function docCell(o,i,p){if(paymentDocsAreLoaded(p))hydratePaymentDocs(p);let nf;const nfLabel=paymentNfNumberLabel(p);if(p.nfDoc){const fileName=p.nfDoc.name||p.nfDoc.storagePath||'documento fiscal';nf=`<button class="linkbtn" title="${escHtml(fileName)}" onclick="PaymentBundle.open(${o.id},${i})">${escHtml(nfLabel||paymentDocKindPretty(paymentDocDisplayType(p.nfDoc,p),p.nfTipo)||'Documento fiscal')} ↓</button>`;}else if(p.nfTipo==="ORÇAMENTO - COBRAR NF"){nf=`<span class="badge b-warn">ORÇAMENTO - COBRAR NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar NF</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:14px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${escHtml(nfLabel||paymentDocKindPretty('',p.nfTipo)||'NF')}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
 
   const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">comprovante ↓</button>`:`<button class="linkbtn" onclick="anexarComp(${o.id},${i})">anexar</button>`;
 
@@ -13813,9 +13822,9 @@ function renderPag(){const o=cur;
           ${p.ticketRaiz?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Ticket Raiz</div><div style="font-size:14px;font-family:Geist,sans-serif;font-weight:700;color:var(--brand-text)">TR ${p.ticketRaiz}</div></div>`:''}${compraLink?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Compra vinculada</div><div style="font-size:14px;font-family:Geist,sans-serif;font-weight:800;color:var(--brand-text)">TR ${escHtml(compraLink.tr||compraLink.zeev_id||'')}</div>${compraLink.ticket_link?`<a href="${escHtml(compraLink.ticket_link)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:3px;font-size:14px;color:var(--accent);font-weight:800">Visualizar compra</a>`:''}</div>`:''}${p.obs?`<div style="grid-column:1/-1"><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Observações</div><div style="font-size:14px;color:var(--ink)">${p.obs}</div></div>`:''}${p.itens&&p.itens.length?`<div style="grid-column:1/-1;margin-top:8px"><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:5px">Itens da Nota (${p.itens.length})</div><div style="overflow-x:auto"><table class="imp-itens-tbl"><thead><tr><th>#</th><th>Descrição</th><th style="text-align:right">Qtd</th><th>Un</th><th style="text-align:right">Total</th></tr></thead><tbody>${p.itens.map((it,ii)=>`<tr><td style="color:var(--muted);text-align:center;width:24px">${ii+1}</td><td>${it.descricao||'—'}</td><td style="text-align:right;white-space:nowrap">${it.quantidade!=null?parseFloat(it.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:4}):'—'}</td><td style="color:var(--muted)">${it.unidade||'—'}</td><td style="text-align:right;font-weight:600;white-space:nowrap">R$ ${it.valor_total!=null?parseFloat(it.valor_total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)">
-          ${p.nfDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].nfDoc)">📄 Ver NF</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarNF(${o.id},${i})">📎 Anexar NF</button>`}
+          ${p.nfDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();PaymentBundle.open(${o.id},${i})">Ver nota / boleto</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarNF(${o.id},${i})">Anexar nota / boleto</button>`}
           ${p.compDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾 Ver comprovante</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarComp(${o.id},${i})">🧾 Anexar comprovante</button>`}
-          ${docsN||p.ticketRaiz?`<button class="btn btn-sm" onclick="event.stopPropagation();openPaymentDocsModal(${o.id},${i})">Arquivos (${docsLabel||docsN})</button>`:''}
+          <button class="btn btn-sm" onclick="event.stopPropagation();openPaymentDocsModal(${o.id},${i})">Arquivos</button>
           ${markBtn}
           <div style="margin-left:auto;display:flex;gap:8px">
             <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openPagModal(${i})">✎ Editar</button>
@@ -15277,7 +15286,7 @@ function closePagModal(){document.getElementById("pag-overlay").classList.remove
 
 function pmNfChange(){
   const t=document.getElementById('pm-nf')?.value||'';
-  const hasFiscalDoc=t&&t!=='Sem nota'&&t!=='Adiantamento';
+  const hasFiscalDoc=t&&t!=='Sem nota'&&t!=='Adiantamento'&&t!=='ORÇAMENTO - COBRAR NF';
   const r=document.getElementById('pm-nfnum-row');
   if(r)r.style.display=hasFiscalDoc?'':'none';
   const er=document.getElementById('pm-emissao-row');
@@ -15429,23 +15438,7 @@ function anexarComp(oid,i){
   inp.click();
 }
 
-function anexarNF(oid,i){const o=obras.find(x=>x.id===oid);let inp=document.getElementById("nf-input");if(!inp){inp=document.createElement("input");inp.type="file";inp.id="nf-input";inp.style.display="none";document.body.appendChild(inp);}inp.multiple=true;inp.accept=".xml,.pdf,.jpg,.jpeg,.png,.webp,.XML,.PDF,.JPG,.JPEG,.PNG,.WEBP";
-
-  inp.onchange=async()=>{if(!inp.files.length)return;const files=Array.from(inp.files||[]);const f=impPickPrimaryNfFile(files);if(!f)return;const hasXml=files.some(x=>impFileExt(x)==='xml');const hasPdf=files.some(x=>impFileExt(x)==='pdf');toast(hasXml&&hasPdf?'Enviando PDF como NF visível…':'Enviando nota fiscal…');
-    try{
-      // Garantir sessão válida antes do upload
-      const{data:{session}}=await db.auth.getSession();
-      if(!session){toast('Sessão expirada. Faça login novamente.');return;}
-      const path=await uploadPagDoc(oid,f,'nf');
-      o.pag[i].nfDoc={name:f.name,storagePath:path,type:f.type||inferType(f.name),bucket:'pagamentos',kind:'NF'};
-      addPaymentDoc(o.pag[i],o.pag[i].nfDoc,'NF');
-      persist(oid);if(cur&&cur.id===oid)renderObra();toast(hasXml&&hasPdf?'✓ PDF anexado como NF visível.':'✓ Nota fiscal anexada e salva.');
-    }catch(e){
-      const msg=e?.message||e?.error||String(e);
-      console.error('upload NF:',e);
-      toast('❌ Falha ao anexar NF: '+msg.slice(0,120));
-    }
-    inp.value="";};inp.click();}
+function anexarNF(oid,i){PaymentBundle.attach(oid,i);}
 
 
 
@@ -17879,6 +17872,7 @@ async function pdfPageToJpeg(file,scale){
 
 function normalizeImpDocTipo(raw){
   const t=String(raw||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if(/ORCAMENTO/.test(t))return'ORÇAMENTO - COBRAR NF';
   if(/NFC/.test(t)||/CUPOM/.test(t))return'NFC-e';
   if(/NFS|SERV/.test(t))return'NFS-e';
   if(/CTE|CT-E|CONHECIMENTO\s+DE\s+TRANSPORTE|DACTE/.test(t))return'CT-e';
@@ -19544,7 +19538,7 @@ function impNfTipoChanged(tipo){
 
     badge.textContent=tipo;
 
-    badge.className=tipo==='NFS-e'||tipo==='CT-e'?'badge b-info':tipo==='Adiantamento'?'badge b-warn':tipo==='Sem nota'?'badge b-neutral':'badge b-ok';
+    badge.className=tipo==='NFS-e'||tipo==='CT-e'?'badge b-info':(tipo==='Adiantamento'||tipo==='ORÇAMENTO - COBRAR NF')?'badge b-warn':tipo==='Sem nota'?'badge b-neutral':'badge b-ok';
 
   }
 
@@ -19828,6 +19822,11 @@ function impReadParcelas(){
 
 
 async function confirmImport(){
+  if(PaymentBundle.confirming)return;
+  if(!AccessControl.canEdit()){toast("Sem permissao.");return;}
+  const importObra=cur;if(!importObra)return;
+  PaymentBundle.confirming=true;
+  try{
 
   const ben=document.getElementById("imp-ben").value.trim();
 
@@ -19923,14 +19922,12 @@ async function confirmImport(){
 
   if(impFile){
     try{
-      const{data:{session:_sess}}=await db.auth.getSession();
-      if(!_sess){toast('Sessão expirada. Faça login novamente.');return;}
-      const path=await uploadPagDoc(cur.id,impFile,'nf');
-      p.nfDoc={name:impFile.name,storagePath:path,type:impFile.type||inferType(impFile.name)};
+      const{data:{session}}=await db.auth.getSession();
+      if(!session){toast('Sessao expirada. Faca login novamente.');return;}
+      const files=Array.isArray(impFiles)&&impFiles.length?impFiles:[impFile];
+      Object.assign(p,await PaymentBundle.stage(importObra.id,p,files));
     }catch(e){
-      const msg=e?.message||e?.error||String(e);
-      console.error('[confirmImport] Falha upload NF:',e);
-      toast('⚠ NF não salva: '+msg.slice(0,100)+'. Confirme o lançamento e anexe depois com o botão 📎.');
+      toast('Anexos nao salvos. O lancamento nao foi criado: '+(e.message||String(e)).slice(0,120));return;
     }
   }
 
@@ -19953,16 +19950,17 @@ async function confirmImport(){
     if(!(await applyPastDuePaidCheck(pagamentos[i],label)))return;
   }
 
-  cur.pag.push(...pagamentos);
-  sincronizaPagoObra(cur);
+  await PaymentBundle.insert(importObra.id,pagamentos);
+  importObra.pag.push(...pagamentos);
+  sincronizaPagoObra(importObra);
 
   impFile=null; impXmlFile=null;
 
-  persist(cur.id);
+
 
   closeImport();
 
-  renderObra();
+  if(cur&&cur.id===importObra.id)renderObra();
 
   renderPainel();
 
@@ -19970,6 +19968,8 @@ async function confirmImport(){
 
   toast("Pagamento lançado com sucesso.");
 
+  }catch(e){toast("Falha ao salvar: "+(e.message||String(e)).slice(0,150));}
+  finally{PaymentBundle.confirming=false;}
 }
 
 
