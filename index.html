@@ -4054,7 +4054,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <script defer src="scripts/platform-menu.js?v=20260917-menu"></script>
 <script src="scripts/access-invites.js?v=20260916-invite-availability"></script>
 <link rel="stylesheet" href="scripts/access-control.css?v=20260921-readable">
-<link rel="stylesheet" href="scripts/platform-usability.css?v=20260922-balanced">
+<link rel="stylesheet" href="scripts/platform-usability.css?v=20260922-card-grid">
 <script defer src="scripts/platform-usability.js?v=20260922-1"></script>
 <script>
 
@@ -6820,9 +6820,11 @@ function renderObraCard(o,i){
       </select>
     </div>
     <div class="obra-card-body">
+      <div class="obra-card-heading">
       <h3>${safe(o.nome)}</h3>
       ${subtitulo?`<div class="obra-card-subtitle">${escHtml(subtitulo)}</div>`:''}
       ${unitChips}
+      </div>
       <div class="obra-card-constr">
         <div class="obra-card-constr-head"><span class="obra-card-label">Construtora(s)</span></div>
         <div class="obra-card-builders" title="${escHtml(constrFull)}">${constrHtml}</div>
