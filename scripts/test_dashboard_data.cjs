@@ -2,6 +2,22 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const D=require('./dashboard-data.js');
 const today='2026-09-16',work={id:1,contratado:1000,aditivos_contrato:[{valor:100}],pag:[]};
 const entry=(p)=>({o:work,p});
+test('Registered builders replace stale legacy totals without doubling the contract',()=>{
+ for(const contratado of [0,3700000,999]){
+  const s=D.project({contratado,construtoras:[{seq:1,valor:3700000}],pag:[{construtora_seq:1,st:'PAGO',v:560000},{construtora_seq:1,st:'PENDENTE',v:430138}]});
+  assert.equal(s.contract,3700000);assert.equal(s.contracts.rows[0].balance,3140000);assert.equal(s.contracts.rows[0].unbilled,2709862);assert.equal(s.contracts.investmentExposure,3140000);
+ }
+ assert.equal(D.project({contratado:0,pag:[]}).contract,null);
+});
+test('Budget reserves outstanding contracts once, including school splits and amendments',()=>{
+ const s=D.project({contratado:0,investimento_disponivel:2000,teto_escola:500,construtoras:[{seq:1,valor:1000}],aditivos_contrato:[{construtora_seq:1,valor:100}],contratos:[{seq:1,v:400,valor_investimento:300,aditivos:[{valor:-100,valor_investimento:50}]}],pag:[{construtora_seq:1,st:'PAGO',v:200},{construtora_seq:1,st:'PENDENTE',v:100},{contratoSeq:1,st:'PAGO',v:50},{contratoSeq:1,st:'PENDENTE',v:50},{contratoSeq:1,st:'PAGO',v:20,escopoFin:'extra'},{st:'PENDENTE',v:25}]});
+ assert.equal(s.contract,1100);assert.equal(s.contracts.supplierTotal,300);assert.equal(s.contracts.investmentExposure,1125);assert.equal(s.contracts.schoolExposure,30);assert.equal(s.freeInvestment,625);assert.equal(s.freeSchool,450);
+ assert.equal(s.contracts.rows[1].investment.obligation,250);assert.equal(s.contracts.rows[1].school.obligation,50);
+});
+test('Unlinked payments remain visible and dual links never count twice',()=>{
+ const s=D.project({construtoras:[{seq:1,valor:1000}],contratos:[{seq:1,v:200},{seq:2,v:999,status_contr:'Cancelado'}],pag:[{st:'PAGO',v:100,construtora_seq:1,contratoSeq:1},{st:'PAGO',v:40},{st:'PENDENTE',v:300,contratoSeq:1}]});
+ assert.equal(s.contracts.rows.length,2);assert.equal(s.contracts.rows[0].paid,0);assert.equal(s.contracts.rows[1].paid,100);assert.equal(s.contracts.conflicts.length,1);assert.equal(s.contracts.unlinked.paidValue,40);assert.equal(s.contracts.investmentExposure,1300);
+});
 test('Amounts preserve zero, missing data and cents',()=>{
  assert.equal(D.amount(null),null);assert.equal(D.amount(''),null);assert.equal(D.amount(false),null);assert.equal(D.amount('abc'),null);
  assert.equal(D.amount(0),0);assert.equal(D.sum([.1,.2]),.3);assert.equal(D.ratio(4,0),null);

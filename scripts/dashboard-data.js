@@ -33,12 +33,37 @@
    timeline:[...months].sort(([a],[b])=>a.localeCompare(b)).map(([key,list])=>({label:key,value:sum(list,r=>r.value),count:list.length}))};
  }
  const entries=projects=>projects.flatMap(o=>(o.pag||[]).map((p,i)=>({o,p,i})));
+ const hasLink=v=>v!==null&&v!==undefined&&String(v)!==''&&String(v)!=='0';
+ const contractSeq=p=>p.contratoSeq??p.contrato_seq;
+ const contractorSeq=p=>p.construtora_seq;
+ function contracts(o,l){
+  const builders=o.construtoras||[],detailed=builders.some(c=>amount(c.valor)>0);
+  const base=detailed?sum(builders,c=>c.valor):(amount(o.contratado)>0?amount(o.contratado):null);
+  const add=sum(o.aditivos_contrato||[],a=>a.valor);
+  const principal=base===null?[]:(detailed?builders.map(c=>({kind:'builder',seq:c.seq,name:c.nome||'Construtora',base:amount(c.valor)||0,add:sum((o.aditivos_contrato||[]).filter(a=>String(a.construtora_seq)===String(c.seq)),a=>a.valor)})):[{kind:'legacy',name:o.constr||'Contrato principal',base,add}]);
+  if(detailed){const unassigned=round(add-sum(principal,c=>c.add));if(unassigned)principal.push({kind:'unassigned',name:'Aditivos sem construtora vinculada',base:0,add:unassigned});}
+  const suppliers=(o.contratos||[]).filter(c=>!['cancelado','cancelada','rescindido','rescindida'].includes(norm(c.status_contr))).map(c=>({kind:'supplier',seq:c.seq,name:c.nome_contr||c.numero||c.forn||'Contrato',supplier:c.forn,base:amount(c.v)||0,add:sum(c.aditivos||[],a=>a.valor),raw:c}));
+  const linked=new Set(),rows=[...principal,...suppliers].map(c=>{
+   const total=round(c.base+c.add),parts=[{valor:c.base,valor_investimento:c.raw?.valor_investimento},...(c.raw?.aditivos||[])];
+   // Signed amendments reduce the obligation; a payment schedule is not a second obligation.
+   const investment=c.kind==='supplier'?Math.min(Math.max(0,total),Math.max(0,sum(parts,a=>{const v=amount(a.valor)||0,x=amount(a.valor_investimento);return x===null?v:Math.sign(v)*Math.min(Math.abs(v),Math.abs(x));}))):total;
+   const match=r=>c.kind==='supplier'?hasLink(contractSeq(r.p))&&String(contractSeq(r.p))===String(c.seq):c.kind==='builder'?!hasLink(contractSeq(r.p))&&hasLink(contractorSeq(r.p))&&String(contractorSeq(r.p))===String(c.seq):c.kind==='legacy'?r.scope==='obra'&&!hasLink(contractSeq(r.p)):false;
+   const assigned=l.rows.filter(match);assigned.forEach(r=>linked.add(r.p));const cl=ledger(assigned);
+   const scope=s=>{const paid=sum(cl.paid.filter(r=>r.scope===s),r=>r.value),open=sum(cl.open.filter(r=>r.scope===s),r=>r.value),obligation=s==='obra'?investment:round(total-investment),remaining=Math.max(0,round(obligation-paid));return {paid,open,obligation,remaining,exposure:Math.max(remaining,open)};};
+   return {...c,total,paid:cl.paidValue,open:cl.openValue,balance:round(total-cl.paidValue),unbilled:Math.max(0,round(total-cl.paidValue-cl.openValue)),investment:scope('obra'),school:scope('extra')};
+  });
+  const unlinked=l.rows.filter(r=>!linked.has(r.p)),unlinkedLedger=ledger(unlinked);
+  const exposure=scope=>round(sum(rows,r=>(scope==='obra'?r.investment:r.school).exposure)+sum(unlinkedLedger.open.filter(r=>r.scope===scope),r=>r.value));
+  return {base,add,total:base===null?null:round(base+add),source:detailed?'builders':'legacy',rows,unlinked:unlinkedLedger,investmentExposure:exposure('obra'),schoolExposure:exposure('extra'),supplierTotal:sum(rows.filter(r=>r.kind==='supplier'),r=>r.total),conflicts:l.rows.filter(r=>hasLink(contractSeq(r.p))&&hasLink(contractorSeq(r.p)))};
+ }
  function project(o,asOf=today()){
-  const l=ledger(entries([o]),asOf),base=amount(o.contratado),add=sum(o.aditivos_contrato||[],a=>a.valor);
-  const contract=base===null?null:round(base+add),inScope=r=>r.scope==='obra';
+  const l=ledger(entries([o]),asOf),contractsData=contracts(o,l),{base,add}=contractsData;
+  const contract=contractsData.total,inScope=r=>r.scope==='obra';
   const paidWork=sum(l.paid.filter(inScope),r=>r.value),paidExtra=sum(l.paid.filter(r=>r.scope==='extra'),r=>r.value);
   const legacy=!(o.pag||[]).length?amount(o.pago)||0:0,paid=round(paidWork+legacy),open=sum(l.open.filter(inScope),r=>r.value);
-  return {o,ledger:l,base,add,contract,paid,paidExtra,legacy,open,openExtra:sum(l.open.filter(r=>r.scope==='extra'),r=>r.value),
+  const planned=amount(o.investimento_disponivel),ceiling=amount(o.teto_escola);
+  return {o,ledger:l,base,add,contract,contracts:contractsData,paid,paidExtra,legacy,open,openExtra:sum(l.open.filter(r=>r.scope==='extra'),r=>r.value),
+   freeInvestment:planned>0?round(planned-paid-contractsData.investmentExposure):null,freeSchool:ceiling>0?round(ceiling-paidExtra-contractsData.schoolExposure):null,
    balance:contract===null?null:round(contract-paid),projected:contract===null?null:round(contract-paid-open),financialPct:ratio(paid,contract),
    scopeUnknown:l.rows.filter(r=>!['obra','extra'].includes(r.scope))};
  }
