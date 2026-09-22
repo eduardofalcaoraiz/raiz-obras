@@ -1,0 +1,12 @@
+const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert/strict'),{chromium}=require('playwright');
+const root=path.resolve(__dirname,'..'),html=fs.readFileSync(root+'/index.html','utf8');
+const logos=vm.runInNewContext('('+html.match(/const BRAND_LOGO_FILES=(\{[^\n]+\});/)[1]+')');
+assert.match(html,/const _RAW='\/'/);assert.match(html,/const _LOGO_BASE='\/'/);
+const entries=Object.entries(logos).filter(([k])=>k!=='RAIZ EDUCAÇÃO');
+(async()=>{const browser=await chromium.launch({channel:'chrome',headless:true});try{const page=await browser.newPage({viewport:{width:1100,height:1000}});
+await page.setContent('<style>body{font:14px Arial;background:#f2f6f4}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}figure{margin:0;padding:16px;background:white;border:1px solid #ddd}img{width:180px;height:80px;object-fit:contain}figcaption{margin-top:12px}</style><div class="grid">'+entries.map(([name,file])=>'<figure><img alt="'+name+'" src="https://raiz-obras.vercel.app/'+file+'"><figcaption>'+name+'</figcaption></figure>').join('')+'</div>',{waitUntil:'domcontentloaded'});
+await page.waitForFunction(()=>[...document.images].every(i=>i.complete),{},{timeout:45000});
+const result=await page.locator('img').evaluateAll(es=>es.map(e=>({brand:e.alt,loaded:e.naturalWidth>0,width:e.naturalWidth,height:e.naturalHeight})));
+console.log(JSON.stringify(result));assert(result.every(x=>x.loaded),'Missing logo');
+await page.screenshot({path:path.join(root,'output/brand-logos-verified.png'),fullPage:true});
+}finally{await browser.close();}})().catch(e=>{console.error(e.message);process.exitCode=1});
