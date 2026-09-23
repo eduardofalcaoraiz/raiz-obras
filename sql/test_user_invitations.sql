@@ -29,11 +29,7 @@ begin
   blocked:=false;
   begin perform public.app_invite_accept(j,other_u); exception when insufficient_privilege then blocked:=true; end;
   if not blocked then raise exception 'Wrong recipient accepted'; end if;
-  update public.user_access_invitations set expires_at=now()-interval '1 minute' where id=j;
-  blocked:=false;
-  begin perform public.app_invite_accept(j,u); exception when insufficient_privilege then blocked:=true; end;
-  if not blocked then raise exception 'Expired invitation accepted'; end if;
-  update public.user_access_invitations set expires_at=now()+interval '1 hour' where id=j;
+  if (select expires_at is not null from public.user_access_invitations where id=j) then raise exception 'New invitation has expiration'; end if;
   update public.user_profiles set access_config='{}' where id=u;
   blocked:=false;
   begin perform public.app_invite_accept(j,u); exception when serialization_failure then blocked:=true; end;
@@ -42,6 +38,7 @@ begin
   perform public.app_invite_prepare(k,a,'recipient-invite-test@example.test','Test','{"capex":"read","realestate_locacoes":"edit"}');
   if (select status from public.user_access_invitations where id=j)<>'revoked' then raise exception 'Old link not revoked'; end if;
   perform public.app_invite_delivery(k,a,true,null);
+  update public.user_access_invitations set created_at=now()-interval '2 years',expires_at=now()-interval '1 year' where id=k;
   out:=public.app_invite_accept(k,u);
   if not (out->>'accepted')::boolean or not (out->>'needs_password')::boolean then raise exception 'Acceptance failed'; end if;
   if not exists(select 1 from public.user_profiles where id=u and aprovado and role='leitor' and access_config='{"capex":"read","realestate_locacoes":"edit"}') then raise exception 'Wrong grants after acceptance'; end if;

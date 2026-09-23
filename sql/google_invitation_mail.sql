@@ -42,7 +42,7 @@ declare i public.user_access_invitations;
 begin
   if not exists(select 1 from public.user_profiles where id=p_actor and aprovado and role='admin') then raise exception 'Acesso negado.' using errcode='42501'; end if;
   select * into i from public.user_access_invitations where id=p_id for update;
-  if not found or i.invited_by<>p_actor or i.status<>'sending' or i.expires_at<=now() then raise exception 'Convite indisponivel.'; end if;
+  if not found or i.invited_by<>p_actor or i.status<>'sending' then raise exception 'Convite indisponivel.'; end if;
   insert into public.user_access_mail_queue(id,invitation_id,actor,recipient) values(i.id,i.id,p_actor,i.email)
   on conflict(id) do nothing;
 end $$;
@@ -76,7 +76,7 @@ begin
     if not q.is_test then
       select * into i from public.user_access_invitations where id=q.invitation_id for update;
       select * into target from public.user_profiles where lower(email)=q.recipient;
-      if i.status<>'sending' or i.expires_at<now()+interval '2 minutes' or
+      if i.status<>'sending' or
         (target.id is not null and (target.aprovado or target.role='admin' or target.access_revision<>i.expected_revision)) then
         update public.user_access_mail_queue set state='canceled',finished_at=now() where id=q.id;
         update public.user_access_invitations set status='revoked' where id=q.invitation_id and status='sending';

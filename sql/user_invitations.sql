@@ -10,7 +10,7 @@ create table if not exists public.user_access_invitations (
   status text not null check(status in ('sending','sent','accepted','failed','revoked')),
   created_at timestamptz not null default now(),
   sent_at timestamptz,
-  expires_at timestamptz not null default now()+interval '1 hour',
+  expires_at timestamptz,
   accepted_at timestamptz,
   error_code text
 );
@@ -72,7 +72,7 @@ begin
   select * into i from public.user_access_invitations where id=p_id for update;
   if not found or i.email<>user_email or (i.user_id is not null and i.user_id<>p_user_id) then raise exception 'Este convite pertence a outro e-mail.' using errcode='42501'; end if;
   if i.status='accepted' and i.user_id=p_user_id then return jsonb_build_object('accepted',true,'needs_password',needs_password); end if;
-  if i.status<>'sent' or i.expires_at<=now() then raise exception 'Convite expirado, revogado ou ainda nao enviado. Solicite um novo convite.' using errcode='42501'; end if;
+  if i.status<>'sent' then raise exception 'Convite revogado ou ainda nao enviado. Solicite um novo convite.' using errcode='42501'; end if;
   if not exists(select 1 from public.user_profiles where id=i.invited_by and aprovado and role='admin') then raise exception 'O administrador que enviou o convite nao esta mais autorizado.' using errcode='42501'; end if;
   select * into p from public.user_profiles where id=p_user_id for update;
   if not found or p.role='admin' or p.aprovado or p.access_revision<>i.expected_revision then raise exception 'As permissoes mudaram apos este convite. Solicite um novo convite.' using errcode='40001'; end if;

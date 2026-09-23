@@ -33,10 +33,12 @@ test('browser origin and missing identity cannot claim mail',async()=>{
 test('recipient and message always come from the claimed queue, never caller fields',async()=>{
  const f=fixture();const r=await f.send({action:'claim',quota:100,to:'attacker@test.test',html:'evil'});const data=await r.json();
  assert.equal(data.job.to,'person@example.test');assert(data.job.html.includes('&lt;Test&gt;'));assert(!JSON.stringify(data).includes('server-secret'));
- assert.equal(f.calls.find(c=>c.path.includes('generate_link')).body.type,'invite');
+ assert(f.calls.some(c=>c.path.endsWith('app_invite_link_save')));assert(!f.calls.some(c=>c.path.includes('generate_link')));
+ const saved=f.calls.find(c=>c.path.endsWith('app_invite_link_save')).body;
+ assert.match(saved.p_hash,/^[a-f0-9]{64}$/);assert(data.job.text.includes('/convite.html#'+id+'.'));assert(!data.job.text.includes(saved.p_hash));
 });
-test('existing account receives magic link, without inviting or recreating it',async()=>{const f=fixture({existing:true});assert.equal((await f.send()).status,200);assert.equal(f.calls.find(c=>c.path.includes('generate_link')).body.type,'magiclink');});
-test('unsafe authentication URL fails the job and is never sent',async()=>{const f=fixture({badLink:true});assert.equal((await f.send()).status,502);assert.equal(f.calls.at(-1).body.p_success,false);});
+test('existing account also receives a persistent invitation without recreating it',async()=>{const f=fixture({existing:true});assert.equal((await f.send()).status,200);assert(!f.calls.some(c=>c.path.includes('generate_link')));});
+test('invalid invitation fails the job and is never sent',async()=>{const f=fixture({job:{invitation_id:'invalid'}});assert.equal((await f.send()).status,502);assert.equal(f.calls.at(-1).body.p_success,false);});
 test('test mail goes only to owner and creates no authentication link',async()=>{const f=fixture({test:true});const data=await (await f.send()).json();assert.equal(data.job.to,owner);assert(!f.calls.some(c=>c.path.includes('generate_link')));const bad=fixture({test:true,job:{to:'other@test.test'}});assert.equal((await bad.send()).status,502);});
 test('no quota means heartbeat without claims or mail',async()=>{const f=fixture();assert.equal((await (await f.send({action:'claim',quota:0})).json()).job,null);assert(!f.calls.some(c=>c.path.endsWith('app_mail_claim')));});
 test('ack requires lease and boolean result',async()=>{const f=fixture();assert.equal((await f.send({action:'ack',id,lease,success:true,quota:99})).status,200);assert.deepEqual(f.calls.at(-1).body,{p_id:id,p_lease:lease,p_success:true});assert.equal((await f.send({action:'ack',id,success:true,quota:99})).status,400);});

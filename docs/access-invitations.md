@@ -1,6 +1,23 @@
 # User invitations
 
-Invitations are managed by approved administrators in People and Access. Each invitation contains explicit module permissions; no invitation grants administrator status. Existing accounts remain blocked until the authenticated, email-confirmed recipient accepts the invitation. Invitation links expire after one hour.
+Invitations are managed by approved administrators in People and Access. Each invitation contains explicit module permissions; no invitation grants administrator status. Existing accounts remain blocked until the authenticated, email-confirmed recipient accepts the invitation. Google invitation links have no time-based expiration, and remain usable until accepted, revoked or superseded.
+
+## Permanent Links
+
+- Apply `sql/permanent_invitations.sql`, then the updated `sql/user_invitations.sql`
+  and `sql/google_invitation_mail.sql` in one transaction. Existing profiles and
+  revoked/accepted statuses are preserved. Queue delivery timeouts are unchanged.
+- Deploy `access-invite-open` with gateway JWT verification disabled. Its own
+  256-bit invitation secret is mandatory; only its SHA-256 digest is stored in a
+  service-role-only table. The invitation ID alone cannot mint authentication links.
+- Publish `convite.html`. The secret stays in the URL fragment, with no referrer,
+  third-party scripts or automatic redemption. Clicking activation checks the
+  invitation, administrator, recipient and profile revision before generating a
+  fresh, short-lived Supabase authentication link. Native auth token/session
+  expiration remains unchanged. Acceptance repeats all authorization checks.
+- Previously emailed native authentication links cannot be rewritten. Reissue
+  those invitations from the platform when needed; never silently send email.
+- Accepted links cannot be reused to sign in or restore revoked access.
 
 Accepted access itself has no expiration: it remains active until an administrator
 revokes it, and only an administrator can adjust the permissions. The email makes
@@ -31,8 +48,8 @@ permission, Google web-app deployment or new mail-provider account is required.
   Google OIDC tokens, not Supabase tokens. Its own verifier is mandatory. Keep
   `access-invitations` behind the Supabase JWT gateway and administrator checks.
 - Queue tables/RPCs are service-role only. No email authentication link or Google
-  token is persisted in the queue. Links are generated at claim time, remain
-  bound to the invitation, and never leave the server except for Google delivery.
+  token is persisted in the queue. Persistent invitation secrets are generated at
+  claim time, with only their digest stored; raw secrets go only to Google delivery.
 - The worker rechecks the inviter and target profile before claiming. Revoked or
   stale invitations do not release access. An uncertain send is not automatically
   retried. A pending receipt survives a lost connection without resending mail.

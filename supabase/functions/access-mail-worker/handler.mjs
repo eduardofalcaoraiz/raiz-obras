@@ -37,11 +37,11 @@ export function createWorker({url,serviceKey,audience,verifyGoogle,fetcher=fetch
     if(job.is_test&&job.to!==OWNER)throw new Error('test_recipient');
     let link;
     if(!job.is_test){
-     // generate_link does not send email. A fresh link is generated only when claimed.
-     const auth=await api('/auth/v1/admin/generate_link',{type:job.existing_user?'magiclink':'invite',email:job.to,data:{nome:job.nome},redirect_to:ORIGIN+'/?access_invite='+job.invitation_id});
-     link=auth.action_link||auth.properties?.action_link;
-     const parsed=new URL(link);
-     if(parsed.origin!==new URL(url).origin||parsed.pathname!=='/auth/v1/verify'||parsed.searchParams.get('redirect_to')!==ORIGIN+'/?access_invite='+job.invitation_id)throw new Error('invalid_link');
+     if(!UUID.test(job.invitation_id||''))throw new Error('invalid_invitation');
+     const secret=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
+     const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(secret))),b=>b.toString(16).padStart(2,'0')).join('');
+     await rpc('app_invite_link_save',{p_id:job.invitation_id,p_lease:job.lease,p_hash:hash});
+     link=ORIGIN+'/convite.html#'+job.invitation_id+'.'+secret;
     }
     return reply(200,{ok:true,job:{id:job.id,lease:job.lease,to:job.to,...messageFor(job,link)}});
    }catch{

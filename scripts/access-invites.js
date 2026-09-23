@@ -4,7 +4,7 @@
  const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
  let users=[],invites=[],tab='active',search='',emailEnabled=null,loadError='',loading=false,saving=false,requestId=null,arrival=null,refreshTimer=null;
  const icon=(name)=>`<img src="/assets/icons/lucide/${name}.svg" width="17" height="17" alt="">`;
- function invitationStatus(i){return i.status==='sent'&&new Date(i.expires_at).getTime()<=Date.now()?'expired':i.status;}
+ function invitationStatus(i){return i.status;}
  const statuses={sending:'Aguardando envio',sent:'Aguardando aceite',accepted:'Aceito',failed:'Envio n\u00e3o confirmado',revoked:'Revogado',expired:'Expirado'};
  async function api(body){
   const {data:{session}}=await db.auth.getSession();if(!session)throw new Error('Sua sess\u00e3o expirou. Entre novamente.');
