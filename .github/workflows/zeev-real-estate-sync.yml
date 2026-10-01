@@ -1,0 +1,32 @@
+name: Zeev Real Estate Daily
+on:
+  schedule:
+    # 08:00 America/Sao_Paulo (UTC-3). GitHub scheduling may be delayed.
+    - cron: '0 11 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: zeev-real-estate-discovery
+  cancel-in-progress: false
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout selected revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
+      - name: Discover Real Estate candidates for approval
+        env:
+          ZEEV_TOKEN: ${{ secrets.ZEEV_TOKEN }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: https://hjccxfznojjosvanwztv.supabase.co
+          ZEEV_BASE_URL: https://raizeducacao.zeev.it
+          RE_MAX_PAGES: '40'
+        run: node scripts/zeev-real-estate-sync.cjs
