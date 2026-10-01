@@ -41,6 +41,14 @@ declare v_id bigint; v_ticket text:=p_candidate->>'ticket_raiz'; v_previous json
 begin
  if v_ticket !~ '^[0-9]{4,8}$' or p_candidate->'snapshot'->>'ticket_raiz' is distinct from v_ticket then raise exception 'Invalid candidate'; end if;
  perform pg_advisory_xact_lock(hashtextextended('real-estate:'||v_ticket,0));
+ select to_jsonb(t) into v_previous from public.real_estate_tickets t where ticket_raiz=v_ticket;
+ if v_previous is not null and
+   (v_previous-array['ticket_raiz','imovel_ids','sublocacao_ids','anexos','ticket_url','observacoes','vinculo_revisar','sincronizado_em']) =
+   ((p_candidate->'snapshot')-array['ticket_raiz','imovel_ids','sublocacao_ids','anexos','ticket_url','observacoes','vinculo_revisar','sincronizado_em']) and
+   not exists(select 1 from jsonb_array_elements(coalesce(p_candidate->'snapshot'->'anexos','[]')) a where not exists(select 1 from jsonb_array_elements(coalesce(v_previous->'anexos','[]')) b where a->>'nome'=b->>'nome' and coalesce(a->>'campo','')=coalesce(b->>'campo',''))) then
+   update public.real_estate_pending set status='superseded',decision_reason='Sem alteracao em relacao ao TR ja registrado' where ticket_raiz=v_ticket and status='pending';
+   return null;
+ end if;
  select id into v_id from public.real_estate_pending where ticket_raiz=v_ticket and source_fingerprint=p_candidate->>'source_fingerprint';
  if found then
    select to_jsonb(t) into v_previous from public.real_estate_tickets t where t.ticket_raiz=v_ticket;

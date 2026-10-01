@@ -4,6 +4,8 @@ The GitHub Actions workflow `zeev-real-estate-sync.yml` runs at 11:00 UTC
 (08:00 America/Sao_Paulo). It does not depend on a desktop, open browser or
 signed-in user. GitHub can delay scheduled starts. Manual dispatch is available
 for an initial run or recovery. Existing CAPEX schedules are unchanged.
+Manual dispatch can select `links_only` to drain deferred links without repeating
+the source windows. The scheduled job always runs normal discovery.
 
 ## Discovery and limits
 
@@ -21,6 +23,9 @@ for an initial run or recovery. Existing CAPEX schedules are unchanged.
 - Page checkpoints advance only after ingestion. Deferred links are stored in a
   durable backlog. Partial runs are visible and continue next day; they must not
   be interpreted as a complete audit.
+- Linked requester identity has a private 30-day metadata cache to avoid reading
+  the same old parent ticket repeatedly. Monetary snapshots are never reused from
+  this identity cache; financial child details are fetched separately.
 - Form edits on already-approved old tickets without any task activity may not
   appear in change reports. This is new-ticket discovery, not a daily full audit.
 

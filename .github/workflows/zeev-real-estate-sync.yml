@@ -4,6 +4,11 @@ on:
     # 08:00 America/Sao_Paulo (UTC-3). GitHub scheduling may be delayed.
     - cron: '0 11 * * *'
   workflow_dispatch:
+    inputs:
+      links_only:
+        description: 'Conferir apenas vinculos adiados e pendentes, sem repetir a varredura'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -29,4 +34,5 @@ jobs:
           SUPABASE_URL: https://hjccxfznojjosvanwztv.supabase.co
           ZEEV_BASE_URL: https://raizeducacao.zeev.it
           RE_MAX_PAGES: '120'
+          RE_LINKS_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.links_only && '1' || '0' }}
         run: node scripts/zeev-real-estate-sync.cjs
