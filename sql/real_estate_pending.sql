@@ -66,7 +66,7 @@ begin
  if not found or q.status<>'pending' or q.source_fingerprint is distinct from p_fingerprint or q.revision is distinct from p_revision then raise exception 'Registro alterado ou ja analisado. Atualize a fila.'; end if;
  perform pg_advisory_xact_lock(hashtextextended('real-estate:'||q.ticket_raiz,0));
  if p_approve then
-   if p_kind not in ('imovel','sublocacao') or p_target is null then raise exception 'Selecione o destino'; end if;
+   if p_kind is null or p_kind not in ('imovel','sublocacao') or p_target is null then raise exception 'Selecione o destino'; end if;
    if p_kind='imovel' and not exists(select 1 from public.real_estate_imoveis where id=p_target) then raise exception 'Imovel inexistente'; end if;
    if p_kind='sublocacao' and not exists(select 1 from public.real_estate_sublocacoes where id=p_target) then raise exception 'Sublocacao inexistente'; end if;
    if nullif(trim(p_type),'') is null then raise exception 'Informe o tipo de lancamento'; end if;

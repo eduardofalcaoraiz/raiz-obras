@@ -28,5 +28,5 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_URL: https://hjccxfznojjosvanwztv.supabase.co
           ZEEV_BASE_URL: https://raizeducacao.zeev.it
-          RE_MAX_PAGES: '40'
+          RE_MAX_PAGES: '120'
         run: node scripts/zeev-real-estate-sync.cjs
