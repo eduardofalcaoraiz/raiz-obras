@@ -15,8 +15,9 @@ for an initial run or recovery. Existing CAPEX schedules are unchanged.
 - Ignores confirmed technical bank-data flow 276. Does not download attachments.
 - Recognizes rent, taxes, utilities and subleases. The owner's requester email,
   creator task and explicit parent/child ticket references provide extra evidence.
-- Maximum 120 report pages of 25 records, shared equally between discovery
-  windows; up to 200 linked reads and 40 rotating pending refreshes per run.
+- Maximum 120 light report pages of 100 records, shared equally between discovery
+  windows; full task metadata is fetched only for candidates and related tickets.
+  Up to 200 linked reads and 40 rotating pending refreshes per run.
 - Page checkpoints advance only after ingestion. Deferred links are stored in a
   durable backlog. Partial runs are visible and continue next day; they must not
   be interpreted as a complete audit.
