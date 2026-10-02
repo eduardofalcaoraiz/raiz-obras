@@ -32,4 +32,4 @@ jobs:
           ZEEV_BASE_URL: https://raizeducacao.zeev.it
           RE_MAX_PAGES: '120'
           RE_LINKS_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.links_only && '1' || '0' }}
-        run: node scripts/zeev-real-estate-sync.cjs
+        run: node scripts/run-real-estate-cloud.cjs

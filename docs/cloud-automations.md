@@ -24,6 +24,10 @@ mass repair, status refresh or emails. There is at most one dispatcher request p
 hour for CAPEX and per UTC day for other jobs. Existing workflow concurrency also
 prevents simultaneous workers. User approvals are not bypassed.
 
+Real Estate performs at most one additional links-only pass when the main scan
+leaves related tickets deferred. It does not repeat report pages. Any remaining
+backlog stays persisted for the next daily run and is reported as a workflow warning.
+
 Storage defaults to `metadata-only`. Reported bytes are a bounded sample, NOT the
 organization quota or full bucket usage. Downloads/compression/deletion require an
 explicit manual non-default mode. Dry-run never rewrites document paths. Optional
