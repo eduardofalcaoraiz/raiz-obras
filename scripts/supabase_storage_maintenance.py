@@ -11,6 +11,7 @@ import requests
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 DRY_RUN = os.environ.get("STORAGE_MAINTENANCE_DRY_RUN", "false").lower() in {"1", "true", "yes", "sim"}
+METADATA_ONLY = os.environ.get("STORAGE_MAINTENANCE_METADATA_ONLY", "true").lower() in {"1", "true", "yes", "sim"}
 BUCKETS = [b.strip() for b in os.environ.get("STORAGE_MAINTENANCE_BUCKETS", "pagamentos,documentos").split(",") if b.strip()]
 SCAN_LIMIT = int(os.environ.get("STORAGE_MAINTENANCE_SCAN_LIMIT", "1200"))
 MIN_BYTES = int(os.environ.get("STORAGE_MAINTENANCE_MIN_BYTES", "120000"))
@@ -116,18 +117,21 @@ def dedupe_bucket(bucket, objects):
             continue
         groups[(etag, size)].append(obj)
 
-    result = {"groups": 0, "deleted": 0, "rewritten": 0, "errors": []}
+    result = {"groups": 0, "deleted": 0, "rewritten": 0, "wouldDelete": 0, "errors": []}
     for (_etag, _size), copies in sorted(groups.items(), key=lambda item: len(item[1]), reverse=True):
         if len(copies) < 2:
             continue
         canonical = sorted(copies, key=lambda item: canonical_score(item["name"]))[0]
         result["groups"] += 1
         for duplicate in sorted(copies, key=lambda item: canonical_score(item["name"]))[1:]:
-            if result["deleted"] >= DEDUPE_LIMIT:
+            if result["deleted"] + result["wouldDelete"] >= DEDUPE_LIMIT:
                 return result
             old_path = duplicate["name"]
             new_path = canonical["name"]
             try:
+                if DRY_RUN or METADATA_ONLY:
+                    result["wouldDelete"] += 1
+                    continue
                 rewrite = rpc("raiz_rewrite_storage_path", {
                     "p_bucket": bucket,
                     "p_old_path": old_path,
@@ -207,7 +211,7 @@ def compress_bucket(bucket, objects):
         and (str(obj.get("mimetype") or "").lower().startswith("image/") or str(obj.get("mimetype") or "").lower() == "application/pdf" or str(obj.get("name") or "").lower().endswith((".pdf", ".jpg", ".jpeg", ".png")))
     ]
     for obj in candidates:
-        if result["compressed"] >= COMPRESS_LIMIT:
+        if METADATA_ONLY or result["checked"] >= COMPRESS_LIMIT:
             break
         path = obj["name"]
         old_size = int(obj.get("size_bytes") or 0)
@@ -234,9 +238,18 @@ def compress_bucket(bucket, objects):
 
 def main():
     require_env()
-    summary = {"ok": True, "dryRun": DRY_RUN, "buckets": {}, "totals": {"deleted": 0, "compressed": 0, "savedBytes": 0}}
+    summary = {"ok": True, "dryRun": DRY_RUN or METADATA_ONLY, "metadataOnly": METADATA_ONLY, "buckets": {}, "totals": {"deleted": 0, "compressed": 0, "savedBytes": 0}}
     for bucket in BUCKETS:
         objects = storage_objects(bucket)
+        if METADATA_ONLY:
+            summary["buckets"][bucket] = {
+                "objectsSeen": len(objects),
+                "sampleBytes": sum(int(obj.get("size_bytes") or 0) for obj in objects),
+                "scope": "bounded metadata sample, not total bucket usage",
+                "scanLimit": SCAN_LIMIT,
+                "minBytes": MIN_BYTES,
+            }
+            continue
         dedupe = dedupe_bucket(bucket, objects)
         # Reload after dedupe so compression does not waste work on objects that were removed.
         refreshed = storage_objects(bucket)
@@ -245,7 +258,11 @@ def main():
         summary["totals"]["deleted"] += dedupe.get("deleted", 0)
         summary["totals"]["compressed"] += compressed.get("compressed", 0)
         summary["totals"]["savedBytes"] += compressed.get("savedBytes", 0)
+        if dedupe["errors"] or compressed["errors"]:
+            summary["ok"] = False
     print(json.dumps(summary, ensure_ascii=False, indent=2))
+    if not summary["ok"]:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

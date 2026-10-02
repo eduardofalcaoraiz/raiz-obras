@@ -1,8 +1,5 @@
 name: Zeev Real Estate Daily
 on:
-  schedule:
-    # 08:00 America/Sao_Paulo (UTC-3). GitHub scheduling may be delayed.
-    - cron: '0 11 * * *'
   workflow_dispatch:
     inputs:
       links_only:

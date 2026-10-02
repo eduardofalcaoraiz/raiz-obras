@@ -613,6 +613,11 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
                     last_error = RuntimeError(f"{method} {url}{suffix} -> HTTP {exc.code}: {text}")
                     if is_zeev and exc.code in (401, 403):
                         break
+                    if is_zeev and exc.code in (429, 500, 502, 503, 504, 546):
+                        retry_delay = min(15 * (2 ** attempt), 120)
+                        retry_after = str(exc.headers.get("Retry-After", ""))
+                        if retry_after.isdigit():
+                            retry_delay = max(retry_delay, min(int(retry_after), 120))
                     if exc.code in (520, 522, 524):
                         retry_delay = 60
                     if is_supabase and is_transient_http_error(f"HTTP {exc.code}: {text}"):
@@ -621,6 +626,8 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
                         raise last_error
                 except Exception as exc:
                     last_error = exc
+                    if is_zeev and isinstance(exc, (TimeoutError, urllib.error.URLError)):
+                        retry_delay = min(15 * (2 ** attempt), 120)
                     if is_supabase and is_transient_http_error(str(exc)):
                         retry_delay = min(20 + attempt * 10, 75)
                 if attempt < attempts - 1:
