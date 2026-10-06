@@ -2259,8 +2259,6 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 
         <button class="tabbtn" data-tab="pag" onclick="showTab('pag')">Pagamentos</button>
 
-        <button class="tabbtn" data-tab="compras" onclick="showTab('compras');ObraCompras.render(cur)">Compras</button>
-
         <button class="tabbtn" data-tab="contr" onclick="showTab('contr')">Contratos</button>
 
         <button class="tabbtn" data-tab="fases" onclick="showTab('fases')">Fases da Obra</button>
@@ -2274,8 +2272,6 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
       <div class="tabpane active" data-tab="resumo" id="pane-resumo"></div>
 
       <div class="tabpane" data-tab="pag" id="pane-pag"></div>
-
-      <div class="tabpane" data-tab="compras" id="pane-compras"></div>
 
       <div class="tabpane" data-tab="contr" id="pane-contr"></div>
 
@@ -3892,13 +3888,13 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
         <div class="frow"><label class="fl" id="zo-supplier-label" for="zo-ben">Fornecedor / favorecido</label><input class="fi" id="zo-ben"></div>
         <div class="frow"><label class="fl" id="zo-value-label" for="zo-val">Valor a pagar</label><input class="fi num" id="zo-val" type="text" inputmode="decimal" onblur="fmtCurrencyBlur(this)"></div>
       </div>
-      <div class="fgrid" data-payment-only>
-        <div class="frow"><label class="fl">Vencimento</label><input class="fi" id="zo-venc" type="date"></div>
+      <div class="fgrid">
+        <div class="frow"><label class="fl" id="zo-date-label" for="zo-venc">Vencimento</label><input class="fi" id="zo-venc" type="date"></div>
         <div class="frow"><label class="fl">Responsável pelo pagamento</label><select class="fi" id="zo-pag"></select></div>
       </div>
       <input type="hidden" id="zo-cat" value="outros">
-      <div class="frow" data-payment-only><label class="fl">Número do documento fiscal</label><input class="fi" id="zo-nf-num" placeholder="NF, fatura ou recibo"></div>
-      <div class="frow" data-payment-only><label class="fl">Tipo de documento</label><select class="fi" id="zo-nf-tipo"><option>NFS-e</option><option>NF-e</option><option>Fatura</option><option>Boleto</option><option>Recibo</option><option value="ORÇAMENTO - COBRAR NF">ORÇAMENTO - COBRAR NF</option><option>Sem nota</option></select></div>
+      <div class="frow"><label class="fl">Número do documento (se disponível)</label><input class="fi" id="zo-nf-num" placeholder="NF, fatura ou recibo"></div>
+      <div class="frow"><label class="fl">Tipo de documento</label><select class="fi" id="zo-nf-tipo"><option>NFS-e</option><option>NF-e</option><option>Fatura</option><option>Boleto</option><option>Recibo</option><option value="ORÇAMENTO - COBRAR NF">ORÇAMENTO - COBRAR NF</option><option>Sem nota</option></select></div>
     </div>
 
     <div class="capex-form-card optional" data-payment-only>
@@ -4050,9 +4046,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <script src="scripts/real-estate-pending.js?v=20261001-1"></script>
 <link rel="stylesheet" href="scripts/real-estate-pending.css?v=20261001-2">
 <script src="scripts/capex-reviews.js?v=20261001-1"></script>
-<link rel="stylesheet" href="scripts/forms-usability.css?v=20261006-1">
-<script src="scripts/obra-compras.js?v=20261006-1"></script>
-<script src="scripts/forms-usability.js?v=20261006-1"></script>
+<link rel="stylesheet" href="scripts/forms-usability.css?v=20261006-2">
+<script src="scripts/forms-usability.js?v=20261006-2"></script>
 <script src="scripts/dashboard-hub.js?v=20260921-realestate-labels"></script>
 <script src="scripts/platform-navigation.js?v=20260922-usability"></script>
 <link rel="stylesheet" href="scripts/dashboard-hub.css?v=20260921-readable">
@@ -9144,7 +9139,6 @@ async function capexImportFirstZeevDocToPayment(obra,pag,z){
 }
 
 async function capexUpsertObraPaymentFromZeev(obra,pag,z){
-  if(z&&capexZeevIsCompra(z))throw new Error('Compra deve ser registrada na lista de compras, sem gerar pagamento.');
   obra.pag=Array.isArray(obra.pag)?obra.pag:[];
   const found=capexFindPaymentByTicket(pag.ticketRaiz);
   let targetObra=obra;
@@ -9180,9 +9174,6 @@ async function capexEnsureObraPaymentForTicket(link,z){
   if(!link?.obra_id||!z)return null;
   const obra=obras.find(o=>+o.id===+link.obra_id);
   if(!obra){toast('Obra vinculada nao encontrada.');return null;}
-  if(capexZeevIsCompra(z)){
-    return ObraCompras.register(z,obra,link.escopo,{ben:capexZeevVendor(z)||'',ref:capexZeevDescricaoLancamento(z)||z.request_name,value:z.valor_final??z.valor??null},false);
-  }
   obra.pag=Array.isArray(obra.pag)?obra.pag:[];
   const built=capexBuildPagamentoFromZeev(z,obra,link.escopo);
   const found=capexFindPaymentByTicket(built.ticketRaiz);
@@ -10261,7 +10252,7 @@ function updateZeevObraDerivedFields(){
   if(!hint)return;
   const source=capexZeevSolicitacoes.find(x=>+x.id===+capexZeevObraApproveId);
   if(source&&capexZeevIsCompra(source)){
-    hint.textContent=obra?'Compra vinculada à obra · Aguardando pagamento financeiro':'Selecione a obra da compra.';
+    hint.textContent=obra?'Compra na lista de pagamentos · Aguardando TR financeiro':'Selecione a obra da compra.';
     return;
   }
   if(!obra){hint.innerHTML='<span style="color:var(--muted)">Escolha a obra para vincular o pagamento ao dashboard e a lista de pagamentos correta.</span>';return;}
@@ -10313,12 +10304,11 @@ async function openCapexZeevObraApproval(id){
   document.getElementById('zo-docs').innerHTML=capexZeevDocsPreviewHtml(z);
   setZeevObraCompraLinkForm(capexCompraLinkFromZeev(z));
   setZeevObraEscopo('obra');
-  ObraCompras.configure(z);
+  FormUsability.configureTicket(z);
   if(capexZeevIsCompra(z)){
     document.getElementById('zo-ben').value=capexZeevVendor(z)||'';
     if(z.valor_final==null&&z.valor==null)document.getElementById('zo-val').value='';
   }
-  await ObraCompras.suggest(z);
   document.getElementById('capex-zeev-obra-overlay')?.classList.add('show');
 }
 
@@ -10345,36 +10335,26 @@ async function saveCapexZeevObraApproval(){
     if(!obra){toast('Selecione a obra relacionada.');return;}
     const ben=(document.getElementById('zo-ben')?.value||'').trim();
     const ref=(document.getElementById('zo-ref')?.value||'').trim();
-    if(!ben&&!capexZeevIsCompra(z)){ObraCompras.fail('zo-ben','Informe o fornecedor / favorecido.');return;}
+    if(!ben&&!capexZeevIsCompra(z)){FormUsability.fail('zo-ben','Informe o fornecedor / favorecido.');return;}
     if(!ref){toast('Informe a descricao / referencia do lancamento.');return;}
     const escopo=document.getElementById('zo-escopo')?.value==='extra'?'extra':'obra';
     const rawValue=document.getElementById('zo-val')?.value.trim()||'';
     const value=rawValue?parseCurrency(rawValue):null;
     if(rawValue&&(!/\d/.test(rawValue)||!Number.isFinite(value)||value<0)){
-      ObraCompras.fail('zo-val','Informe um valor válido, igual ou maior que zero.');return;
+      FormUsability.fail('zo-val','Informe um valor válido, igual ou maior que zero.');return;
     }
-    if(capexZeevIsCompra(z)){
-      await ObraCompras.register(z,obra,escopo,{ben,ref,value});
-      Object.assign(z,{status:'aprovado',aprovado_por:currentUser?.email,aprovado_em:new Date().toISOString()});
-      closeCapexZeevObraApproval(true);
-      renderCapexZeevCurrentView();
-      toast('Compra registrada na obra. Nenhum pagamento foi criado.');
-      return;
-    }
-    if(!(value>0)){ObraCompras.fail('zo-val','Informe o valor do pagamento, maior que zero.');return;}
-    if(!document.getElementById('zo-venc').value){ObraCompras.fail('zo-venc','Informe o vencimento do pagamento.');return;}
+    if(!capexZeevIsCompra(z)&&!(value>0)){FormUsability.fail('zo-val','Informe o valor do pagamento, maior que zero.');return;}
     const nfTipo=document.getElementById('zo-nf-tipo')?.value||capexZeevSuggestedFiscalType(z);
     const compraCheck=!!document.getElementById('zo-compra-vinculada')?.checked;
     const compraTr=capexZeevSearchDigits(document.getElementById('zo-compra-tr')?.value||'');
     if(compraCheck&&!compraTr){toast('Informe o TR da compra vinculada.');return;}
-    if(compraCheck&&compraTr===String(z.zeev_instance_id)){ObraCompras.fail('zo-compra-tr','O TR financeiro não pode ser sua própria compra.');return;}
-    if(compraCheck&&!await ObraCompras.validateLink(compraTr,obra,escopo))return;
+    if(compraCheck&&compraTr===String(z.zeev_instance_id)){FormUsability.fail('zo-compra-tr','O TR financeiro não pode ser sua própria compra.');return;}
     const built=capexBuildPagamentoFromZeev(z,obra,escopo);
     const oldLink=paymentCompraLink(capexFindPaymentByTicket(String(z.zeev_instance_id||''))?.pag)||capexCompraLinkFromZeev(z);
     const compraVinculada=compraCheck?await capexCompraLinkPayloadAsync(compraTr,oldLink):null;
     const pag={
       ...built,
-      ben,
+      ben:ben||(capexZeevIsCompra(z)?'Fornecedor a definir':''),
       v:parseCurrency(document.getElementById('zo-val')?.value||'0'),
       ref,
       cat:PAYMENT_CAT_DEFAULT,
@@ -10396,7 +10376,7 @@ async function saveCapexZeevObraApproval(){
     Object.assign(z,upd);
     closeCapexZeevObraApproval(true);
     renderCapexZeevCurrentView();
-    toast('Ticket Raiz registrado como pagamento da obra'+(result?.docsImported?` com ${result.docsImported} arquivo${result.docsImported!==1?'s':''}.`:'.'));
+    toast(capexZeevIsCompra(z)?'Compra registrada na lista de pagamentos, aguardando TR financeiro.':'Ticket Raiz registrado como pagamento da obra'+(result?.docsImported?` com ${result.docsImported} arquivo${result.docsImported!==1?'s':''}.`:'.'));
   }catch(e){
     console.error('saveCapexZeevObraApproval:',e);
     toast('Erro ao registrar ticket na obra: '+(e.message||e));
@@ -15418,9 +15398,6 @@ async function savePag(){if(!AccessControl.canEdit()){toast('Sem permissão para
   const tipoCusto=['material','servico','equipamento'].includes(_existTipo)?_existTipo:'outros';
   const stVal=oldPag?(oldPag.st||'PENDENTE'):'PENDENTE';
   const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=stVal==='PAGO'?(oldPag?.pagaEm||''):'';const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const _pmCrRow=document.getElementById('pm-constr-row');const _pmCrSel=document.getElementById('pm-constr-sel');const _pmCrSeq=_pmCrRow&&_pmCrRow.style.display!=='none'&&_pmCrSel&&_pmCrSel.value?+_pmCrSel.value:null;const _pmTk=(document.getElementById('pm-ticket')?.value||'').trim().toUpperCase();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),nfNum,cat:PAYMENT_CAT_DEFAULT,sub:0,pagn:g("pm-pag"),st:stVal,venc:g("pm-venc"),emissao,pagaEm,nfTipo:pmNfTipo,contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin,construtora_seq:_pmCrSeq,ticketRaiz:_pmTk,compraVinculada:paymentCompraLink(oldPag)};
-  if(!Number.isFinite(obj.v)||obj.v<=0){ObraCompras.fail('pm-val','Informe um valor de pagamento maior que zero.');return;}
-  if(!obj.ref){ObraCompras.fail('pm-ref','Informe a descrição do pagamento.');return;}
-  if(!obj.venc){ObraCompras.fail('pm-venc','Informe o vencimento do pagamento.');return;}
   if(!(await applyPastDuePaidCheck(obj,obj.ref||obj.ben)))return;
 
   if(pagEditIdx!==null){const old=cur.pag[pagEditIdx];cur.pag[pagEditIdx]={...old,...obj};sincronizaPagoObra(cur);}
