@@ -7,12 +7,17 @@ const cards = read('record-cards.css');
 const identity = read('platform-identity.css');
 const html = read('../index.html');
 
-// The school documents reference must not be restyled by shared record rules.
-assert.doesNotMatch(cards + identity, /\.uni-card|\.uc-(?:body|head|logo|nome|acts)/);
+// Only logo sizing changes in the school documents reference.
+assert.doesNotMatch(cards + identity, /\.uc-(?:body|head|nome|acts)/);
+assert.match(cards, /\.uni-card \.uc-logo\{width:60px;height:42px/);
+assert.match(cards, /#sidebar\.collapsed \.brand \.mk\{width:54px;height:66px/);
 assert.doesNotMatch(identity, /\.view>\.card|\.tabpane>\.card|\.main \.kpi\{/);
 assert.match(cards, /linear-gradient\(135deg,var\(--surface\) 0%,var\(--record-soft,var\(--raiz-soft\)\) 132%\)/);
 assert.match(cards, /background:var\(--record-accent,var\(--raiz-primary\)\)/);
 assert.match(cards, /font-size:var\(--text-card-title,16px\)/);
+assert.match(cards, /grid-template-rows:subgrid;grid-row:span 3/);
+assert.match(cards, /\.party-card\.investor-card\{grid-row:span 4\}/);
+assert.match(cards, /\.dash-table td:first-child\{min-width:230px\}/);
 assert.match(cards, /img\{object-fit:contain;flex-shrink:0;max-width:100%\}/);
 assert.match(cards, /:focus-visible\{outline:3px solid var\(--record-accent,var\(--raiz-primary\)\)/);
 assert.match(cards, /@media\(prefers-reduced-motion:reduce\)[\s\S]*\.party-card\)\{transition:none\}/);

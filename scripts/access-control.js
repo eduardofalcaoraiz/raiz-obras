@@ -124,6 +124,7 @@
   }
   function reset() {clearInterval(poll);poll=null;profiles.clear();editing=null;}
   const guarded = new Map();
+  const guardedTitles = new WeakMap();
   function allowedCommand(name) {const rule=guarded.get(name);return !rule||can(rule[0]||active,rule[1]||'edit');}
   function decorate() {
     document.querySelectorAll('button[onclick],input[onchange],select[onchange]').forEach(el=>{
@@ -131,7 +132,14 @@
       if(!match||!guarded.has(match[1]))return;
       const denied=!allowedCommand(match[1]);
       el.disabled=denied;el.setAttribute('aria-disabled',String(denied));
-      if(denied)el.title='Sem permiss\u00e3o de edi\u00e7\u00e3o';
+      if(denied){
+        if(!guardedTitles.has(el))guardedTitles.set(el,el.getAttribute('title'));
+        el.title='Sem permiss\u00e3o de edi\u00e7\u00e3o';
+      }else if(guardedTitles.has(el)){
+        const title=guardedTitles.get(el);
+        if(title===null)el.removeAttribute('title');else el.title=title;
+        guardedTitles.delete(el);
+      }
     });
   }
   function installGuards() {

@@ -10,6 +10,19 @@ function editHelper(name,profile,active='capex'){
   });
 }
 const user=(extra={})=>({id:'test',role:'leitor',aprovado:true,access_config:{},...extra});
+test('permission tooltip is restored after administrator access loads',()=>{
+  for(const original of [null,'Atualizar registros']){
+    const attrs=new Map([['onclick','syncZeevCapexNow()']]);
+    if(original!==null)attrs.set('title',original);
+    const el={getAttribute:k=>attrs.get(k)??null,setAttribute:(k,v)=>attrs.set(k,v),removeAttribute:k=>attrs.delete(k),set title(v){attrs.set('title',v);}};
+    const ctx={currentProfile:null,syncZeevCapexNow(){},MutationObserver:class{observe(){}},document:{querySelectorAll:s=>s.startsWith('button[')?[el]:[],getElementById:()=>null,body:{classList:{toggle(){}}}}};
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname,'access-control.js'),'utf8'),ctx);
+    ctx.AccessControl.installGuards();ctx.AccessControl.syncUi();
+    assert.equal(el.disabled,true);
+    ctx.currentProfile=user({role:'admin'});ctx.AccessControl.syncUi();
+    assert.equal(el.disabled,false);assert.equal(el.getAttribute('title'),original);
+  }
+});
 test('pending admin cannot read or edit anything',()=>{const p=user({role:'admin',aprovado:false});for(const [m]of acl.modules){assert.equal(acl.can(m,'read',p),false);assert.equal(acl.can(m,'edit',p),false);}assert.equal(acl.can('','admin',p),false);});
 test('approved administrator retains every area',()=>{for(const [m]of acl.modules)assert.equal(acl.can(m,'edit',user({role:'admin'})),true);});
 test('new custom profile is deny-by-default',()=>{for(const [m]of acl.modules)assert.equal(acl.can(m,'read',user()),false);});

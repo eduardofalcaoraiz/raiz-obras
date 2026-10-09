@@ -89,6 +89,36 @@
 .party-projects summary{cursor:pointer;padding:8px 0;color:var(--ink);font-weight:600}
 .party-projects>div{padding:8px 0}
 .party-card :is(button,summary):focus-visible{outline:3px solid var(--record-accent);outline-offset:3px}
+/* Share row heights within each row of cards without truncating long names. */
+@supports (grid-template-rows:subgrid){
+  .party-grid{align-items:stretch}
+  .party-card{display:grid;grid-template-rows:subgrid;grid-row:span 3}
+  .party-card.investor-card{grid-row:span 4}
+  .party-card footer{align-self:end}
+}
+@media(max-width:700px){
+  .dash-table td:first-child{min-width:230px}
+  .dash-table td:not(.is-number){overflow-wrap:break-word}
+}
+/* Brand marks are primary identifiers, not tiny decorative icons. */
+#sidebar .brand .mk{width:64px;height:78px;flex-basis:64px;padding:4px}
+#sidebar.collapsed .brand .mk{width:54px;height:66px;flex-basis:54px}
+#app>.main .capex-brand-logo{width:104px;height:76px;padding:6px}
+#app>.main .capex-unit-logo{width:80px;height:58px;padding:5px}
+#app>.main .capex-brand-head{grid-template-columns:104px minmax(0,1fr);gap:12px}
+#app>.main .capex-unit-head{grid-template-columns:80px minmax(0,1fr);gap:12px}
+#app>.main .obra-brand-logo{width:60px;height:42px;padding:2px;overflow:visible}
+#app>.main .obra-brand-logo img{width:56px!important;height:38px!important}
+#app>.main .uni-card .uc-logo{width:60px;height:42px;padding:2px;justify-content:center}
+#app>.main .uni-card .uc-logo img{width:56px!important;height:38px!important;object-fit:contain}
+#app>.main .re-property-brand img{width:66px!important;height:44px!important;object-fit:contain}
+#app>.main .party-brands .dash-brand img{width:60px;height:40px;max-width:60px;max-height:40px}
+#app>.main .hub-brand-strip img{width:60px!important;height:40px!important;object-fit:contain}
+#app>.main .hub-identity>img{width:88px!important;height:92px!important;object-fit:contain;flex-basis:88px}
+@media(max-width:700px){
+  #app>.main .hub-identity>img{width:70px!important;height:76px!important;flex-basis:70px}
+  #app>.main .hub-brand-strip img{width:52px!important;height:36px!important}
+}
 @media(prefers-reduced-motion:reduce){
   #app>.main :is(.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-expander-card,.obra-card,.re-property-card,.re-evidence-doc,.party-card){transition:none}
 }
