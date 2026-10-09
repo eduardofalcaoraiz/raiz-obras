@@ -4,12 +4,19 @@
  const fields=['esc-busca','forn-busca','realestate-search','realestate-status-filter','realestate-type-filter','realestate-review-filter'];
  function snapshot(){
   const inputs={};for(const id of fields){const e=document.getElementById(id);if(e)inputs[id]=e.type==='checkbox'?e.checked:e.value;}
-  return {inputs,search:esfBusca,brand:esfFiltroMarca,nf:esfNfSearchQuery,year:capexDrillYear,capexBrand:capexDrillMarca,unit:capexDrillUnidade,status:capexListStatus,focus:{...capexDashControls},area:realEstateArea,scroll:document.querySelector('.main')?.scrollTop||0};
+  const queue=typeof capexZeevSearchQuery==='undefined'?null:{search:capexZeevSearchQuery,type:capexZeevTypeFilter,page:capexZeevPage,excluded:[...capexZeevRequesterExcluded]};
+  return {inputs,queue,search:esfBusca,brand:esfFiltroMarca,nf:esfNfSearchQuery,year:capexDrillYear,capexBrand:capexDrillMarca,unit:capexDrillUnidade,status:capexListStatus,focus:{...capexDashControls},area:realEstateArea,scroll:document.querySelector('.main')?.scrollTop||0};
  }
  function apply(s){
   if(!s)return;for(const [id,v]of Object.entries(s.inputs||{})){const e=document.getElementById(id);if(e){if(e.type==='checkbox')e.checked=v;else e.value=v;}}
   if(['nova','expansao'].includes(current)){esfBusca=s.search||'';esfFiltroMarca=s.brand||'Todas';esfNfSearchQuery=s.nf||'';const e=document.getElementById('esf-busca');if(e)e.value=esfBusca;}
   if(current==='capex'){capexDrillYear=s.year||null;capexDrillMarca=s.capexBrand||null;capexDrillUnidade=s.unit||null;capexListStatus=s.status||'Todos';capexDashControls=s.focus||{focusDim:'',focusValue:''};}
+  if(current==='registros'&&s.queue&&typeof capexZeevSearchQuery!=='undefined'){
+   capexZeevSearchQuery=s.queue.search||'';
+   capexZeevTypeFilter=['todos','compras','financeiras','facilities','outros'].includes(s.queue.type)?s.queue.type:'todos';
+   capexZeevPage=Number.isInteger(s.queue.page)&&s.queue.page>=0?s.queue.page:0;
+   capexZeevRequesterExcluded=new Set(s.queue.excluded||[]);
+  }
  }
  function before(view){
   if(view==='docs'||view==='geral')view='escolas';

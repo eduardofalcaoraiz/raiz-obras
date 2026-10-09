@@ -31,6 +31,11 @@ function setup() {
  const jump=delta=>{index+=delta;c.location.hash=entries[index].hash;events.popstate();events.hashchange();flush();};
  return {c,main,inputs,events,entries,denied,flush,jump};
 }
+test('pending queue preserves search, type, page and exclusions on back',()=>{
+ const s=setup(),{c}=s;Object.assign(c,{capexZeevSearchQuery:'209805',capexZeevTypeFilter:'compras',capexZeevPage:2,capexZeevRequesterExcluded:new Set(['example'])});
+ c.go('registros');s.flush();c.go('forn');s.flush();c.capexZeevSearchQuery='changed';c.capexZeevPage=0;
+ s.jump(-1);assert.equal(c.capexZeevSearchQuery,'209805');assert.equal(c.capexZeevTypeFilter,'compras');assert.equal(c.capexZeevPage,2);assert(c.capexZeevRequesterExcluded.has('example'));
+});
 test('back/forward restores entry-specific filters and scroll, including zero',()=>{
  const s=setup(),{c,main,inputs,events}=s;
  c.go('escolas');s.flush();inputs['esc-busca'].value='Alpha';events.input();main.scrollTop=240;events.scroll({target:main});

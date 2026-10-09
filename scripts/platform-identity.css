@@ -82,8 +82,8 @@
 .app .main #esf-chips .chip{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:8px 4px;font-size:14px;font-weight:500;color:var(--muted)}
 .app .main #esf-chips .chip.active{background:none;color:var(--ink);border-bottom-color:var(--workspace-color);font-weight:700}
 .app .main #esf-chips .chip:hover{background:#ffffff60;color:var(--ink)}
-.app .main .view>.card,.app .main .tabpane>.card{background:none;border:0;box-shadow:none;border-radius:0}
-.app .main .kpi{background:none;border:0;border-radius:0;box-shadow:none}
+.app .main :is(#view-capex,#view-realestate,#view-registros)>.card:not(.re-property-card){background:none;border:0;box-shadow:none;border-radius:0}
+.app .main :is(#view-capex,#view-realestate,#view-registros,#view-dashboards) .kpi{background:none;border:0;border-radius:0;box-shadow:none}
 .app .main .capex-status-shell-simple .capex-status-card{background:none;border:0;border-bottom:1px solid #173c3417;border-radius:0;box-shadow:none}
 .app .main .capex-brand-stat b,.app .main .capex-unit-stat b,.app .main .capex-year-mini b{color:var(--ink)!important}
 @container(min-width:850px){

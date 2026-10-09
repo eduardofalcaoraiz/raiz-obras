@@ -22,7 +22,7 @@
   overflow:hidden;
   border:1px solid var(--line);
   border-radius:var(--r);
-  background:linear-gradient(135deg,var(--surface) 0%,var(--record-soft) 132%);
+  background:linear-gradient(135deg,var(--surface) 0%,var(--record-soft,var(--raiz-soft)) 132%);
   box-shadow:none;
   transition:box-shadow .15s;
   letter-spacing:0;
@@ -42,7 +42,7 @@
   border-radius:0;
   opacity:1;
   transform:none;
-  background:var(--record-accent);
+  background:var(--record-accent,var(--raiz-primary));
   pointer-events:none;
   z-index:1;
 }
@@ -54,7 +54,14 @@
 }
 #app>.main :is(.capex-brand-body,.capex-unit-body,.re-property-card-body){padding:8px 14px 12px 16px;gap:8px}
 #app>.main :is(.capex-brand-footer,.capex-unit-footer,.re-property-card-bottom){padding:10px 14px 12px 16px;background:none}
-#app>.main :is(.capex-brand-title,.capex-unit-title,.re-property-card h2,.obra-card h3){font-size:14px;font-weight:600;line-height:1.3;letter-spacing:0}
+#app>.main :is(.capex-brand-title,.capex-unit-title,.re-property-card h2,.obra-card h3){font-size:var(--text-card-title,16px);font-weight:600;line-height:1.35;letter-spacing:0;min-width:0;overflow-wrap:anywhere}
+/* Keep full school marks visible without changing the documents reference. */
+#app>.main :is(.capex-brand-logo,.capex-unit-logo,.obra-brand-logo){flex-shrink:0}
+#app>.main :is(.capex-brand-logo,.capex-unit-logo,.obra-brand-logo,.re-property-brand,.party-brands .dash-brand) img{object-fit:contain;flex-shrink:0;max-width:100%}
+#app>.main :is(.capex-brand-head,.capex-unit-head,.re-property-card-top,.obra-card-head)>*{min-width:0}
+#app>.main :is(.re-property-brand,.obra-brand-pill,.party-brands .dash-brand){min-width:0;overflow-wrap:anywhere}
+#app>.main :is(.capex-brand-footer,.capex-unit-footer,.re-property-card-bottom){gap:8px 12px;flex-wrap:wrap}
+#app>.main :is(.capex-brand-card,.capex-unit-card,.capex-year-card,.obra-card,.re-property-card):focus-visible{outline:3px solid var(--record-accent,var(--raiz-primary));outline-offset:3px}
 #app>.main :is(.re-property-address,.re-property-owner,.re-property-card-facts){font-size:14px;line-height:1.4}
 #app>.main .obra-card-head{padding:12px 14px 0 16px}
 #app>.main .obra-card-body{padding:10px 14px 12px 16px;gap:8px}
@@ -83,5 +90,5 @@
 .party-projects>div{padding:8px 0}
 .party-card :is(button,summary):focus-visible{outline:3px solid var(--record-accent);outline-offset:3px}
 @media(prefers-reduced-motion:reduce){
-  #app>.main :is(.uni-card,.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-expander-card,.obra-card,.re-property-card,.re-evidence-doc){transition:none}
+  #app>.main :is(.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-expander-card,.obra-card,.re-property-card,.re-evidence-doc,.party-card){transition:none}
 }

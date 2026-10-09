@@ -122,7 +122,7 @@ jobs:
           ZEEV_DEEP_SCAN: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled_light) && inputs.mode != 'incremental' && inputs.mode != 'id-sweep' && '1' || '0' }}
           ZEEV_INCREMENTAL_MAX_PAGES_CAP: "1"
           ZEEV_INCREMENTAL_MAX_RUNTIME_SECONDS: "1500"
-          ZEEV_INCREMENTAL_EXTRA_TICKET_CAP: ${{ (github.event_name == 'schedule' || inputs.scheduled_light) && '0' || '24' }}
+          ZEEV_INCREMENTAL_EXTRA_TICKET_CAP: "24"
           ZEEV_INCREMENTAL_LAST_TASK_LOOKBACK_HOURS: "72"
           ZEEV_INCREMENTAL_LAST_TASK_MAX_PAGES: "2"
           ZEEV_INCREMENTAL_ID_SWEEP_LIMIT: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled_light) && inputs.mode == 'incremental' && inputs.backfill_limit || '0' }}
@@ -170,8 +170,8 @@ jobs:
           ZEEV_BACKFILL_STALE_HOURS: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled_light) && inputs.backfill_stale_hours || '720' }}
           ZEEV_DOC_RESCUE_CHECKED_BEFORE: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled_light) && inputs.checked_before || '' }}
           ZEEV_REPAIR_PAYMENT_VALUES: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled_light) && inputs.repair_values || 'false' }}
-          ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST: ${{ (github.event_name == 'schedule' || inputs.scheduled_light) && '0' || '1' }}
-          ZEEV_REPAIR_CAPEX_VALUES_LIMIT: ${{ (github.event_name == 'schedule' || inputs.scheduled_light) && '0' || (github.event_name == 'workflow_dispatch' && !inputs.scheduled_light) && inputs.mode == 'incremental' && '24' || (github.event_name == 'workflow_dispatch' && !inputs.scheduled_light) && inputs.mode == 'repair-capex-registered-values' && inputs.backfill_limit || '80' }}
+          ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST: "1"
+          ZEEV_REPAIR_CAPEX_VALUES_LIMIT: ${{ (github.event_name == 'schedule' || inputs.scheduled_light) && '24' || (github.event_name == 'workflow_dispatch' && !inputs.scheduled_light) && inputs.mode == 'incremental' && '24' || (github.event_name == 'workflow_dispatch' && !inputs.scheduled_light) && inputs.mode == 'repair-capex-registered-values' && inputs.backfill_limit || '80' }}
           ZEEV_PENDING_FISCAL_REPAIR_LIMIT: ${{ inputs.scheduled_light && '0' || inputs.backfill_limit || '6' }}
           ZEEV_PENDING_FISCAL_REPAIR_CYCLES: "1"
           ZEEV_PENDING_FISCAL_REPAIR_MAX_RUNTIME_MS: "105000"

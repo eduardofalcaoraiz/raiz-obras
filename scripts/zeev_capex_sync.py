@@ -1,4 +1,5 @@
 import json
+import math
 import base64
 import html as html_lib
 import mimetypes
@@ -5053,6 +5054,10 @@ def stored_capex_registered_value(row):
     if not isinstance(data, dict):
         return 0.0, "", None
 
+    manual = data.get("validacaoManual")
+    if isinstance(manual, dict) and any(key in manual for key in ("orcamento", "valor", "valorTotal")):
+        return 0.0, "validacao_manual_protegida", None
+
     campos = data.get("campos") if isinstance(data.get("campos"), dict) else {}
     value = money_from_mapping_by_priority(campos, PAYMENT_TOTAL_FIELDS)
     source = "ticket_raiz_dados.campos.valorTotalDoPagamento" if value else ""
@@ -5076,14 +5081,18 @@ def stored_capex_registered_value(row):
         if value:
             source = "ticket_raiz_dados.valorTotalDoPagamento"
 
-    if not value:
-        return 0.0, "", None
+    if not math.isfinite(value) or value <= 0:
+        return 0.0, "valor_total_invalido", None
 
     rateio = data.get("rateio") if isinstance(data.get("rateio"), dict) else {}
     if rateio.get("ativo") is True or str(rateio.get("ativo") or "").strip().lower() in {"1", "true", "sim", "yes", "on"}:
-        total_partes = int(parse_money(rateio.get("total_partes") or len(rateio.get("unidades") or []) or 1) or 1)
+        parts = parse_money(rateio.get("total_partes") or len(rateio.get("unidades") or []) or 1)
+        index = parse_money(rateio.get("indice") or 1)
+        if not all(math.isfinite(n) and n >= 1 and n == int(n) for n in (parts, index)) or index > parts:
+            return 0.0, "rateio_invalido", None
+        total_partes = int(parts)
         if total_partes > 1:
-            indice = int(parse_money(rateio.get("indice") or 1) or 1)
+            indice = int(index)
             parcela = split_currency(value, total_partes, indice)
             patched_data = dict(data)
             patched_rateio = dict(rateio)
@@ -5096,11 +5105,14 @@ def stored_capex_registered_value(row):
     return value, source, None
 
 
-def repair_capex_registered_values():
-    ids = parse_ticket_ids(os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
+def repair_capex_registered_values(ticket_ids=None, force=None):
+    ids = parse_ticket_ids(ticket_ids if ticket_ids is not None else os.environ.get("ZEEV_TICKET_IDS") or os.environ.get("ZEEV_EXTRA_TICKET_IDS") or "")
+    if ticket_ids is not None and not ids:
+        return {"ok": True, "requested": [], "scanned": 0, "updated": [], "skipped": [], "errors": []}
     limit = env_int("ZEEV_REPAIR_CAPEX_VALUES_LIMIT", 250, 1, 5000)
-    force = os.environ.get("ZEEV_REPAIR_CAPEX_VALUES_FORCE", "").strip().lower() in {"1", "true", "sim", "yes", "on"}
-    select = "id,referencia,ticket_raiz_instance_id,orcamento,ticket_raiz_dados,origem"
+    if force is None:
+        force = os.environ.get("ZEEV_REPAIR_CAPEX_VALUES_FORCE", "").strip().lower() in {"1", "true", "sim", "yes", "on"}
+    select = "id,referencia,ticket_raiz_instance_id,orcamento,ticket_raiz_dados,origem,updated_at"
     if ids:
         joined = ",".join(str(x) for x in ids)
         path = f"/capex_itens?select={select}&or=(referencia.in.({joined}),ticket_raiz_instance_id.in.({joined}))&order=id.asc"
@@ -5129,9 +5141,9 @@ def repair_capex_registered_values():
         tr = row.get("ticket_raiz_instance_id") or row.get("referencia")
         value, source, patched_data = stored_capex_registered_value(row)
         if not value:
-            out["skipped"].append({"tr": tr, "reason": "valor_total_nao_encontrado_no_payload_salvo"})
+            out["skipped"].append({"tr": tr, "reason": source or "valor_total_nao_encontrado_no_payload_salvo"})
             continue
-        if current > 0 and not force and abs(current - float(value)) < 0.005:
+        if current > 0 and abs(current - float(value)) < 0.005:
             out["skipped"].append({"tr": tr, "reason": "orcamento_ja_correto", "orcamento": current})
             continue
         if current > 0 and not force and "rateio_parcela" not in source:
@@ -5141,12 +5153,22 @@ def repair_capex_registered_values():
         if patched_data is not None:
             payload["ticket_raiz_dados"] = patched_data
         try:
-            supabase_rest(
-                f"/capex_itens?id=eq.{int(row.get('id'))}",
+            # Compare the read version so a concurrent user edit is not overwritten.
+            filters = {"id": f"eq.{int(row.get('id'))}"}
+            for key in ("updated_at", "orcamento"):
+                filters[key] = "is.null" if row.get(key) is None else f"eq.{row[key]}"
+            snapshot = row.get("ticket_raiz_dados")
+            filters["ticket_raiz_dados"] = "is.null" if snapshot is None else "eq." + json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+            result = supabase_rest(
+                "/capex_itens?" + urllib.parse.urlencode(filters),
                 method="PATCH",
                 payload=payload,
                 timeout=90,
+                prefer="return=representation",
             )
+            if not isinstance(result, list) or not result:
+                out["skipped"].append({"tr": tr, "reason": "registro_alterado_ou_nao_confirmado"})
+                continue
             out["updated"].append({"tr": tr, "id": row.get("id"), "orcamento": round(float(value), 2), "source": source})
         except Exception as exc:
             out["ok"] = False
@@ -5154,6 +5176,31 @@ def repair_capex_registered_values():
     for key in ("updated", "skipped", "errors"):
         if len(out[key]) > 120:
             out[key] = out[key][:120]
+    return out
+
+
+def repair_ingested_capex_values(tickets, ingest_result):
+    out = {"ok": True, "mode": "repair-ingested-capex-values", "requested": [], "scanned": 0, "updated": [], "skipped": [], "errors": []}
+    if not isinstance(ingest_result, dict) or ingest_result.get("ok") is not True or ingest_result.get("errors") or ingest_result.get("skipped"):
+        out["skipped"].append({"reason": "ingest_nao_confirmado"})
+        return out
+    ids = parse_ticket_ids([ticket.get("zeev_instance_id") for ticket in tickets])
+    # Process every ingested ID in bounded batches, never the first global rows.
+    for batch in chunked(ids, 80):
+        joined = ",".join(str(value) for value in batch)
+        approved = supabase_rest(
+            f"/capex_zeev_solicitacoes?select=zeev_instance_id&status=eq.aprovado&zeev_instance_id=in.({joined})",
+            timeout=60, prefer="",
+        )
+        approved_ids = set(parse_ticket_ids([row.get("zeev_instance_id") for row in approved])) if isinstance(approved, list) else set()
+        scoped_ids = [value for value in batch if value in approved_ids]
+        if not scoped_ids:
+            continue
+        result = repair_capex_registered_values(ticket_ids=scoped_ids, force=True)
+        out["ok"] = out["ok"] and result.get("ok") is True
+        out["scanned"] += result.get("scanned", 0)
+        for key in ("requested", "updated", "skipped", "errors"):
+            out[key].extend(result.get(key, []))
     return out
 
 
@@ -6008,8 +6055,7 @@ def main():
     repair_values_enabled = os.environ.get("ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST", "1").strip().lower() not in {"0", "false", "nao", "não", "no"}
     if repair_values_enabled and incremental_stage_allowed("capex-value-repair", 180):
         try:
-            os.environ.setdefault("ZEEV_REPAIR_CAPEX_VALUES_LIMIT", "80")
-            value_repair = repair_capex_registered_values()
+            value_repair = repair_ingested_capex_values(tickets, result)
         except Exception as exc:
             value_repair = {"ok": False, "mode": "repair-capex-registered-values", "error": str(exc)[:700]}
     print(json.dumps({"mode": "ticketIds" if ticket_ids else mode, "deep": deep_mode, "start": start, "end": end, "tickets": len(tickets), "ticketIds": [t.get("zeev_instance_id") for t in tickets], "lastTaskScan": last_task_scan_result, "idSweep": id_sweep_result, "correctionSweep": correction_sweep_result, "ingest": result, "financeDescriptionRepair": description_repair, "capexValueRepair": value_repair, "runtimeSeconds": round(time.monotonic() - incremental_started, 2), "runtimeBudgetSeconds": incremental_budget_seconds if mode == "incremental" else None, "deferredStages": incremental_skipped_stages}, ensure_ascii=False))
