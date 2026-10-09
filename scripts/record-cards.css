@@ -112,7 +112,7 @@
 #app>.main .uni-card .uc-logo{width:60px;height:42px;padding:2px;justify-content:center}
 #app>.main .uni-card .uc-logo img{width:56px!important;height:38px!important;object-fit:contain}
 #app>.main .re-property-brand img{width:66px!important;height:44px!important;object-fit:contain}
-#app>.main .party-brands .dash-brand img{width:60px;height:40px;max-width:60px;max-height:40px}
+#app>.main .party-brands .dash-brand img{width:60px!important;height:40px!important;max-width:60px;max-height:40px}
 #app>.main .hub-brand-strip img{width:60px!important;height:40px!important;object-fit:contain}
 #app>.main .hub-identity>img{width:88px!important;height:92px!important;object-fit:contain;flex-basis:88px}
 @media(max-width:700px){
