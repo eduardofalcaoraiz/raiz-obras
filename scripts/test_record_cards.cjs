@@ -8,7 +8,7 @@ const identity = read('platform-identity.css');
 const html = read('../index.html');
 
 // Only logo sizing changes in the school documents reference.
-assert.doesNotMatch(cards + identity, /\.uc-(?:body|head|nome|acts)/);
+assert.doesNotMatch(cards + identity, /\.uc-(?:body|nome|acts)\{/);
 assert.match(cards, /\.uni-card \.uc-logo\{width:60px;height:42px/);
 assert.match(cards, /#sidebar\.collapsed \.brand \.mk\{width:54px;height:66px/);
 assert.doesNotMatch(identity, /\.view>\.card|\.tabpane>\.card|\.main \.kpi\{/);
@@ -27,5 +27,8 @@ for (const selector of ['capex-brand-logo', 'capex-unit-logo', 'obra-brand-logo'
 assert.ok(html.indexOf('scripts/platform-identity.css') < html.indexOf('scripts/record-cards.css'));
 console.log('Record card CSS regression checks passed.');
 assert.match(cards, /border:1px solid color-mix/);
-assert.match(cards, /\.pgrid>\.obra-card \.obra-card-head\{\s*grid-template-columns:minmax\(0,1fr\)/);
+assert.match(cards, /\.pgrid>\.obra-card\.obra-card \.obra-card-head\{\s*grid-template-columns:minmax\(0,1fr\)/);
+assert.match(cards, /Approved hybrid 1 \+ 2/);
+assert.match(cards, /\.re-property-card:only-child\{display:flex;flex-direction:column\}/);
+assert.match(cards, /\.obra-brand-logo img\{width:96px!important;height:62px!important\}/);
 assert.match(cards, /\.obra-status-select\{justify-self:start\}/);

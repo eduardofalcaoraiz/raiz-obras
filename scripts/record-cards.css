@@ -1,4 +1,4 @@
-/* Match Documentos das Escolas: the same gradient, frame and brand rail.
+/* Approved hybrid 1 + 2: brand header, gradient, frame and lateral rail.
    Only repeated records are framed; page sections and financial tables stay open. */
 #app>.main :is(.capex-brand-card,.capex-unit-card,.capex-year-card){
   --record-accent:var(--capex-card-accent,var(--raiz-primary));
@@ -21,7 +21,7 @@
   min-width:0;
   overflow:hidden;
   border:1px solid var(--line);
-  border-radius:var(--r);
+  border-radius:8px;
   background:linear-gradient(135deg,var(--surface) 0%,var(--record-soft,var(--raiz-soft)) 132%);
   box-shadow:0 2px 6px rgba(15,42,36,.07);
   transition:box-shadow .15s;
@@ -49,34 +49,61 @@
 #app>.main :is(.capex-brand-head,.capex-unit-head,.capex-year-hero,.re-property-card-top){
   padding:12px 14px 8px 16px;
   min-height:0;
-  background:none;
+  background:linear-gradient(110deg,var(--record-soft,var(--raiz-soft)),color-mix(in srgb,var(--record-accent,var(--raiz-primary)) 18%,#fff));
   border:0;
+  border-bottom:1px solid color-mix(in srgb,var(--record-accent,var(--raiz-primary)) 25%,#d2ded9);
 }
 #app>.main :is(.capex-brand-body,.capex-unit-body,.re-property-card-body){padding:8px 14px 12px 16px;gap:8px}
 #app>.main :is(.capex-brand-footer,.capex-unit-footer,.re-property-card-bottom){padding:10px 14px 12px 16px;background:none}
 #app>.main :is(.capex-brand-title,.capex-unit-title,.re-property-card h2,.obra-card h3){font-size:var(--text-card-title,16px);font-weight:600;line-height:1.35;letter-spacing:0;min-width:0;overflow-wrap:anywhere}
 /* A shared frame separates records without framing whole page sections. */
 #app>.main :is(.uni-card,.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-expander-card,.obra-card,.re-property-card,.re-evidence-doc,.party-card){
-  border:1px solid color-mix(in srgb,var(--brand-cur,var(--record-accent,var(--raiz-primary))) 28%,#aab8b3);
+  border:1px solid color-mix(in srgb,var(--record-accent,var(--brand-cur,var(--raiz-primary))) 50%,#aab8b3);
   box-shadow:0 2px 6px rgba(15,42,36,.07);
 }
 /* Obras keep the same vertical structure even when filtering to one result. */
-#app>.main .pgrid>.obra-card .obra-card-head{
+#app>.main .pgrid>.obra-card.obra-card .obra-card-head{
   grid-template-columns:minmax(0,1fr);
   gap:10px;
+  padding:16px 18px 12px 20px;
+  background:linear-gradient(110deg,var(--record-soft),color-mix(in srgb,var(--record-accent) 18%,#fff));
 }
 #app>.main .pgrid>.obra-card .obra-status-select{justify-self:start}
 #app>.main .pgrid>.obra-card .obra-card-brands{min-height:42px}
-#app>.main .pgrid>.obra-card .obra-card-btn{
-  padding-top:10px;
+#app>.main .pgrid>.obra-card.obra-card .obra-card-btn{
+  padding:10px 14px;
   height:auto;
   min-height:36px;
   width:calc(100% - 30px);
   justify-self:stretch;
-  justify-content:space-between;
-  border-top:1px solid var(--line);
+  justify-content:center;
+  gap:10px;
+  border:1px solid var(--brand-cur);
+  border-radius:6px;
+  background:var(--brand-cur);
+  color:var(--brand-readable,#fff);
 }
 /* Keep full school marks visible without changing the documents reference. */
+#app>.main .pgrid>.obra-card.obra-card .obra-card-heading{
+  margin-top:-10px;padding:0 18px 14px 20px;
+  background:linear-gradient(110deg,var(--record-soft),color-mix(in srgb,var(--record-accent) 18%,#fff));
+  border-bottom:1px solid color-mix(in srgb,var(--record-accent) 25%,#d2ded9);
+}
+#app>.main .party-card header{
+  margin:-18px -18px 0 -22px;padding:18px 18px 16px 22px;
+  background:linear-gradient(110deg,var(--record-soft,var(--raiz-soft)),color-mix(in srgb,var(--record-accent,var(--raiz-primary)) 18%,#fff));
+  border-bottom:1px solid var(--line);
+}
+#app>.main .party-card .party-edit{top:12px;right:12px}
+#app>.main .uni-card .uc-head{
+  padding:10px;margin:-12px -12px 4px -10px;
+  background:linear-gradient(110deg,var(--brand-cur-light),color-mix(in srgb,var(--brand-cur) 18%,#fff));
+  border-bottom:1px solid var(--line);
+}
+#app>.main :is(.capex-brand-card,.capex-unit-card):only-child{display:flex;flex-direction:column}
+#app>.main :is(.capex-brand-card,.capex-unit-card):only-child :is(.capex-brand-body,.capex-unit-body){display:flex;flex-direction:column}
+#app>.main .re-property-card:only-child{display:flex;flex-direction:column}
+#app>.main .re-property-card:only-child .re-property-card-body{display:block}
 #app>.main :is(.capex-brand-logo,.capex-unit-logo,.obra-brand-logo){flex-shrink:0}
 #app>.main :is(.capex-brand-logo,.capex-unit-logo,.obra-brand-logo,.re-property-brand,.party-brands .dash-brand) img{object-fit:contain;flex-shrink:0;max-width:100%}
 #app>.main :is(.capex-brand-head,.capex-unit-head,.re-property-card-top,.obra-card-head)>*{min-width:0}
@@ -128,8 +155,8 @@
 #app>.main .capex-unit-logo{width:80px;height:58px;padding:5px}
 #app>.main .capex-brand-head{grid-template-columns:104px minmax(0,1fr);gap:12px}
 #app>.main .capex-unit-head{grid-template-columns:80px minmax(0,1fr);gap:12px}
-#app>.main .obra-brand-logo{width:60px;height:42px;padding:2px;overflow:visible}
-#app>.main .obra-brand-logo img{width:56px!important;height:38px!important}
+#app>.main .obra-brand-logo{width:100px;height:66px;padding:2px;overflow:visible;background:transparent}
+#app>.main .obra-brand-logo img{width:96px!important;height:62px!important}
 #app>.main .uni-card .uc-logo{width:60px;height:42px;padding:2px;justify-content:center}
 #app>.main .uni-card .uc-logo img{width:56px!important;height:38px!important;object-fit:contain}
 #app>.main .re-property-brand img{width:66px!important;height:44px!important;object-fit:contain}
