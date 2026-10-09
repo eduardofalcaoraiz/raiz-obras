@@ -49,6 +49,66 @@ test('contradictory unit evidence requires manual selection',()=>{
   const result=I.inferUnit({unidade:'QI Tijuca',campos_extraidos:{centroDeCusto:'QI Valqueire'}},units);
   assert.equal(result.unidade,'');assert.equal(result.confidence,'ambiguous');
 });
+
+test('219653-like explicit unit and description conflict stays unresolved',()=>{
+  const catalog=[{nome:'Leonardo da Vinci Alfa',marca:'Leonardo da Vinci'},{nome:'Apogeu Vianna',marca:'Apogeu'}];
+  const result=I.inferUnit({unidade:catalog[0].nome,pedido:'Laudo de avaliacao para o novo imovel do Apogeu Vianna - Avenida dos Andradas, 415'},catalog);
+  assert.equal(result.unidade,'');
+  assert.equal(result.confidence,'ambiguous');
+  assert.deepEqual(result.candidates,catalog.map(u=>u.nome));
+  assert.ok(result.source.includes('Unidade informada no ticket'));
+  assert.ok(result.source.includes('Descricao do ticket'));
+});
+
+test('explicit unit cannot hide conflicting linked purchase evidence',()=>{
+  const result=I.inferUnit({unidade:'QI Tijuca',campos_extraidos:{ticketCompra:'123456'}},units,[{referencia:'123456',unidade:'QI Valqueire'}]);
+  assert.equal(result.unidade,'');assert.equal(result.confidence,'ambiguous');
+  assert.deepEqual(result.candidates,['QI Tijuca','QI Valqueire']);
+  assert.ok(result.source.includes('Ticket registrado ou compra vinculada'));
+});
+
+// Production catalog subset and cost-center mapping read on 2026-10-09; no Vianna unit exists.
+const real219653Catalog=[
+  {nome:'Colégio Leonardo da Vinci Alfa',marca:'LEONARDO DA VINCI'},
+  ...['Cidade Alta','Ferreira Guimarães','Santo Antônio 1','Santo Antônio 2','Zona Norte'].map(s=>({nome:'Apogeu Global School '+s,marca:'APOGEU'}))
+];
+const real219653History=[{unidade:'Colégio Leonardo da Vinci Alfa',ticket_raiz_dados:{campos:{codigoDoCentroDeCusto:'3.06.002'}}}];
+const real219653={zeev_instance_id:219653,unidade:null,
+  pedido:'Laudo de avaliação para o novo imóvel do Apogeu Vianna - Endereço: Avenida dos Andradas, nº 415, Bairro: Centro, Cidade/Estado: Juiz de Fora MG, CEP: 36036-000',
+  campos_extraidos:{codigoDoCentroDeCusto:'3.06.002',unidadeFilial2:'01 - COLÉGIO LEONARDO DA VINCI - ALFA - 09.262.835/0001-94'}
+};
+test('real 219653 cost-center evidence conflicts with destination brand without a Vianna unit',()=>{
+  const result=I.inferUnit(real219653,real219653Catalog,real219653History);
+  assert.equal(result.unidade,'');assert.equal(result.confidence,'ambiguous');
+  assert.deepEqual(result.candidates,['Colégio Leonardo da Vinci Alfa']);
+  assert.ok(result.source.includes('Centro de custo em registros anteriores'));
+  assert.ok(result.source.includes('Marca de destino conflitante na descricao: apogeu'));
+});
+test('brand-only guard does not guess destinations or flag unrelated mentions',()=>{
+  for(const pedido of ['Laudo para o imóvel do Leonardo da Vinci Alfa','Laudo do fornecedor Apogeu Vianna','Laudo para o imóvel do Apogeuzinho']){
+    const result=I.inferUnit({...real219653,pedido},real219653Catalog,real219653History);
+    assert.equal(result.unidade,'Colégio Leonardo da Vinci Alfa');
+    assert.equal(result.confidence,'suggested');
+  }
+  const result=I.inferUnit({pedido:real219653.pedido},real219653Catalog);
+  assert.equal(result.unidade,'');assert.equal(result.confidence,'missing');
+});
+
+test('historical unit cannot hide a conflicting description',()=>{
+  const result=I.inferUnit({pedido:'Reforma QI Valqueire',campos_extraidos:{ticketCompra:'123456'}},units,[{referencia:'123456',unidade:'QI Tijuca'}]);
+  assert.equal(result.unidade,'');assert.equal(result.confidence,'ambiguous');
+  assert.deepEqual(result.candidates,['QI Tijuca','QI Valqueire']);
+});
+
+test('unambiguous exact and alias matches retain their confidence',()=>{
+  const catalog=[...units,{nome:'Apogeu Vianna',marca:'Apogeu',aliases:['Apogeu Centro']}];
+  for(const [text,name] of [['QI Tijuca','QI Tijuca'],['CUBO GLOBAL SCHOOL - ABM',units[0].nome],['Apogeu Centro','Apogeu Vianna']]){
+    const result=I.inferUnit({unidade:text,pedido:'Reforma '+name},catalog);
+    assert.equal(result.unidade,name);assert.equal(result.confidence,'high');
+    assert.deepEqual(result.candidates,[name]);
+  }
+  assert.equal(I.inferUnit({pedido:'Reforma QI Tijuca'},units).confidence,'suggested');
+});
 test('cost code history and exact purchase reference, never a partial reference',()=>{
   const registered=[{referencia:'123456',unidade:units[0].nome,ticket_raiz_dados:{campos:{codigoDoCentroDeCusto:'3.07.999'}}}];
   assert.equal(I.inferUnit({campos_extraidos:{codigoDoCentroDeCusto:'3.07.999'}},units,registered).unidade,units[0].nome);

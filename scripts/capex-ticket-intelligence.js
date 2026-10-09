@@ -160,7 +160,16 @@
       const intersection=names.filter(n=>useful.every(h=>h.rows.includes(n)));
       if(intersection.length)candidates=intersection;
     }
-    return{unidade:candidates.length===1?candidates[0]:'',source:unique(useful.map(h=>h.source)).join(' + '),candidates,confidence:candidates.length===1?(strong.length?'high':'suggested'):'ambiguous'};
+    // Lower-priority evidence may not silently contradict the selected destination.
+    const conflicts=hits.filter(h=>h.level<useful[0].level&&h.rows.some(n=>!candidates.includes(n)));
+    if(conflicts.length)candidates=unique([...candidates,...conflicts.flatMap(h=>h.rows)]);
+    // A named destination brand can conflict even when its new unit is not in the catalog.
+    const candidateBrands=unique(catalog.filter(u=>candidates.includes(u.nome)).map(u=>norm(u.marca)));
+    const brandConflicts=unique(catalog.map(u=>norm(u.marca))).filter(brand=>
+      candidateBrands.length&&!candidateBrands.includes(brand)&&
+      new RegExp('\\b(?:imovel|unidade|colegio|escola) (?:(?:do|da|de) )?'+brand+'\\b').test(norm(z?.pedido)));
+    if(brandConflicts.length)return{unidade:'',source:unique([...useful,...conflicts].map(h=>h.source)).join(' + ')+' + Marca de destino conflitante na descricao: '+brandConflicts.join(', '),candidates,confidence:'ambiguous'};
+    return{unidade:candidates.length===1?candidates[0]:'',source:unique([...useful,...conflicts].map(h=>h.source)).join(' + '),candidates,confidence:candidates.length===1?(strong.length?'high':'suggested'):'ambiguous'};
   }
   const api={norm,clean,values,fieldValues,first,firstGroup,email,requester,inferUnit,indexRegistrations,recoveredItemDescriptions,costCodes,COST_FIELDS};
   if(typeof module==='object'&&module.exports)module.exports=api;
