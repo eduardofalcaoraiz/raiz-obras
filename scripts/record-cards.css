@@ -104,7 +104,8 @@
 #app>.main .pgrid>.obra-card.obra-card .obra-card-body{padding:18px 28px 20px 36px;gap:18px}
 #app>.main .pgrid>.obra-card.obra-card .obra-card-status{display:flex;align-items:center;gap:10px;min-width:0;margin-top:8px}
 #app>.main .pgrid>.obra-card.obra-card .obra-card-status-dot{width:16px;height:16px;flex:0 0 16px;border-radius:50%;background:currentColor}
-#app>.main .pgrid>.obra-card.obra-card .obra-status-select{font-size:20px!important;min-width:0;max-width:calc(100% - 26px);padding:0;min-height:28px}
+#app>.main .pgrid>.obra-card.obra-card .obra-status-select{font-size:20px!important;min-width:0;width:100%;max-width:calc(100% - 26px);padding:0;min-height:28px}
+#app>.main .pgrid>.obra-card.obra-card .obra-card-btn .menu-icon{width:24px;height:24px;flex:0 0 24px}
 #app>.main .pgrid:has(>.obra-card){grid-template-columns:repeat(auto-fill,minmax(min(100%,440px),1fr));gap:20px}
 #app>.main .obra-card-contract{display:flex;flex-direction:column;gap:4px}
 #app>.main .pgrid>.obra-card.obra-card .obra-card-contract span{font-size:20px!important;color:var(--ink)}
