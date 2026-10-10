@@ -4053,7 +4053,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <link rel="stylesheet" href="scripts/dashboard-hub.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/platform-menu.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/platform-identity.css?v=20260921-readable">
-<link rel="stylesheet" href="scripts/record-cards.css?v=20261009-polished">
+<link rel="stylesheet" href="scripts/record-cards.css?v=20261009-reference-proportions">
 <link rel="stylesheet" href="scripts/typography.css?v=20260922-balanced">
 <script defer src="scripts/platform-menu.js?v=20260917-menu"></script>
 <script src="scripts/access-invites.js?v=20260916-invite-availability"></script>
@@ -6817,18 +6817,18 @@ function renderObraCard(o,i){
   const relatedUnits=units.filter(u=>_obraUnitMatchKey(u.nome)!==_obraUnitMatchKey(o.nome));
   const unitChips=relatedUnits.length?`<div class="obra-card-units" title="${escHtml(relatedUnits.map(u=>u.nome).join(' · '))}">${relatedUnits.map(u=>`<span class="obra-card-unit-chip">${escHtml(u.nome)}</span>`).join('')}</div>`:'';
   const anoFim=_obraEndYear(o)||'a definir';
-  const entregaText=isDone?(anoFim==='a definir'?'ENTREGUE':`ENTREGUE EM ${anoFim}`):(anoFim==='a definir'?'PREVIS\u00c3O DE ENTREGA A DEFINIR':`PREVIS\u00c3O DE ENTREGA EM ${anoFim}`);
+  const entregaText=isDone?(anoFim==='a definir'?'Entregue':`Entregue em ${anoFim}`):(anoFim==='a definir'?'Entrega a definir':`Entrega prevista: ${anoFim}`);
   const contractValue=typeof DashboardData!=='undefined'?DashboardData.project(o).contract:null;
   return `<div class="pcard obra-card interactive-card" role="button" tabindex="0" onclick="openObra(${o.id})" onkeydown="if(cardKeyOpen(event))openObra(${o.id})" style="animation-delay:${i*55}ms;--brand-cur:${bc};--brand-text:${brandText};--brand-cur-light:${brandLight(marcaBase)};--brand-readable:${brandReadable};--brand-readable-shadow:${brandShadow}">
     <div class="obra-card-head">
       <div class="obra-card-brands">${marcaPills}</div>
       <div class="obra-card-heading">
       <h3>${safe(o.nome)}</h3>
-      <select class="obra-status-select" aria-label="Status de ${safe(o.nome)}" style="border:1px solid ${stColor};color:${stColor};background:${stBg}" onclick="event.stopPropagation()" onchange="event.stopPropagation();setObraStatus(${o.id},this.value)">
+      <div class="obra-card-status" style="color:${stColor}"><span class="obra-card-status-dot" aria-hidden="true"></span><select class="obra-status-select" aria-label="Status de ${safe(o.nome)}" style="border:1px solid ${stColor};color:${stColor};background:${stBg}" onclick="event.stopPropagation()" onchange="event.stopPropagation();setObraStatus(${o.id},this.value)">
         <option value="Planejamento" ${st==='Planejamento'?'selected':''}>Planejamento</option>
         <option value="Em andamento" ${st==='Em andamento'?'selected':''}>Em andamento</option>
         <option value="Conclu&#237;do" ${isDone?'selected':''}>Conclu&iacute;do</option>
-      </select>
+      </select></div>
       ${subtitulo?`<div class="obra-card-subtitle">${escHtml(subtitulo)}</div>`:''}
       ${unitChips}
       </div>
