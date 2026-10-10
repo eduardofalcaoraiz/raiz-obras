@@ -27,8 +27,8 @@ for (const selector of ['capex-brand-logo', 'capex-unit-logo', 'obra-brand-logo'
 assert.ok(html.indexOf('scripts/platform-identity.css') < html.indexOf('scripts/record-cards.css'));
 console.log('Record card CSS regression checks passed.');
 assert.match(cards, /border:1px solid color-mix/);
-assert.match(cards, /\.pgrid>\.obra-card\.obra-card \.obra-card-head\{\s*grid-template-columns:minmax\(0,1fr\)/);
+assert.match(cards, /\.pgrid>\.obra-card\.obra-card \.obra-card-head\{\s*grid-template-columns:112px minmax\(0,1fr\)/);
 assert.match(cards, /Approved hybrid 1 \+ 2/);
 assert.match(cards, /\.re-property-card:only-child\{display:flex;flex-direction:column\}/);
-assert.match(cards, /\.obra-brand-logo img\{width:96px!important;height:62px!important\}/);
+assert.match(cards, /\.obra-brand-logo img\{width:112px!important;height:94px!important\}/);
 assert.match(cards, /\.obra-status-select\{justify-self:start\}/);

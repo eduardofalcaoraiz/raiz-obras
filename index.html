@@ -4053,12 +4053,12 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <link rel="stylesheet" href="scripts/dashboard-hub.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/platform-menu.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/platform-identity.css?v=20260921-readable">
-<link rel="stylesheet" href="scripts/record-cards.css?v=20260921-readable">
+<link rel="stylesheet" href="scripts/record-cards.css?v=20261009-faithful">
 <link rel="stylesheet" href="scripts/typography.css?v=20260922-balanced">
 <script defer src="scripts/platform-menu.js?v=20260917-menu"></script>
 <script src="scripts/access-invites.js?v=20260916-invite-availability"></script>
 <link rel="stylesheet" href="scripts/access-control.css?v=20260921-readable">
-<link rel="stylesheet" href="scripts/platform-usability.css?v=20260922-alignment">
+<link rel="stylesheet" href="scripts/platform-usability.css?v=20261009-faithful">
 <script defer src="scripts/platform-usability.js?v=20260922-1"></script>
 <script defer src="vendor/pdf-lib/pdf-lib.min.js?v=1.17.1"></script>
 <script defer src="scripts/payment-bundle.js?v=20260922-1"></script>
@@ -6800,13 +6800,13 @@ function renderObraCard(o,i){
   const brandShadow=textShadowOnColor(bc);
   const safe=v=>escHtml(String(v==null?'':v).trim()||'A definir');
   const marcaPills=(marcas.length?marcas:['RAIZ']).map(m=>{
-    return`<span class="obra-brand-pill" style="color:${brandTextOnLight(m)}"><span class="obra-brand-logo">${brandLogoImg(m,'height:22px;width:36px;object-fit:contain')}</span>${escHtml(m)}</span>`;
+    return`<span class="obra-brand-pill" title="${escHtml(m)}" style="color:${brandTextOnLight(m)}"><span class="obra-brand-logo">${brandLogoImg(m,'height:22px;width:36px;object-fit:contain')}</span></span>`;
   }).join('');
   const statusDone='Conclu\u00eddo';
   const st=String(o.status||'Planejamento');
   const isDone=_obraUnitMatchKey(st)==='CONCLUIDO';
-  const stColor=isDone?'var(--ok)':st==='Em andamento'?'#1976D2':'var(--muted)';
-  const stBg=isDone?'#EDF7ED':st==='Em andamento'?'#E3F0FC':'var(--surface)';
+  const stColor=isDone?'var(--ok)':st==='Em andamento'?'#227248':'var(--muted)';
+  const stBg='transparent';
   const constrList=Array.isArray(o.construtoras)?o.construtoras.map(c=>typeof c==='string'?c:(c&&c.nome)||'').map(s=>String(s||'').trim()).filter(Boolean):[];
   const fallbackConstr=(o.constr&&String(o.constr).trim()&&String(o.constr).trim()!=='\u2014')?String(o.constr).trim():'Construtora n\u00e3o informada';
   const constrNames=o.tem_construtora===false?['Sem construtora contratada']:(constrList.length?constrList:[fallbackConstr]);
@@ -6818,20 +6818,25 @@ function renderObraCard(o,i){
   const unitChips=relatedUnits.length?`<div class="obra-card-units" title="${escHtml(relatedUnits.map(u=>u.nome).join(' · '))}">${relatedUnits.map(u=>`<span class="obra-card-unit-chip">${escHtml(u.nome)}</span>`).join('')}</div>`:'';
   const anoFim=_obraEndYear(o)||'a definir';
   const entregaText=isDone?(anoFim==='a definir'?'ENTREGUE':`ENTREGUE EM ${anoFim}`):(anoFim==='a definir'?'PREVIS\u00c3O DE ENTREGA A DEFINIR':`PREVIS\u00c3O DE ENTREGA EM ${anoFim}`);
+  const contractValue=typeof DashboardData!=='undefined'?DashboardData.project(o).contract:null;
   return `<div class="pcard obra-card interactive-card" role="button" tabindex="0" onclick="openObra(${o.id})" onkeydown="if(cardKeyOpen(event))openObra(${o.id})" style="animation-delay:${i*55}ms;--brand-cur:${bc};--brand-text:${brandText};--brand-cur-light:${brandLight(marcaBase)};--brand-readable:${brandReadable};--brand-readable-shadow:${brandShadow}">
     <div class="obra-card-head">
       <div class="obra-card-brands">${marcaPills}</div>
-      <select class="obra-status-select" style="border:1px solid ${stColor};color:${stColor};background:${stBg}" onclick="event.stopPropagation()" onchange="event.stopPropagation();setObraStatus(${o.id},this.value)">
+      <div class="obra-card-heading">
+      <h3>${safe(o.nome)}</h3>
+      <select class="obra-status-select" aria-label="Status de ${safe(o.nome)}" style="border:1px solid ${stColor};color:${stColor};background:${stBg}" onclick="event.stopPropagation()" onchange="event.stopPropagation();setObraStatus(${o.id},this.value)">
         <option value="Planejamento" ${st==='Planejamento'?'selected':''}>Planejamento</option>
         <option value="Em andamento" ${st==='Em andamento'?'selected':''}>Em andamento</option>
         <option value="Conclu&#237;do" ${isDone?'selected':''}>Conclu&iacute;do</option>
       </select>
-    </div>
-    <div class="obra-card-body">
-      <div class="obra-card-heading">
-      <h3>${safe(o.nome)}</h3>
       ${subtitulo?`<div class="obra-card-subtitle">${escHtml(subtitulo)}</div>`:''}
       ${unitChips}
+      </div>
+    </div>
+    <div class="obra-card-body">
+      <div class="obra-card-contract">
+        <span>Contrato principal + aditivos</span>
+        <strong>${contractValue===null?'N\u00e3o cadastrado':fmt(contractValue)}</strong>
       </div>
       <div class="obra-card-constr">
         <div class="obra-card-constr-head"><span class="obra-card-label">Construtora(s)</span></div>
@@ -6842,7 +6847,7 @@ function renderObraCard(o,i){
         <span class="obra-card-pill entrega">${escHtml(entregaText)}</span>
       </div>
     </div>
-    <button type="button" class="obra-card-btn" onclick="event.stopPropagation();openObra(${o.id})">Abrir obra <span class="menu-icon" style="--menu-icon:url('/assets/icons/lucide/arrow-up-right.svg')" aria-hidden="true"></span></button>
+    <div class="obra-card-footer"><button type="button" class="obra-card-btn" onclick="event.stopPropagation();openObra(${o.id})">Abrir obra <span class="menu-icon" style="--menu-icon:url('/assets/icons/lucide/arrow-up-right.svg')" aria-hidden="true"></span></button></div>
   </div>`;
 }
 
