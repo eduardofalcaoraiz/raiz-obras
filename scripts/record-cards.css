@@ -44,7 +44,7 @@
   transform:none;
   background:var(--record-accent,var(--raiz-primary));
   pointer-events:none;
-  z-index:1;
+  z-index:3;
 }
 #app>.main :is(.capex-brand-head,.capex-unit-head,.capex-year-hero,.re-property-card-top){
   padding:12px 14px 8px 16px;
