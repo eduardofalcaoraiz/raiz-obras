@@ -63,10 +63,10 @@
 }
 /* Obras keep the same vertical structure even when filtering to one result. */
 #app>.main .pgrid>.obra-card.obra-card .obra-card-head{
-  grid-template-columns:112px minmax(0,1fr);
+  grid-template-columns:132px minmax(0,1fr);
   gap:16px;
   padding:20px;
-  background:linear-gradient(110deg,var(--record-soft),color-mix(in srgb,var(--record-accent) 18%,#fff));
+  background:linear-gradient(110deg,color-mix(in srgb,var(--record-accent) 5%,#fff),color-mix(in srgb,var(--record-accent) 18%,#fff));
   border-bottom:1px solid color-mix(in srgb,var(--record-accent) 28%,#d2ded9);
   min-height:150px;
 }
@@ -96,8 +96,14 @@
 #app>.main .pgrid:has(>.obra-card){grid-template-columns:repeat(auto-fill,minmax(min(100%,440px),1fr));gap:20px}
 #app>.main .obra-card-contract{display:flex;flex-direction:column;gap:4px}
 #app>.main .obra-card-contract span{font-size:14px;color:var(--muted)}
-#app>.main .obra-card-contract strong{font-size:26px;line-height:1.3;font-weight:750;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-#app>.main .obra-card h3{font-size:18px;line-height:1.35;font-weight:700;margin:0}
+#app>.main .obra-card-contract strong{font-size:32px;line-height:1.3;font-weight:750;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#app>.main .obra-card h3{font-size:22px;line-height:1.35;font-weight:700;margin:0}
+#app>.main .obra-card-constr{display:flex;gap:12px;align-items:flex-start}
+#app>.main .obra-card-constr-head{display:none}
+#app>.main .obra-card-constr::before{content:"";width:22px;height:22px;flex:0 0 22px;background:var(--ink);mask:url('../assets/icons/lucide/building-2.svg') center/contain no-repeat}
+#app>.main .obra-card .obra-card-meta-line .entrega{display:flex;align-items:center;gap:12px;text-transform:none;font-weight:500;color:var(--ink)}
+#app>.main .obra-card .obra-card-meta-line .entrega::before{content:"";width:22px;height:22px;flex:0 0 22px;background:var(--ink);mask:url('../assets/icons/lucide/calendar-days.svg') center/contain no-repeat}
+#app>.main .obra-card .obra-card-meta-line>.obra-card-pill:first-child{display:none}
 #app>.main .obra-card .obra-card-builder{padding:0;background:none;border:0}
 #app>.main .obra-card .obra-brand-pill{display:flex;padding:0;background:none;border:0}
 #app>.main .obra-card .obra-card-brands{justify-content:center}
@@ -167,8 +173,16 @@
 #app>.main .capex-unit-logo{width:80px;height:58px;padding:5px}
 #app>.main .capex-brand-head{grid-template-columns:104px minmax(0,1fr);gap:12px}
 #app>.main .capex-unit-head{grid-template-columns:80px minmax(0,1fr);gap:12px}
-#app>.main .obra-brand-logo{width:112px;height:94px;padding:0;overflow:visible;background:transparent}
-#app>.main .obra-brand-logo img{width:112px!important;height:94px!important}
+#app>.main .obra-brand-logo{width:132px;height:100px;padding:0;overflow:visible;background:transparent}
+#app>.main .obra-brand-logo img{width:132px!important;height:100px!important}
+#app>.main .obra-brand-logo img[alt="SÁ PEREIRA"]{transform:scale(1.35)}
+@media(max-width:600px){
+  #app>.main .pgrid>.obra-card.obra-card .obra-card-head{grid-template-columns:96px minmax(0,1fr);gap:10px;padding:18px 16px}
+  #app>.main .obra-brand-logo{width:96px;height:82px}
+  #app>.main .obra-brand-logo img{width:96px!important;height:82px!important}
+  #app>.main .obra-card h3{font-size:18px}
+  #app>.main .obra-card-contract strong{font-size:28px}
+}
 #app>.main .uni-card .uc-logo{width:60px;height:42px;padding:2px;justify-content:center}
 #app>.main .uni-card .uc-logo img{width:56px!important;height:38px!important;object-fit:contain}
 #app>.main .re-property-brand img{width:66px!important;height:44px!important;object-fit:contain}
