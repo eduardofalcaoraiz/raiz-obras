@@ -72,13 +72,33 @@
   const blank=v=>v==null||String(v).trim()==='';
   const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
   const taxId=v=>String(v||'').replace(/\D/g,'');
+  const receiptStub=items=>Array.isArray(items)&&items.length>0&&items.every(it=>/produtos constantes da nota fiscal|identifica[cç][aã]o e assinatura do recebedor/i.test(it.descricao||'')&&!(Number(it.valor_total)>0));
+  async function readFiscal(file){
+    if(ext(file)==='xml')return parseNFeXML(await file.text());
+    if(ext(file)==='pdf'&&typeof extractPdfText==='function'){
+      try{
+        const text=await extractPdfText(file);
+        const local=parseNFFromText(text);
+        const itemTotal=(local.itens||[]).reduce((sum,it)=>sum+(Number(it.valor_total)||0),0);
+        const balanced=local.subtotal>0&&Math.abs(itemTotal-local.subtotal)<0.02&&Math.abs(itemTotal-(local.desconto||0)+(local.frete||0)-local.val)<0.02;
+        if(fiscalTypes.has(local.tipo)&&taxId(local.chave).length===44&&local.doc&&local.val>0&&balanced&&!receiptStub(local.itens))return local;
+        if(/or[cç]amento/i.test(text)&&!/danfe|nota fiscal|chave de acesso/i.test(text))return null;
+      }catch(e){console.warn('Leitura local indisponivel:',e.message);}
+    }
+    const data=await readInvoiceWithAI(file);
+    if(data&&receiptStub(data.itens))data.itens=[];
+    return data;
+  }
   function identityDetails(p){
     const identities=(p.docs||[]).filter(d=>!d.generatedBundle&&d.invoiceIdentity).map(d=>d.invoiceIdentity);
     const unique=[...new Map(identities.map(x=>[x.issuerCnpj+':'+x.invoiceNumber,x])).values()];
     return unique.map(x=>{
       const different=x.status==='different';
       const label=different?'CNPJs diferentes: pagamento e emissao da NF. Vinculo a conferir.':x.status==='matched'?'Mesmo CNPJ no pagamento e na NF.':'CNPJ incompleto: identificacao a conferir.';
-      return `<div style="grid-column:1/-1;font-size:14px;overflow-wrap:anywhere"><strong>${escHtml(label)}</strong><div>Beneficiario do pagamento: ${escHtml(x.payeeName)} | CNPJ: ${escHtml(x.payeeCnpj||'Nao identificado')}</div><div>Emitente da NF ${escHtml(x.invoiceNumber)}: ${escHtml(x.issuerName)} | CNPJ: ${escHtml(x.issuerCnpj||'Nao identificado')}</div></div>`;
+      const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+      const formatted=v=>taxId(v).length===14?taxId(v).replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):'Nao identificado';
+      const totals=x.subtotal>0?`<div>Produtos: ${money(x.subtotal)} | Desconto: ${money(x.discount)} | Frete: ${money(x.freight)} | Total da NF: ${money(x.total)}</div>`:'';
+      return `<div style="grid-column:1/-1;font-size:14px;overflow-wrap:anywhere"><strong>${escHtml(label)}</strong><div>Beneficiario do pagamento: ${escHtml(x.payeeName)} | CNPJ: ${formatted(x.payeeCnpj)}</div><div>Emitente da NF ${escHtml(x.invoiceNumber)}: ${escHtml(x.issuerName)} | CNPJ: ${formatted(x.issuerCnpj)}</div>${totals}</div>`;
     }).join('');
   }
   function invoicePatch(row,data){
@@ -89,7 +109,7 @@
     if(blank(row.nf_tipo)||['Sem nota','Adiantamento','ORÇAMENTO - COBRAR NF'].includes(row.nf_tipo))patch.nf_tipo=data.tipo;
     if(/^\d{4}-\d{2}-\d{2}$/.test(data.date||''))put('emissao',data.date);
     put('chave',data.chave);
-    if((!row.itens_pag||Array.isArray(row.itens_pag)&&!row.itens_pag.length)&&Array.isArray(data.itens)&&data.itens.length)patch.itens_pag=data.itens;
+    if((!row.itens_pag||Array.isArray(row.itens_pag)&&!row.itens_pag.length||receiptStub(row.itens_pag))&&Array.isArray(data.itens)&&data.itens.length&&!receiptStub(data.itens))patch.itens_pag=data.itens;
     return patch;
   }
   async function enrichExisting(oid,p,files){
@@ -98,7 +118,7 @@
       for(const file of [...files].sort((a,b)=>Number(ext(b)==='xml')-Number(ext(a)==='xml'))){
         if(ext(file)!=='xml'&&!visual(file))continue;
         try{
-          const data=ext(file)==='xml'?parseNFeXML(await file.text()):await readInvoiceWithAI(file);
+          const data=await readFiscal(file);
           if(data&&fiscalTypes.has(data.tipo)&&data.doc)notes.push({...data,sourceName:file.name});
         }catch(e){warnings.push(file.name+': '+(e.message||String(e)).slice(0,120));}
       }
@@ -116,7 +136,7 @@
       const payeeCnpj=taxId(supplier.data?.cnpj),issuerCnpj=taxId(data.cnpj);
       const identified=payeeCnpj.length===14&&issuerCnpj.length===14;
       const status=identified?(payeeCnpj===issuerCnpj?'matched':'different'):'unverified';
-      const identity={payeeName:row.ben||'',payeeCnpj,issuerName:status==='matched'?(supplier.data.nome||row.ben):(data.ben||''),issuerCnpj,invoiceNumber:String(data.doc),status};
+      const identity={payeeName:row.ben||'',payeeCnpj,issuerName:status==='matched'?(supplier.data.nome||row.ben):(data.ben||''),issuerCnpj,invoiceNumber:String(data.doc),status,subtotal:Number(data.subtotal)||0,discount:Number(data.desconto)||0,freight:Number(data.frete)||0,total:Number(data.val)||0};
       if(status==='different')warnings.push('CNPJs diferentes: beneficiario do pagamento e emitente da NF foram mantidos separados. Vinculo a conferir.');
       if(status==='unverified')warnings.push('CNPJ incompleto: confira o beneficiario e o emitente. Nenhum fornecedor foi substituido.');
       const patch=invoicePatch(row,data);
