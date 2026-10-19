@@ -4061,7 +4061,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <link rel="stylesheet" href="scripts/platform-usability.css?v=20261009-faithful">
 <script defer src="scripts/platform-usability.js?v=20260922-1"></script>
 <script defer src="vendor/pdf-lib/pdf-lib.min.js?v=1.17.1"></script>
-<script defer src="scripts/payment-bundle.js?v=20261019-auto-read"></script>
+<script defer src="scripts/payment-bundle.js?v=20261019-cnpj-identity"></script>
 <script>
 
 const fmt=n=>"R$ "+(+n||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -13846,6 +13846,7 @@ function renderPag(){const o=cur;
     const detalhes=exp?`
       <div style="padding:14px 20px 16px 36px;background:var(--surface-2);border-top:1px solid var(--line)">
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px 24px;margin-bottom:16px">
+          ${PaymentBundle.identityDetails(p)}
           ${p.ref?`<div style="grid-column:1/-1"><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Referência / Descrição</div><div style="font-size:14px">${p.ref}</div></div>`:''}
           ${p.emissao?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Emissão da nota</div><div style="font-size:14px">🗒 ${fmtD(p.emissao)}</div></div>`:''}
           ${p.venc?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Previsão de pagamento</div><div style="font-size:14px">📅 ${fmtD(p.venc)}</div></div>`:''}
