@@ -6998,6 +6998,8 @@ function renderGeral(){
 
 
 
+// Payment actions still refresh the former portfolio panel through this entry point.
+function renderPainel(){ if(curEsfera&&ESFERAS[curEsfera])renderEsfera(); }
 function renderEsfera(){
   document.getElementById('view-esfera').classList.toggle('capex-unit-active',curEsfera==='capex'&&!!capexDrillUnidade);
 
