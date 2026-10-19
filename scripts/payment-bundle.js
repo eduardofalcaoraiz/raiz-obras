@@ -55,6 +55,7 @@
       const bundle={name:merged.name,type:'application/pdf',bucket:'pagamentos',kind,storagePath,generatedBundle:true,bundleSources:sources.map(paymentDocKey)};
       next.docs=next.docs.filter(d=>!d.generatedBundle);next.docs.push(bundle);next.nfDoc=bundle;
     }
+    next._fiscalFiles=selected.map(s=>s.file);
     next._heavyLoaded=true;hydratePaymentDocs(next);return next;
   }
   async function saveExisting(oid,p,files){
@@ -292,6 +293,11 @@
     const result=await db.from('pagamentos').insert(rows).select('id');if(result.error)throw result.error;
     if(result.data?.length!==payments.length)throw Error('Confirmacao de gravacao incompleta. Atualize a pagina antes de tentar novamente.');
     payments.forEach((p,i)=>{p.dbId=result.data[i].id;p._heavyLoaded=true;});
+    // New payments use the same enrichment as attachments on existing payments.
+    for(const p of payments){
+      if(p._fiscalFiles?.length)p.invoiceRead=await enrichExisting(oid,p,p._fiscalFiles);
+      delete p._fiscalFiles;
+    }
   }
   root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,keyFromText,validAccessKey,readFiscal,consultationWindow,retrieveFiscalFiles,confirming:false};
 })(typeof window==='undefined'?globalThis:window);
