@@ -73,21 +73,40 @@
   const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
   const taxId=v=>String(v||'').replace(/\D/g,'');
   const receiptStub=items=>Array.isArray(items)&&items.length>0&&items.every(it=>/produtos constantes da nota fiscal|identifica[cç][aã]o e assinatura do recebedor/i.test(it.descricao||'')&&!(Number(it.valor_total)>0));
+  function validAccessKey(value){
+    const key=taxId(value);if(key.length!==44||!['55','65','57'].includes(key.slice(20,22)))return false;
+    let sum=0,weight=2;for(let i=42;i>=0;i--){sum+=Number(key[i])*weight;weight=weight===9?2:weight+1;}
+    const rest=sum%11;return Number(key[43])===(rest<2?0:11-rest);
+  }
+  function keyFromText(text){
+    const candidates=String(text).match(/\b(?:\d{4}[ \t]+){10}\d{4}\b|\b\d{44}\b/g)||[];
+    return candidates.map(taxId).find(validAccessKey)||'';
+  }
+  function identifyByKey(data,key){
+    return {...data,chave:key,cnpj:key.slice(6,20),doc:String(Number(key.slice(25,34))),serie:String(Number(key.slice(22,25))),tipo:key.slice(20,22)==='65'?'NFC-e':key.slice(20,22)==='57'?'CT-e':'NF-e'};
+  }
   async function readFiscal(file){
     if(ext(file)==='xml')return parseNFeXML(await file.text());
     if(ext(file)==='pdf'&&typeof extractPdfText==='function'){
       try{
         const text=await extractPdfText(file);
-        const local=parseNFFromText(text);
+        const key=keyFromText(text);
+        if(text.length>100&&!key&&/or[cç]amento/i.test(text)&&!/danfe/i.test(text))return null;
+        let local=parseNFFromText(text);
+        if(key){local=identifyByKey(local,key);const name=text.match(/RECEBEMOS DE\s*:?\s*(?:\d+\s+)?(.+?)\s+OS PRODUTOS/i);if(name)local.ben=name[1].trim();}
         // Some DANFEs place the ICMS base where other layouts show item discounts.
         if(Number(local.desconto)===0)for(const item of local.itens||[])item.desconto=0;
         const itemTotal=(local.itens||[]).reduce((sum,it)=>sum+(Number(it.valor_total)||0),0);
         const balanced=local.subtotal>0&&Math.abs(itemTotal-local.subtotal)<0.02&&Math.abs(itemTotal-(local.desconto||0)+(local.frete||0)-local.val)<0.02;
-        if(fiscalTypes.has(local.tipo)&&taxId(local.chave).length===44&&local.doc&&local.val>0&&balanced&&!receiptStub(local.itens))return local;
+        if(key&&local.doc&&local.val>0&&balanced&&!receiptStub(local.itens))return local;
         if(/or[cç]amento/i.test(text)&&!/danfe|nota fiscal|chave de acesso/i.test(text))return null;
       }catch(e){console.warn('Leitura local indisponivel:',e.message);}
     }
     const data=await readInvoiceWithAI(file);
+    if(data&&['NF-e','NFC-e','CT-e'].includes(data.tipo)){
+      if(!validAccessKey(data.chave))return null;
+      Object.assign(data,identifyByKey(data,taxId(data.chave)));
+    }
     if(data&&receiptStub(data.itens))data.itens=[];
     return data;
   }
@@ -124,13 +143,14 @@
     return patch;
   }
   async function enrichExisting(oid,p,files){
-    const warnings=[],notes=[];
+    const warnings=[],notes=[],nonFiscal=new Set();
     try{
       for(const file of [...files].sort((a,b)=>Number(ext(b)==='xml')-Number(ext(a)==='xml'))){
         if(ext(file)!=='xml'&&!visual(file))continue;
         try{
           const data=await readFiscal(file);
           if(data&&fiscalTypes.has(data.tipo)&&data.doc)notes.push({...data,sourceName:file.name});
+          else if(data===null)nonFiscal.add(file.name);
         }catch(e){warnings.push(file.name+': '+(e.message||String(e)).slice(0,120));}
       }
       if(!notes.length)return {warning:'Arquivos salvos, mas a leitura nao identificou uma NF com numero. Use Reler NF ou confira os dados manualmente.'};
@@ -153,11 +173,13 @@
       };
       const budget=/or[cç]amento|adiantamento|sem nota/i.test(row.nf_tipo||'');
       const primary=notes.find(n=>norm(n.doc)===norm(row.nf_num))||data;
-      const patch=blank(row.nf_num)||budget||norm(row.nf_num)===norm(primary.doc)?invoicePatch(row,primary):{};
-      if(budget){patch.nf_num=cleanImpDocNumber(primary.doc,primary.tipo);patch.nf_tipo=primary.tipo;}
+      const correctedPrimary=(row.docs_json||[]).some(d=>d.invoiceIdentity&&norm(d.invoiceIdentity.invoiceNumber)===norm(row.nf_num)&&(nonFiscal.has(d.name)||notes.some(n=>n.sourceName===d.name&&norm(n.doc)!==norm(row.nf_num))));
+      const patch=blank(row.nf_num)||budget||correctedPrimary||norm(row.nf_num)===norm(primary.doc)?invoicePatch(row,primary):{};
+      if(budget||correctedPrimary){patch.nf_num=cleanImpDocNumber(primary.doc,primary.tipo);patch.nf_tipo=primary.tipo;patch.emissao=primary.date||row.emissao;patch.chave=primary.chave||'';patch.itens_pag=primary.itens||[];}
       const sourceNames=new Set(notes.map(n=>n.sourceName));
       if(Array.isArray(row.docs_json)){
         const docs=row.docs_json.map(d=>{
+          if(!d.generatedBundle&&nonFiscal.has(d.name)&&d.invoiceIdentity){const clean={...d,kind:'ORCAMENTO'};delete clean.invoiceIdentity;return clean;}
           const note=notes.find(n=>n.sourceName===d.name);
           return !d.generatedBundle&&note?{...d,kind:ext(d)==='xml'?'XML':'NF',invoiceIdentity:identityFor(note),...(budget&&row.nf_num?{budgetReference:row.nf_num}:{})}:{...d};
         });
@@ -227,5 +249,5 @@
     if(result.data?.length!==payments.length)throw Error('Confirmacao de gravacao incompleta. Atualize a pagina antes de tentar novamente.');
     payments.forEach((p,i)=>{p.dbId=result.data[i].id;p._heavyLoaded=true;});
   }
-  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,confirming:false};
+  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,keyFromText,validAccessKey,readFiscal,confirming:false};
 })(typeof window==='undefined'?globalThis:window);
