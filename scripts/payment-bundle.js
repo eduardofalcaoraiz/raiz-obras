@@ -71,6 +71,16 @@
   const fiscalTypes=new Set(['NF-e','NFC-e','NFS-e','CT-e']);
   const blank=v=>v==null||String(v).trim()==='';
   const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
+  const taxId=v=>String(v||'').replace(/\D/g,'');
+  function identityDetails(p){
+    const identities=(p.docs||[]).filter(d=>!d.generatedBundle&&d.invoiceIdentity).map(d=>d.invoiceIdentity);
+    const unique=[...new Map(identities.map(x=>[x.issuerCnpj+':'+x.invoiceNumber,x])).values()];
+    return unique.map(x=>{
+      const different=x.status==='different';
+      const label=different?'CNPJs diferentes: pagamento e emissao da NF. Vinculo a conferir.':x.status==='matched'?'Mesmo CNPJ no pagamento e na NF.':'CNPJ incompleto: identificacao a conferir.';
+      return `<div style="grid-column:1/-1;font-size:14px;overflow-wrap:anywhere"><strong>${escHtml(label)}</strong><div>Beneficiario do pagamento: ${escHtml(x.payeeName)} | CNPJ: ${escHtml(x.payeeCnpj||'Nao identificado')}</div><div>Emitente da NF ${escHtml(x.invoiceNumber)}: ${escHtml(x.issuerName)} | CNPJ: ${escHtml(x.issuerCnpj||'Nao identificado')}</div></div>`;
+    }).join('');
+  }
   function invoicePatch(row,data){
     const patch={};
     const put=(column,value)=>{if(blank(row[column])&&!blank(value))patch[column]=value;};
@@ -101,11 +111,18 @@
       if(result.error)throw result.error;
       const row=result.data;
       if(!blank(row.nf_num)&&norm(row.nf_num)!==norm(data.doc))return {warning:'Arquivos salvos. O numero da NF difere do cadastro; revise antes de substituir.'};
-      if(row.ben&&data.ben&&norm(row.ben)!==norm(data.ben))return {warning:'Arquivos salvos. O fornecedor da NF difere do cadastro; confira a vinculacao.'};
+      const supplier=await db.from('fornecedores_cnpj').select('nome,cnpj').eq('nome',row.ben||'').maybeSingle();
+      if(supplier.error)throw supplier.error;
+      const payeeCnpj=taxId(supplier.data?.cnpj),issuerCnpj=taxId(data.cnpj);
+      const identified=payeeCnpj.length===14&&issuerCnpj.length===14;
+      const status=identified?(payeeCnpj===issuerCnpj?'matched':'different'):'unverified';
+      const identity={payeeName:row.ben||'',payeeCnpj,issuerName:status==='matched'?(supplier.data.nome||row.ben):(data.ben||''),issuerCnpj,invoiceNumber:String(data.doc),status};
+      if(status==='different')warnings.push('CNPJs diferentes: beneficiario do pagamento e emitente da NF foram mantidos separados. Vinculo a conferir.');
+      if(status==='unverified')warnings.push('CNPJ incompleto: confira o beneficiario e o emitente. Nenhum fornecedor foi substituido.');
       const patch=invoicePatch(row,data);
       const sourceNames=new Set(notes.map(n=>n.sourceName));
       if(Array.isArray(row.docs_json)){
-        const docs=row.docs_json.map(d=>sourceNames.has(d.name)&&ext(d)!=='xml'?{...d,kind:'NF'}:d);
+        const docs=row.docs_json.map(d=>sourceNames.has(d.name)?{...d,kind:ext(d)==='xml'?'XML':'NF',invoiceIdentity:identity}:{...d});
         for(const doc of docs){
           if(doc.generatedBundle&&doc.bundleSources?.some(key=>docs.some(d=>sourceNames.has(d.name)&&paymentDocKey(d)===key)))doc.kind='NF';
         }
@@ -170,6 +187,5 @@
     if(result.data?.length!==payments.length)throw Error('Confirmacao de gravacao incompleta. Atualize a pagina antes de tentar novamente.');
     payments.forEach((p,i)=>{p.dbId=result.data[i].id;p._heavyLoaded=true;});
   }
-  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,confirming:false};
+  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,confirming:false};
 })(typeof window==='undefined'?globalThis:window);
-
