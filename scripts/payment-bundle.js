@@ -65,7 +65,82 @@
     query=before.docs_json===null?query.is('docs_json',null):query.eq('docs_json',JSON.stringify(before.docs_json));
     query=before.nf_doc_path===null?query.is('nf_doc_path',null):query.eq('nf_doc_path',before.nf_doc_path);
     const saved=await query.select('id');if(saved.error)throw saved.error;if(!saved.data?.length)throw Error('Os anexos mudaram em outra sessao. Atualize a pagina e tente novamente.');
-    Object.assign(p,{docs:next.docs,nfDoc:next.nfDoc,compDoc:next.compDoc,_heavyLoaded:true});return next;
+    Object.assign(p,{docs:next.docs,nfDoc:next.nfDoc,compDoc:next.compDoc,_heavyLoaded:true});
+    next.invoiceRead=await enrichExisting(oid,p,files);return next;
+  }
+  const fiscalTypes=new Set(['NF-e','NFC-e','NFS-e','CT-e']);
+  const blank=v=>v==null||String(v).trim()==='';
+  const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
+  function invoicePatch(row,data){
+    const patch={};
+    const put=(column,value)=>{if(blank(row[column])&&!blank(value))patch[column]=value;};
+    // Financial totals, payer, due dates and paid status are never inferred here.
+    put('nf_num',cleanImpDocNumber(data.doc||'',data.tipo));
+    if(blank(row.nf_tipo)||['Sem nota','Adiantamento','ORÇAMENTO - COBRAR NF'].includes(row.nf_tipo))patch.nf_tipo=data.tipo;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(data.date||''))put('emissao',data.date);
+    put('chave',data.chave);
+    if((!row.itens_pag||Array.isArray(row.itens_pag)&&!row.itens_pag.length)&&Array.isArray(data.itens)&&data.itens.length)patch.itens_pag=data.itens;
+    return patch;
+  }
+  async function enrichExisting(oid,p,files){
+    const warnings=[],notes=[];
+    try{
+      for(const file of [...files].sort((a,b)=>Number(ext(b)==='xml')-Number(ext(a)==='xml'))){
+        if(ext(file)!=='xml'&&!visual(file))continue;
+        try{
+          const data=ext(file)==='xml'?parseNFeXML(await file.text()):await readInvoiceWithAI(file);
+          if(data&&fiscalTypes.has(data.tipo)&&data.doc)notes.push({...data,sourceName:file.name});
+        }catch(e){warnings.push(file.name+': '+(e.message||String(e)).slice(0,120));}
+      }
+      if(!notes.length)return {warning:'Arquivos salvos, mas a leitura nao identificou uma NF com numero. Use Reler NF ou confira os dados manualmente.'};
+      const identities=new Set(notes.map(n=>norm(n.tipo)+':'+norm(n.doc)+':'+norm(n.cnpj||n.ben)));
+      if(identities.size!==1)return {warning:'Arquivos salvos. Foram identificadas notas diferentes; confira os dados antes de atualizar o pagamento.'};
+      const data=notes[0];
+      // Re-read after OCR so edits made during the network request are preserved.
+      const result=await db.from('pagamentos').select('*').eq('id',p.dbId).eq('obra_id',oid).single();
+      if(result.error)throw result.error;
+      const row=result.data;
+      if(!blank(row.nf_num)&&norm(row.nf_num)!==norm(data.doc))return {warning:'Arquivos salvos. O numero da NF difere do cadastro; revise antes de substituir.'};
+      if(row.ben&&data.ben&&norm(row.ben)!==norm(data.ben))return {warning:'Arquivos salvos. O fornecedor da NF difere do cadastro; confira a vinculacao.'};
+      const patch=invoicePatch(row,data);
+      const sourceNames=new Set(notes.map(n=>n.sourceName));
+      if(Array.isArray(row.docs_json)){
+        const docs=row.docs_json.map(d=>sourceNames.has(d.name)&&ext(d)!=='xml'?{...d,kind:'NF'}:d);
+        for(const doc of docs){
+          if(doc.generatedBundle&&doc.bundleSources?.some(key=>docs.some(d=>sourceNames.has(d.name)&&paymentDocKey(d)===key)))doc.kind='NF';
+        }
+        if(JSON.stringify(docs)!==JSON.stringify(row.docs_json))patch.docs_json=docs;
+      }
+      if(Object.keys(patch).length){
+        let query=db.from('pagamentos').update(patch).eq('id',p.dbId).eq('obra_id',oid);
+        // Compare all source fields, including identity, to reject concurrent edits.
+        for(const column of new Set([...Object.keys(patch),'ben','nf_num'])){
+          const value=row[column];
+          query=value==null?query.is(column,null):query.eq(column,Array.isArray(value)?JSON.stringify(value):value);
+        }
+        const saved=await query.select('id');if(saved.error)throw saved.error;
+        if(!saved.data?.length)throw Error('O cadastro mudou durante a leitura. Use Reler NF para tentar novamente.');
+        const mapping={nf_num:'nfNum',nf_tipo:'nfTipo',emissao:'emissao',chave:'chave',itens_pag:'itens',docs_json:'docs'};
+        for(const [column,value] of Object.entries(patch))p[mapping[column]]=value;
+        if(patch.docs_json)hydratePaymentDocs(p);
+      }
+      if(data.val&&Math.abs(Number(row.v)-Number(data.val))>0.01)warnings.push('O total da NF difere do valor do pagamento; o valor cadastrado foi preservado.');
+      if(!data.date||!data.itens?.length)warnings.push('A leitura ficou parcial; confira emissao e itens.');
+      return {updated:Object.keys(patch).length,warning:warnings.join(' ')};
+    }catch(e){return {warning:'Anexos preservados; dados fiscais nao atualizados: '+(e.message||String(e)).slice(0,180)};}
+  }
+  function reportRead(result){toast(result?.warning||'NF lida. Dados fiscais conferidos; campos existentes e valores preservados.');}
+  async function reprocess(oid,i){
+    if(!AccessControl.canEdit()){toast('Sem permissao para atualizar.');return;}
+    const p=obras.find(o=>+o.id===+oid)?.pag?.[i];if(!p?.dbId)return;
+    const key=oid+':'+p.dbId;if(locks.has(key)){toast('Leitura em andamento.');return;}locks.add(key);
+    try{
+      toast('Lendo os documentos fiscais anexados...');await ensurePaymentHeavyFields(p);
+      const docs=paymentAllDocs(p).filter(d=>!d.generatedBundle&&!paymentIsProofDoc(d)&&(ext(d)==='xml'||visual(d)));
+      const files=[];for(const d of docs)files.push(await readDoc(d));
+      const result=await enrichExisting(oid,p,files);if(cur&&+cur.id===+oid)renderObra();reportRead(result);
+    }catch(e){toast('Nao foi possivel reler a NF: '+(e.message||String(e)).slice(0,160));}
+    finally{locks.delete(key);}
   }
   function attach(oid,i){
     if(!AccessControl.canEdit()){toast('Sem permissao para anexar.');return;}
@@ -73,7 +148,7 @@
     const key=oid+':'+(p.dbId||i);if(locks.has(key)){toast('Envio em andamento.');return;}
     const input=document.createElement('input');input.type='file';input.multiple=true;input.accept='.pdf,.xml,.png,.jpg,.jpeg,.webp';
     input.onchange=async()=>{if(!input.files.length)return;locks.add(key);toast('Salvando originais e reunindo nota e boleto...');
-      try{await saveExisting(oid,p,Array.from(input.files));if(cur&&+cur.id===+oid)renderObra();toast('Anexos salvos. PDF disponivel para visualizar e baixar.');}
+      try{const result=await saveExisting(oid,p,Array.from(input.files));if(cur&&+cur.id===+oid)renderObra();reportRead(result.invoiceRead);}
       catch(e){toast('Anexos nao confirmados: '+(e.message||String(e)).slice(0,180));}
       finally{locks.delete(key);input.remove();}
     };input.click();
@@ -95,5 +170,6 @@
     if(result.data?.length!==payments.length)throw Error('Confirmacao de gravacao incompleta. Atualize a pagina antes de tentar novamente.');
     payments.forEach((p,i)=>{p.dbId=result.data[i].id;p._heavyLoaded=true;});
   }
-  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,confirming:false};
+  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,confirming:false};
 })(typeof window==='undefined'?globalThis:window);
+
