@@ -89,16 +89,25 @@
     if(data&&receiptStub(data.itens))data.itens=[];
     return data;
   }
-  function identityDetails(p){
+  function invoiceKey(x){return taxId(x.accessKey).length===44?taxId(x.accessKey):[taxId(x.issuerCnpj),norm(x.type||'NF-e'),norm(x.series),norm(String(x.invoiceNumber).replace(/^0+/,''))].join(':');}
+  function invoices(p){
     const identities=(p.docs||[]).filter(d=>!d.generatedBundle&&d.invoiceIdentity).map(d=>d.invoiceIdentity);
-    const unique=[...new Map(identities.map(x=>[x.issuerCnpj+':'+x.invoiceNumber,x])).values()];
-    return unique.map(x=>{
+    const unique=new Map();
+    for(const x of identities){const key=invoiceKey(x),old=unique.get(key);if(!old||(x.items?.length||0)>(old.items?.length||0))unique.set(key,x);}
+    return [...unique.values()];
+  }
+  function identityDetails(p){
+    const unique=invoices(p),money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const summary=unique.length>1?`<div style="grid-column:1/-1"><strong>${unique.length} notas fiscais | Total das notas: ${money(unique.reduce((s,x)=>s+(Number(x.total)||0),0))}</strong></div>`:'';
+    return summary+unique.map(x=>{
       const different=x.status==='different';
       const label=different?'CNPJs diferentes: pagamento e emissao da NF. Vinculo a conferir.':x.status==='matched'?'Mesmo CNPJ no pagamento e na NF.':'CNPJ incompleto: identificacao a conferir.';
       const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
       const formatted=v=>taxId(v).length===14?taxId(v).replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):'Nao identificado';
       const totals=x.subtotal>0?`<div>Produtos: ${money(x.subtotal)} | Desconto: ${money(x.discount)} | Frete: ${money(x.freight)} | Total da NF: ${money(x.total)}</div>`:'';
-      return `<div style="grid-column:1/-1;font-size:14px;overflow-wrap:anywhere"><strong>${escHtml(label)}</strong><div>Beneficiario do pagamento: ${escHtml(x.payeeName)} | CNPJ: ${formatted(x.payeeCnpj)}</div><div>Emitente da NF ${escHtml(x.invoiceNumber)}: ${escHtml(x.issuerName)} | CNPJ: ${formatted(x.issuerCnpj)}</div>${totals}</div>`;
+      const date=/^\d{4}-\d{2}-\d{2}$/.test(x.date||'')?x.date.split('-').reverse().join('/'):'Nao identificada';
+      const items=Array.isArray(x.items)&&x.items.length?`<div style="overflow-x:auto;margin-top:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th style="text-align:left">Itens da NF ${escHtml(x.invoiceNumber)}</th><th>Qtd.</th><th>Un.</th><th style="text-align:right">Total</th></tr></thead><tbody>${x.items.map(it=>`<tr><td style="padding:5px 0;border-top:1px solid #ddd">${escHtml(it.descricao||'')}</td><td style="text-align:center">${escHtml(String(it.quantidade??''))}</td><td style="text-align:center">${escHtml(it.unidade||'')}</td><td style="text-align:right;white-space:nowrap">${money(it.valor_total)}</td></tr>`).join('')}</tbody></table></div>`:'';
+      return `<section style="grid-column:1/-1;font-size:14px;min-width:0;border-top:1px solid #ddd;padding-top:10px"><strong>${escHtml(x.type||'NF')} ${escHtml(x.invoiceNumber)} | Emissao: ${date} | ${money(x.total)}</strong><div>${escHtml(label)}</div><div>Beneficiario do pagamento: ${escHtml(x.payeeName)} | CNPJ: ${formatted(x.payeeCnpj)}</div><div>Emitente: ${escHtml(x.issuerName)} | CNPJ: ${formatted(x.issuerCnpj)}</div>${totals}${items}</section>`;
     }).join('');
   }
   function invoicePatch(row,data){
@@ -123,26 +132,33 @@
         }catch(e){warnings.push(file.name+': '+(e.message||String(e)).slice(0,120));}
       }
       if(!notes.length)return {warning:'Arquivos salvos, mas a leitura nao identificou uma NF com numero. Use Reler NF ou confira os dados manualmente.'};
-      const identities=new Set(notes.map(n=>norm(n.tipo)+':'+norm(n.doc)+':'+norm(n.cnpj||n.ben)));
-      if(identities.size!==1)return {warning:'Arquivos salvos. Foram identificadas notas diferentes; confira os dados antes de atualizar o pagamento.'};
       const data=notes[0];
       // Re-read after OCR so edits made during the network request are preserved.
       const result=await db.from('pagamentos').select('*').eq('id',p.dbId).eq('obra_id',oid).single();
       if(result.error)throw result.error;
       const row=result.data;
-      if(!blank(row.nf_num)&&norm(row.nf_num)!==norm(data.doc))return {warning:'Arquivos salvos. O numero da NF difere do cadastro; revise antes de substituir.'};
       const supplier=await db.from('fornecedores_cnpj').select('nome,cnpj').eq('nome',row.ben||'').maybeSingle();
       if(supplier.error)throw supplier.error;
-      const payeeCnpj=taxId(supplier.data?.cnpj),issuerCnpj=taxId(data.cnpj);
+      const payeeCnpj=taxId(supplier.data?.cnpj);
+      const identityFor=data=>{
+      const issuerCnpj=taxId(data.cnpj);
       const identified=payeeCnpj.length===14&&issuerCnpj.length===14;
       const status=identified?(payeeCnpj===issuerCnpj?'matched':'different'):'unverified';
-      const identity={payeeName:row.ben||'',payeeCnpj,issuerName:status==='matched'?(supplier.data.nome||row.ben):(data.ben||''),issuerCnpj,invoiceNumber:String(data.doc),status,subtotal:Number(data.subtotal)||0,discount:Number(data.desconto)||0,freight:Number(data.frete)||0,total:Number(data.val)||0};
+      const identity={payeeName:row.ben||'',payeeCnpj,issuerName:status==='matched'?(supplier.data.nome||row.ben):(data.ben||''),issuerCnpj,invoiceNumber:String(data.doc),type:data.tipo,series:data.serie||'',accessKey:data.chave||'',date:data.date||'',items:Array.isArray(data.itens)?data.itens:[],status,subtotal:Number(data.subtotal)||0,discount:Number(data.desconto)||0,freight:Number(data.frete)||0,total:Number(data.val)||0};
       if(status==='different')warnings.push('CNPJs diferentes: beneficiario do pagamento e emitente da NF foram mantidos separados. Vinculo a conferir.');
       if(status==='unverified')warnings.push('CNPJ incompleto: confira o beneficiario e o emitente. Nenhum fornecedor foi substituido.');
-      const patch=invoicePatch(row,data);
+      return identity;
+      };
+      const budget=/or[cç]amento|adiantamento|sem nota/i.test(row.nf_tipo||'');
+      const primary=notes.find(n=>norm(n.doc)===norm(row.nf_num))||data;
+      const patch=blank(row.nf_num)||budget||norm(row.nf_num)===norm(primary.doc)?invoicePatch(row,primary):{};
+      if(budget){patch.nf_num=cleanImpDocNumber(primary.doc,primary.tipo);patch.nf_tipo=primary.tipo;}
       const sourceNames=new Set(notes.map(n=>n.sourceName));
       if(Array.isArray(row.docs_json)){
-        const docs=row.docs_json.map(d=>sourceNames.has(d.name)?{...d,kind:ext(d)==='xml'?'XML':'NF',invoiceIdentity:identity}:{...d});
+        const docs=row.docs_json.map(d=>{
+          const note=notes.find(n=>n.sourceName===d.name);
+          return !d.generatedBundle&&note?{...d,kind:ext(d)==='xml'?'XML':'NF',invoiceIdentity:identityFor(note),...(budget&&row.nf_num?{budgetReference:row.nf_num}:{})}:{...d};
+        });
         for(const doc of docs){
           if(doc.generatedBundle&&doc.bundleSources?.some(key=>docs.some(d=>sourceNames.has(d.name)&&paymentDocKey(d)===key)))doc.kind='NF';
         }
@@ -161,8 +177,10 @@
         for(const [column,value] of Object.entries(patch))p[mapping[column]]=value;
         if(patch.docs_json)hydratePaymentDocs(p);
       }
-      if(data.val&&Math.abs(Number(row.v)-Number(data.val))>0.01)warnings.push('O total da NF difere do valor do pagamento; o valor cadastrado foi preservado.');
-      if(!data.date||!data.itens?.length)warnings.push('A leitura ficou parcial; confira emissao e itens.');
+      const all=invoices({docs:patch.docs_json||row.docs_json||[]});
+      const total=all.length?all.reduce((s,n)=>s+n.total,0):Number(data.val);
+      if(total&&Math.abs(Number(row.v)-total)>0.01)warnings.push('O total das notas difere do valor do pagamento; o valor cadastrado foi preservado.');
+      if(notes.some(n=>!n.date||!n.itens?.length))warnings.push('A leitura ficou parcial; confira emissao e itens.');
       return {updated:Object.keys(patch).length,warning:warnings.join(' ')};
     }catch(e){return {warning:'Anexos preservados; dados fiscais nao atualizados: '+(e.message||String(e)).slice(0,180)};}
   }
@@ -174,7 +192,6 @@
     try{
       toast('Lendo os documentos fiscais anexados...');await ensurePaymentHeavyFields(p);
       let docs=paymentAllDocs(p).filter(d=>!d.generatedBundle&&!paymentIsProofDoc(d)&&(ext(d)==='xml'||visual(d)));
-      if(docs.some(d=>d.invoiceIdentity||ext(d)==='xml'))docs=docs.filter(d=>d.invoiceIdentity||paymentDocKindLabel(d)!=='ORCAMENTO');
       const files=[];for(const d of docs)files.push(await readDoc(d));
       const result=await enrichExisting(oid,p,files);if(cur&&+cur.id===+oid)renderObra();reportRead(result);
     }catch(e){toast('Nao foi possivel reler a NF: '+(e.message||String(e)).slice(0,160));}
@@ -208,5 +225,5 @@
     if(result.data?.length!==payments.length)throw Error('Confirmacao de gravacao incompleta. Atualize a pagina antes de tentar novamente.');
     payments.forEach((p,i)=>{p.dbId=result.data[i].id;p._heavyLoaded=true;});
   }
-  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,confirming:false};
+  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,confirming:false};
 })(typeof window==='undefined'?globalThis:window);
