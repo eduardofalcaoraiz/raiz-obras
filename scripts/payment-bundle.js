@@ -193,6 +193,8 @@
         }catch(e){warnings.push(file.name+': '+(e.message||String(e)).slice(0,120));}
       }
       if(!notes.length)return {warning:'Arquivos salvos, mas a leitura nao identificou uma NF com numero. Use Reler NF ou confira os dados manualmente.'};
+      const xmlNotes=new Map(notes.filter(n=>ext({name:n.sourceName})==='xml'&&validAccessKey(n.chave)).map(n=>[taxId(n.chave),n]));
+      for(const note of notes){const xml=xmlNotes.get(taxId(note.chave));if(xml)Object.assign(note,xml,{sourceName:note.sourceName,xmlStatus:'Dados conferidos pelo XML anexado'});}
       const data=notes[0];
       // Re-read after OCR so edits made during the network request are preserved.
       const result=await db.from('pagamentos').select('*').eq('id',p.dbId).eq('obra_id',oid).single();
