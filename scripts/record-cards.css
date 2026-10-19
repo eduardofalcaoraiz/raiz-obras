@@ -253,6 +253,11 @@
 #app>.main :is(.capex-unit-stat,.capex-brand-stat,.capex-year-mini) b{white-space:nowrap}
 #app>.main .re-property-address{margin-bottom:8px;white-space:normal}
 #app>.main .re-property-owner{margin-bottom:8px;gap:2px}
+#app>.main .re-property-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:16px}
+#app>.main .re-property-card-facts{grid-template-columns:minmax(0,1fr) max-content;gap:10px}
+#app>.main .re-property-card-facts span{overflow-wrap:break-word;word-break:normal}
+#app>.main .pgrid>.obra-card.obra-card .obra-card-heading{gap:4px}
+#app>.main .pgrid>.obra-card.obra-card .obra-card-status{margin-top:4px}
 @media(max-width:600px){
   #app>.main .pgrid>.obra-card.obra-card .obra-card-contract strong{font-size:22px!important}
   #app>.main .party-values{grid-template-columns:repeat(auto-fit,minmax(125px,1fr))}
