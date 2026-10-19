@@ -216,6 +216,27 @@
   #app>.main :is(.capex-brand-card,.capex-unit-card,.capex-year-card,.capex-expander-card,.obra-card,.re-property-card,.re-evidence-doc,.party-card){transition:none}
 }
 /* Compact records, with wrapping at word boundaries instead of arbitrary breaks. */
+#app>.main .pgrid:has(>.capex-brand-card),#app>.main .pgrid:has(>.capex-unit-card){grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:16px}
+#app>.main :is(.capex-brand-head,.capex-unit-head){grid-template-columns:80px minmax(0,1fr);gap:10px;padding-block:10px}
+#app>.main .capex-brand-logo{width:80px;height:58px;padding:3px}
+#app>.main :is(.capex-brand-tags,.capex-unit-tags){gap:4px 8px}
+#app>.main :is(.capex-brand-tag,.capex-unit-tag){padding:2px 4px;white-space:nowrap}
+#app>.main :is(.capex-brand-body,.capex-unit-body){gap:6px;align-content:start}
+#app>.main :is(.capex-brand-balance,.capex-unit-balance,.capex-year-balance){padding:4px 0;gap:8px;flex-wrap:wrap}
+#app>.main :is(.capex-brand-balance,.capex-unit-balance,.capex-year-balance) strong{font-size:22px;line-height:1.2;font-weight:700;white-space:nowrap}
+#app>.main :is(.capex-brand-stat,.capex-unit-stat,.capex-year-mini){padding:4px 0}
+#app>.main :is(.capex-brand-progress,.capex-unit-progress,.capex-year-statusline){gap:4px}
+#app>.main :is(.capex-brand-progress,.capex-unit-progress,.capex-year-statusline) .row{gap:6px;flex-wrap:wrap;font-weight:600;line-height:1.35}
+#app>.main :is(.capex-brand-progress,.capex-unit-progress,.capex-year-statusline) .row b{white-space:nowrap}
+#app>.main :is(.capex-brand-card,.capex-unit-card,.capex-year-card) .capex-status-track{height:8px;margin:4px 0}
+#app>.main :is(.capex-brand-footer,.capex-unit-footer,.capex-year-footer){padding:8px 14px 10px 16px;font-weight:650}
+#app>.main .capex-year-card{min-height:0}
+#app>.main .capex-year-hero{gap:8px;padding-block:10px}
+#app>.main .capex-year-number{font-size:32px;line-height:1.1}
+#app>.main .capex-year-percent{padding:5px 8px}
+#app>.main .capex-year-main{padding:10px 16px;gap:8px;align-content:start}
+#app>.main .capex-year-caption{margin-top:4px}
+#app>.main .capex-year-facts span{padding:5px 8px}
 #app>.main :is(.obra-card,.capex-brand-card,.capex-unit-card,.re-property-card,.party-card) :is(h2,h3,.capex-brand-title,.capex-unit-title,.obra-card-builder,.party-title,.re-property-address,.re-property-owner){
   word-break:normal;overflow-wrap:break-word;white-space:normal;text-wrap:wrap;hyphens:none;
 }
