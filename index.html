@@ -16815,7 +16815,8 @@ async function markPaymentPaid(oid,i){
   const raw=prompt('Data do pagamento (DD/MM/AAAA):',fmtD(new Date().toLocaleDateString('sv-SE')));
   if(raw===null)return;
   const dt=normalizeDateISO(raw.trim());
-  if(!dt||!/^\d{4}-\d{2}-\d{2}$/.test(dt)||new Date(dt+'T12:00:00Z').toISOString().slice(0,10)!==dt){toast('Informe uma data valida.');return;}
+  const parsed=new Date(dt+'T12:00:00Z');
+  if(!dt||!/^\d{4}-\d{2}-\d{2}$/.test(dt)||!Number.isFinite(parsed.getTime())||parsed.toISOString().slice(0,10)!==dt){toast('Informe uma data valida.');return;}
   const old={st:p.st,pagaEm:p.pagaEm};p.st='PAGO';p.pagaEm=dt;
   if(!await persist(oid)){Object.assign(p,old);sincronizaPagoObra(o);return;}
   if(cur?.id===oid)renderObra();renderCobranca();updateNavBadge();toast('Pago em '+fmtD(dt));
