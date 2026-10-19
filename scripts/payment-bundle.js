@@ -129,6 +129,7 @@
   }
   async function readFiscal(file){
     if(ext(file)==='xml')return parseNFeXML(await file.text());
+    let keyedFallback=null;
     if(ext(file)==='pdf'&&typeof extractPdfText==='function'){
       try{
         const text=await extractPdfText(file);
@@ -141,12 +142,16 @@
         const itemTotal=(local.itens||[]).reduce((sum,it)=>sum+(Number(it.valor_total)||0),0);
         const balanced=local.subtotal>0&&Math.abs(itemTotal-local.subtotal)<0.02&&Math.abs(itemTotal-(local.desconto||0)+(local.frete||0)-local.val)<0.02;
         if(key&&local.doc&&local.val>0&&balanced&&!receiptStub(local.itens))return local;
+        if(key&&local.doc&&local.val>0)keyedFallback={...local,itens:[],xmlStatus:'Itens pendentes de conferencia; identificacao extraida da chave de acesso'};
         if(/or[cç]amento/i.test(text)&&!/danfe|nota fiscal|chave de acesso/i.test(text))return null;
       }catch(e){console.warn('Leitura local indisponivel:',e.message);}
     }
-    const data=await readInvoiceWithAI(file);
+    let timer,data;
+    try{data=await Promise.race([readInvoiceWithAI(file),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Tempo limite de leitura da nota.')),40000);})]);}
+    catch(e){if(keyedFallback)return keyedFallback;throw e;}
+    finally{clearTimeout(timer);}
     if(data&&['NF-e','NFC-e','CT-e'].includes(data.tipo)){
-      if(!validAccessKey(data.chave))return null;
+      if(!validAccessKey(data.chave))return keyedFallback;
       Object.assign(data,identifyByKey(data,taxId(data.chave)));
     }
     if(data&&receiptStub(data.itens))data.itens=[];
@@ -297,6 +302,10 @@
     for(const p of payments){
       if(p._fiscalFiles?.length)p.invoiceRead=await enrichExisting(oid,p,p._fiscalFiles);
       delete p._fiscalFiles;
+      if(typeof paymentSnapshot==='function'){
+        const fresh=await db.from('pagamentos').select('*').eq('id',p.dbId).single();
+        if(!fresh.error&&fresh.data)paymentSnapshot({id:oid},p,fresh.data);
+      }
     }
   }
   root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,keyFromText,validAccessKey,readFiscal,consultationWindow,retrieveFiscalFiles,confirming:false};
