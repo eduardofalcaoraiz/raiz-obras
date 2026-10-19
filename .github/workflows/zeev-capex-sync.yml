@@ -102,6 +102,9 @@ jobs:
       - name: Verify bundled Python runtime
         run: python3 --version
 
+      - name: Validate Zeev access error handling
+        run: python3 -m unittest scripts.test_zeev_gateway_block
+
       - name: Sync Zeev CAPEX
         env:
           ZEEV_TOKEN: ${{ secrets.ZEEV_TOKEN }}
