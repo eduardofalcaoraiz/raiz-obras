@@ -48,12 +48,19 @@
       selected.push({doc,file:f});
     }
     const sources=next.docs.filter(eligible).sort((a,b)=>Number(charge(a))-Number(charge(b)));
+    try{
     const input=[];for(const d of sources)input.push(selected.find(s=>s.doc===d)?.file||await readDoc(d));
     if(input.length){
       const kind=sources.some(d=>paymentDocKindLabel(d)==='NF')?'NF':sources.some(d=>paymentDocKindLabel(d)==='ORCAMENTO')?'ORCAMENTO':paymentDocKindLabel(sources[0]);
       const pdf=await merge(input),merged=new File([pdf],kind==='ORCAMENTO'?'Orcamento-e-boleto.pdf':kind==='BOLETO'?'Boletos.pdf':pdf.name,{type:'application/pdf'}),storagePath=await uploadPagDoc(oid,merged,'nota-boleto');
       const bundle={name:merged.name,type:'application/pdf',bucket:'pagamentos',kind,storagePath,generatedBundle:true,bundleSources:sources.map(paymentDocKey)};
       next.docs=next.docs.filter(d=>!d.generatedBundle);next.docs.push(bundle);next.nfDoc=bundle;
+    }
+    }catch(e){
+      // A derived preview must never prevent original attachments from being saved.
+      next.docs=next.docs.filter(d=>!d.generatedBundle);
+      next.nfDoc=sources[0]||null;
+      next.bundleWarning='Originais salvos separadamente. '+(/encrypt|password/i.test(e.message||'')?'Um PDF esta protegido e nao pode ser combinado.':'Nao foi possivel gerar o PDF combinado.')+' Use a lista de arquivos para visualizar ou baixar cada anexo.';
     }
     next._fiscalFiles=selected.map(s=>s.file);
     next._heavyLoaded=true;hydratePaymentDocs(next);return next;
@@ -67,7 +74,9 @@
     query=before.nf_doc_path===null?query.is('nf_doc_path',null):query.eq('nf_doc_path',before.nf_doc_path);
     const saved=await query.select('id');if(saved.error)throw saved.error;if(!saved.data?.length)throw Error('Os anexos mudaram em outra sessao. Atualize a pagina e tente novamente.');
     Object.assign(p,{docs:next.docs,nfDoc:next.nfDoc,compDoc:next.compDoc,_heavyLoaded:true});
-    next.invoiceRead=await enrichExisting(oid,p,files);return next;
+    next.invoiceRead=await enrichExisting(oid,p,files);
+    if(next.bundleWarning)next.invoiceRead.warning=[next.bundleWarning,next.invoiceRead.warning].filter(Boolean).join(' ');
+    return next;
   }
   const fiscalTypes=new Set(['NF-e','NFC-e','NFS-e','CT-e']);
   const blank=v=>v==null||String(v).trim()==='';
@@ -291,7 +300,7 @@
       if(sources.length===1){await viewFile(sources[0]);return;}
       toast('Reunindo nota e boleto para visualizacao...');const files=[];for(const d of sources)files.push(await readDoc(d));
       const pdf=await merge(files);if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=URL.createObjectURL(pdf);await viewFile({name:pdf.name,type:pdf.type,dataUrl:previewUrl});
-    }catch(e){toast('Nao foi possivel abrir os anexos: '+(e.message||String(e)).slice(0,160));}
+    }catch(e){toast('PDF combinado indisponivel. Abra ou baixe os originais na lista de arquivos.');await openPaymentDocsModal(oid,i);}
   }
   async function insert(oid,payments){
     const rows=payments.map(p=>({obra_id:oid,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:cleanImpDocNumber(p.nfNum||'',p.nfTipo||''),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',docs_json:paymentAllDocs(p),emissao:p.emissao||'',paga_em:p.pagaEm||'',escopo_fin:p.escopoFin||'obra',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null,construtora_seq:p.construtora_seq||null,ticket_raiz:p.ticketRaiz||'',compra_vinculada_json:paymentCompraLink(p)}));
