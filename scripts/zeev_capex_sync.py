@@ -553,6 +553,29 @@ def payment_payload(fields, financeiro, valor):
     }
 
 
+class ZeevAccessBlocked(RuntimeError):
+    """An explicit gateway denial must not be hidden as an empty/successful sync."""
+
+
+def same_api_origin(url, base):
+    try:
+        target, expected = urllib.parse.urlsplit(str(url)), urllib.parse.urlsplit(str(base))
+        return (
+            target.scheme == expected.scheme
+            and target.hostname == expected.hostname
+            and (target.port or (443 if target.scheme == "https" else 80))
+            == (expected.port or (443 if expected.scheme == "https" else 80))
+            and not target.username
+            and not target.password
+        )
+    except ValueError:
+        return False
+
+
+def zeev_gateway_block(status, text):
+    return status == 403 and bool(re.search(r"the request is blocked", str(text), re.I))
+
+
 def request_json(method, url, headers=None, payload=None, timeout=60, retries=3):
     body = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
     merged = {
@@ -561,11 +584,11 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
         "User-Agent": "ObrasRealEstate/1.0 (+https://raiz-obras.vercel.app)",
         **(headers or {}),
     }
-    is_zeev = str(url).startswith(ZEEV_BASE_URL) and (bool(zeev_tokens()) or bool(merged.get("Authorization")))
+    is_zeev = same_api_origin(url, ZEEV_BASE_URL) and (bool(zeev_tokens()) or bool(merged.get("Authorization")))
     # This Zeev tenant returns HTTP 500 without an explicit request language.
     if is_zeev and not any(key.lower() == "accept-language" for key in merged):
         merged["Accept-Language"] = ZEEV_ACCEPT_LANGUAGE
-    is_supabase = str(url).startswith(SUPABASE_URL)
+    is_supabase = same_api_origin(url, SUPABASE_URL)
     requested_fields = is_zeev and zeev_fields_requested(url, payload)
     merge_token_rows = is_zeev and requested_fields and str(url).rstrip("/").endswith("/api/2/instances/report")
     token_candidates = [t for t in zeev_tokens() if t and t not in BAD_ZEEV_TOKENS] if is_zeev else [None]
@@ -610,6 +633,14 @@ def request_json(method, url, headers=None, payload=None, timeout=60, retries=3)
                 except urllib.error.HTTPError as exc:
                     raw = exc.read()
                     text = decode_http_text(raw, exc.headers.get("Content-Type", ""))
+                    if is_zeev and zeev_gateway_block(exc.code, text):
+                        path = urllib.parse.urlsplit(url).path
+                        raise ZeevAccessBlocked(
+                            f"Zeev HTTP 403: gateway bloqueou {method} {path}. "
+                            "A consulta nao foi realizada; nenhum resultado vazio foi assumido. "
+                            "O bloqueio nao comprova token invalido. Verifique a politica de acesso "
+                            "do Zeev para o executor autorizado antes de repetir."
+                        )
                     suffix = f" [{auth_label}]" if is_zeev else ""
                     last_error = RuntimeError(f"{method} {url}{suffix} -> HTTP {exc.code}: {text}")
                     if is_zeev and exc.code in (401, 403):
