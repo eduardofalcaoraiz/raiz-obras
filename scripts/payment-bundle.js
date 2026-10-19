@@ -173,7 +173,8 @@
     const key=oid+':'+p.dbId;if(locks.has(key)){toast('Leitura em andamento.');return;}locks.add(key);
     try{
       toast('Lendo os documentos fiscais anexados...');await ensurePaymentHeavyFields(p);
-      const docs=paymentAllDocs(p).filter(d=>!d.generatedBundle&&!paymentIsProofDoc(d)&&(ext(d)==='xml'||visual(d)));
+      let docs=paymentAllDocs(p).filter(d=>!d.generatedBundle&&!paymentIsProofDoc(d)&&(ext(d)==='xml'||visual(d)));
+      if(docs.some(d=>d.invoiceIdentity||ext(d)==='xml'))docs=docs.filter(d=>d.invoiceIdentity||paymentDocKindLabel(d)!=='ORCAMENTO');
       const files=[];for(const d of docs)files.push(await readDoc(d));
       const result=await enrichExisting(oid,p,files);if(cur&&+cur.id===+oid)renderObra();reportRead(result);
     }catch(e){toast('Nao foi possivel reler a NF: '+(e.message||String(e)).slice(0,160));}
