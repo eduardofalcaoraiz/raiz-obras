@@ -85,6 +85,45 @@
   function identifyByKey(data,key){
     return {...data,chave:key,cnpj:key.slice(6,20),doc:String(Number(key.slice(25,34))),serie:String(Number(key.slice(22,25))),tipo:key.slice(20,22)==='65'?'NFC-e':key.slice(20,22)==='57'?'CT-e':'NF-e'};
   }
+  function consultationWindow(key,now=new Date()){
+    const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
+    const current=Number(parts.year)*12+Number(parts.month)-1,issued=(2000+Number(key.slice(2,4)))*12+Number(key.slice(4,6))-1;
+    return issued===current||(Number(parts.day)<15&&issued===current-1);
+  }
+  async function retrieveFiscalFiles(oid,notes,existing,warnings){
+    const documents=[],seen=new Set();
+    for(const note of notes){
+      const key=taxId(note.chave);
+      if(!validAccessKey(key)||key.slice(20,22)!=='55'||seen.has(key))continue;seen.add(key);
+      if(existing.some(d=>ext(d)==='xml'&&(d.accessKey===key||d.invoiceIdentity?.accessKey===key))||notes.some(n=>ext({name:n.sourceName})==='xml'&&taxId(n.chave)===key))continue;
+      if(!consultationWindow(key)){note.xmlStatus='Fora da janela de consulta gratuita';continue;}
+      try{
+        const response=await fetch('https://consultadanfe.com/api/v1/consulta',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chave:key,format:'json'}),signal:AbortSignal.timeout(20000)});
+        if(!response.ok)throw Error(response.status===429?'Limite do servico atingido; tente mais tarde':'Consulta indisponivel (HTTP '+response.status+')');
+        const result=await response.json();
+        if(result.status!=='ok'||result.chave!==key||!result.xml_base64)throw Error('XML nao retornado para esta chave');
+        const decode=value=>{if(typeof value!=='string'||value.length>8*1024*1024)throw Error('Arquivo fora do limite');return Uint8Array.from(atob(value),c=>c.charCodeAt(0));};
+        const xmlBytes=decode(result.xml_base64),xmlText=new TextDecoder().decode(xmlBytes);
+        if(/<!DOCTYPE|<!ENTITY/i.test(xmlText))throw Error('XML com declaracao nao permitida');
+        const parsed=parseNFeXML(xmlText);
+        if(!parsed||taxId(parsed.chave)!==key||taxId(parsed.cnpj)!==key.slice(6,20)||!(Number(parsed.val)>0))throw Error('XML divergente da chave consultada');
+        const xml=new File([xmlBytes],'NF-'+Number(key.slice(25,34))+'-'+key+'.xml',{type:'application/xml'});
+        const storagePath=await uploadPagDoc(oid,xml,'xml');
+        const xmlDoc={name:xml.name,type:xml.type,size:xml.size,storagePath,bucket:'pagamentos',kind:'XML',accessKey:key,source:'consultadanfe.com',retrievedAt:new Date().toISOString()};
+        documents.push(xmlDoc);
+        for(const n of notes)if(taxId(n.chave)===key)Object.assign(n,parsed,{xmlStatus:'XML obtido no Consulta DANFE'});
+        notes.push({...parsed,sourceName:xml.name,xmlStatus:'XML obtido no Consulta DANFE'});
+        if(result.pdf_base64&&!existing.some(d=>d.source==='consultadanfe.com'&&d.accessKey===key&&ext(d)==='pdf')){
+          const bytes=decode(result.pdf_base64);
+          if(new TextDecoder().decode(bytes.slice(0,5))!=='%PDF-')throw Error('PDF retornado em formato invalido');
+          const pdf=new File([bytes],'DANFE-'+Number(key.slice(25,34))+'-'+key+'.pdf',{type:'application/pdf'});
+          const path=await uploadPagDoc(oid,pdf,'nf');documents.push({name:pdf.name,type:pdf.type,size:pdf.size,storagePath:path,bucket:'pagamentos',kind:'NF',accessKey:key,source:'consultadanfe.com',retrievedAt:new Date().toISOString()});
+          notes.push({...parsed,sourceName:pdf.name,xmlStatus:'XML obtido no Consulta DANFE'});
+        }
+      }catch(e){note.xmlStatus='XML nao obtido';warnings.push('NF '+note.doc+': '+(e.message||'Falha na consulta XML')+'. Leitura do anexo preservada.');}
+    }
+    return documents;
+  }
   async function readFiscal(file){
     if(ext(file)==='xml')return parseNFeXML(await file.text());
     if(ext(file)==='pdf'&&typeof extractPdfText==='function'){
@@ -128,7 +167,7 @@
       const totals=x.subtotal>0?`<div>Produtos: ${money(x.subtotal)} | Desconto: ${money(x.discount)} | Frete: ${money(x.freight)} | Total da NF: ${money(x.total)}</div>`:'';
       const date=/^\d{4}-\d{2}-\d{2}$/.test(x.date||'')?x.date.split('-').reverse().join('/'):'Nao identificada';
       const items=Array.isArray(x.items)&&x.items.length?`<div style="overflow-x:auto;margin-top:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th style="text-align:left">Itens da NF ${escHtml(x.invoiceNumber)}</th><th>Qtd.</th><th>Un.</th><th style="text-align:right">Total</th></tr></thead><tbody>${x.items.map(it=>`<tr><td style="padding:5px 0;border-top:1px solid #ddd">${escHtml(it.descricao||'')}</td><td style="text-align:center">${escHtml(String(it.quantidade??''))}</td><td style="text-align:center">${escHtml(it.unidade||'')}</td><td style="text-align:right;white-space:nowrap">${money(it.valor_total)}</td></tr>`).join('')}</tbody></table></div>`:'';
-      return `<section style="grid-column:1/-1;font-size:14px;min-width:0;border-top:1px solid #ddd;padding-top:10px"><strong>${escHtml(x.type||'NF')} ${escHtml(x.invoiceNumber)} | Emissao: ${date} | ${money(x.total)}</strong><div>${escHtml(label)}</div><div>Beneficiario do pagamento: ${escHtml(x.payeeName)} | CNPJ: ${formatted(x.payeeCnpj)}</div><div>Emitente: ${escHtml(x.issuerName)} | CNPJ: ${formatted(x.issuerCnpj)}</div>${totals}${items}</section>`;
+      return `<section style="grid-column:1/-1;font-size:14px;min-width:0;border-top:1px solid #ddd;padding-top:10px"><strong>${escHtml(x.type||'NF')} ${escHtml(x.invoiceNumber)} | Emissao: ${date} | ${money(x.total)}</strong><div>${escHtml(label)}</div><div>Beneficiario do pagamento: ${escHtml(x.payeeName)} | CNPJ: ${formatted(x.payeeCnpj)}</div><div>Emitente: ${escHtml(x.issuerName)} | CNPJ: ${formatted(x.issuerCnpj)}</div>${totals}${x.xmlStatus?`<div style="margin-top:4px;color:var(--muted)">${escHtml(x.xmlStatus)}</div>`:''}${items}</section>`;
     }).join('');
   }
   function invoicePatch(row,data){
@@ -159,6 +198,7 @@
       const result=await db.from('pagamentos').select('*').eq('id',p.dbId).eq('obra_id',oid).single();
       if(result.error)throw result.error;
       const row=result.data;
+      const downloaded=await retrieveFiscalFiles(oid,notes,row.docs_json||[],warnings);
       const supplier=await db.from('fornecedores_cnpj').select('nome,cnpj').eq('nome',row.ben||'').maybeSingle();
       if(supplier.error)throw supplier.error;
       const payeeCnpj=taxId(supplier.data?.cnpj);
@@ -166,7 +206,7 @@
       const issuerCnpj=taxId(data.cnpj);
       const identified=payeeCnpj.length===14&&issuerCnpj.length===14;
       const status=identified?(payeeCnpj===issuerCnpj?'matched':'different'):'unverified';
-      const identity={payeeName:row.ben||'',payeeCnpj,issuerName:status==='matched'?(supplier.data.nome||row.ben):(data.ben||''),issuerCnpj,invoiceNumber:String(data.doc),type:data.tipo,series:data.serie||'',accessKey:data.chave||'',date:data.date||'',items:Array.isArray(data.itens)?data.itens:[],status,subtotal:Number(data.subtotal)||0,discount:Number(data.desconto)||0,freight:Number(data.frete)||0,total:Number(data.val)||0};
+      const identity={payeeName:row.ben||'',payeeCnpj,issuerName:status==='matched'?(supplier.data.nome||row.ben):(data.ben||''),issuerCnpj,invoiceNumber:String(data.doc),type:data.tipo,series:data.serie||'',accessKey:data.chave||'',date:data.date||'',items:Array.isArray(data.itens)?data.itens:[],xmlStatus:data.xmlStatus||'',status,subtotal:Number(data.subtotal)||0,discount:Number(data.desconto)||0,freight:Number(data.frete)||0,total:Number(data.val)||0};
       if(status==='different')warnings.push('CNPJs diferentes: beneficiario do pagamento e emitente da NF foram mantidos separados. Vinculo a conferir.');
       if(status==='unverified')warnings.push('CNPJ incompleto: confira o beneficiario e o emitente. Nenhum fornecedor foi substituido.');
       return identity;
@@ -177,8 +217,8 @@
       const patch=blank(row.nf_num)||budget||correctedPrimary||norm(row.nf_num)===norm(primary.doc)?invoicePatch(row,primary):{};
       if(budget||correctedPrimary){patch.nf_num=cleanImpDocNumber(primary.doc,primary.tipo);patch.nf_tipo=primary.tipo;patch.emissao=primary.date||row.emissao;patch.chave=primary.chave||'';patch.itens_pag=primary.itens||[];}
       const sourceNames=new Set(notes.map(n=>n.sourceName));
-      if(Array.isArray(row.docs_json)){
-        const docs=row.docs_json.map(d=>{
+      if(Array.isArray(row.docs_json)||downloaded.length){
+        const docs=[...(row.docs_json||[]),...downloaded].map(d=>{
           if(!d.generatedBundle&&nonFiscal.has(d.name)&&d.invoiceIdentity){const clean={...d,kind:'ORCAMENTO'};delete clean.invoiceIdentity;return clean;}
           const note=notes.find(n=>n.sourceName===d.name);
           return !d.generatedBundle&&note?{...d,kind:ext(d)==='xml'?'XML':'NF',invoiceIdentity:identityFor(note),...(budget&&row.nf_num?{budgetReference:row.nf_num}:{})}:{...d};
@@ -205,7 +245,7 @@
       const total=all.length?all.reduce((s,n)=>s+n.total,0):Number(data.val);
       if(total&&Math.abs(Number(row.v)-total)>0.01)warnings.push('O total das notas difere do valor do pagamento; o valor cadastrado foi preservado.');
       if(notes.some(n=>!n.date||!n.itens?.length))warnings.push('A leitura ficou parcial; confira emissao e itens.');
-      return {updated:Object.keys(patch).length,warning:warnings.join(' ')};
+      return {updated:Object.keys(patch).length,warning:[...new Set(warnings)].join(' ')};
     }catch(e){return {warning:'Anexos preservados; dados fiscais nao atualizados: '+(e.message||String(e)).slice(0,180)};}
   }
   function reportRead(result){toast(result?.warning||'NF lida. Dados fiscais conferidos; campos existentes e valores preservados.');}
@@ -249,5 +289,5 @@
     if(result.data?.length!==payments.length)throw Error('Confirmacao de gravacao incompleta. Atualize a pagina antes de tentar novamente.');
     payments.forEach((p,i)=>{p.dbId=result.data[i].id;p._heavyLoaded=true;});
   }
-  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,keyFromText,validAccessKey,readFiscal,confirming:false};
+  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,keyFromText,validAccessKey,readFiscal,consultationWindow,retrieveFiscalFiles,confirming:false};
 })(typeof window==='undefined'?globalThis:window);
