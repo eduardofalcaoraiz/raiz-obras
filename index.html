@@ -8902,8 +8902,8 @@ function paymentDocUrlFileName(doc){
 }
 
 function paymentDocKindLabel(doc){
-  if(/orcamento/i.test(String([doc?.kind,doc?.name,paymentDocUrlFileName(doc)].filter(Boolean).join(' ')).normalize('NFD').replace(/[\u0300-\u036f]/g,'')))return'ORCAMENTO';
   if(doc?.generatedBundle)return doc.kind||'NF';
+  if(/orcamento/i.test(String([doc?.kind,doc?.name,paymentDocUrlFileName(doc)].filter(Boolean).join(' ')).normalize('NFD').replace(/[\u0300-\u036f]/g,'')))return'ORCAMENTO';
   const original=capexZeevNormField([doc?.name,paymentDocUrlFileName(doc)].filter(Boolean).join(' '));
   const rawStored=String(doc?.storagePath||doc?.path||'').replace(/\\/g,'/');
   const stored=capexZeevNormField(rawStored);
