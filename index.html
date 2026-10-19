@@ -18729,7 +18729,9 @@ async function extractPdfText(file,onStatus){
     // Agrupa por Y com tolerância de 3pt para preservar linhas visuais de itens.
     const yMap={};
     tc.items.forEach(it=>{
-      const y=Math.round(it.transform[5]/3)*3;
+      const rawY=it.transform[5];
+      const near=Object.keys(yMap).map(Number).find(y=>Math.abs(y-rawY)<2.5);
+      const y=near===undefined?rawY:near;
       if(!yMap[y])yMap[y]=[];
       yMap[y].push({x:it.transform[4],s:(it.str||'').trim()});
     });
