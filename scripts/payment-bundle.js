@@ -79,6 +79,8 @@
       try{
         const text=await extractPdfText(file);
         const local=parseNFFromText(text);
+        // Some DANFEs place the ICMS base where other layouts show item discounts.
+        if(Number(local.desconto)===0)for(const item of local.itens||[])item.desconto=0;
         const itemTotal=(local.itens||[]).reduce((sum,it)=>sum+(Number(it.valor_total)||0),0);
         const balanced=local.subtotal>0&&Math.abs(itemTotal-local.subtotal)<0.02&&Math.abs(itemTotal-(local.desconto||0)+(local.frete||0)-local.val)<0.02;
         if(fiscalTypes.has(local.tipo)&&taxId(local.chave).length===44&&local.doc&&local.val>0&&balanced&&!receiptStub(local.itens))return local;
