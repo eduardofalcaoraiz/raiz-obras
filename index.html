@@ -9049,6 +9049,7 @@ function paymentQuickDocsCount(p){
 
 function paymentDocsLabel(p){
   const docs=paymentAllDocs(p);
+  if(window.PaymentBundle?.invoices(p).length)return docs.length+' arquivo'+(docs.length!==1?'s':'');
   const countKind=kind=>docs.filter(d=>paymentDocKindLabel(d)===kind).length;
   const parts=[];
   const nf=countKind('NF'),fat=countKind('FATURA'),rec=countKind('RECIBO'),bol=countKind('BOLETO'),proof=countKind('COMPROVANTE');
