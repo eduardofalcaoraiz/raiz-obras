@@ -90,7 +90,7 @@
     const current=Number(parts.year)*12+Number(parts.month)-1,issued=(2000+Number(key.slice(2,4)))*12+Number(key.slice(4,6))-1;
     return issued===current||(Number(parts.day)<15&&issued===current-1);
   }
-  async function retrieveFiscalFiles(oid,notes,existing,warnings){
+  async function retrieveFiscalFiles(oid,notes,existing,warnings,paymentId){
     const documents=[],seen=new Set();
     for(const note of notes){
       const key=taxId(note.chave);
@@ -98,7 +98,9 @@
       if(existing.some(d=>ext(d)==='xml'&&(d.accessKey===key||d.invoiceIdentity?.accessKey===key))||notes.some(n=>ext({name:n.sourceName})==='xml'&&taxId(n.chave)===key))continue;
       if(!consultationWindow(key)){note.xmlStatus='Fora da janela de consulta gratuita';continue;}
       try{
-        const response=await fetch('https://consultadanfe.com/api/v1/consulta',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chave:key,format:'json'}),signal:AbortSignal.timeout(20000)});
+        const session=await db.auth.getSession();
+        if(!session.data?.session?.access_token)throw Error('Sessao expirada');
+        const response=await fetch('/api/fiscal_xml',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.data.session.access_token},body:JSON.stringify({chave:key,payment_id:paymentId,obra_id:oid}),signal:AbortSignal.timeout(45000)});
         if(!response.ok)throw Error(response.status===429?'Limite do servico atingido; tente mais tarde':'Consulta indisponivel (HTTP '+response.status+')');
         const result=await response.json();
         if(result.status!=='ok'||result.chave!==key||!result.xml_base64)throw Error('XML nao retornado para esta chave');
@@ -200,7 +202,7 @@
       const result=await db.from('pagamentos').select('*').eq('id',p.dbId).eq('obra_id',oid).single();
       if(result.error)throw result.error;
       const row=result.data;
-      const downloaded=await retrieveFiscalFiles(oid,notes,row.docs_json||[],warnings);
+      const downloaded=await retrieveFiscalFiles(oid,notes,row.docs_json||[],warnings,p.dbId);
       const supplier=await db.from('fornecedores_cnpj').select('nome,cnpj').eq('nome',row.ben||'').maybeSingle();
       if(supplier.error)throw supplier.error;
       const payeeCnpj=taxId(supplier.data?.cnpj);
