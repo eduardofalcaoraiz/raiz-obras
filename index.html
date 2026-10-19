@@ -4958,7 +4958,7 @@ async function exportCSV(){
   const o=cur;if(!o)return;
   try{
     await ensureObraPaymentHeavyFields(o);if(cur!==o)return;
-    const rows=filteredPaymentRows(o);
+    let rows=filteredPaymentRows(o);
     const h=['Beneficiario','Referencia','Notas fiscais','Tipo de custo','Contrato','Forma de pagamento','Pagante','Valor (R$)','Vencimento','Status','Documento fiscal','Ticket'];
     const esc=v=>{let t=String(v??'');if(/^[=+@\-\t\r]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};
     const csv='\uFEFF'+[h.map(esc).join(';'),...rows.map(({p})=>[
@@ -13803,7 +13803,7 @@ function renderPag(){const o=cur;
   const icon=isObra?'🏗':'📤';
   const titulo=isObra?'Dentro da Obra':'Fora da Obra';
 
-  const rows=filteredPaymentRows(o);
+  let rows=filteredPaymentRows(o);
   const baseRows=filteredPaymentRows(o,false);
   const q=pagBusca.trim().toLowerCase();
   const uniq=(arr)=>[...new Set(arr.filter(Boolean))].sort();
