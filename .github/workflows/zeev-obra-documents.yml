@@ -1,0 +1,52 @@
+name: Zeev - Anexos dos pagamentos de obras
+on:
+  schedule:
+    - cron: '0 11,15,19 * * *'
+  workflow_dispatch:
+    inputs:
+      ticket_ids:
+        description: 'TRs especificos; vazio verifica a fila de pagamentos dentro da obra'
+        required: false
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: zeev-capex-sync-Zeev CAPEX Sync-refs/heads/main
+  cancel-in-progress: false
+jobs:
+  documents:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
+      - name: Fetch and retain Zeev attachments
+        env:
+          ZEEV_TOKEN: ${{ secrets.ZEEV_TOKEN }}
+          ZEEV_SYNC_SECRET: ${{ secrets.ZEEV_SYNC_SECRET }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ZEEV_AUTOMATION_PAUSED: ${{ secrets.ZEEV_AUTOMATION_PAUSED || 'false' }}
+          ZEEV_TICKET_IDS: ${{ inputs.ticket_ids || '' }}
+          ZEEV_DIRECT_DOC_RESCUE_ENABLED: '1'
+          ZEEV_DIRECT_DOC_RESCUE_FILE_LIMIT: '12'
+          ZEEV_DIRECT_DOC_RESCUE_MAX_BYTES: '5500000'
+          ZEEV_DOC_RESCUE_FAST_EDGE: '0'
+          ZEEV_DOC_RESCUE_BATCH: '1'
+          ZEEV_DOC_ATTACH_PER_TICKET_LIMIT: '12'
+          ZEEV_BACKFILL_FILE_LIMIT: '12'
+          ZEEV_ATTACH_ALL_TICKET_DOCS: '1'
+          ZEEV_DOC_RESCUE_PENDING: 'false'
+          ZEEV_DOC_RESCUE_CAPEX: 'false'
+          ZEEV_DOC_RESCUE_PAYMENTS: 'true'
+          ZEEV_NOTIFY: 'false'
+          ZEEV_RESCUE_BLOCK_EMAIL: 'false'
+          ZEEV_REPAIR_CAPEX_VALUES_AFTER_INGEST: '0'
+          ZEEV_EXTRA_DOCUMENT_FIELDS: ${{ secrets.ZEEV_EXTRA_DOCUMENT_FIELDS }}
+          ZEEV_FILE_DOWNLOAD_URL_TEMPLATE: ${{ secrets.ZEEV_FILE_DOWNLOAD_URL_TEMPLATE }}
+        run: python3 scripts/sync_obra_documents.py
+
