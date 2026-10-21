@@ -3517,6 +3517,8 @@ def rescue_documents_for_row(row):
     except Exception as exc:
         report_probe = {"requested": True, "fields": 0, "error": str(exc)[:240]}
     candidates = []
+    for key in ("files", "attachments", "documents", "instanceTasks"):
+        collect_doc_candidates_from_value(candidates, "anexo", row.get(key), key, 0)
     for field in row.get("formFields") or []:
         label = field_display_name(field)
         if doc_like_text(label) or doc_like_text(field):
