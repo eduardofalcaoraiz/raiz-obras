@@ -136,12 +136,30 @@
     }
     return documents;
   }
+  function nationalServiceInvoice(text){
+    const t=String(text).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\S\n]+/g,' ').trim();
+    if(!/Documento Auxiliar da NFS-e/i.test(t)||!/EMITENTE DA NFS-e/i.test(t))return null;
+    const doc=t.match(/Numero da NFS-e[^\n]*\n\s*(\d+)/i)?.[1];
+    const issuer=t.split(/EMITENTE DA NFS-e/i)[1]?.split(/TOMADOR DO SERVICO/i)[0]||'';
+    const cnpj=issuer.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/)?.[0];
+    const dates=t.split(/Numero da NFS-e/i)[1]?.split(/Numero da DPS/i)[0]?.match(/\d{2}\/\d{2}\/\d{4}/g)||[];
+    const totals=t.split(/VALOR TOTAL DA NFS-E/i)[1]||'';
+    const amount=totals.match(/Valor do Servico[^\n]*\n\s*R\$\s*([\d.]+,\d{2})/i)?.[1];
+    if(!doc||!cnpj||!dates.length||!amount)return null;
+    const val=Number(amount.replace(/\./g,'').replace(',','.'));
+    if(!(val>0))return null;
+    const date=dates[dates.length-1].split('/').reverse().join('-');
+    const ben=t.match(/Recebemos de (.+?), os servicos/i)?.[1]||issuer.match(/Nome \/ Nome empresarial[^\n]*\n\s*([^\n]+)/i)?.[1]||'';
+    const descricao=t.match(/Descricao do Servico\s*\n([\s\S]*?)\n\s*TRIBUTACAO MUNICIPAL/i)?.[1]?.trim()||'';
+    return {tipo:'NFS-e',doc,cnpj,ben,date,val,subtotal:val,chave:t.match(/Chave de Acesso da NFS-e\s*\n\s*(\d{50}|\d{48})\b/i)?.[1]||'',itens:descricao?[{descricao,quantidade:1,unidade:'SERV',valor_total:val}]:[]};
+  }
   async function readFiscal(file){
     if(ext(file)==='xml')return parseNFeXML(await file.text());
     let keyedFallback=null;
     if(ext(file)==='pdf'&&typeof extractPdfText==='function'){
       try{
         const text=await extractPdfText(file);
+        const service=nationalServiceInvoice(text);if(service)return service;
         const key=keyFromText(text);
         if(text.length>100&&!key&&/or[cç]amento/i.test(text)&&!/danfe/i.test(text))return null;
         let local=parseNFFromText(text);
@@ -175,7 +193,8 @@
   }
   function identityDetails(p){
     const unique=invoices(p),money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-    const summary=unique.length>1?`<div style="grid-column:1/-1"><strong>${unique.length} notas fiscais | Total das notas: ${money(unique.reduce((s,x)=>s+(Number(x.total)||0),0))}</strong></div>`:'';
+    const total=unique.reduce((s,x)=>s+(Number(x.total)||0),0),remaining=Number(p.v||0)-total;
+    const summary=unique.length?`<div style="grid-column:1/-1"><strong>${unique.length} nota(s) fiscal(is) | Total documentado: ${money(total)}</strong><div>Valor do pagamento: ${money(p.v)} | ${remaining>=0?'A documentar: '+money(remaining):'Notas acima do pagamento: '+money(-remaining)}</div></div>`:'';
     return summary+unique.map(x=>{
       const different=x.status==='different';
       const label=different?'CNPJs diferentes: pagamento e emissao da NF. Vinculo a conferir.':x.status==='matched'?'Mesmo CNPJ no pagamento e na NF.':'CNPJ incompleto: identificacao a conferir.';
@@ -262,7 +281,7 @@
       }
       const all=invoices({docs:patch.docs_json||row.docs_json||[]});
       const total=all.length?all.reduce((s,n)=>s+n.total,0):Number(data.val);
-      if(total&&Math.abs(Number(row.v)-total)>0.01)warnings.push('O total das notas difere do valor do pagamento; o valor cadastrado foi preservado.');
+      if(total&&Math.abs(Number(row.v)-total)>0.01)warnings.push(total<Number(row.v)?'Documentacao parcial: outras notas podem ser anexadas a este pagamento. Valor cadastrado preservado.':'O total das notas excede o valor do pagamento; confira os vinculos. Valor cadastrado preservado.');
       if(notes.some(n=>!n.date||!n.itens?.length))warnings.push('A leitura ficou parcial; confira emissao e itens.');
       return {updated:Object.keys(patch).length,warning:[...new Set(warnings)].join(' ')};
     }catch(e){return {warning:'Anexos preservados; dados fiscais nao atualizados: '+(e.message||String(e)).slice(0,180)};}
@@ -317,5 +336,5 @@
       }
     }
   }
-  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,keyFromText,validAccessKey,readFiscal,consultationWindow,retrieveFiscalFiles,confirming:false};
+  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,keyFromText,validAccessKey,nationalServiceInvoice,readFiscal,consultationWindow,retrieveFiscalFiles,confirming:false};
 })(typeof window==='undefined'?globalThis:window);
