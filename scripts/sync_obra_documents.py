@@ -1,6 +1,7 @@
 """Cloud attachment repair for registered in-work payments using the existing sync."""
 import json
 import os
+import re
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -70,6 +71,10 @@ def recover(ids, deadline):
         if any(part.get('ok') is False or part.get('errors') for part in (result, backfill, direct)):
             raise RuntimeError('The attachment service reported an incomplete import.')
         if debug.get('candidates') and not downloaded:
+            skipped = (ticket.get('campos_extraidos') or {}).get('_zeev_doc_rescue_skipped') or []
+            statuses = [re.findall(r'HTTP\s*\d{3}|HTML|JSON|PDF|timeout|Unauthorized|Forbidden', str(item.get('reason') or ''), re.I)
+                        for item in skipped]
+            print(json.dumps({'downloadFailureKinds': statuses}), flush=True)
             raise RuntimeError('Zeev exposed attachment candidates but no file could be downloaded.')
         if downloaded >= sync.direct_doc_rescue_file_limit():
             raise RuntimeError('The attachment limit was reached; remaining files require verification.')
