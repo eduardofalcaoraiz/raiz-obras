@@ -3310,7 +3310,7 @@ def collect_doc_candidates_from_value(out, label, value, source, depth=0):
         content_type = value.get("type") or value.get("mimeType") or value.get("contentType") or ""
         url = value.get("url") or value.get("openUrl") or value.get("downloadUrl") or value.get("href") or value.get("link") or value.get("fileUrl") or value.get("signedUrl") or value.get("contentUrl") or value_path or ""
         file_id = value.get("fileId") or value.get("fileID") or value.get("file_id") or value.get("arquivoId") or value.get("documentId") or value.get("attachmentId") or ""
-        if not file_id and doc_like_text(" ".join([str(label), str(name), str(source)])):
+        if not file_id and "value" not in value and doc_like_text(" ".join([str(label), str(name), str(source)])):
             file_id = value.get("id") if re.match(r"^[A-Za-z0-9._-]{3,180}$", str(value.get("id") or "")) else ""
         base64_content = value.get("base64Content") or value.get("base64") or value.get("contentBase64") or value.get("fileBase64") or value.get("bytesBase64") or ""
         push_doc_candidate(out, name=name, url=url, file_id=file_id, base64_content=base64_content, content_type=content_type, source=source)
@@ -3517,8 +3517,11 @@ def rescue_documents_for_row(row):
     except Exception as exc:
         report_probe = {"requested": True, "fields": 0, "error": str(exc)[:240]}
     candidates = []
-    for key in ("files", "attachments", "documents", "instanceTasks"):
+    for key in ("files", "attachments", "documents"):
         collect_doc_candidates_from_value(candidates, "anexo", row.get(key), key, 0)
+    for task in row.get("instanceTasks") or []:
+        for key in ("files", "attachments", "documents"):
+            collect_doc_candidates_from_value(candidates, "anexo", task.get(key), key, 0)
     for field in row.get("formFields") or []:
         label = field_display_name(field)
         if doc_like_text(label) or doc_like_text(field):
