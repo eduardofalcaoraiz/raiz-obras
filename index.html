@@ -8859,7 +8859,7 @@ function paymentDocLogicalName(d){
   let name=String(d?.name||paymentDocUrlFileName(d)||d?.storagePath||d?.path||'').split('?')[0];
   try{name=decodeURIComponent(name);}catch(_){}
   name=name.split('/').pop()||'';
-  name=name.replace(/\.[^.]+$/,'').replace(/\s*\(\d+\)\s*$/,'').replace(/_+\d+_?$/,'');
+  name=name.replace(/\.[^.]+$/,'').replace(/\s*\(\d+\)\s*$/,'').replace(/__\d+_$/,'');
   return capexZeevNormField(name);
 }
 
