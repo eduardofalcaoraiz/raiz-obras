@@ -334,7 +334,7 @@
   async function reviewLinks(oid,i){
     if(!AccessControl.canEdit())return;
     const p=obras.find(o=>+o.id===+oid)?.pag?.[i];if(!p?.dbId)return;
-    const result=await db.from('pagamentos').select('*').eq('id',p.dbId).eq('obra_id',oid).single();
+    const result=await db.from('pagamentos').select('*,xmin').eq('id',p.dbId).eq('obra_id',oid).single();
     if(result.error){toast('Nao foi possivel carregar os vinculos.');return;}
     const row=result.data,docs=(row.docs_json||[]).filter(d=>!d.generatedBundle),archived=docs.flatMap(d=>d.unlinkedDocuments||[]);
     review={oid,i,p,row,docs:[...docs,...archived]};
@@ -355,8 +355,9 @@
       const selected=selectDocuments(docs,keys),primary=selected.find(d=>d.invoiceIdentity),nf=primary||selected.find(d=>paymentDocKindLabel(d)==='NF');
       const patch={docs_json:selected,nf_doc_path:nf?.storagePath||''};
       if(primary){const x=primary.invoiceIdentity;Object.assign(patch,{nf_num:x.invoiceNumber,nf_tipo:x.type,emissao:x.date||row.emissao,chave:x.accessKey||'',itens_pag:x.items||[]});}
-      let query=db.from('pagamentos').update(patch).eq('id',p.dbId).eq('obra_id',oid);
-      for(const field of new Set([...Object.keys(patch),'ben']))query=row[field]==null?query.is(field,null):query.eq(field,Array.isArray(row[field])?JSON.stringify(row[field]):row[field]);
+      // PostgreSQL's row version detects any concurrent write without putting large JSON in the URL.
+      if(row.xmin==null)throw Error('Versao do registro indisponivel. Reabra a conferencia.');
+      const query=db.from('pagamentos').update(patch).eq('id',p.dbId).eq('obra_id',oid).eq('xmin',row.xmin);
       const saved=await query.select('*');if(saved.error)throw saved.error;if(!saved.data?.length)throw Error('Os dados mudaram. Reabra a conferencia dos vinculos.');
       applyPaymentHeavyRow(p,saved.data[0]);
       if(primary)Object.assign(p,{nfNum:patch.nf_num,nfTipo:patch.nf_tipo,emissao:patch.emissao,chave:patch.chave,itens:patch.itens_pag});
