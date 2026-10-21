@@ -68,11 +68,10 @@
   }
   async function saveExisting(oid,p,files){
     if(!p.dbId)throw Error('Atualize a pagina antes de anexar a este pagamento.');
-    const response=await db.from('pagamentos').select('id,docs_json,parcelas,itens_pag,nf_doc_path,comp_doc_path').eq('id',p.dbId).eq('obra_id',oid).single();if(response.error)throw response.error;
+    const response=await db.from('pagamentos').select('id,xmin,docs_json,parcelas,itens_pag,nf_doc_path,comp_doc_path').eq('id',p.dbId).eq('obra_id',oid).single();if(response.error)throw response.error;
     const before=response.data,base=applyPaymentHeavyRow({...p},before),next=await stage(oid,base,files);
     let query=db.from('pagamentos').update({docs_json:paymentAllDocs(next),nf_doc_path:next.nfDoc?.storagePath||''}).eq('id',p.dbId).eq('obra_id',oid);
-    query=before.docs_json===null?query.is('docs_json',null):query.eq('docs_json',JSON.stringify(before.docs_json));
-    query=before.nf_doc_path===null?query.is('nf_doc_path',null):query.eq('nf_doc_path',before.nf_doc_path);
+    query=guardRevision(query,before,['docs_json','nf_doc_path']);
     const saved=await query.select('id');if(saved.error)throw saved.error;if(!saved.data?.length)throw Error('Os anexos mudaram em outra sessao. Atualize a pagina e tente novamente.');
     Object.assign(p,{docs:next.docs,nfDoc:next.nfDoc,compDoc:next.compDoc,_heavyLoaded:true});
     next.invoiceRead=await enrichExisting(oid,p,files);
@@ -80,6 +79,11 @@
     return next;
   }
   const fiscalTypes=new Set(['NF-e','NFC-e','NFS-e','CT-e']);
+  function guardRevision(query,row,fields){
+    if(row.xmin!=null)return query.eq('xmin',row.xmin);
+    for(const field of fields)query=row[field]==null?query.is(field,null):query.eq(field,typeof row[field]==='object'?JSON.stringify(row[field]):row[field]);
+    return query;
+  }
   const blank=v=>v==null||String(v).trim()==='';
   const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
   const taxId=v=>String(v||'').replace(/\D/g,'');
@@ -263,7 +267,7 @@
       for(const note of notes){const xml=xmlNotes.get(taxId(note.chave));if(xml)Object.assign(note,xml,{sourceName:note.sourceName,xmlStatus:'Dados conferidos pelo XML anexado'});}
       const data=notes[0];
       // Re-read after OCR so edits made during the network request are preserved.
-      const result=await db.from('pagamentos').select('*').eq('id',p.dbId).eq('obra_id',oid).single();
+      const result=await db.from('pagamentos').select('*,xmin').eq('id',p.dbId).eq('obra_id',oid).single();
       if(result.error)throw result.error;
       const row=result.data;
       const downloaded=await retrieveFiscalFiles(oid,notes,row.docs_json||[],warnings,p.dbId);
@@ -299,10 +303,7 @@
       if(Object.keys(patch).length){
         let query=db.from('pagamentos').update(patch).eq('id',p.dbId).eq('obra_id',oid);
         // Compare all source fields, including identity, to reject concurrent edits.
-        for(const column of new Set([...Object.keys(patch),'ben','nf_num'])){
-          const value=row[column];
-          query=value==null?query.is(column,null):query.eq(column,Array.isArray(value)?JSON.stringify(value):value);
-        }
+        query=guardRevision(query,row,new Set([...Object.keys(patch),'ben','nf_num']));
         const saved=await query.select('id');if(saved.error)throw saved.error;
         if(!saved.data?.length)throw Error('O cadastro mudou durante a leitura. Use Reler NF para tentar novamente.');
         const mapping={nf_num:'nfNum',nf_tipo:'nfTipo',emissao:'emissao',chave:'chave',itens_pag:'itens',docs_json:'docs'};
@@ -415,5 +416,5 @@
       }
     }
   }
-  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,keyFromText,validAccessKey,nationalServiceInvoice,readFiscal,danfeTotals,selectDocuments,reviewLinks,saveLinks,consultationWindow,retrieveFiscalFiles,confirming:false};
+  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,keyFromText,validAccessKey,nationalServiceInvoice,readFiscal,danfeTotals,selectDocuments,reviewLinks,saveLinks,guardRevision,consultationWindow,retrieveFiscalFiles,confirming:false};
 })(typeof window==='undefined'?globalThis:window);
