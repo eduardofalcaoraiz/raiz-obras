@@ -1,0 +1,14 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const ctx={console,paymentDocKey:d=>d.storagePath};vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(__dirname+'/payment-bundle.js','utf8'),ctx);
+const bundle=ctx.PaymentBundle;
+const text='DANFE\nVALOR TOTAL DOS PRODUTOS\n100,00\nVALOR DO FRETE VALOR DO SEGURO DESCONTO OUT. DESPESAS ACESS. VALOR TOTAL DO IPI VALOR TOTAL DA NOTA\n0,00 0,00 0,00 0,00 0,65 100,65';
+assert.equal(bundle.danfeTotals(text).val,100.65);
+assert.equal(bundle.danfeTotals(text.replace('100,65','101,65')),null);
+const originals=[{storagePath:'a',kind:'NF'},{storagePath:'b',kind:'NF'},{storagePath:'proof',kind:'COMPROVANTE'},{storagePath:'bundle',generatedBundle:true}];
+const selected=bundle.selectDocuments(originals,new Set(['a','proof']));
+assert.equal(selected.length,2);assert.equal(selected[0].unlinkedDocuments[0].storagePath,'b');assert(!originals[0].unlinkedDocuments);
+const restored=bundle.selectDocuments(selected,new Set(['a','b','proof']));
+assert.equal(restored.length,3);assert(!restored.some(d=>d.unlinkedDocuments));
+assert.throws(()=>bundle.selectDocuments(originals,new Set()),/Mantenha/);
+console.log('PASS: balanced DANFE totals including IPI, reversible unlink, restore, original preservation.');
