@@ -13709,7 +13709,7 @@ async function openPaymentDocsModal(oid,i,proofsOnly=false){
   const ctx=document.getElementById('payment-docs-context');
   if(ctx)ctx.innerHTML=`<b style="color:var(--ink)">${escHtml(p.ben||'Pagamento')}</b>${p.ticketRaiz?` &middot; TR ${escHtml(p.ticketRaiz)}`:''}${p.ref?`<br>${escHtml(p.ref)}`:''}`;
   body=document.getElementById('payment-docs-body');
-  if(body)body.innerHTML=docs.length?docs.map((d,idx)=>`<div class="payment-doc-row"><div><b>${escHtml(d.name||'Arquivo')}</b><span>${escHtml([d.kind||'',d.origin||'',d.source||''].filter(Boolean).join(' · ')||'Documento salvo na plataforma')}</span></div><button class="btn btn-sm" onclick="viewFile(activePaymentDocs.docs[${idx}])">Ver / baixar</button></div>`).join(''):'<div class="capex-zeev-empty">Nenhum arquivo salvo neste pagamento.</div>';
+  if(body)body.innerHTML=docs.length?docs.map((d,idx)=>`<div class="payment-doc-row"><div><b>${escHtml(d.name||'Arquivo')}</b><span>${escHtml([d.kind||'',d.origin||'',d.source||''].filter(Boolean).join(' · ')||'Documento salvo na plataforma')}</span></div><button class="btn btn-sm" onclick="viewFile(activePaymentDocs.docs[${idx}]);closePaymentDocsModal()">Ver / baixar</button></div>`).join(''):'<div class="capex-zeev-empty">Nenhum arquivo salvo neste pagamento.</div>';
   if(body&&proofsOnly)body.insertAdjacentHTML('afterbegin',`<button class="btn btn-sm" onclick="anexarComp(${oid},${i})">Adicionar comprovantes</button>`);
 }
 
