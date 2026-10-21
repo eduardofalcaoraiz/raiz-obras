@@ -9073,6 +9073,8 @@ function paymentDocsLabel(p){
   if(rec)parts.push(rec+' recibo');
   if(bol)parts.push(bol+' boleto');
   if(proof)parts.push(proof+' comprovante');
+  const other=docs.length-nf-fat-rec-bol-proof;
+  if(other)parts.push(other+' outro'+(other!==1?'s':'')+' arquivo'+(other!==1?'s':''));
   return parts.length?parts.join(' + '):(docs.length?(docs.length+' arquivo'+(docs.length!==1?'s':'')):'');
 }
 
