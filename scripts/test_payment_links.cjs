@@ -11,4 +11,7 @@ assert.equal(selected.length,2);assert.equal(selected[0].unlinkedDocuments[0].st
 const restored=bundle.selectDocuments(selected,new Set(['a','b','proof']));
 assert.equal(restored.length,3);assert(!restored.some(d=>d.unlinkedDocuments));
 assert.throws(()=>bundle.selectDocuments(originals,new Set()),/Mantenha/);
+const filters=[];const query={eq(k,v){filters.push([k,v]);return this;},is(k,v){filters.push([k,v]);return this;}};
+bundle.guardRevision(query,{xmin:'123456',docs_json:new Array(100).fill({name:'large.pdf'})},['docs_json']);
+assert.deepEqual(filters,[['xmin','123456']]);
 console.log('PASS: balanced DANFE totals including IPI, reversible unlink, restore, original preservation.');
