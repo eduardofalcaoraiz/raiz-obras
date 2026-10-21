@@ -4,9 +4,17 @@ from unittest.mock import patch
 from datetime import datetime, timezone
 from sync_obra_documents import candidates, recover
 from zeev_report_documents import collect_report_documents
+from zeev_capex_sync import collect_doc_candidates_from_value
 
 
 class CandidatesTest(unittest.TestCase):
+    def test_empty_form_field_id_is_not_a_file_id(self):
+        docs = []
+        collect_doc_candidates_from_value(docs, 'Documento', {'id': 12345, 'name': 'anexarNotaFiscal', 'value': ''}, 'raw_fields')
+        self.assertEqual(docs, [])
+        collect_doc_candidates_from_value(docs, 'Documento', {'id': 56789, 'fileName': 'sample.pdf'}, 'files')
+        self.assertEqual(docs[0]['fileId'], '56789')
+
     def test_report_general_attachments_stay_on_origin(self):
         seen, docs = [], []
         def fetch(url):
