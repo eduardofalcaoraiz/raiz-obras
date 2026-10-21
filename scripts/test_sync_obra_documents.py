@@ -3,9 +3,20 @@ import time
 from unittest.mock import patch
 from datetime import datetime, timezone
 from sync_obra_documents import candidates, recover
+from zeev_report_documents import collect_report_documents
 
 
 class CandidatesTest(unittest.TestCase):
+    def test_report_general_attachments_stay_on_origin(self):
+        seen, docs = [], []
+        def fetch(url):
+            seen.append(url)
+            return 200, 'text/html', '<a href="/document/download/pedido?c=a&amp;b=c">Download</a><a href="https://other.test/document/download/file">Other</a>'
+        collect_report_documents('https://example.test/2.0/audit?c=test', docs, fetch,
+                                 lambda out, name, url, **kw: out.append(url))
+        self.assertEqual(docs, ['https://example.test/document/download/pedido?c=a&b=c'])
+        self.assertIn('audit-legacy', seen[1])
+
     def test_scope_rotation_and_recent_checks(self):
         rows = [
             dict(ticket_raiz='101', escopo_fin='obra', zeev_docs_checked_at=None),
