@@ -13687,14 +13687,14 @@ async function togglePagRow(i){
 
 function docCell(o,i,p){if(paymentDocsAreLoaded(p))hydratePaymentDocs(p);let nf;const nfLabel=paymentNfNumberLabel(p);if(p.nfDoc){const fileName=p.nfDoc.name||p.nfDoc.storagePath||'documento fiscal';nf=`<button class="linkbtn" title="${escHtml(fileName)}" onclick="PaymentBundle.open(${o.id},${i})">${escHtml(nfLabel||paymentDocKindPretty(paymentDocDisplayType(p.nfDoc,p),p.nfTipo)||'Documento fiscal')} ↓</button>`;}else if(p.nfTipo==="ORÇAMENTO - COBRAR NF"){nf=`<span class="badge b-warn">ORÇAMENTO - COBRAR NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar NF</button>`;}else if(p.nfTipo==="Adiantamento"){nf=`<span class="badge b-warn" style="font-size:14px">💸 Adiantamento</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})" title="Anexar a NF quando chegar">anexar NF</button>`;}else if(p.nfTipo==="Sem nota"){nf=`<span class="flag">sem NF</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}else{nf=`<span class="badge b-doc">${escHtml(nfLabel||paymentDocKindPretty('',p.nfTipo)||'NF')}</span> <button class="linkbtn" onclick="anexarNF(${o.id},${i})">anexar</button>`;}
 
-  const comp=p.compDoc?`<button class="linkbtn" onclick="viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">comprovante ↓</button>`:`<button class="linkbtn" onclick="anexarComp(${o.id},${i})">anexar</button>`;
+  const comp=`<button class="linkbtn" onclick="openPaymentDocsModal(${o.id},${i},true)">Comprovantes</button>`;
 
   const docsN=paymentQuickDocsCount(p);
   const docsLabel=paymentDocsAreLoaded(p)?paymentDocsLabel(p):(p.ticketRaiz?'carregar arquivos':'');
   const docs=(docsN||p.ticketRaiz)?`<span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Docs</b> <button class="linkbtn" onclick="openPaymentDocsModal(${o.id},${i})">${docsLabel||docsN+' arquivo'+(docsN!==1?'s':'')}</button></span>`:'';
   return `<div style="display:flex;flex-direction:column;gap:3px;font-size:14px;min-width:155px"><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">NF</b> ${nf}</span><span style="display:flex;gap:6px;align-items:center"><b style="color:var(--soft);font-weight:600;width:34px">Pgto</b> ${comp}</span>${docs}</div>`;}
 
-async function openPaymentDocsModal(oid,i){
+async function openPaymentDocsModal(oid,i,proofsOnly=false){
   const o=obras.find(x=>+x.id===+oid);
   const p=o?.pag?.[i];
   if(!o||!p){toast('Pagamento nao encontrado.');return;}
@@ -13702,14 +13702,15 @@ async function openPaymentDocsModal(oid,i){
   if(body)body.innerHTML='<div class="capex-zeev-empty">Carregando arquivos salvos deste pagamento...</div>';
   document.getElementById('payment-docs-overlay')?.classList.add('show');
   try{await ensurePaymentHeavyFields(p);}catch(e){console.warn('ensurePaymentHeavyFields:',e);}
-  const docs=paymentAllDocs(p);
+  const docs=paymentAllDocs(p).filter(d=>!proofsOnly||paymentIsProofDoc(d));
   activePaymentDocs={obraId:oid,index:i,docs};
   const title=document.getElementById('payment-docs-title');
-  if(title)title.textContent='Arquivos do pagamento';
+  if(title)title.textContent=proofsOnly?'Comprovantes do pagamento':'Arquivos do pagamento';
   const ctx=document.getElementById('payment-docs-context');
   if(ctx)ctx.innerHTML=`<b style="color:var(--ink)">${escHtml(p.ben||'Pagamento')}</b>${p.ticketRaiz?` &middot; TR ${escHtml(p.ticketRaiz)}`:''}${p.ref?`<br>${escHtml(p.ref)}`:''}`;
   body=document.getElementById('payment-docs-body');
   if(body)body.innerHTML=docs.length?docs.map((d,idx)=>`<div class="payment-doc-row"><div><b>${escHtml(d.name||'Arquivo')}</b><span>${escHtml([d.kind||'',d.origin||'',d.source||''].filter(Boolean).join(' · ')||'Documento salvo na plataforma')}</span></div><button class="btn btn-sm" onclick="viewFile(activePaymentDocs.docs[${idx}])">Ver / baixar</button></div>`).join(''):'<div class="capex-zeev-empty">Nenhum arquivo salvo neste pagamento.</div>';
+  if(body&&proofsOnly)body.insertAdjacentHTML('afterbegin',`<button class="btn btn-sm" onclick="anexarComp(${oid},${i})">Adicionar comprovantes</button>`);
 }
 
 function closePaymentDocsModal(){
@@ -13857,7 +13858,7 @@ function renderPag(){const o=cur;
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)">
           ${p.nfDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();PaymentBundle.open(${o.id},${i})">Ver nota / boleto</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarNF(${o.id},${i})">Anexar nota / boleto</button>`}
-          ${p.compDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();viewFile(obras.find(x=>x.id===${o.id}).pag[${i}].compDoc)">🧾 Ver comprovante</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarComp(${o.id},${i})">🧾 Anexar comprovante</button>`}
+          ${p.compDoc?`<button class="btn btn-sm" onclick="event.stopPropagation();openPaymentDocsModal(${o.id},${i},true)">🧾 Comprovantes</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();anexarComp(${o.id},${i})">🧾 Anexar comprovante</button>`}
           <button class="btn btn-sm" onclick="event.stopPropagation();openPaymentDocsModal(${o.id},${i})">Arquivos</button>
           ${AccessControl.canEdit()?`<button class="btn btn-sm" onclick="event.stopPropagation();PaymentBundle.reprocess(${o.id},${i})">Reler NF</button>`:''}
           ${markBtn}
@@ -13900,7 +13901,7 @@ function renderPag(){const o=cur;
     // ── Botões do bloco direito: Comp + Editar + Excluir ─────────────────────
     var _bs='display:inline-flex;align-items:center;gap:3px;font-size:14px;font-weight:600;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid;';
     var _btnComp=p.compDoc
-      ?('<button onclick="event.stopPropagation();viewFile(obras.find(x=>x.id==='+o.id+').pag['+i+'].compDoc)" style="'+_bs+'color:var(--ok);background:var(--ok)10;border-color:var(--ok)40">&#129534; Comp</button>')
+      ?('<button onclick="event.stopPropagation();openPaymentDocsModal('+o.id+','+i+',true)" style="'+_bs+'color:var(--ok);background:var(--ok)10;border-color:var(--ok)40">&#129534; Comp</button>')
       :('<button onclick="event.stopPropagation();anexarComp('+o.id+','+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#128462; Comp</button>');
     var _btnDocs=(docsN||p.ticketRaiz)
       ?('<button onclick="event.stopPropagation();openPaymentDocsModal('+o.id+','+i+')" style="'+_bs+'color:var(--brand-text);background:var(--brand-cur-light);border-color:var(--brand-cur)55">&#128194; '+(docsLabel||docsN+' arq.')+'</button>')
@@ -15459,30 +15460,39 @@ function anexarComp(oid,i){
   let inp=document.getElementById('comp-input');
   if(!inp){inp=document.createElement('input');inp.type='file';inp.id='comp-input';inp.style.display='none';document.body.appendChild(inp);}
   inp.accept='.pdf,.jpg,.jpeg,.png,.webp,.PDF,.JPG,.JPEG,.PNG,.WEBP';
+  inp.multiple=true;
   inp.onchange=async()=>{
     if(!inp.files.length)return;
     paymentDocUploadLocks.add(lockKey);
-    const f=inp.files[0];
-    toast('Enviando comprovante...');
+    const files=Array.from(inp.files);
+    toast('Enviando comprovantes...');
     try{
       const{data:{session}}=await db.auth.getSession();
       if(!session){toast('Sessao expirada. Faca login novamente.');return;}
       await ensurePaymentHeavyFields(o.pag[i]);
+      const failures=[];
+      let saved=0;
+      for(const f of files){
+      try{
       const candidate={name:f.name,type:f.type||inferType(f.name),bucket:'pagamentos',kind:'COMPROVANTE',size:f.size,sha256:await paymentFileSha256(f)};
       const existing=paymentAllDocs(o.pag[i]).find(d=>paymentDocsMatch(d,candidate));
       if(existing){
         replacePaymentDocKind(o.pag[i],existing,'COMPROVANTE');
-        await persist(oid);
-        if(cur&&cur.id===oid)renderObra();
-        toast('Comprovante ja anexado; o arquivo existente foi mantido.');
-        return;
+        if(!await persist(oid))throw new Error('Comprovante nao confirmado no banco. Tente novamente.');
+        saved++;
+        continue;
       }
       const path=await uploadPagDoc(oid,f,'comp');
-      o.pag[i].compDoc={...candidate,storagePath:path};
-      addPaymentDoc(o.pag[i],o.pag[i].compDoc,'COMPROVANTE');
-      await persist(oid);
+      const doc={...candidate,storagePath:path};
+      addPaymentDoc(o.pag[i],doc,'COMPROVANTE');
+      if(!o.pag[i].compDoc)o.pag[i].compDoc=doc;
+      if(!await persist(oid))throw new Error('Comprovante nao confirmado no banco. Tente novamente.');
+      saved++;
+      }catch(error){failures.push(f.name);console.error('upload comp:',error);}
+      }
       if(cur&&cur.id===oid)renderObra();
-      toast('Comprovante anexado e salvo.');
+      if(activePaymentDocs?.obraId===oid)await openPaymentDocsModal(oid,i,true);
+      toast(failures.length?`${saved} comprovante(s) salvo(s). Falha em: ${failures.join(', ')}`:`${saved} comprovante(s) salvo(s); anteriores preservados.`);
     }catch(e){
       const msg=e?.message||e?.error||String(e);
       console.error('upload comp:',e);
