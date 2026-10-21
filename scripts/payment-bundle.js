@@ -41,7 +41,8 @@
       let doc=next.docs.find(d=>sha256&&d.sha256===sha256);
       if(!doc){
         const budget=/or[cç]amento/i.test(p.nfTipo||'');
-        const kind=ext(f)==='xml'?'XML':(/boleto/i.test(f.name)?'BOLETO':visual(f)?(budget?'ORCAMENTO':'NF'):'DOCUMENTO');
+        const danfe=/danfe/i.test(f.name)&&keyFromText(f.name.replace(/_/g,' '));
+        const kind=ext(f)==='xml'?'XML':(/boleto/i.test(f.name)?'BOLETO':visual(f)?(danfe?'NF':budget?'ORCAMENTO':'NF'):'DOCUMENTO');
         const storagePath=await uploadPagDoc(oid,f,kind.toLowerCase());
         doc={name:f.name,type:f.type||inferType(f.name),size:f.size,storagePath,bucket:'pagamentos',kind,sha256};next.docs.push(doc);
       }
@@ -163,7 +164,19 @@
         const key=keyFromText(text);
         if(text.length>100&&!key&&/or[cç]amento/i.test(text)&&!/danfe/i.test(text))return null;
         let local=parseNFFromText(text);
-        if(key){local=identifyByKey(local,key);const name=text.match(/RECEBEMOS DE\s*:?\s*(?:\d+\s+)?(.+?)\s+OS PRODUTOS/i);if(name)local.ben=name[1].trim();}
+        if(key){local=identifyByKey(local,key);const name=text.match(/RECEBEMOS D[EA]\s*:?\s*(?:\d+\s+)?(.+?)\s+OS PRODUTOS/i);if(name)local.ben=name[1].trim();}
+        const totals=danfeTotals(text);
+        if(key&&totals){
+          Object.assign(local,totals);
+          const date=text.match(/DATA\s+DE\s+EMISS[A\u00c3]O[^\n]*\n[^\n]*?(\d{2}\/\d{2}\/\d{4})/i)?.[1];
+          if(date)local.date=date.split('/').reverse().join('-');
+          local.orderNumber=text.match(/#?Pedido\s*:\s*(\d+)/i)?.[1]||'';
+          local.deliveryAddress=text.match(/ENTREGA\s*:\s*([^\n]+)/i)?.[1]?.trim()||'';
+          const sum=(local.itens||[]).reduce((s,it)=>s+Math.round((Number(it.valor_total)||0)*100),0);
+          if(sum!==Math.round(local.subtotal*100)||receiptStub(local.itens))local.itens=[];
+          if(!local.itens.length)local.xmlStatus='Totais conferidos no DANFE; itens pendentes de leitura.';
+          return local;
+        }
         // Some DANFEs place the ICMS base where other layouts show item discounts.
         if(Number(local.desconto)===0)for(const item of local.itens||[])item.desconto=0;
         const itemTotal=(local.itens||[]).reduce((sum,it)=>sum+(Number(it.valor_total)||0),0);
@@ -184,6 +197,22 @@
     if(data&&receiptStub(data.itens))data.itens=[];
     return data;
   }
+  function danfeTotals(text){
+    if(!/DANFE/i.test(text))return null;
+    const lines=String(text).normalize('NFD').replace(/[\u0300-\u036f]/g,'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    const labels=[['BASE DE CALCULO DO ICMS','base'],['VALOR DO ICMS','icms'],['BASE DE CALCULO ICMS ST','baseSt'],['VALOR DO ICMS ST','st'],['VALOR TOTAL DOS PRODUTOS','subtotal'],['VALOR DO FRETE','frete'],['VALOR DO SEGURO','seguro'],['DESCONTO','desconto'],['OUT. DESPESAS ACESS.','outras'],['VALOR TOTAL DO IPI','ipi'],['VALOR TOTAL DA NOTA','val']];
+    const out={};
+    for(let i=0;i<lines.length-1;i++){
+      const found=labels.map(([label,key])=>({key,pos:lines[i].toUpperCase().indexOf(label),len:label.length})).filter(x=>x.pos>=0);
+      const hits=found.filter(x=>!found.some(y=>y.pos===x.pos&&y.len>x.len)).sort((a,b)=>a.pos-b.pos);
+      const values=[...lines[i+1].matchAll(/\b(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}\b/g)].map(m=>Number(m[0].replace(/\./g,'').replace(',','.')));
+      if(hits.length&&hits.length===values.length)hits.forEach((h,n)=>out[h.key]=values[n]);
+    }
+    if(!(out.val>0)||!(out.subtotal>0))return null;
+    const calc=out.subtotal+(out.frete||0)+(out.seguro||0)+(out.outras||0)+(out.ipi||0)+(out.st||0)-(out.desconto||0);
+    if(Math.abs(Math.round(calc*100)-Math.round(out.val*100))>1)return null;
+    return out;
+  }
   function invoiceKey(x){return taxId(x.accessKey).length===44?taxId(x.accessKey):[taxId(x.issuerCnpj),norm(x.type||'NF-e'),norm(x.series),norm(String(x.invoiceNumber).replace(/^0+/,''))].join(':');}
   function invoices(p){
     const identities=(p.docs||[]).filter(d=>!d.generatedBundle&&d.invoiceIdentity).map(d=>d.invoiceIdentity);
@@ -193,14 +222,15 @@
   }
   function identityDetails(p){
     const unique=invoices(p),money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-    const total=unique.reduce((s,x)=>s+(Number(x.total)||0),0),remaining=Number(p.v||0)-total;
-    const summary=unique.length?`<div style="grid-column:1/-1"><strong>${unique.length} nota(s) fiscal(is) | Total documentado: ${money(total)}</strong><div>Valor do pagamento: ${money(p.v)} | ${remaining>=0?'A documentar: '+money(remaining):'Notas acima do pagamento: '+money(-remaining)}</div></div>`:'';
+    const total=unique.reduce((s,x)=>s+Math.round((Number(x.total)||0)*100),0)/100,remaining=(Math.round(Number(p.v||0)*100)-Math.round(total*100))/100;
+    const difference=remaining===0?'Total das notas confere com o pagamento':Math.abs(remaining)<=0.01?'Diferenca de '+money(Math.abs(remaining))+' entre notas e pagamento':remaining>0?'A documentar: '+money(remaining):'Notas acima do pagamento: '+money(-remaining);
+    const summary=unique.length?`<div style="grid-column:1/-1"><strong>${unique.length} nota(s) fiscal(is) | Total documentado: ${money(total)}</strong><div>Valor do pagamento: ${money(p.v)} | ${difference}</div></div>`:'';
     return summary+unique.map(x=>{
       const different=x.status==='different';
       const label=different?'CNPJs diferentes: pagamento e emissao da NF. Vinculo a conferir.':x.status==='matched'?'Mesmo CNPJ no pagamento e na NF.':'CNPJ incompleto: identificacao a conferir.';
       const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
       const formatted=v=>taxId(v).length===14?taxId(v).replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):'Nao identificado';
-      const totals=x.subtotal>0?`<div>Produtos: ${money(x.subtotal)} | Desconto: ${money(x.discount)} | Frete: ${money(x.freight)} | Total da NF: ${money(x.total)}</div>`:'';
+      const totals=(x.orderNumber?`<div>Pedido: ${escHtml(x.orderNumber)}${x.deliveryAddress?' | Entrega: '+escHtml(x.deliveryAddress):''}</div>`:'')+(x.subtotal>0?`<div>Produtos: ${money(x.subtotal)} | Desconto: ${money(x.discount)} | Frete: ${money(x.freight)}${x.ipi?' | IPI: '+money(x.ipi):''} | Total da NF: ${money(x.total)}</div>`:'');
       const date=/^\d{4}-\d{2}-\d{2}$/.test(x.date||'')?x.date.split('-').reverse().join('/'):'Nao identificada';
       const items=Array.isArray(x.items)&&x.items.length?`<div style="overflow-x:auto;margin-top:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th style="text-align:left">Itens da NF ${escHtml(x.invoiceNumber)}</th><th>Qtd.</th><th>Un.</th><th style="text-align:right">Total</th></tr></thead><tbody>${x.items.map(it=>`<tr><td style="padding:5px 0;border-top:1px solid #ddd">${escHtml(it.descricao||'')}</td><td style="text-align:center">${escHtml(String(it.quantidade??''))}</td><td style="text-align:center">${escHtml(it.unidade||'')}</td><td style="text-align:right;white-space:nowrap">${money(it.valor_total)}</td></tr>`).join('')}</tbody></table></div>`:'';
       return `<section style="grid-column:1/-1;font-size:14px;min-width:0;border-top:1px solid #ddd;padding-top:10px"><strong>${escHtml(x.type||'NF')} ${escHtml(x.invoiceNumber)} | Emissao: ${date} | ${money(x.total)}</strong><div>${escHtml(label)}</div><div>Beneficiario do pagamento: ${escHtml(x.payeeName)} | CNPJ: ${formatted(x.payeeCnpj)}</div><div>Emitente: ${escHtml(x.issuerName)} | CNPJ: ${formatted(x.issuerCnpj)}</div>${totals}${x.xmlStatus?`<div style="margin-top:4px;color:var(--muted)">${escHtml(x.xmlStatus)}</div>`:''}${items}</section>`;
@@ -244,7 +274,7 @@
       const issuerCnpj=taxId(data.cnpj);
       const identified=payeeCnpj.length===14&&issuerCnpj.length===14;
       const status=identified?(payeeCnpj===issuerCnpj?'matched':'different'):'unverified';
-      const identity={payeeName:row.ben||'',payeeCnpj,issuerName:status==='matched'?(supplier.data.nome||row.ben):(data.ben||''),issuerCnpj,invoiceNumber:String(data.doc),type:data.tipo,series:data.serie||'',accessKey:data.chave||'',date:data.date||'',items:Array.isArray(data.itens)?data.itens:[],xmlStatus:data.xmlStatus||'',status,subtotal:Number(data.subtotal)||0,discount:Number(data.desconto)||0,freight:Number(data.frete)||0,total:Number(data.val)||0};
+      const identity={payeeName:row.ben||'',payeeCnpj,issuerName:status==='matched'?(supplier.data.nome||row.ben):(data.ben||''),issuerCnpj,invoiceNumber:String(data.doc),type:data.tipo,series:data.serie||'',accessKey:data.chave||'',date:data.date||'',items:Array.isArray(data.itens)?data.itens:[],xmlStatus:data.xmlStatus||'',status,subtotal:Number(data.subtotal)||0,discount:Number(data.desconto)||0,freight:Number(data.frete)||0,total:Number(data.val)||0,ipi:Number(data.ipi)||0,orderNumber:data.orderNumber||'',deliveryAddress:data.deliveryAddress||''};
       if(status==='different')warnings.push('CNPJs diferentes: beneficiario do pagamento e emitente da NF foram mantidos separados. Vinculo a conferir.');
       if(status==='unverified')warnings.push('CNPJ incompleto: confira o beneficiario e o emitente. Nenhum fornecedor foi substituido.');
       return identity;
@@ -287,6 +317,54 @@
     }catch(e){return {warning:'Anexos preservados; dados fiscais nao atualizados: '+(e.message||String(e)).slice(0,180)};}
   }
   function reportRead(result){toast(result?.warning||'NF lida. Dados fiscais conferidos; campos existentes e valores preservados.');}
+  let review=null;
+  function selectDocuments(docs,keys){
+    const originals=docs.filter(d=>!d.generatedBundle);
+    const archive=originals.flatMap(d=>d.unlinkedDocuments||[]);
+    const unique=new Map([...originals,...archive].map(d=>[paymentDocKey(d),d]));
+    const active=[],unlinked=[];
+    for(const [key,d] of unique){
+      const clean={...d};delete clean.unlinkedDocuments;
+      (keys.has(key)?active:unlinked).push(clean);
+    }
+    if(!active.length)throw Error('Mantenha ao menos um arquivo vinculado.');
+    if(unlinked.length)active[0].unlinkedDocuments=unlinked;
+    return active;
+  }
+  async function reviewLinks(oid,i){
+    if(!AccessControl.canEdit())return;
+    const p=obras.find(o=>+o.id===+oid)?.pag?.[i];if(!p?.dbId)return;
+    const result=await db.from('pagamentos').select('*').eq('id',p.dbId).eq('obra_id',oid).single();
+    if(result.error){toast('Nao foi possivel carregar os vinculos.');return;}
+    const row=result.data,docs=(row.docs_json||[]).filter(d=>!d.generatedBundle),archived=docs.flatMap(d=>d.unlinkedDocuments||[]);
+    review={oid,i,p,row,docs:[...docs,...archived]};
+    await openPaymentDocsModal(oid,i);
+    document.getElementById('payment-docs-title').textContent='Notas e arquivos vinculados';
+    document.getElementById('payment-docs-body').innerHTML=review.docs.map((d,n)=>{
+      const identity=d.invoiceIdentity,key=keyFromText((d.name||'').replace(/_/g,' '));
+      const number=identity?.invoiceNumber||(key?String(Number(key.slice(25,34))):'');
+      return `<label class="payment-doc-row"><input type="checkbox" data-payment-link="${n}" ${n<docs.length?'checked':''} ${paymentIsProofDoc(d)?'disabled':''}><span><b>${number?'NF '+escHtml(number)+' | ':''}${escHtml(d.name||'Arquivo')}</b>${identity?.orderNumber?'<br>Pedido '+escHtml(identity.orderNumber):''}${identity?.deliveryAddress?'<br>'+escHtml(identity.deliveryAddress):''}${n>=docs.length?'<br>Desvinculado':''}</span></label>`;
+    }).join('')+'<button class="btn" onclick="PaymentBundle.saveLinks()">Salvar vinculos</button>';
+  }
+  async function saveLinks(){
+    if(!review||!AccessControl.canEdit())return;
+    const {oid,i,p,row,docs}=review,key=oid+':'+p.dbId;if(locks.has(key)){toast('Leitura em andamento. Aguarde antes de alterar vinculos.');return;}
+    locks.add(key);
+    try{
+      const keys=new Set([...document.querySelectorAll('[data-payment-link]:checked')].map(el=>paymentDocKey(docs[Number(el.dataset.paymentLink)])));
+      const selected=selectDocuments(docs,keys),primary=selected.find(d=>d.invoiceIdentity),nf=primary||selected.find(d=>paymentDocKindLabel(d)==='NF');
+      const patch={docs_json:selected,nf_doc_path:nf?.storagePath||''};
+      if(primary){const x=primary.invoiceIdentity;Object.assign(patch,{nf_num:x.invoiceNumber,nf_tipo:x.type,emissao:x.date||row.emissao,chave:x.accessKey||'',itens_pag:x.items||[]});}
+      let query=db.from('pagamentos').update(patch).eq('id',p.dbId).eq('obra_id',oid);
+      for(const field of new Set([...Object.keys(patch),'ben']))query=row[field]==null?query.is(field,null):query.eq(field,Array.isArray(row[field])?JSON.stringify(row[field]):row[field]);
+      const saved=await query.select('*');if(saved.error)throw saved.error;if(!saved.data?.length)throw Error('Os dados mudaram. Reabra a conferencia dos vinculos.');
+      applyPaymentHeavyRow(p,saved.data[0]);
+      if(primary)Object.assign(p,{nfNum:patch.nf_num,nfTipo:patch.nf_tipo,emissao:patch.emissao,chave:patch.chave,itens:patch.itens_pag});
+      if(typeof paymentSnapshot==='function')paymentSnapshot({id:oid},p,saved.data[0],true);
+      review=null;closePaymentDocsModal();if(cur&&+cur.id===+oid)renderObra();
+      toast('Vinculos atualizados. Arquivos desvinculados podem ser restaurados em Conferir vinculos.');
+    }catch(e){toast('Vinculos nao alterados: '+e.message);}finally{locks.delete(key);}
+  }
   async function reprocess(oid,i){
     if(!AccessControl.canEdit()){toast('Sem permissao para atualizar.');return;}
     const p=obras.find(o=>+o.id===+oid)?.pag?.[i];if(!p?.dbId)return;
@@ -336,5 +414,5 @@
       }
     }
   }
-  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,keyFromText,validAccessKey,nationalServiceInvoice,readFiscal,consultationWindow,retrieveFiscalFiles,confirming:false};
+  root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,keyFromText,validAccessKey,nationalServiceInvoice,readFiscal,danfeTotals,selectDocuments,reviewLinks,saveLinks,consultationWindow,retrieveFiscalFiles,confirming:false};
 })(typeof window==='undefined'?globalThis:window);
