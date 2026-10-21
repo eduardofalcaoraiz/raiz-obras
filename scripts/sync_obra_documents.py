@@ -49,12 +49,30 @@ def main():
     if not ids:
         print(json.dumps({'ok': True, 'candidates': 0}))
         return
-    os.environ['ZEEV_TICKET_IDS'] = ','.join(map(str, ids))
-    result = sync.rescue_docs(deadline=time.time() + 1500)
-    print(json.dumps({k: result.get(k) for k in ('ok', 'candidates', 'processed', 'downloadedDocs',
-                                               'filesAttached', 'completed', 'checkedWithoutFiscal')}))
-    if not result.get('ok') or result.get('errors') or not result.get('completed'):
-        raise RuntimeError('Attachment synchronization was incomplete; inspect the remaining tickets.')
+    recover(ids, deadline=time.time() + 1500)
+
+
+def recover(ids, deadline):
+    for ticket_id in ids:
+        if time.time() >= deadline:
+            raise RuntimeError('Attachment synchronization reached its time budget before completing.')
+        tickets = sync.sync_ids([ticket_id], allow_non_capex=True, reason='Resgate de anexos de pagamentos de obras')
+        if len(tickets) != 1:
+            raise RuntimeError('Zeev did not return the requested registered ticket.')
+        ticket = tickets[0]
+        debug = (ticket.get('campos_extraidos') or {}).get('_zeev_doc_rescue') or {}
+        downloaded = len(sync.embedded_downloaded_docs(ticket))
+        result = sync.ingest(tickets, notify=False, backfill_limit=0, fanout_targets=True)
+        backfill = result.get('backfill') or {}
+        direct = backfill.get('directDocs') or backfill
+        print(json.dumps({'downloadedDocs': downloaded, 'filesAttached': direct.get('filesAttached', 0),
+                          'candidates': debug.get('candidates', 0)}), flush=True)
+        if any(part.get('ok') is False or part.get('errors') for part in (result, backfill, direct)):
+            raise RuntimeError('The attachment service reported an incomplete import.')
+        if debug.get('candidates') and not downloaded:
+            raise RuntimeError('Zeev exposed attachment candidates but no file could be downloaded.')
+        if downloaded >= sync.direct_doc_rescue_file_limit():
+            raise RuntimeError('The attachment limit was reached; remaining files require verification.')
 
 
 if __name__ == '__main__':
