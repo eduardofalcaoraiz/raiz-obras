@@ -3539,6 +3539,8 @@ def rescue_documents_for_row(row):
             for link in re.findall(r"""(?i)(?:href|src)=["']([^"']+)["']""", html) + re.findall(r"https?://[^\s\"'<>),;]+", html):
                 if doc_like_text(link):
                     push_doc_candidate(candidates, "documento-fiscal.pdf", urllib.parse.urljoin(root, link), source="reportLink")
+            from zeev_report_documents import collect_report_documents
+            collect_report_documents(root, candidates, fetch_text_for_source, push_doc_candidate)
         except Exception:
             pass
     base = ZEEV_BASE_URL
