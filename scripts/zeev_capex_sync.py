@@ -1381,6 +1381,7 @@ def instance_fields(instance_id, fields, timeout=90, retries=3):
         return request_json("GET", url, headers={"Authorization": f"Bearer {ZEEV_TOKEN}"}, timeout=timeout, retries=retries)
 
     attempts = [
+        ("POST /api/2/instances/report signed files", lambda: report_instance(instance_id, 0, fields=fields if fields else None, timeout=timeout, retries=retries)),
         ("GET /api/2/instances useCache=false", lambda: [direct_instance(False, True)]),
         ("GET /api/2/instances useCache=true", lambda: [direct_instance(True, True)]),
         ("POST /api/2/instances/report instanceId", lambda: report_instance(instance_id, 0, fields=fields if fields else None, timeout=timeout, retries=retries)),
@@ -3308,7 +3309,7 @@ def collect_doc_candidates_from_value(out, label, value, source, depth=0):
         value_path = value.get("value") if looks_like_download_path(value.get("value")) else ""
         name = value.get("fileName") or value.get("filename") or value.get("originalName") or value.get("displayName") or value.get("title") or (filename_from_download_path(value_path, label) if value_path else "") or value.get("name") or label
         content_type = value.get("type") or value.get("mimeType") or value.get("contentType") or ""
-        url = value.get("url") or value.get("openUrl") or value.get("downloadUrl") or value.get("href") or value.get("link") or value.get("fileUrl") or value.get("signedUrl") or value.get("contentUrl") or value_path or ""
+        url = value.get("openUrl") or value.get("url") or value.get("downloadUrl") or value.get("href") or value.get("link") or value.get("fileUrl") or value.get("signedUrl") or value.get("contentUrl") or value_path or ""
         file_id = value.get("fileId") or value.get("fileID") or value.get("file_id") or value.get("arquivoId") or value.get("documentId") or value.get("attachmentId") or ""
         if not file_id and "value" not in value and doc_like_text(" ".join([str(label), str(name), str(source)])):
             file_id = value.get("id") if re.match(r"^[A-Za-z0-9._-]{3,180}$", str(value.get("id") or "")) else ""
@@ -3391,6 +3392,8 @@ def fetch_binary_for_rescue(url):
                 raw = res.read(max_bytes + 1)
                 if len(raw) > max_bytes:
                     raise RuntimeError(f"arquivo maior que limite direto ({len(raw)} bytes)")
+                if is_zeev_host and ("text/html" in res.headers.get("Content-Type", "").lower() or raw.lstrip().lower().startswith((b"<!doctype html", b"<html"))):
+                    raise RuntimeError("Zeev retornou HTML de acesso; renovar openUrl pela API de relatorio")
                 return {
                     "url": clean,
                     "status": res.status,
@@ -3492,6 +3495,7 @@ def rescue_documents_for_row(row):
     try:
         report_field_limit = max(8, min(int(os.environ.get("ZEEV_DOC_REPORT_FIELD_LIMIT", "40") or "40"), 80))
         requested_fields = unique_fields(
+            [field_display_name(f) for f in row.get("formFields") or [] if f.get("openUrl") or looks_like_download_path(f.get("value"))],
             pending_fiscal_repair_fields(flow_id),
             DOCUMENT_FIELDS,
             env_list(os.environ.get("ZEEV_EXTRA_DOCUMENT_FIELDS", "")),
@@ -3508,7 +3512,7 @@ def rescue_documents_for_row(row):
             rows[0] if rows else {},
         )
         report_fields = target.get("formFields") or []
-        row["formFields"] = merge_zeev_fields(row.get("formFields") or [], report_fields)
+        row["formFields"] = merge_zeev_fields(report_fields, row.get("formFields") or [])
         report_probe = {
             "requested": True,
             "fields": len(report_fields),

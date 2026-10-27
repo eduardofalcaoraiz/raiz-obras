@@ -890,7 +890,14 @@ async function zeevBinaryRequest(url: string, init: RequestInit = {}, options: {
       errors.push(`timeout/fetch: ${error instanceof Error ? error.message : String(error)}`.slice(0, 260))
       continue
     }
-    if (res.ok) return res
+    if (res.ok) {
+      if (isZeevHost && /text\/html/i.test(res.headers.get('content-type') || '')) {
+        errors.push(`${attempt.auth}: Zeev devolveu HTML em vez do anexo; renove o openUrl pela API de relatorio.`)
+        await res.body?.cancel()
+        continue
+      }
+      return res
+    }
     const text = await responseText(res)
     errors.push(`${attempt.auth} HTTP ${res.status}: ${text.slice(0, 220)}`)
     if (![401, 403].includes(res.status) && res.status < 500) break
@@ -3054,13 +3061,13 @@ async function zeevInstanceReport(instanceId: number, flow: number, fields: stri
     const key = JSON.stringify(next)
     if (!bodies.some((item) => JSON.stringify(item) === key)) bodies.push(next)
   }
-  addBody(baseBody, true)
-  addBody(taskBody, true)
   addBody(openUrlBody, true)
+  addBody(taskBody, true)
+  addBody(baseBody, true)
   if (flow) {
-    addBody(baseBody, false)
-    addBody(taskBody, false)
     addBody(openUrlBody, false)
+    addBody(taskBody, false)
+    addBody(baseBody, false)
   }
   const errors: string[] = []
   let fallback: AnyRecord | null = null
@@ -4482,11 +4489,12 @@ function pushZeevDocValue(out: AnyRecord[], label: string, value: unknown, sourc
   if (typeof value === 'object') {
     const v = value as AnyRecord
     const valuePath = looksLikeDownloadPath(v.value) ? v.value : ''
-    const url = v.url || v.openUrl || v.downloadUrl || v.href || v.link || v.fileUrl || v.signedUrl || v.contentUrl || valuePath || ''
+    const url = v.openUrl || v.url || v.downloadUrl || v.href || v.link || v.fileUrl || v.signedUrl || v.contentUrl || valuePath || ''
     const name = v.fileName || v.filename || v.originalName || v.displayName || v.title || v.label || (valuePath ? fileNameFromDownloadPath(valuePath, label) : '') || v.name || label || 'documento-fiscal.pdf'
     pushZeevDoc(out, name, url, v.type || v.mimeType || v.contentType || '', source)
     const explicitFileId = v.fileId || v.fileID || v.file_id || v.arquivoId || v.arquivoID || v.documentId || v.documentID || v.document_id || v.attachmentId || v.attachmentID || v.attachment_id || ''
-    const inferredFileId = !explicitFileId && objectFileHints(v) && looksLikeZeevDocumentLabel([source, label, name].filter(Boolean).join(' ')) ? v.id : ''
+    // A form-field ID identifies the field, not an attachment.
+    const inferredFileId = !explicitFileId && !('value' in v) && objectFileHints(v) && looksLikeZeevDocumentLabel([source, label, name].filter(Boolean).join(' ')) ? v.id : ''
     const fileId = explicitFileId || inferredFileId
     if (fileId) pushZeevFileIdDoc(out, name, fileId, v.type || v.mimeType || v.contentType || '', source)
     const base64Content = v.base64Content || v.base64 || v.contentBase64 || v.fileBase64 || v.bytesBase64 || ''
@@ -4868,8 +4876,8 @@ function fileDownloadUrls(doc: AnyRecord) {
     const url = safeZeevFileUrl(value)
     if (url && !urls.includes(url)) urls.push(url)
   }
-  push(doc?.url)
   push(doc?.openUrl)
+  push(doc?.url)
   push(doc?.downloadUrl)
   push(doc?.fileUrl)
   push(doc?.signedUrl)
@@ -6479,7 +6487,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
 
   if (includePayments && budget > 0) {
     const obraFilter = targetObraIds.length ? `&obra_id=in.(${targetObraIds.join(',')})` : ''
-    const paymentBase = `/pagamentos?select=id,obra_id,ticket_raiz,nf_num,nf_tipo,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,escopo_fin,zeev_docs_checked_at&ticket_raiz=not.is.null${obraFilter}&order=obra_id.asc.nullslast,id.asc`
+    const paymentBase = `/pagamentos?select=id,obra_id,ticket_raiz,nf_num,nf_tipo,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,escopo_fin,zeev_docs_checked_at&ticket_raiz=not.is.null${obraFilter}&order=zeev_docs_checked_at.asc.nullsfirst,id.asc`
     const rows = targetTicketIds.length ? await restAll(paymentBase) : await rest(`${paymentBase}&limit=${Math.max(40, limit * 12)}`)
     const candidates = (rows || [])
       .filter((row: AnyRecord) => {
@@ -6562,7 +6570,7 @@ async function runBackfillDocs(input: AnyRecord = {}) {
 
   if (includePending && budget > 0 && !targetTicketIds.length) {
     const pendingSelect = 'id,zeev_instance_id,flow_id,flow_name,flow_version,request_name,ticket_link,raw_fields,raw_instance,raw_tasks,itens_json,pagamento_json,campos_extraidos,docs_json,zeev_docs_checked_at,status,start_date_time'
-    const rows = await rest(`/capex_zeev_solicitacoes?select=${pendingSelect}&status=eq.pendente&order=start_date_time.asc.nullsfirst,id.asc&limit=${Math.max(30, limit * 12)}`)
+    const rows = await rest(`/capex_zeev_solicitacoes?select=${pendingSelect}&status=eq.pendente&order=zeev_docs_checked_at.asc.nullsfirst,id.asc&limit=${Math.max(30, limit * 12)}`)
     const candidates = (rows || [])
       .filter((row: AnyRecord) => Number(row.zeev_instance_id) && docsNeedRescue(row, staleHours, checkedBefore))
       .sort((a: AnyRecord, b: AnyRecord) => docsCandidateScore(a) - docsCandidateScore(b) || Number(a.id) - Number(b.id))
