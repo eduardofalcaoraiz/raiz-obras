@@ -9623,7 +9623,7 @@ function renderCapexZeevCards(pend){
     const stageSummary=capexStageForSummary(z);
     const link=z.ticket_link?`<a class="btn btn-ghost btn-sm" href="${escHtml(z.ticket_link)}" target="_blank" rel="noopener" onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')">VISUALIZAR TICKET</a>`:'';
     const docsCount=capexZeevStoredDocs(z).length;
-    const docsButton=docsCount?`<button class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexZeevDocsModal(${id})">Arquivos (${docsCount})</button>`:'';
+    const docsButton=`<button class="btn btn-ghost btn-sm" onclick="event.preventDefault();event.stopPropagation();openCapexZeevDocsModal(${id})">Arquivos${docsCount?' ('+docsCount+')':''}</button>`;
     const person=capexZeevRequester(z);
     const requester=[person.nome||person.email,person.equipe].filter(Boolean).join(' / ')||'Nao informado';
     const destination=capexZeevUnitInference(z);
