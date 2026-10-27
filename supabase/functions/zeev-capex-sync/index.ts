@@ -6537,7 +6537,8 @@ async function runBackfillDocs(input: AnyRecord = {}) {
 
   if (includeCapex && budget > 0) {
     const capexBase = '/capex_itens?select=id,referencia,ticket_raiz_instance_id,ticket_raiz_url,ticket_raiz_dados,docs_json,situacao,realizado,zeev_docs_checked_at,pedido,orcamento,origem&order=zeev_docs_checked_at.asc.nullsfirst,id.asc'
-    const rows = targetTicketIds.length ? await restAll(capexBase) : await rest(`${capexBase}&limit=${Math.max(40, limit * 12)}`)
+    // Ticket references may live in JSON or URLs; filter before limiting the queue.
+    const rows = await restAll(capexBase)
     const candidates = (rows || [])
       .filter((row: AnyRecord) => {
         const refs = capexTicketRefs(row)
@@ -8927,4 +8928,5 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: error instanceof Error ? error.message : String(error) }, 500)
   }
 })
+
 
