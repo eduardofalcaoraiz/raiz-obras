@@ -4057,6 +4057,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <link rel="stylesheet" href="scripts/platform-identity.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/record-cards.css?v=20261029-investment-contract">
 <link rel="stylesheet" href="scripts/typography.css?v=20260922-balanced">
+<link rel="stylesheet" href="scripts/qi-brand.css?v=20261029-original">
 <script defer src="scripts/platform-menu.js?v=20260917-menu"></script>
 <script src="scripts/access-invites.js?v=20260916-invite-availability"></script>
 <link rel="stylesheet" href="scripts/access-control.css?v=20260921-readable">
@@ -4242,7 +4243,7 @@ function capexLoadingPanel(title,sub){
 
 const _RAW='/';
 
-const BRAND_LOGO_FILES={'RAIZ':'LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png','RAIZ EDUCAÇÃO':'LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png','QI':'LOGO%20DO%20QI.png','CUBO':'LOGO%20DO%20CUBO%20GLOBAL%20SCHOOL.png','GLOBAL TREE':'LOGO%20DA%20GLOBAL%20TREE.png','SARAH DAWSEY':'LOGO%20DO%20SARAH%20DAWSEY.png','MATRIZ':'LOGO%20DO%20MATRIZ%20EDUCA%C3%87%C3%83O.png','APOGEU':'LOGO%20DO%20APOGEU%20GLOBAL%20SCHOOL.png','LEONARDO DA VINCI':'LOGO%20DO%20LEONARDO%20DA%20VINCI.png','SÁ PEREIRA':'LOGO%20DO%20S%C3%81%20PEREIRA.png','SAP':'LOGO%20DO%20SAP.png','AMERICANO':'LOGO%20DO%20AMERICANO.png','UNIFICADO':'LOGO%20DO%20UNIFICADO.png','UNIÃO':'LOGO%20DO%20UNI%C3%83O.png','INTEGRA':'LOGO%20DA%20ESCOLA%20INTEGRA.png','BOM TEMPO':'LOGO%20DA%20BOM%20TEMPO.png'};
+const BRAND_LOGO_FILES={'RAIZ':'LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png','RAIZ EDUCAÇÃO':'LOGO%20DA%20RAIZ%20EDUCA%C3%87%C3%83O.png','QI':'assets/brands/colegio-qi-original.png','CUBO':'LOGO%20DO%20CUBO%20GLOBAL%20SCHOOL.png','GLOBAL TREE':'LOGO%20DA%20GLOBAL%20TREE.png','SARAH DAWSEY':'LOGO%20DO%20SARAH%20DAWSEY.png','MATRIZ':'LOGO%20DO%20MATRIZ%20EDUCA%C3%87%C3%83O.png','APOGEU':'LOGO%20DO%20APOGEU%20GLOBAL%20SCHOOL.png','LEONARDO DA VINCI':'LOGO%20DO%20LEONARDO%20DA%20VINCI.png','SÁ PEREIRA':'LOGO%20DO%20S%C3%81%20PEREIRA.png','SAP':'LOGO%20DO%20SAP.png','AMERICANO':'LOGO%20DO%20AMERICANO.png','UNIFICADO':'LOGO%20DO%20UNIFICADO.png','UNIÃO':'LOGO%20DO%20UNI%C3%83O.png','INTEGRA':'LOGO%20DA%20ESCOLA%20INTEGRA.png','BOM TEMPO':'LOGO%20DA%20BOM%20TEMPO.png'};
 
 function brandLogoKey(marca){return String(marca||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();}
 function brandLogoFile(marca){
@@ -10619,7 +10620,7 @@ const BRAND_LOGOS={
 
   'GLOBAL TREE':       _LOGO_BASE+'LOGO%20DA%20GLOBAL%20TREE.png',
 
-  'QI':                _LOGO_BASE+'LOGO%20DO%20QI.png',
+  'QI':                _LOGO_BASE+'assets/brands/colegio-qi-original.png',
 
   'MATRIZ':            _LOGO_BASE+'LOGO%20DO%20MATRIZ%20EDUCA%C3%87%C3%83O.png',
 

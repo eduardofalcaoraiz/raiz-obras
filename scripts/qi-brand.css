@@ -1,0 +1,8 @@
+/* Original horizontal QI artwork; other school identities are unchanged. */
+#app img[src*="assets/brands/colegio-qi-original.png"],#app>.main :is(.obra-brand-logo,.uc-logo,.capex-brand-logo,.capex-unit-logo,.capex-context-logo,.capex-status-logo,.realestate-subloc-brand-logo,.re-property-logo,.re-property-brand,.dash-brand,.hub-brand-strip,.hub-identity) img[src*="colegio-qi-original.png"]{width:144px!important;height:auto!important;max-width:100%!important;max-height:none!important;aspect-ratio:1920/401;object-fit:contain!important;filter:none!important;transform:none!important;flex-shrink:0}
+#app :is(.obra-brand-logo,.uc-logo,.capex-brand-logo,.capex-unit-logo,.capex-context-logo,.capex-status-logo,.realestate-subloc-brand-logo,.re-property-logo):has(img[src*="colegio-qi-original.png"]){width:160px!important;height:auto!important;min-height:34px;max-width:100%;flex:0 0 auto;padding:4px!important;overflow:visible;background:transparent}
+#app>.main .pgrid>.obra-card.obra-card .obra-card-head:has(img[src*="colegio-qi-original.png"]),#app>.main :is(.capex-brand-head,.capex-unit-head):has(img[src*="colegio-qi-original.png"]){grid-template-columns:minmax(0,1fr);gap:8px}
+#app>.main .pgrid>.obra-card.obra-card .obra-card-head:has(img[src*="colegio-qi-original.png"]) .obra-card-heading{padding-left:0;border-left:0}
+#app>.main .obra-card-brands:has(img[src*="colegio-qi-original.png"]){justify-content:flex-start}
+#app :is(.uc-head,.hub-identity,.re-property-heading,.capex-status-head,.realestate-subloc-brand):has(img[src*="colegio-qi-original.png"]){flex-wrap:wrap}
+#app>.main .hub-identity>img[src*="colegio-qi-original.png"]{width:192px!important;flex-basis:192px}

@@ -67,6 +67,7 @@ COVER_LOGO_MAX_HEIGHT_MM = 22
 DETAIL_LOGO_WIDTH_MM = 40
 DETAIL_LOGO_MAX_HEIGHT_MM = 15
 LOGO_ADAPT_TO_HEADER = False
+LOGO_PRESERVE_ORIGINAL = False
 LOGO_HEADER_COLOR = "#000000"
 LOGO_MIN_CONTRAST = 3.0
 _LOGO_CACHE: dict[str, ImageReader] = {}
@@ -457,7 +458,7 @@ def draw_progress(c: canvas.Canvas, x: float, y: float, w: float, value: float, 
 
 def cropped_logo() -> ImageReader:
     cache_key = (
-        f"{LOGO_PATH.resolve()}|adapt={LOGO_ADAPT_TO_HEADER}"
+        f"{LOGO_PATH.resolve()}|adapt={LOGO_ADAPT_TO_HEADER}|original={LOGO_PRESERVE_ORIGINAL}"
         f"|header={LOGO_HEADER_COLOR}|contrast={LOGO_MIN_CONTRAST}"
     )
     cached = _LOGO_CACHE.get(cache_key)
@@ -465,6 +466,10 @@ def cropped_logo() -> ImageReader:
         return cached
 
     source = Image.open(LOGO_PATH).convert("RGBA")
+    if LOGO_PRESERVE_ORIGINAL:
+        image = ImageReader(source)
+        _LOGO_CACHE[cache_key] = image
+        return image
     alpha = source.getchannel("A")
     bbox = alpha.getbbox()
     if bbox == (0, 0, source.width, source.height):

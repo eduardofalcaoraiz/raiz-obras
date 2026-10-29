@@ -82,7 +82,8 @@ BRANDS = {
     },
     "QI": {
         "name": "Colégio QI",
-        "logo": "LOGO DO QI.png",
+        "logo": "assets/brands/colegio-qi-original.png",
+        "logo_preserve_original": True,
         "primary": "#F4152A",
         "header": "#FFF7F8",
         "header_text": "#D41126",
@@ -185,6 +186,7 @@ def configure(config: dict[str, object], units: list[str]) -> None:
     report.DETAIL_LOGO_WIDTH_MM = float(config.get("detail_logo_width_mm", 40))
     report.DETAIL_LOGO_MAX_HEIGHT_MM = float(config.get("detail_logo_max_height_mm", 15))
     report.LOGO_ADAPT_TO_HEADER = bool(config.get("logo_adapt_to_header", False))
+    report.LOGO_PRESERVE_ORIGINAL = bool(config.get("logo_preserve_original", False))
     report.LOGO_HEADER_COLOR = str(config["header"])
     report.LOGO_MIN_CONTRAST = float(config.get("logo_min_contrast", 3.0))
 
