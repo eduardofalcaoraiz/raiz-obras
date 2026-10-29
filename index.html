@@ -4055,7 +4055,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <link rel="stylesheet" href="scripts/dashboard-hub.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/platform-menu.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/platform-identity.css?v=20260921-readable">
-<link rel="stylesheet" href="scripts/record-cards.css?v=20261009-status-fit">
+<link rel="stylesheet" href="scripts/record-cards.css?v=20261029-investment-contract">
 <link rel="stylesheet" href="scripts/typography.css?v=20260922-balanced">
 <script defer src="scripts/platform-menu.js?v=20260917-menu"></script>
 <script src="scripts/access-invites.js?v=20260916-invite-availability"></script>
@@ -6834,7 +6834,18 @@ function renderObraCard(o,i){
   const unitChips=relatedUnits.length?`<div class="obra-card-units" title="${escHtml(relatedUnits.map(u=>u.nome).join(' · '))}">${relatedUnits.map(u=>`<span class="obra-card-unit-chip">${escHtml(u.nome)}</span>`).join('')}</div>`:'';
   const anoFim=_obraEndYear(o)||'a definir';
   const entregaText=isDone?(anoFim==='a definir'?'Entregue':`Entregue em ${anoFim}`):(anoFim==='a definir'?'Entrega a definir':`Entrega prevista: ${anoFim}`);
-  const contractValue=typeof DashboardData!=='undefined'?DashboardData.project(o).contract:null;
+  const cardFinancial=typeof DashboardData!=='undefined'?DashboardData.project(o):null;
+  const contractValue=cardFinancial?cardFinancial.contract:null;
+  const investmentValue=typeof DashboardData!=='undefined'?DashboardData.amount(o.investimento_disponivel):null;
+  const paidWork=cardFinancial?cardFinancial.ledger.paid.filter(r=>r.scope==='obra'):[];
+  const hasCardLink=v=>v!==null&&v!==undefined&&String(v)!==''&&String(v)!=='0';
+  const builderSeqs=new Set((Array.isArray(o.construtoras)?o.construtoras:[]).filter(c=>c&&hasCardLink(c.seq)).map(c=>String(c.seq)));
+  // Supplier contracts take precedence over builder links, as in DashboardData.
+  const paidBuilders=paidWork.filter(r=>builderSeqs.has(String(r.p.construtora_seq))&&!hasCardLink(r.p.contratoSeq??r.p.contrato_seq));
+  // Legacy aggregate payments have no verifiable scope or builder allocation.
+  const hasScopedLedger=cardFinancial&&!cardFinancial.legacy;
+  const investmentBalance=hasScopedLedger&&investmentValue!==null?DashboardData.round(investmentValue-DashboardData.sum(paidWork,r=>r.value)):null;
+  const builderBalance=hasScopedLedger&&contractValue!==null&&builderSeqs.size?DashboardData.round(contractValue-DashboardData.sum(paidBuilders,r=>r.value)):null;
   return `<div class="pcard obra-card interactive-card" role="button" tabindex="0" onclick="openObra(${o.id})" onkeydown="if(cardKeyOpen(event))openObra(${o.id})" style="animation-delay:${i*55}ms;--brand-cur:${bc};--brand-text:${brandText};--brand-cur-light:${brandLight(marcaBase)};--brand-readable:${brandReadable};--brand-readable-shadow:${brandShadow}">
     <div class="obra-card-head">
       <div class="obra-card-brands">${marcaPills}</div>
@@ -6850,9 +6861,23 @@ function renderObraCard(o,i){
       </div>
     </div>
     <div class="obra-card-body">
-      <div class="obra-card-contract">
-        <span>Contrato principal + aditivos</span>
-        <strong>${contractValue===null?'N\u00e3o cadastrado':fmt(contractValue)}</strong>
+      <div class="obra-card-finances">
+        <div class="obra-card-contract">
+          <span>Investimento total</span>
+          <strong>${investmentValue===null?'N\u00e3o cadastrado':fmt(investmentValue)}</strong>
+        </div>
+        <div class="obra-card-contract">
+          <span>Contrato construtora(s) + aditivos</span>
+          <strong>${contractValue===null?'N\u00e3o cadastrado':fmt(contractValue)}</strong>
+        </div>
+        <div class="obra-card-contract">
+          <span>Saldo investimento</span>
+          <strong>${investmentBalance===null?'N\u00e3o cadastrado':fmt(investmentBalance)}</strong>
+        </div>
+        <div class="obra-card-contract">
+          <span>Saldo construtora</span>
+          <strong>${builderBalance===null?'N\u00e3o cadastrado':fmt(builderBalance)}</strong>
+        </div>
       </div>
       <div class="obra-card-constr">
         <div class="obra-card-constr-head"><span class="obra-card-label">Construtora(s)</span></div>
