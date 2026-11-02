@@ -115,6 +115,8 @@
 .re-payment-actions .btn{height:32px;min-height:32px;font-size:13px;white-space:nowrap}
 .re-payment-actions .re-icon-action{width:32px;padding:0;justify-content:center}
 .re-dossier :focus-visible,#re-sub-content :focus-visible{outline:2px solid var(--brand-text);outline-offset:2px}
+.re-dossier .chips.re-dossier-states{display:flex!important;flex-wrap:wrap;gap:6px}
+.re-dossier .re-dossier-states .chip{flex:0 0 auto!important;width:auto!important;min-width:max-content;white-space:nowrap;word-break:normal;overflow-wrap:normal}
 @media(min-width:761px) and (max-width:1150px){.re-dossier .re-payment-summary{grid-template-columns:minmax(0,1fr) 260px 16px}.re-dossier .re-payment-reference{grid-column:1/-1;grid-row:2;padding:0}.re-payment-amount{grid-column:2;grid-row:1}.re-payment-chevron{grid-column:3;grid-row:1}}
 @media(max-width:760px){.re-dossier-toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px}.re-dossier-toolbar label,.re-dossier-toolbar .re-filter-supplier{min-width:0;max-width:none}.re-dossier-toolbar label:first-child{grid-column:1/-1;max-width:none;min-width:0}.re-dossier-toolbar .fi{font-size:13px}.re-payment-actions .btn{height:44px;min-height:44px}.re-payment-actions .re-icon-action{width:44px}.re-dossier-states{flex-wrap:wrap}.re-dossier-states .chip{font-size:13px}.re-dossier-states .chip span{font-size:12px}}
 @media(max-width:1150px){.re-payment-summary{grid-template-columns:minmax(150px,1fr) minmax(150px,1.3fr) minmax(140px,.8fr) 18px;gap:10px}.re-payment-reference{padding:0 10px}.re-dossier-metrics .val{font-size:20px}}
