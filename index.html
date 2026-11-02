@@ -1933,6 +1933,28 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 #pane-pag .payment-status-filters{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
 #pane-pag .payment-status-filters input{height:36px;min-width:145px}
 @media(max-width:600px){#pane-pag .payment-filter-field{flex-basis:calc(50% - 12px);max-width:none}#pane-pag .payment-status-filters input{margin-left:0!important;flex:1}#pane-pag #pag-busca{max-width:none!important}}
+</style><style id="payment-usability-refinement">
+/* Payment usability refinement: scoped to work-payment lists. */
+#pane-pag .pag-card-grid{grid-template-columns:minmax(0,1.2fr) minmax(0,1.6fr) 310px!important;gap:12px!important}
+#pane-pag .pag-card-grid>div{min-width:0}
+#pane-pag .pag-card-grid>div:nth-child(2){white-space:normal;overflow-wrap:break-word;word-break:normal;line-height:1.4}
+#pane-pag .pag-card-grid>div:nth-child(2)>div{line-height:1.4!important;letter-spacing:0}
+#pane-pag .payment-amount-status{gap:6px!important;flex-wrap:nowrap!important}
+#pane-pag .payment-amount-status>div{font-size:12px!important;font-weight:600!important;padding:3px 7px!important}
+#pane-pag .payment-amount-status>span{font-size:18px!important;font-weight:700!important;font-variant-numeric:tabular-nums}
+#pane-pag .payment-quick-actions{gap:6px!important;align-items:center}
+#pane-pag .payment-quick-actions button{height:32px;font-size:13px!important;white-space:nowrap}
+#pane-pag .payment-quick-actions .payment-icon-action{width:32px;padding:0!important;justify-content:center;flex:0 0 32px}
+#pane-pag .payment-quick-actions .menu-icon{width:16px;height:16px;display:inline-block;background:currentColor;mask:var(--menu-icon) center/contain no-repeat;-webkit-mask:var(--menu-icon) center/contain no-repeat}
+#pane-pag .payment-quick-actions button:hover{filter:brightness(.96)}
+#pane-pag button:focus-visible,#pane-pag input:focus-visible,#pane-pag select:focus-visible{outline:2px solid var(--brand-text);outline-offset:2px}
+#pane-pag .card{border-radius:8px!important;border:1px solid var(--line)}
+#pane-pag .payment-date-field{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}
+#pane-pag .payment-date-start{margin-left:auto}
+#pane-pag .payment-status-filters{align-items:end}
+#pane-pag #pag-busca{max-width:330px!important;min-width:220px!important;height:36px}
+@media(max-width:1100px){#pane-pag .pag-card-grid{grid-template-columns:minmax(0,1fr) 310px!important}#pane-pag .pag-card-grid>div:nth-child(2){grid-row:2;grid-column:1/-1;border:0!important;padding:0!important}#pane-pag .pag-card-grid>div:nth-child(3){grid-row:1;grid-column:2}}
+@media(max-width:700px){#pane-pag .pag-card-grid{grid-template-columns:1fr!important}#pane-pag .pag-card-grid>div:nth-child(3){grid-row:3;grid-column:1;align-items:flex-start!important;flex-direction:column!important;width:100%}#pane-pag .payment-amount-status{justify-content:space-between!important;width:100%;flex-wrap:wrap!important}#pane-pag .payment-quick-actions{justify-content:flex-start!important}#pane-pag .payment-quick-actions button{height:44px}#pane-pag .payment-quick-actions .payment-icon-action{width:44px;flex-basis:44px}#pane-pag .payment-date-start{margin-left:0}#pane-pag .payment-date-field{flex:1;min-width:130px}#pane-pag .payment-date-field input{width:100%!important}#pane-pag #pag-busca{max-width:none!important}}
 </style></head>
 
 <body>
@@ -4959,8 +4981,8 @@ function filteredPaymentRows(o,advanced=true){
   if(pagPagante)rows=rows.filter(r=>(r.p.pagn||"")==pagPagante);
   if(pagNfTipo)rows=rows.filter(r=>(r.p.nfTipo||"")==pagNfTipo);
   if(pagContrato)rows=rows.filter(r=>String(r.p.contratoSeq||"")==pagContrato);
-  if(pagMes==='sem-data')rows=rows.filter(r=>!r.p.venc&&!r.p.emissao&&!r.p.pagaEm);
-  else if(pagMes){rows=rows.filter(r=>dateMonthKey(r.p.pagaEm||r.p.venc||r.p.emissao)===pagMes);}
+  if(pagMes==='sem-data')rows=rows.filter(r=>!normalizeDateISO(r.p.venc));
+  else if(pagMes){rows=rows.filter(r=>dateMonthKey(r.p.venc)===pagMes);}
 
   return rows;
 }
@@ -13872,9 +13894,9 @@ function renderPag(){const o=cur;
   const optContr=uniq(baseRows.map(r=>r.p.contratoSeq?String(r.p.contratoSeq):null));
   // Meses disponíveis (baseRows)
   const optMes=[...new Set(baseRows.map(function(r){
-    return dateMonthKey(r.p.pagaEm||r.p.venc||r.p.emissao)||null;
+    return dateMonthKey(r.p.venc)||null;
   }).filter(Boolean))].sort();
-  const hasSemData=baseRows.some(function(r){return !r.p.venc&&!r.p.emissao&&!r.p.pagaEm;});
+  const hasSemData=baseRows.some(function(r){return !normalizeDateISO(r.p.venc);});
   // Contar filtros ativos
   const nFiltrosAtivos=[pagBusca,pagDe,pagAte,pagMes,pagFornecedor,pagPagante,pagNfTipo,pagContrato,pagDocumentacao,pagFiltro!=="todos"?pagFiltro:""].filter(Boolean).length;
 
@@ -13956,12 +13978,12 @@ function renderPag(){const o=cur;
     // ── Botões do bloco direito: Comp + Editar + Excluir ─────────────────────
     var _bs='display:inline-flex;align-items:center;gap:3px;font-size:14px;font-weight:600;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid;';
     var _btnComp=p.compDoc
-      ?('<button onclick="event.stopPropagation();openPaymentDocsModal('+o.id+','+i+',true)" style="'+_bs+'color:var(--ok);background:var(--ok)10;border-color:var(--ok)40">&#129534; Comp</button>')
-      :('<button onclick="event.stopPropagation();anexarComp('+o.id+','+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#128462; Comp</button>');
+      ?('<button class="payment-icon-action" title="Ver comprovantes" aria-label="Ver comprovantes" onclick="event.stopPropagation();openPaymentDocsModal('+o.id+','+i+',true)" style="'+_bs+'color:var(--ok);background:var(--ok)10;border-color:var(--ok)40"><span class="menu-icon" style="--menu-icon:url(\'/assets/icons/lucide/receipt-text.svg\')" aria-hidden="true"></span></button>')
+      :('<button class="payment-icon-action" title="Anexar comprovante" aria-label="Anexar comprovante" onclick="event.stopPropagation();anexarComp('+o.id+','+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)"><span class="menu-icon" style="--menu-icon:url(\'/assets/icons/lucide/receipt-text.svg\')" aria-hidden="true"></span></button>');
     var _btnDocs=(docsN||p.ticketRaiz)
-      ?('<button onclick="event.stopPropagation();openPaymentDocsModal('+o.id+','+i+')" style="'+_bs+'color:var(--brand-text);background:var(--brand-cur-light);border-color:var(--brand-cur)55">&#128194; '+(docsLabel||docsN+' arq.')+'</button>')
+      ?('<button onclick="event.stopPropagation();openPaymentDocsModal('+o.id+','+i+')" style="'+_bs+'color:var(--brand-text);background:var(--brand-cur-light);border-color:var(--brand-cur)55"><span class="menu-icon" style="--menu-icon:url(\'/assets/icons/lucide/folder-open.svg\')" aria-hidden="true"></span> Arquivos'+(docsN?' ('+docsN+')':'')+'</button>')
       :'';
-    var _btnEdit='<button onclick="event.stopPropagation();openPagModal('+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)">&#9998; Editar</button>';
+    var _btnEdit='<button class="payment-icon-action" title="Editar pagamento" aria-label="Editar pagamento" onclick="event.stopPropagation();openPagModal('+i+')" style="'+_bs+'color:var(--muted);background:var(--surface-2);border-color:var(--line)"><span class="menu-icon" style="--menu-icon:url(\'/assets/icons/lucide/pencil.svg\')" aria-hidden="true"></span></button>';
     var _btnDel='<button onclick="event.stopPropagation();deletePagment('+o.id+','+i+')" style="'+_bs+'color:var(--danger);background:var(--danger)08;border-color:var(--danger)30">&#128465; Excluir</button>';
     // ── Montar chips do bloco esquerdo ───────────────────────────────────────
     var _infoChips=[_nfInteg,_tkBadge,_constrTag,_pagante].filter(function(x){return x;}).join('');
@@ -13971,7 +13993,7 @@ function renderPag(){const o=cur;
       +'<div style="min-width:0">'
       +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'
       +'<span style="font-size:14px;color:var(--muted);transition:transform .2s;display:inline-block;transform:rotate('+(exp?90:0)+'deg);flex-shrink:0">&#9658;</span>'
-      +'<span style="font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.03em;line-height:1.35;overflow-wrap:anywhere">'+p.ben+'</span>'
+      +'<span style="font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0;line-height:1.35;overflow-wrap:break-word">'+p.ben+'</span>'
       +'</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:3px 4px;padding-left:15px">'+_infoChips+'</div>'
       +'</div>'
@@ -13982,15 +14004,15 @@ function renderPag(){const o=cur;
       // ── Bloco direito: valor + botões em linha ────────────────────────────
       +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px;min-width:0">'
       // Caixinha de status À ESQUERDA do valor, na mesma linha
-      +'<div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;flex-wrap:wrap">'
-      +(p.st==='PAGO'&&p.pagaEm
-        ?'<div style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;border-radius:8px;padding:4px 10px;font-size:14px;font-weight:700;white-space:nowrap">&#10003; Pago em '+fmtD(p.pagaEm)+'</div>'
-        :(atr
+      +'<div class="payment-amount-status" style="display:flex;align-items:center;gap:8px;justify-content:flex-end;flex-wrap:wrap">'
+      +(p.st==='PAGO'
+        ?'<div style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;border-radius:8px;padding:4px 10px;font-size:14px;font-weight:700;white-space:nowrap">&#10003; Pago'+(p.pagaEm?' em '+fmtD(p.pagaEm):'')+'</div>'
+        :cancelado?'<div class="payment-cancelled-status">Cancelado</div>':(atr
           ?'<div style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;border-radius:8px;padding:4px 10px;font-size:14px;font-weight:700;white-space:nowrap">&#9888; Venceu em '+fmtD(p.venc)+'</div>'
           :'<div style="background:#F3F7F8;color:#36565D;border:1px solid #D6E1E4;border-radius:8px;padding:4px 10px;font-size:14px;font-weight:700;white-space:nowrap">'+(normalizeDateISO(p.venc)?(normalizeDateISO(p.venc)===localTodayISO()?'Vence hoje':'Vence em '+fmtD(p.venc)):'Vencimento n&atilde;o informado')+'</div>'))
       +'<span style="font-weight:800;font-size:17px;font-family:Geist,sans-serif;white-space:nowrap;color:'+stColor+'">'+fmt(p.v)+'</span>'
       +'</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end">'+_btnDocs+_btnComp+_btnEdit+_btnDel+'</div>'
+      +'<div class="payment-quick-actions" style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end">'+_btnDocs+_btnComp+_btnEdit+'</div>'
       +'</div>'
       +'</div>'
       +'</div>';
@@ -14008,31 +14030,31 @@ function renderPag(){const o=cur;
   document.getElementById("pane-pag").innerHTML=`
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
     <div class="chips" aria-label="Escopo do pagamento"><button class="chip ${isObra?'active':''}" aria-pressed="${isObra}" onclick="drillPag('obra')">Dentro da obra</button><button class="chip ${!isObra?'active':''}" aria-pressed="${!isObra}" onclick="drillPag('extra')">Fora da obra</button></div>
-    <span style="font-size:17px;font-weight:700;color:${accentColor}">${icon} ${titulo}</span>
+
     <div style="display:flex;gap:6px;align-items:center;margin-left:8px">
       ${tp>0?`<span style="font-size:14px;font-weight:700;color:var(--ok)">Pago: ${fmt(tp)}</span>`:''}
       ${tpe>0?`<span style="font-size:14px;font-weight:700;color:var(--warn)">Pendente: ${fmt(tpe)}</span>`:''}
     </div>
     <div style="flex:1"></div>
-    <input class="fi" id="pag-busca" style="flex:1;min-width:140px;max-width:220px;padding:7px 11px;font-size:14px" placeholder="Buscar…" value="${pagBusca.replace(/"/g,'&quot;')}" oninput="setPagBusca(this.value)">
+    <input class="fi" id="pag-busca" style="flex:1;min-width:140px;max-width:220px;padding:7px 11px;font-size:14px" aria-label="Buscar pagamentos" placeholder="Fornecedor, descrição, NF ou TR" value="${pagBusca.replace(/"/g,'&quot;')}" oninput="setPagBusca(this.value)">
     <button class="btn btn-sm" onclick="exportCSV()">↓ CSV</button>
   </div>
   <div class="payment-status-filters">
     ${fb("todos","Todos")} ${fb("pagos","✓ Pagos")} ${fb("pend","⏳ Pendentes")} ${fb("atraso","⚠ Atraso")}
-    <input class="fi" type="date" style="width:118px;padding:5px 9px;font-size:14px;margin-left:auto" value="${pagDe}" onchange="setPagDe(this.value)" title="Vencimento inicial" aria-label="Vencimento inicial">
-    <input class="fi" type="date" style="width:118px;padding:5px 9px;font-size:14px" value="${pagAte}" onchange="setPagAte(this.value)" title="Vencimento final" aria-label="Vencimento final">
+    <label class="payment-date-field payment-date-start"><span>Vencimento de</span><input class="fi" type="date" style="width:145px;padding:5px 9px;font-size:14px" value="${pagDe}" onchange="setPagDe(this.value)" title="Vencimento inicial" aria-label="Vencimento inicial"></label>
+    <label class="payment-date-field"><span>Vencimento até</span><input class="fi" type="date" style="width:145px;padding:5px 9px;font-size:14px" value="${pagAte}" onchange="setPagAte(this.value)" title="Vencimento final" aria-label="Vencimento final"></label>
   </div>
   <div class="payment-filter-grid">
     
-    ${optMes.length>1||hasSemData?'<label class="payment-filter-field"><span>Mês de referência</span><select aria-label="Mês de referência" class="fi" style="flex:1;min-width:115px;max-width:160px;padding:5px 8px;font-size:14px" onchange="setPagMes(this.value)"><option value="">Mês / Ano</option>'+optMes.map(m=>'<option value="'+m+'"'+(m===pagMes?' selected':'')+'>'+_monthLabel(m)+'</option>').join('')+(hasSemData?'<option value="sem-data"'+(pagMes==="sem-data"?' selected':'')+'>Sem data</option>':'')+"</select></label>":''}
+    ${optMes.length>1||hasSemData?'<label class="payment-filter-field"><span>Mês de vencimento</span><select aria-label="Mês de vencimento" class="fi" style="flex:1;min-width:115px;max-width:160px;padding:5px 8px;font-size:14px" onchange="setPagMes(this.value)"><option value="">Mês / Ano</option>'+optMes.map(m=>'<option value="'+m+'"'+(m===pagMes?' selected':'')+'>'+_monthLabel(m)+'</option>').join('')+(hasSemData?'<option value="sem-data"'+(pagMes==="sem-data"?' selected':'')+'>Sem vencimento</option>':'')+"</select></label>":''}
     ${optForn.length>1?'<label class="payment-filter-field"><span>Fornecedor</span><select aria-label="Fornecedor" class="fi" style="flex:1;min-width:130px;max-width:260px;padding:5px 8px;font-size:14px" onchange="setPagFornecedor(this.value)"><option value="">Fornecedor</option>'+optForn.map(f=>'<option value="'+f+'"'+(f===pagFornecedor?' selected':'')+'>'+f+'</option>').join('')+'</select></label>':''}
     ${optPag.length>0?'<label class="payment-filter-field"><span>Pagante</span><select aria-label="Pagante" class="fi" style="flex:1;min-width:130px;max-width:175px;padding:5px 8px;font-size:14px" onchange="setPagPagante(this.value)"><option value="">Investidor / Pagante</option>'+optPag.map(p=>'<option value="'+p+'"'+(p===pagPagante?' selected':'')+'>'+p+'</option>').join('')+'</select></label>':''}
     ${optNf.length>1?'<label class="payment-filter-field"><span>Documento</span><select aria-label="Documento" class="fi" style="flex:1;min-width:95px;max-width:135px;padding:5px 8px;font-size:14px" onchange="setPagNfTipo(this.value)"><option value="">Tipo de NF</option>'+optNf.map(n=>'<option value="'+n+'"'+(n===pagNfTipo?' selected':'')+'>'+n+'</option>').join('')+'</select></label>':''}
     ${optContr.length>1?'<label class="payment-filter-field"><span>Contrato</span><select aria-label="Contrato" class="fi" style="flex:1;min-width:110px;max-width:165px;padding:5px 8px;font-size:14px" onchange="setPagContrato(this.value)"><option value="">Contrato</option>'+optContr.map(s=>{const c2=o.contratos.find(x=>String(x.seq)===s);return'<option value="'+s+'"'+(s===pagContrato?' selected':'')+'>'+(c2?c2.nome_contr||c2.forn:'Contrato '+s)+'</option>';}).join('')+'</select></label>':''}
     <label class="payment-filter-field"><span>Situação da nota</span><select class="fi" aria-label="Situação da nota" onchange="setPagDocumentacao(this.value)">
       <option value="">Todas</option>
-      <option value="com-nf" ${pagDocumentacao==='com-nf'?'selected':''}>Com nota fiscal</option>
-      <option value="aguardando" ${pagDocumentacao==='aguardando'?'selected':''}>Aguardando nota</option>
+      <option value="com-nf" ${pagDocumentacao==='com-nf'?'selected':''}>NF registrada</option>
+      <option value="aguardando" ${pagDocumentacao==='aguardando'?'selected':''}>Orçamento / adiantamento</option>
       <option value="sem-nf" ${pagDocumentacao==='sem-nf'?'selected':''}>Sem nota registrada</option>
     </select></label>
     ${nFiltrosAtivos>0?'<button onclick="limparFiltrosPag()" style="font-size:14px;font-weight:600;color:var(--danger);background:var(--danger)10;border:1px solid var(--danger)30;border-radius:var(--r);padding:4px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:inherit">✕ Limpar ('+nFiltrosAtivos+')</button>':''}
