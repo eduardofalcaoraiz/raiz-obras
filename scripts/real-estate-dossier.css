@@ -97,5 +97,25 @@
 .re-file-row .re-file-open{width:32px;height:32px;padding:7px;border-radius:6px}
 .re-dossier-contract[hidden]{display:none!important}
 .re-dossier-contract{min-width:0}
+/* Shared payment density, using the current school's inherited brand colors. */
+.re-dossier-toolbar{gap:10px 12px;border-bottom:1px solid var(--line);padding:12px 0 16px}
+.re-dossier-toolbar label{font-size:12px;color:var(--muted);flex:1 1 145px;min-width:0;max-width:230px}
+.re-dossier-toolbar label:first-child{flex:2 1 260px;max-width:360px;min-width:0}
+.re-dossier-toolbar .fi{font-size:13px;height:36px;color:var(--ink)}
+.re-dossier-count{font-size:13px;color:var(--muted);margin:10px 0}
+.re-payment-row.card.pag-row{border:1px solid var(--line);border-left:3px solid var(--brand-cur);border-radius:8px;background:linear-gradient(110deg,color-mix(in srgb,var(--brand-cur) 4%,white),var(--brand-cur-light));box-shadow:none}
+.re-payment-summary{grid-template-columns:minmax(0,1.2fr) minmax(0,1.6fr) 280px 16px;gap:12px;padding:12px 14px 6px}
+.re-payment-identity>strong{overflow-wrap:break-word;letter-spacing:0;line-height:1.35}
+.re-payment-description{display:block;-webkit-line-clamp:unset;overflow:visible;overflow-wrap:break-word;word-break:normal;line-height:1.4}
+.re-payment-reference{padding:0 12px}
+.re-payment-tags,.re-payment-period,.re-payment-stage{font-size:13px;margin-top:5px}
+.re-payment-amount>strong{font-size:18px;font-weight:700;white-space:nowrap}
+.re-payment-amount>small,.re-dossier-state{font-size:12px}
+.re-payment-actions{gap:6px;padding:0 30px 10px 14px}
+.re-payment-actions .btn{height:32px;min-height:32px;font-size:13px;white-space:nowrap}
+.re-payment-actions .re-icon-action{width:32px;padding:0;justify-content:center}
+.re-dossier :focus-visible,#re-sub-content :focus-visible{outline:2px solid var(--brand-text);outline-offset:2px}
+@media(min-width:761px) and (max-width:1150px){.re-dossier .re-payment-summary{grid-template-columns:minmax(0,1fr) 260px 16px}.re-dossier .re-payment-reference{grid-column:1/-1;grid-row:2;padding:0}.re-payment-amount{grid-column:2;grid-row:1}.re-payment-chevron{grid-column:3;grid-row:1}}
+@media(max-width:760px){.re-dossier-toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px}.re-dossier-toolbar label,.re-dossier-toolbar .re-filter-supplier{min-width:0;max-width:none}.re-dossier-toolbar label:first-child{grid-column:1/-1;max-width:none;min-width:0}.re-dossier-toolbar .fi{font-size:13px}.re-payment-actions .btn{height:44px;min-height:44px}.re-payment-actions .re-icon-action{width:44px}.re-dossier-states{flex-wrap:wrap}.re-dossier-states .chip{font-size:13px}.re-dossier-states .chip span{font-size:12px}}
 @media(max-width:1150px){.re-payment-summary{grid-template-columns:minmax(150px,1fr) minmax(150px,1.3fr) minmax(140px,.8fr) 18px;gap:10px}.re-payment-reference{padding:0 10px}.re-dossier-metrics .val{font-size:20px}}
 @media(max-width:760px){.re-dossier-metrics{grid-template-columns:1fr 1fr;gap:8px}.re-dossier-metrics .kpi{padding:12px}.re-dossier-metrics .val{font-size:18px}.re-dossier-toolbar{gap:8px}.re-dossier-toolbar label,.re-dossier-toolbar .re-filter-supplier{max-width:none;flex:1;min-width:100px}.re-dossier-toolbar label:first-child{flex-basis:100%}.re-payment-summary.pag-card-grid{grid-template-columns:minmax(0,1fr) minmax(120px,.8fr) 18px!important;gap:12px!important;padding:13px 12px 8px}.re-payment-identity{grid-column:1;grid-row:1}.re-payment-amount{grid-column:2;grid-row:1}.re-payment-chevron{grid-column:3;grid-row:1}.re-payment-summary .re-payment-reference{grid-column:1/-1;grid-row:2;border:0;padding:8px 0 0;border-top:1px solid var(--line)}.re-payment-summary .re-payment-amount{align-items:flex-end}.re-payment-amount>strong{font-size:16px}.re-payment-facts{grid-template-columns:1fr 1fr}.re-payment-evidence{grid-template-columns:1fr;gap:16px}.re-payment-actions{padding:4px 12px 12px;justify-content:flex-start}.re-payment-detail{padding:14px 12px}.re-dossier-tabs .tabbtn{padding:10px 12px}.re-dossier-pager{flex-wrap:wrap}}
