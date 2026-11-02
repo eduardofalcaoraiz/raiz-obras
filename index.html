@@ -6846,7 +6846,7 @@ function renderObraCard(o,i){
   const paidBuilders=paidWork.filter(r=>builderSeqs.has(String(r.p.construtora_seq))&&!hasCardLink(r.p.contratoSeq??r.p.contrato_seq));
   // Legacy aggregate payments have no verifiable scope or builder allocation.
   const hasScopedLedger=cardFinancial&&!cardFinancial.legacy;
-  const investmentBalance=hasScopedLedger&&investmentValue!==null?DashboardData.round(investmentValue-DashboardData.sum(paidWork,r=>r.value)):null;
+  const investmentBalance=hasScopedLedger&&investmentValue!==null&&investmentValue>0?DashboardData.round(investmentValue-DashboardData.sum(paidWork,r=>r.value)):null;
   const builderBalance=hasScopedLedger&&contractValue!==null&&builderSeqs.size?DashboardData.round(contractValue-DashboardData.sum(paidBuilders,r=>r.value)):null;
   return `<div class="pcard obra-card interactive-card" role="button" tabindex="0" onclick="openObra(${o.id})" onkeydown="if(cardKeyOpen(event))openObra(${o.id})" style="animation-delay:${i*55}ms;--brand-cur:${bc};--brand-text:${brandText};--brand-cur-light:${brandLight(marcaBase)};--brand-readable:${brandReadable};--brand-readable-shadow:${brandShadow}">
     <div class="obra-card-head">
@@ -6867,11 +6867,11 @@ function renderObraCard(o,i){
         <section class="obra-financial-group" aria-label="Investimento">
         <div class="obra-card-contract">
           <span>Investimento total</span>
-          <strong>${investmentValue===null?'N\u00e3o cadastrado':fmt(investmentValue)}</strong>
+          <strong>${investmentValue===null||investmentValue===0?'N\u00e3o definido':fmt(investmentValue)}</strong>
         </div>
         <div class="obra-card-contract">
-          <span>${investmentBalance!==null&&investmentBalance<0?'Acima do investimento':'Saldo do investimento'}</span>
-          <strong class="${investmentBalance!==null&&investmentBalance<0?'is-over-budget':''}">${investmentBalance===null?'N\u00e3o apurado':fmt(Math.abs(investmentBalance))}</strong>
+          <span>${investmentValue===null||investmentValue===0?'Pago na obra':investmentBalance!==null&&investmentBalance<0?'Acima do investimento':'Saldo do investimento'}</span>
+          <strong class="${investmentBalance!==null&&investmentBalance<0?'is-over-budget':''}">${(investmentValue===null||investmentValue===0)&&hasScopedLedger?fmt(DashboardData.sum(paidWork,r=>r.value)):investmentBalance===null?'N\u00e3o apurado':fmt(Math.abs(investmentBalance))}</strong>
         </div>
         </section>
         ${showBuilderSection?`<section class="obra-financial-group" aria-label="Contrato de obra">
@@ -13874,7 +13874,7 @@ function renderPag(){const o=cur;
     const atr=isAtraso(p);
     const cancelado=isPagamentoCancelado(p);
     const exp=pagExpanded.has(i);
-    const stColor=atr?'var(--danger)':p.st==='PAGO'?'var(--ok)':cancelado?'var(--muted)':'var(--warn)';
+    const stColor=atr?'var(--danger)':p.st==='PAGO'?'var(--ok)':cancelado?'var(--muted)':'var(--text)';
     const stLabel=atr?`⚠ ${diasAtraso(p)}d em atraso`:p.st==='PAGO'?'✓ Pago':cancelado?'Cancelado':'⏳ Pendente';
     const cVinc=p.contratoSeq?o.contratos.find(c=>c.seq===p.contratoSeq):null;
     const compraLink=paymentCompraLink(p);
@@ -13973,7 +13973,7 @@ function renderPag(){const o=cur;
         ?'<div style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;border-radius:8px;padding:4px 10px;font-size:14px;font-weight:700;white-space:nowrap">&#10003; Pago em '+fmtD(p.pagaEm)+'</div>'
         :(atr
           ?'<div style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;border-radius:8px;padding:4px 10px;font-size:14px;font-weight:700;white-space:nowrap">&#9888; Venceu em '+fmtD(p.venc)+'</div>'
-          :'<div style="background:#FFF8E1;color:#E65100;border:1px solid #FFE082;border-radius:8px;padding:4px 10px;font-size:14px;font-weight:700;white-space:nowrap">&#9203; Desde '+(p.emissao?fmtD(p.emissao):'—')+'</div>'))
+          :'<div style="background:#F3F7F8;color:#36565D;border:1px solid #D6E1E4;border-radius:8px;padding:4px 10px;font-size:14px;font-weight:700;white-space:nowrap">'+(normalizeDateISO(p.venc)?(normalizeDateISO(p.venc)===localTodayISO()?'Vence hoje':'Vence em '+fmtD(p.venc)):'Vencimento n&atilde;o informado')+'</div>'))
       +'<span style="font-weight:800;font-size:17px;font-family:Geist,sans-serif;white-space:nowrap;color:'+stColor+'">'+fmt(p.v)+'</span>'
       +'</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end">'+_btnDocs+_btnComp+_btnEdit+_btnDel+'</div>'
@@ -20112,7 +20112,7 @@ async function confirmImport(){
 
   }
 
-  const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:impVenc||date,emissao:date,pagaEm:"",nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade,escopoFin:impEscopoFin,construtora_seq:impConstrSeq,ticketRaiz:impTicket};
+  const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:impVenc||"",emissao:date,pagaEm:"",nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade,escopoFin:impEscopoFin,construtora_seq:impConstrSeq,ticketRaiz:impTicket};
 
   if(chave)p.chave=chave;
 
