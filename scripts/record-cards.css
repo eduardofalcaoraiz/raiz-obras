@@ -271,3 +271,26 @@
   #app>.main .pgrid>.obra-card.obra-card .obra-card-contract strong{font-size:22px!important}
   #app>.main .party-values{grid-template-columns:repeat(auto-fit,minmax(125px,1fr))}
 }
+/* Financial groups keep each ceiling next to its balance. */
+#app>.main .pgrid>.obra-card.obra-card:has(.obra-financial-summary){display:flex;flex-direction:column;min-height:0}
+#app>.main .pgrid>.obra-card.obra-card:has(.obra-financial-summary) .obra-card-head{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:8px;min-height:132px;align-content:start}
+#app>.main .pgrid>.obra-card.obra-card:has(.obra-financial-summary) .obra-card-brands{height:48px;min-height:48px;justify-content:flex-start}
+#app>.main .pgrid>.obra-card.obra-card:has(.obra-financial-summary) .obra-brand-logo{width:152px!important;height:48px!important;border:0}
+#app>.main .pgrid>.obra-card.obra-card:has(.obra-financial-summary) .obra-brand-logo img{width:152px!important;height:48px!important;max-width:152px!important;max-height:48px!important;object-fit:contain;object-position:left center}
+#app>.main .pgrid>.obra-card.obra-card:has(.obra-financial-summary) .obra-card-heading{padding:0!important;border:0;min-width:0}
+#app>.main .pgrid>.obra-card.obra-card:has(.obra-financial-summary) .obra-card-heading h3{font-size:16px!important;line-height:1.35;overflow-wrap:normal;word-break:normal}
+#app>.main .pgrid>.obra-card.obra-card:has(.obra-financial-summary) .obra-card-body{display:flex;flex-direction:column;gap:12px}
+#app>.main .pgrid>.obra-card.obra-card .obra-financial-summary{display:grid;gap:12px}
+#app>.main .pgrid>.obra-card.obra-card .obra-financial-group{margin:0;padding:0 0 12px;border-bottom:1px solid color-mix(in srgb,var(--record-accent) 18%,#dce3e2);display:grid;gap:6px;min-width:0}
+#app>.main .pgrid>.obra-card.obra-card .obra-financial-summary .obra-card-contract{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:8px}
+#app>.main .pgrid>.obra-card.obra-card .obra-financial-summary .obra-card-contract strong{font-size:16px!important;line-height:1.35;white-space:nowrap;letter-spacing:0}
+#app>.main .pgrid>.obra-card.obra-card .obra-financial-summary .obra-card-contract:first-child strong{font-size:19px!important}
+#app>.main .pgrid>.obra-card.obra-card .obra-financial-summary .obra-card-contract span{font-size:13px!important;line-height:1.4;word-break:normal;overflow-wrap:normal}
+#app>.main .pgrid>.obra-card.obra-card .obra-financial-summary .is-over-budget{color:#a62e32}
+#app>.main .pgrid>.obra-card.obra-card:has(.obra-financial-summary) .obra-card-builder{font-size:12px!important;line-height:1.4;text-transform:none}
+@media(max-width:380px){
+ #app>.main .pgrid>.obra-card.obra-card .obra-financial-summary .obra-card-contract{grid-template-columns:1fr;gap:2px}
+ #app>.main .pgrid>.obra-card.obra-card .obra-financial-summary .obra-card-contract strong{margin:0;text-align:left}
+}
+
+
