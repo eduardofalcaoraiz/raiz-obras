@@ -44,8 +44,13 @@
       g.sortDate=periods.slice().sort().reverse()[0]||t?.competencia||'';
       g.countable=!g.provisional&&!g.review&&!g.cancelled&&g.value!=null&&(!t||t.imovel_ids?.includes(propertyId));
     }
-    // The loader supplies source rows in registration order; grouping keeps that order.
-    return [...groups.values()];
+    // Imported source IDs are not chronological; use the sequential TR number.
+    return [...groups.values()].sort((a,b)=>{
+      const at=Number(a.ticket)||0,bt=Number(b.ticket)||0;
+      if(at&&bt)return at-bt;
+      if(at||bt)return at?-1:1;
+      return String(a.sortDate||'').localeCompare(String(b.sortDate||''));
+    });
   }
   function totals(groups){return {count:groups.length,total:groups.filter(g=>g.countable).reduce((s,g)=>s+Math.round(g.value*100),0)/100,review:groups.filter(g=>g.review).length,provisional:groups.filter(g=>g.provisional).length};}
   function expenseParts(g){
