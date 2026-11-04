@@ -15416,12 +15416,13 @@ async function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEdi
     }
   }
 
-  PaymentFunding.open(_pmCur,investidores);
+  PaymentFunding.open(_pmCur,investidores,cur);
   g("pag-overlay").classList.add("show");}
 
 function closePagModal(){document.getElementById("pag-overlay").classList.remove("show");}
 
 function pmNfChange(){
+  PaymentFunding.syncPolicy();
   const t=document.getElementById('pm-nf')?.value||'';
   const hasFiscalDoc=t&&t!=='Sem nota'&&t!=='Adiantamento'&&t!=='ORÇAMENTO - COBRAR NF';
   const r=document.getElementById('pm-nfnum-row');
@@ -15445,6 +15446,7 @@ function impSetEscopo(v){
   if(ob){ob.style.background=v==='obra'?'var(--accent)':'var(--surface)';ob.style.color=v==='obra'?'white':'var(--muted)';}
   if(ex){ex.style.background=v==='extra'?'var(--warn)':'var(--surface)';ex.style.color=v==='extra'?'white':'var(--muted)';}
   if(hint)hint.textContent=v==='obra'?'Dinheiro do investimento da obra.':'Pagamento fora do investimento da obra.';
+  PaymentFunding.syncPolicy();
 }
 function pmSetEscopo(v){
   document.getElementById('pm-escopo').value=v;
