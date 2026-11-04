@@ -1,5 +1,8 @@
 const assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm');
 const F=require('./payment-funding.js');
+const fresh={nfTipo:'Sem nota',escopoFin:'obra',st:'PENDENTE',v:90,pagn:'NH'};
+F.applyPolicy({id:7},fresh);assert.equal(fresh.pagn,'DAVELINO IMOVEIS LTDA');assert.equal(fresh.st,'PENDENTE');assert.equal(fresh.funding[0].percent,50);
+const extra={nfTipo:'Sem nota',escopoFin:'extra',pagn:'Escola'};F.applyPolicy({id:7},extra);assert.equal(extra.pagn,'Escola');assert.equal(extra.funding,undefined);
 const split=[{name:'RE',percent:50},{name:'JP',percent:50}];
 assert.deepEqual(F.shares({pagn:'Davelino',v:100,funding:split}).map(s=>s.value),[50,50]);
 assert.deepEqual(F.shares({pagn:'Davelino',v:0.03,funding:split}).map(s=>s.value),[0.02,0.01]);

@@ -21,6 +21,15 @@
  function escape(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
  function detail(p,fmt){return p.funding?.length?'<div style="grid-column:1/-1"><b>Origem dos recursos</b><div>'+shares(p).map(s=>escape(s.name)+' ('+s.percent+'%): '+fmt(s.value)).join('<br>')+'</div></div>':'';}
  const saFunding=[{name:'R. E. PARTICIPACOES E EMPREENDIMENTOS LTDA',percent:50},{name:'JP TERRAZI EMPREENDIMENTOS PARTICIPACOES E LOCACOES LTDA',percent:50}];
+ function applyPolicy(o,p){if(Number(o?.id)===7&&(p.escopoFin||'obra')==='obra'&&p.nfTipo==='Sem nota'){p.pagn='DAVELINO IMOVEIS LTDA';p.funding=saFunding.map(r=>({...r}));}return p;}
+ function syncImport(project){
+  const el=document.getElementById('imp-pag');if(!el)return;
+  const forced=Number(project?.id)===7&&document.getElementById('imp-nftipo')?.value==='Sem nota'&&(document.getElementById('imp-escopo')?.value||'obra')==='obra';
+  let note=document.getElementById('imp-funding-note');if(!note){note=document.createElement('p');note.id='imp-funding-note';el.after(note);}
+  if(forced){if(!el.disabled)el.dataset.previous=el.value;if(![...el.options].some(o=>o.value==='DAVELINO IMOVEIS LTDA'))el.add(new Option('DAVELINO IMOVEIS LTDA','DAVELINO IMOVEIS LTDA'));el.value='DAVELINO IMOVEIS LTDA';note.textContent='Recursos: R.E. 50% | JP 50%';}
+  else if(el.disabled){el.value=el.dataset.previous||'';}
+  el.disabled=forced;note.hidden=!forced;
+ }
  let names=[],projectId=null,original=null;
  function isPolicy(){return Number(projectId)===7&&document.getElementById('pm-nf')?.value==='Sem nota'&&(document.getElementById('pm-escopo')?.value||'obra')==='obra';}
  function syncPolicy(){
@@ -61,5 +70,5 @@
   const funding=validate([...document.querySelectorAll('#pm-funding-rows .funding-row')].map(r=>({name:r.querySelector('select').value,percent:Number(r.querySelector('input').value)})));
   if(!funding.length)throw Error('Inclua ao menos um investidor.');return {funding,payer};
  }
- const api={validate,shares,allocatedPayments,detail,open,read,syncPolicy};root.PaymentFunding=api;if(typeof module!=='undefined')module.exports=api;
+ const api={validate,shares,allocatedPayments,detail,open,read,syncPolicy,syncImport,applyPolicy};root.PaymentFunding=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

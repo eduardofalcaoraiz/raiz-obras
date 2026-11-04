@@ -15440,6 +15440,7 @@ function pmNfChange(){
 }
 function impSetEscopo(v){
   document.getElementById('imp-escopo').value=v;
+  PaymentFunding.syncImport(cur);
   const ob=document.getElementById('imp-escopo-obra-btn');
   const ex=document.getElementById('imp-escopo-extra-btn');
   const hint=document.getElementById('imp-escopo-hint');
@@ -15450,6 +15451,7 @@ function impSetEscopo(v){
 }
 function pmSetEscopo(v){
   document.getElementById('pm-escopo').value=v;
+  PaymentFunding.syncPolicy();
   const ob=document.getElementById('pm-escopo-obra-btn');
   const ex=document.getElementById('pm-escopo-extra-btn');
   const hint=document.getElementById('pm-escopo-hint');
@@ -16851,7 +16853,7 @@ function closeViewer(){document.getElementById("viewer-overlay").classList.remov
 const paymentBaselines=new Map();
 const paymentPersistLocks=new Set();
 const paymentHeavyKeys=['docs_json','parcelas','itens_pag','nf_doc_path','comp_doc_path'];
-function paymentPersistRow(o,p){return {funding_json:PaymentFunding.validate(p.funding||[]),obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:cleanImpDocNumber(p.nfNum||'',p.nfTipo||''),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',docs_json:paymentAllDocs(p),emissao:p.emissao||'',paga_em:p.pagaEm||'',escopo_fin:p.escopoFin||'obra',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null,construtora_seq:p.construtora_seq||null,ticket_raiz:p.ticketRaiz||'',compra_vinculada_json:paymentCompraLink(p)};}
+function paymentPersistRow(o,p){PaymentFunding.applyPolicy(o,p);return {funding_json:PaymentFunding.validate(p.funding||[]),obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:cleanImpDocNumber(p.nfNum||'',p.nfTipo||''),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',docs_json:paymentAllDocs(p),emissao:p.emissao||'',paga_em:p.pagaEm||'',escopo_fin:p.escopoFin||'obra',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null,construtora_seq:p.construtora_seq||null,ticket_raiz:p.ticketRaiz||'',compra_vinculada_json:paymentCompraLink(p)};}
 function paymentSnapshot(o,p,raw,heavyOnly=false){
   if(!p.dbId)return;
   const key=String(p.dbId),old=paymentBaselines.get(key),row=paymentPersistRow(o,p);
@@ -19778,6 +19780,7 @@ function showImportReview(data){
 
 
 function impNfTipoChanged(tipo){
+  PaymentFunding.syncImport(cur);
 
   const isNFSe=tipo==='NFS-e';
 
