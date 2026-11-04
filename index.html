@@ -4076,7 +4076,8 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <script src="scripts/real-estate-property-page.js?v=20260922-priority"></script>
 <link rel="stylesheet" href="scripts/real-estate-property-page.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/real-estate-workspace.css?v=20260921-readable">
-<script src="scripts/dashboard-data.js?v=20260922-contracts"></script>
+<script src="scripts/payment-funding.js?v=20261104"></script>
+<script src="scripts/dashboard-data.js?v=20261104-funding"></script>
 <script src="scripts/dashboards.js?v=20260922-contracts"></script>
 <link rel="stylesheet" href="scripts/dashboards.css?v=20260921-readable">
 <script src="scripts/access-control.js?v=20260917-menu"></script>
@@ -4152,7 +4153,7 @@ const CAPEX_ZEEV_QUEUE_COLUMNS=[
 const PAYMENT_LIST_COLUMNS=[
   'id','obra_id','ben','v','ref','nf_num','cat','sub','pagn','st','venc','nf_tipo','comp','nf_doc_path','comp_doc_path',
   'emissao','paga_em','escopo_fin','contrato_seq','tipo_custo','mat_tipo','mat_qtd','mat_unidade','chave','obs','pag_forma',
-  'construtora_seq','ticket_raiz','compra_vinculada_json'
+  'construtora_seq','ticket_raiz','compra_vinculada_json','funding_json'
 ].join(',');
 
 const CAPEX_ITEM_LIST_COLUMNS=[
@@ -4985,7 +4986,7 @@ function filteredPaymentRows(o,advanced=true){
   // Filtros avançados
   if(pagDocumentacao)rows=rows.filter(r=>paymentDocumentationState(r.p)===pagDocumentacao);
   if(pagFornecedor)rows=rows.filter(r=>(r.p.ben||"")==pagFornecedor);
-  if(pagPagante)rows=rows.filter(r=>(r.p.pagn||"")==pagPagante);
+  if(pagPagante)rows=rows.filter(r=>(r.p.pagn||"")==pagPagante||PaymentFunding.shares(r.p).some(s=>s.name===pagPagante));
   if(pagNfTipo)rows=rows.filter(r=>(r.p.nfTipo||"")==pagNfTipo);
   if(pagContrato)rows=rows.filter(r=>String(r.p.contratoSeq||"")==pagContrato);
   if(pagMes==='sem-data')rows=rows.filter(r=>!normalizeDateISO(r.p.venc));
@@ -5651,6 +5652,8 @@ let aporteEditIdx=null;
 
 function calcInvestStats(o){
 
+  o={...o,pag:PaymentFunding.allocatedPayments(o)};
+
   const stats={};
 
 
@@ -5852,7 +5855,7 @@ function allPendentes(){const r=[];obras.forEach(o=>o.pag.forEach((p,i)=>{if(isP
 
 function gastoCat(o,cid){return o.pag.filter(p=>p.st==="PAGO"&&p.cat===cid).reduce((a,p)=>a+p.v,0);}
 
-function porFonte(o){const m={};o.pag.filter(p=>p.st==="PAGO").forEach(p=>{if(p.pagn&&p.pagn!=="—")m[p.pagn]=(m[p.pagn]||0)+p.v;});return m;}
+function porFonte(o){const m={};PaymentFunding.allocatedPayments(o).filter(p=>p.st==="PAGO").forEach(p=>{if(p.pagn&&p.pagn!=="—")m[p.pagn]=(m[p.pagn]||0)+p.v;});return m;}
 
 function barClass(pct){return pct>100?"b-danger":pct>=100?"b-ok":pct>=90?"b-warn":pct<70?"b-ok":"";}
 
@@ -13896,7 +13899,7 @@ function renderPag(){const o=cur;
   const q=pagBusca.trim().toLowerCase();
   const uniq=(arr)=>[...new Set(arr.filter(Boolean))].sort();
   const optForn=uniq(baseRows.map(r=>r.p.ben));
-  const optPag=uniq(baseRows.map(r=>r.p.pagn&&r.p.pagn!=='—'?r.p.pagn:null));
+  const optPag=uniq(baseRows.flatMap(r=>[r.p.pagn,...PaymentFunding.shares(r.p).map(s=>s.name)]).filter(Boolean));
   const optNf=uniq(baseRows.map(r=>r.p.nfTipo));
   const optContr=uniq(baseRows.map(r=>r.p.contratoSeq?String(r.p.contratoSeq):null));
   // Meses disponíveis (baseRows)
@@ -13935,7 +13938,7 @@ function renderPag(){const o=cur;
           ${p.emissao?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Emissão da nota</div><div style="font-size:14px">🗒 ${fmtD(p.emissao)}</div></div>`:''}
           ${p.venc?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Previsão de pagamento</div><div style="font-size:14px">📅 ${fmtD(p.venc)}</div></div>`:''}
           ${p.pagaEm&&p.st==='PAGO'?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Pago em</div><div style="font-size:14px;color:var(--ok);font-weight:600">✓ ${fmtD(p.pagaEm)}</div></div>`:''}
-          ${p.pagn?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Pago por</div><div style="font-size:14px">👤 ${p.pagn}</div></div>`:''}
+          ${PaymentFunding.detail(p,fmt)}${p.pagn?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Pago por</div><div style="font-size:14px">👤 ${p.pagn}</div></div>`:''}
           ${cVinc?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Contrato vinculado</div><button onclick="event.stopPropagation();goToContract(${cVinc.seq})" style="font-size:14px;color:var(--info);background:var(--info)12;border:1px solid var(--info)33;border-radius:8px;padding:3px 10px;cursor:pointer;font-family:inherit;font-weight:600;text-align:left">📋 ${cVinc.nome_contr||cVinc.forn} →</button></div>`:''}
           ${p.nfTipo?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Documento fiscal</div><div style="font-size:14px">${escHtml(paymentNfNumberLabel(p)||paymentDocKindPretty('',p.nfTipo)||p.nfTipo)}</div></div>`:''}
           ${p.ticketRaiz?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Ticket Raiz</div><div style="font-size:14px;font-family:Geist,sans-serif;font-weight:700;color:var(--brand-text)">TR ${p.ticketRaiz}</div></div>`:''}${compraLink?`<div><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Compra vinculada</div><div style="font-size:14px;font-family:Geist,sans-serif;font-weight:800;color:var(--brand-text)">TR ${escHtml(compraLink.tr||compraLink.zeev_id||'')}</div>${compraLink.ticket_link?`<a href="${escHtml(compraLink.ticket_link)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:3px;font-size:14px;color:var(--accent);font-weight:800">Visualizar compra</a>`:''}</div>`:''}${p.obs?`<div style="grid-column:1/-1"><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:3px">Observações</div><div style="font-size:14px;color:var(--ink)">${p.obs}</div></div>`:''}${p.itens&&p.itens.length&&!PaymentBundle.invoices(p).some(n=>n.items?.length)?`<div style="grid-column:1/-1;margin-top:8px"><div style="font-size:14px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:5px">Itens da Nota (${p.itens.length})</div><div style="overflow-x:auto"><table class="imp-itens-tbl"><thead><tr><th>#</th><th>Descrição</th><th style="text-align:right">Qtd</th><th>Un</th><th style="text-align:right">Total</th></tr></thead><tbody>${p.itens.map((it,ii)=>`<tr><td style="color:var(--muted);text-align:center;width:24px">${ii+1}</td><td>${escHtml(it.descricao||'—')}</td><td style="text-align:right;white-space:nowrap">${it.quantidade!=null?parseFloat(it.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:4}):'—'}</td><td style="color:var(--muted)">${escHtml(it.unidade||'—')}</td><td style="text-align:right;font-weight:600;white-space:nowrap">R$ ${it.valor_total!=null?parseFloat(it.valor_total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}
@@ -15413,6 +15416,7 @@ async function openPagModal(idx){if(!cur){toast("Abra uma obra.");return;}pagEdi
     }
   }
 
+  PaymentFunding.open(_pmCur,investidores);
   g("pag-overlay").classList.add("show");}
 
 function closePagModal(){document.getElementById("pag-overlay").classList.remove("show");}
@@ -15495,13 +15499,13 @@ async function applyPastDuePaidCheck(p,label){
   return true;
 }
 
-async function savePag(){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const pmNfTipo=document.getElementById("pm-nf")?.value||'Sem nota';const nfNum=cleanImpDocNumber((document.getElementById("pm-nfnum")?.value||'').trim(),pmNfTipo);const cSeq=document.getElementById("pm-contrato")?.value||'';
+async function savePag(){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}let fundingInput;try{fundingInput=PaymentFunding.read();}catch(e){toast(e.message);return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const pmNfTipo=document.getElementById("pm-nf")?.value||'Sem nota';const nfNum=cleanImpDocNumber((document.getElementById("pm-nfnum")?.value||'').trim(),pmNfTipo);const cSeq=document.getElementById("pm-contrato")?.value||'';
   // Preserva tipoCusto existente se for mat/svc/eqp; senão marca como 'outros' (categorizado)
   const oldPag=pagEditIdx!==null?cur.pag[pagEditIdx]:null;
   const _existTipo=oldPag?(oldPag.tipoCusto||''):'';
   const tipoCusto=['material','servico','equipamento'].includes(_existTipo)?_existTipo:'outros';
   const stVal=oldPag?(oldPag.st||'PENDENTE'):'PENDENTE';
-  const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=stVal==='PAGO'?(oldPag?.pagaEm||''):'';const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const _pmCrRow=document.getElementById('pm-constr-row');const _pmCrSel=document.getElementById('pm-constr-sel');const _pmCrSeq=_pmCrRow&&_pmCrRow.style.display!=='none'&&_pmCrSel&&_pmCrSel.value?+_pmCrSel.value:null;const _pmTk=(document.getElementById('pm-ticket')?.value||'').trim().toUpperCase();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),obs:g("pm-obs").trim(),nfNum,cat:PAYMENT_CAT_DEFAULT,sub:0,pagn:g("pm-pag"),st:stVal,venc:g("pm-venc"),emissao,pagaEm,nfTipo:pmNfTipo,contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin,construtora_seq:_pmCrSeq,ticketRaiz:_pmTk,compraVinculada:paymentCompraLink(oldPag)};
+  const emissao=(document.getElementById("pm-emissao")?.value||"").trim();const pagaEm=stVal==='PAGO'?(oldPag?.pagaEm||''):'';const escopoFin=document.getElementById("pm-escopo")?.value||"obra";const _pmCrRow=document.getElementById('pm-constr-row');const _pmCrSel=document.getElementById('pm-constr-sel');const _pmCrSeq=_pmCrRow&&_pmCrRow.style.display!=='none'&&_pmCrSel&&_pmCrSel.value?+_pmCrSel.value:null;const _pmTk=(document.getElementById('pm-ticket')?.value||'').trim().toUpperCase();const obj={ben,v:parseCurrency(g("pm-val")),ref:g("pm-ref").trim(),obs:g("pm-obs").trim(),nfNum,cat:PAYMENT_CAT_DEFAULT,sub:0,pagn:fundingInput.payer||g("pm-pag"),funding:fundingInput.funding,st:stVal,venc:g("pm-venc"),emissao,pagaEm,nfTipo:pmNfTipo,contratoSeq:cSeq?+cSeq:null,tipoCusto,escopoFin,construtora_seq:_pmCrSeq,ticketRaiz:_pmTk,compraVinculada:paymentCompraLink(oldPag)};
   if(!(await applyPastDuePaidCheck(obj,obj.ref||obj.ben)))return;
 
   const wasEdit=pagEditIdx!==null;
@@ -16845,7 +16849,7 @@ function closeViewer(){document.getElementById("viewer-overlay").classList.remov
 const paymentBaselines=new Map();
 const paymentPersistLocks=new Set();
 const paymentHeavyKeys=['docs_json','parcelas','itens_pag','nf_doc_path','comp_doc_path'];
-function paymentPersistRow(o,p){return {obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:cleanImpDocNumber(p.nfNum||'',p.nfTipo||''),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',docs_json:paymentAllDocs(p),emissao:p.emissao||'',paga_em:p.pagaEm||'',escopo_fin:p.escopoFin||'obra',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null,construtora_seq:p.construtora_seq||null,ticket_raiz:p.ticketRaiz||'',compra_vinculada_json:paymentCompraLink(p)};}
+function paymentPersistRow(o,p){return {funding_json:PaymentFunding.validate(p.funding||[]),obra_id:o.id,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:cleanImpDocNumber(p.nfNum||'',p.nfTipo||''),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',docs_json:paymentAllDocs(p),emissao:p.emissao||'',paga_em:p.pagaEm||'',escopo_fin:p.escopoFin||'obra',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null,construtora_seq:p.construtora_seq||null,ticket_raiz:p.ticketRaiz||'',compra_vinculada_json:paymentCompraLink(p)};}
 function paymentSnapshot(o,p,raw,heavyOnly=false){
   if(!p.dbId)return;
   const key=String(p.dbId),old=paymentBaselines.get(key),row=paymentPersistRow(o,p);
@@ -17037,7 +17041,7 @@ async function loadFromDB(){
 
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
 
-      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({dbId:p.id,ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:cleanImpDocNumber(p.nf_num||'',p.nf_tipo||'Sem nota'),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:normalizeDateISO(p.venc)||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path),bucket:'pagamentos',kind:'NF'}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path),bucket:'pagamentos',kind:'COMPROVANTE'}:null,docs:[],contratoSeq:p.contrato_seq||null,emissao:normalizeDateISO(p.emissao)||'',pagaEm:normalizeDateISO(p.paga_em)||'',escopoFin:p.escopo_fin||'obra',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:[],itens:[],construtora_seq:p.construtora_seq||null,ticketRaiz:p.ticket_raiz||'',compraVinculada:paymentCompraLink({compraVinculada:p.compra_vinculada_json}),_heavyLoaded:false})),
+      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({funding:p.funding_json||[],dbId:p.id,ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:cleanImpDocNumber(p.nf_num||'',p.nf_tipo||'Sem nota'),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:normalizeDateISO(p.venc)||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path),bucket:'pagamentos',kind:'NF'}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path),bucket:'pagamentos',kind:'COMPROVANTE'}:null,docs:[],contratoSeq:p.contrato_seq||null,emissao:normalizeDateISO(p.emissao)||'',pagaEm:normalizeDateISO(p.paga_em)||'',escopoFin:p.escopo_fin||'obra',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:[],itens:[],construtora_seq:p.construtora_seq||null,ticketRaiz:p.ticket_raiz||'',compraVinculada:paymentCompraLink({compraVinculada:p.compra_vinculada_json}),_heavyLoaded:false})),
 
       aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({dbId:a.id,inv:a.inv||'',v:+a.v||0,d:a.d||''})),
 

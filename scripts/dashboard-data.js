@@ -94,7 +94,7 @@
   for(const i of registered)get(i.nome).registration=i;
   for(const o of projects){
    for(const a of o.aportes||[]){if(!isExternal(a.inv,o))continue;const g=get(a.inv);g.deposits.push({...a,project:o});g.projects.set(o.id,o);}
-   for(const [i,p]of(o.pag||[]).entries()){if((p.escopoFin||'obra')!=='obra'||!isExternal(p.pagn,o))continue;const g=get(p.pagn);g.payments.push({o,p,i});g.projects.set(o.id,o);}
+   for(const [i,original]of(o.pag||[]).entries()){const parts=globalThis.PaymentFunding?globalThis.PaymentFunding.allocatedPayments({pag:[original]}):[original];for(const p of parts){if((p.escopoFin||'obra')!=='obra'||!isExternal(p.pagn,o))continue;const g=get(p.pagn);g.payments.push({o,p,i});g.projects.set(o.id,o);}}
   }
   const rows=[...map.values()].map(g=>{const l=ledger(g.payments,asOf),received=sum(g.deposits,a=>a.v);return {...g,ledger:l,received,paid:l.paidValue,pending:l.openValue,balance:round(received-l.paidValue),projected:round(received-l.paidValue-l.openValue)};});
   return {rows,received:sum(rows,r=>r.received),paid:sum(rows,r=>r.paid),pending:sum(rows,r=>r.pending),balance:sum(rows,r=>r.balance),unfunded:rows.filter(r=>r.paid>r.received)};

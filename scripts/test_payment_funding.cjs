@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm');
+const F=require('./payment-funding.js');
+const split=[{name:'RE',percent:50},{name:'JP',percent:50}];
+assert.deepEqual(F.shares({pagn:'Davelino',v:100,funding:split}).map(s=>s.value),[50,50]);
+assert.deepEqual(F.shares({pagn:'Davelino',v:0.03,funding:split}).map(s=>s.value),[0.02,0.01]);
+for(const v of [0,1,3.01,200000,476551.79])assert.equal(Math.round(F.shares({v,funding:split}).reduce((a,b)=>a+b.value,0)*100),Math.round(v*100));
+assert.throws(()=>F.validate([{name:'RE',percent:30}]));
+assert.throws(()=>F.validate([{name:'RE',percent:50},{name:'RE',percent:50}]));
+assert.throws(()=>F.validate([{name:'RE',percent:-20},{name:'JP',percent:120}]));
+assert.deepEqual(F.shares({pagn:'NH',v:22}),[{name:'NH',value:22,percent:100}]);
+const p={dbId:1,pagn:'Davelino',v:100,st:'PAGO',funding:split,docs:[{name:'NF'}]};
+const parts=F.allocatedPayments({pag:[p]});assert.equal(parts.length,2);assert.equal(p.v,100);assert.equal(p.pagn,'Davelino');assert.equal(parts[0].docs[0].name,'NF');
+const html=fs.readFileSync(require('path').join(__dirname,'../index.html'),'utf8');
+for(const m of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))if(m[1].trim())new vm.Script(m[1]);
+const stats=html.slice(html.indexOf('function calcInvestStats(o)'),html.indexOf('// Retorna saldo disponível'));
+const ctx={PaymentFunding:F,_isInvestidorExternoPagador:()=>true};vm.createContext(ctx);vm.runInContext(stats,ctx);
+const s=ctx.calcInvestStats({aportes:[],pag:[p,{...p,st:'PENDENTE',v:60}]});
+assert.equal(s.length,2);for(const r of s){assert.equal(r.utilizado,50);assert.equal(r.pendente,30);}
+const D=require('./dashboard-data.js');
+const inv=D.investors([{id:7,pag:[p],aportes:[]}],[],()=>true);
+assert.equal(inv.paid,100);assert.equal(inv.rows.length,2);assert.ok(inv.rows.every(r=>r.paid===50));
+console.log('Funding allocation, conservation, validation, investor totals, dashboard and inline syntax: PASS');
