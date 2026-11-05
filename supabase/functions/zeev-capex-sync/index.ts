@@ -5075,19 +5075,11 @@ function reusableStoredDocForTarget(doc: AnyRecord, target: string, row: AnyReco
 }
 
 function paymentDateFromTicket(ticket: AnyRecord) {
-  const pagamento = ticket?.pagamento_json || ticket?.pagamento || {}
-  const fromJson = dateOnly(pagamento.data_pagamento || pagamento.dataPagamento)
-  if (fromJson) return fromJson
   const fmap = fieldMap(Array.isArray(ticket?.raw_fields) ? ticket.raw_fields : Array.isArray(ticket?.rawFields) ? ticket.rawFields : [])
-  const fromField = dateOnly(firstField(fmap, ['dataPagamento', 'data do pagamento', 'pagoEm', 'pago em', 'dataEfetivaPagamento', 'data efetiva de pagamento', 'dataLiquidacao', 'data liquidacao', 'dataBaixa', 'data baixa']))
+  const fromField = dateOnly(firstField(fmap, ['pagoEm', 'pago em', 'dataEfetivaPagamento', 'data efetiva de pagamento', 'dataLiquidacao', 'data liquidacao']))
   if (fromField) return fromField
-  const fromFinanceCompletion = paymentDateFromFinanceCompletion(ticket)
-  if (fromFinanceCompletion) return fromFinanceCompletion
-  const fromTask = paymentDateFromTasks(ticket)
-  if (fromTask) return fromTask
-  const fromCompletedTicket = paymentDateFromCompletedTicket(ticket)
-  if (fromCompletedTicket) return fromCompletedTicket
-  return paymentDateFromMessages(ticket)
+  // Workflow completion and scheduled dates do not establish bank settlement.
+  return ''
 }
 
 function paymentLifecycleStatusFromTicket(ticket: AnyRecord) {
@@ -7087,12 +7079,12 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
         patch.st = 'PAGO'
         patch.paga_em = paidDate
         out.updatedPaid++
-      } else if (lifecycleStatus) {
+      } else if (lifecycleStatus && row.st !== 'PAGO') {
         patch.st = lifecycleStatus
         patch.paga_em = ''
       } else if (dueDate && dueDate !== row.venc) {
         patch.venc = dueDate
-        patch.st = 'PENDENTE'
+        if (row.st !== 'PAGO') patch.st = 'PENDENTE'
         out.updatedDueDate++
       }
       const changed = Object.keys(patch).filter((key) => key !== 'zeev_docs_checked_at').length > 0
@@ -8630,7 +8622,7 @@ async function registerObraPayments(input: AnyRecord = {}) {
         patch.st = 'PAGO'
         patch.paga_em = paidDate
         out.paidUpdated++
-      } else if (!paidDate && lifecycleStatus && saved.st !== lifecycleStatus) {
+      } else if (!paidDate && lifecycleStatus && saved.st !== 'PAGO' && saved.st !== lifecycleStatus) {
         patch.st = lifecycleStatus
         patch.paga_em = ''
       }
