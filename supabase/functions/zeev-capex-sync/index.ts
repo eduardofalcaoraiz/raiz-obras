@@ -6638,7 +6638,7 @@ async function runDocRescueCandidates(input: AnyRecord = {}) {
     const audit = await runDocRescueAudit({ ...input, sampleLimit: limit, sample_limit: limit })
     const sample = Array.isArray(audit?.queue?.sample) ? audit.queue.sample : []
     for (const id of sample) add(id, 'pending')
-    if (ids.size) {
+    if (audit?.ok) {
       return {
         ok: true,
         mode: 'doc-rescue-candidates',
@@ -7041,7 +7041,10 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
 
   const paymentFilter = targetTicketIds.length ? `ticket_raiz=in.(${targetTicketIds.join(',')})` : 'ticket_raiz=not.is.null'
   const rows = await restAll(`/pagamentos?select=id,obra_id,ticket_raiz,nf_num,nf_tipo,nf_doc_path,comp_doc_path,docs_json,st,paga_em,venc,obs,zeev_docs_checked_at&${paymentFilter}&order=id.asc`, 1000)
+  const terminalRows = targetSet.size ? [] : await restAll('/capex_zeev_solicitacoes?active=eq.false&valor=gt.0&select=zeev_instance_id')
+  const terminalIds = new Set(terminalRows.map((row: AnyRecord) => String(row.zeev_instance_id)))
   const candidates = (rows || [])
+    .filter((row: AnyRecord) => !terminalIds.has(ticketDigits(row.ticket_raiz)))
     .filter((row: AnyRecord) => ticketDigits(row.ticket_raiz) && (!targetSet.size || targetSet.has(ticketDigits(row.ticket_raiz))))
     .filter((row: AnyRecord) => !onlyOverdue || paymentIsOverdue(row))
     .filter((row: AnyRecord) => targetSet.size || paymentStatusCanStillChange(row))
