@@ -497,6 +497,8 @@ def parse_money(value):
         s = s.replace(".", "").replace(",", ".")
     elif "," in s:
         s = s.replace(",", ".")
+    elif re.fullmatch(r"-?\d{1,3}(?:\.\d{3})+", s):
+        s = s.replace(".", "")
     try:
         return float(s)
     except ValueError:

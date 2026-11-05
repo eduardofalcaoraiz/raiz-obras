@@ -1029,6 +1029,7 @@ function parseMoney(value: unknown) {
   if (!s) return 0
   if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.')
   else if (s.includes(',')) s = s.replace(',', '.')
+  else if (/^-?\d{1,3}(?:\.\d{3})+$/.test(s)) s = s.replace(/\./g, '')
   const n = Number(s)
   return Number.isFinite(n) ? n : 0
 }

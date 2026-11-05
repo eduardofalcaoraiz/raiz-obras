@@ -1,6 +1,6 @@
 'use strict';
 const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
-function amount(v){if(v==null||String(v).trim()==='')return null;if(typeof v==='number')return Number.isFinite(v)?Math.round(v*100)/100:null;const s=String(v).replace(/R\$|\s/g,'');if(!/^-?[\d.,]+$/.test(s))return null;const n=Number(s.includes(',')?s.replace(/\./g,'').replace(',','.'):s);return Number.isFinite(n)?Math.round(n*100)/100:null;}
+function amount(v){if(v==null||String(v).trim()==='')return null;if(typeof v==='number')return Number.isFinite(v)?Math.round(v*100)/100:null;const s=String(v).replace(/R\$|\s/g,'');if(!/^-?[\d.,]+$/.test(s))return null;const n=Number(s.includes(',')?s.replace(/\./g,'').replace(',','.'): /^-?\d{1,3}(?:\.\d{3})+$/.test(s)?s.replace(/\./g,''):s);return Number.isFinite(n)?Math.round(n*100)/100:null;}
 function date(v){const s=String(v||'').trim();return /^\d{2}\/\d{2}\/\d{4}$/.test(s)?s.split('/').reverse().join('-'):/^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(0,10):null;}
 const months=['janeiro','fevereiro','marco','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 function normalizeTicket(t){
