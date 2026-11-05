@@ -7,16 +7,18 @@ const stats={pages:0,read:0,candidates:0,related:0,failed:0};
 const budget=Number(process.env.RE_MAX_PAGES||120),cache=new Map();
 const backlog=new Set();
 const fullTickets=new Set();
+const terminalKnown=new Set();
 let pendingIds=null;
 let knownLinks=null;
 function zeevTime(value){const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(x=>[x.type,x.value]));return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function request(url,options={},deadline=Infinity){for(let i=0;i<3;i++){try{const remaining=deadline-Date.now();if(remaining<=0)throw Error('Refresh time budget exhausted');const r=await fetch(url,{...options,signal:AbortSignal.timeout(Math.min(90000,remaining))});if(!r.ok)throw Error('HTTP '+r.status+' '+new URL(url).pathname);return r.status===204?null:await r.json();}catch(e){if(i===2||Date.now()>=deadline)throw e;await sleep(Math.min(1500*(i+1),Math.max(0,deadline-Date.now())));}}}
 function db(resource,method='GET',body,deadline){return request(SUPA+'/rest/v1/'+resource,{method,headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json',Prefer:'return=representation,resolution=merge-duplicates'},body:body===undefined?undefined:JSON.stringify(body)},deadline);}
-async function all(table,select){if(table==='real_estate_tickets')select+=',status,sincronizado_em,valor_total';let rows=[];for(let offset=0;;offset+=1000){const chunk=await db(table+'?select='+select+'&order='+({real_estate_tickets:'ticket_raiz',real_estate_lancamentos:'id'}[table]||'id')+'&limit=1000&offset='+offset);rows.push(...chunk);if(chunk.length<1000)return rows;}}
-async function ticket(id,deadline){id=String(id);if(fullTickets.has(id))return cache.get(id);const params=new URLSearchParams({showPendingInstanceTasks:'true',showFinishedInstanceTasks:'true',allowOpenUrlsForFilesInForm:'true',useCache:'false'});fields.forEach(f=>params.append('formFieldNames',f));const t=await request(ZEEV+'/api/2/instances/'+id+'?'+params,{headers:{Authorization:'Bearer '+TOKEN,'Accept-Language':'pt-BR,pt;q=0.9,en;q=0.8'}},deadline);if(!t?.id)throw Error('Invalid ticket response');cache.set(id,t);fullTickets.add(id);return t;}
+async function all(table,select){if(table==='real_estate_tickets')select+=',status,sincronizado_em,valor_total';let rows=[];for(let offset=0;;offset+=1000){const chunk=await db(table+'?select='+select+'&order='+({real_estate_tickets:'ticket_raiz',real_estate_lancamentos:'id'}[table]||'id')+'&limit=1000&offset='+offset);rows.push(...chunk);if(chunk.length<1000){if(table==='real_estate_tickets')for(const row of rows)if(isFinalWithValue(row))terminalKnown.add(String(row.ticket_raiz));return rows;}}}
+async function ticket(id,deadline){id=String(id);if(terminalKnown.has(id))return {id,__retired:true};if(fullTickets.has(id))return cache.get(id);const params=new URLSearchParams({showPendingInstanceTasks:'true',showFinishedInstanceTasks:'true',allowOpenUrlsForFilesInForm:'true',useCache:'false'});fields.forEach(f=>params.append('formFieldNames',f));const t=await request(ZEEV+'/api/2/instances/'+id+'?'+params,{headers:{Authorization:'Bearer '+TOKEN,'Accept-Language':'pt-BR,pt;q=0.9,en;q=0.8'}},deadline);if(!t?.id)throw Error('Invalid ticket response');cache.set(id,t);fullTickets.add(id);return t;}
 async function saveState(name,value,deadline){await db('real_estate_sync_state','POST',{name,value,updated_at:new Date().toISOString()},deadline);}
 async function relatedTicket(id){
+ if(terminalKnown.has(String(id)))return null;
  if(cache.has(id))return cache.get(id);
  if(!knownLinks){const saved=(await db('real_estate_sync_state?name=eq.link-requesters'))[0]?.value?.entries||[];knownLinks=new Map(saved.filter(([,v])=>Date.now()-Date.parse(v.readAt)<30*86400000));}
  if(knownLinks.has(id))return knownLinks.get(id);
