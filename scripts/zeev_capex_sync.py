@@ -351,6 +351,7 @@ FINANCE_FIELDS = [
     "nomeSolicitante", "emailSolicitante",
     "investimentoCAPEX", "valorTotalDoPagamento", "valorTotalDoPagamento01", "valorTotalPagamento", "valor", "valorTotal", "valorSolicitado", "valorPagamento",
     "valorAPagar", "valorAprovado", "precoUnitario", "dataPagamento", "previsaoPagamento", "dataVencimento", "dataDeVencimento",
+    "pagoEm", "dataEfetivaPagamento", "dataLiquidacao",
     "Data de vencimento", "Data de vencimento *", "Data de vencimento extra\u00edda", *ISSUE_DATE_FIELDS,
     "formaPagamento", "formaDePagamento", "Forma de pagamento", "Forma de pagamento *",
     "Condi\u00e7\u00e3o de pagamento", "Condi\u00e7\u00e3o de pagamento *",
