@@ -1,6 +1,6 @@
 'use strict';
 const {fields,classify,links,requester}=require('./real-estate-discovery.cjs');
-const {refreshApproved}=require('./real-estate-approved-refresh.cjs');
+const {refreshApproved,isFinalWithValue}=require('./real-estate-approved-refresh.cjs');
 const SUPA=process.env.SUPABASE_URL,KEY=process.env.SUPABASE_SERVICE_ROLE_KEY,TOKEN=process.env.ZEEV_TOKEN;
 const ZEEV=process.env.ZEEV_BASE_URL||'https://raizeducacao.zeev.it';
 const stats={pages:0,read:0,candidates:0,related:0,failed:0};
@@ -13,7 +13,7 @@ function zeevTime(value){const p=Object.fromEntries(new Intl.DateTimeFormat('en-
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function request(url,options={},deadline=Infinity){for(let i=0;i<3;i++){try{const remaining=deadline-Date.now();if(remaining<=0)throw Error('Refresh time budget exhausted');const r=await fetch(url,{...options,signal:AbortSignal.timeout(Math.min(90000,remaining))});if(!r.ok)throw Error('HTTP '+r.status+' '+new URL(url).pathname);return r.status===204?null:await r.json();}catch(e){if(i===2||Date.now()>=deadline)throw e;await sleep(Math.min(1500*(i+1),Math.max(0,deadline-Date.now())));}}}
 function db(resource,method='GET',body,deadline){return request(SUPA+'/rest/v1/'+resource,{method,headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json',Prefer:'return=representation,resolution=merge-duplicates'},body:body===undefined?undefined:JSON.stringify(body)},deadline);}
-async function all(table,select){if(table==='real_estate_tickets')select+=',status,sincronizado_em';let rows=[];for(let offset=0;;offset+=1000){const chunk=await db(table+'?select='+select+'&order='+({real_estate_tickets:'ticket_raiz',real_estate_lancamentos:'id'}[table]||'id')+'&limit=1000&offset='+offset);rows.push(...chunk);if(chunk.length<1000)return rows;}}
+async function all(table,select){if(table==='real_estate_tickets')select+=',status,sincronizado_em,valor_total';let rows=[];for(let offset=0;;offset+=1000){const chunk=await db(table+'?select='+select+'&order='+({real_estate_tickets:'ticket_raiz',real_estate_lancamentos:'id'}[table]||'id')+'&limit=1000&offset='+offset);rows.push(...chunk);if(chunk.length<1000)return rows;}}
 async function ticket(id,deadline){id=String(id);if(fullTickets.has(id))return cache.get(id);const params=new URLSearchParams({showPendingInstanceTasks:'true',showFinishedInstanceTasks:'true',allowOpenUrlsForFilesInForm:'true',useCache:'false'});fields.forEach(f=>params.append('formFieldNames',f));const t=await request(ZEEV+'/api/2/instances/'+id+'?'+params,{headers:{Authorization:'Bearer '+TOKEN,'Accept-Language':'pt-BR,pt;q=0.9,en;q=0.8'}},deadline);if(!t?.id)throw Error('Invalid ticket response');cache.set(id,t);fullTickets.add(id);return t;}
 async function saveState(name,value,deadline){await db('real_estate_sync_state','POST',{name,value,updated_at:new Date().toISOString()},deadline);}
 async function relatedTicket(id){
@@ -24,6 +24,7 @@ async function relatedTicket(id){
  try{const t=await ticket(id);stats.related++;knownLinks.set(id,{id:t.id,requester:requester(t),flow:t.flow,readAt:new Date().toISOString()});return t;}catch(e){if(e.message.includes('HTTP 404'))return null;throw e;}
 }
 async function processTicket(t,reference){if(!/^\d{4,8}$/.test(String(t?.id)))throw Error('Malformed Zeev report');if(!fullTickets.has(String(t.id)))cache.set(String(t.id),t);backlog.delete(String(t.id));stats.read++;
+ if(reference.tickets.some(row=>String(row.ticket_raiz)===String(t.id)&&isFinalWithValue(row))){stats.final_skipped=(stats.final_skipped||0)+1;return;}
  if(Number(t.flow?.id)===276){if(!pendingIds)pendingIds=new Set((await all('real_estate_pending','id,ticket_raiz,status')).filter(x=>x.status==='pending').map(x=>x.ticket_raiz));if(pendingIds.delete(String(t.id)))await db('real_estate_pending?ticket_raiz=eq.'+t.id+'&status=eq.pending','PATCH',{status:'superseded',decision_reason:'Subprocesso tecnico de dados bancarios, nao lancamento financeiro'});return;}
  if(fullTickets.has(String(t.id)))t=cache.get(String(t.id));else if(classify(t,reference))t=await ticket(t.id);
  const technicalChildren=new Set((t.instanceTasks||[]).filter(x=>/dados.*bancar|bancar.*dados/i.test(x.task?.name||'')).map(x=>String(x.subprocessId)));

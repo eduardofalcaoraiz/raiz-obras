@@ -1,6 +1,10 @@
 'use strict';
 const {classify}=require('./real-estate-discovery.cjs');
 const BATCH_SIZE=1000;
+function isFinalWithValue(t){
+ const status=String(t?.status||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ return /^(finalizado|concluido|fechado|encerrado|cancelado)/.test(status)&&Number.isFinite(Number(t?.valor_total))&&Number(t.valor_total)>0;
+}
 function bounded(value,fallback,max){const n=Number(value??fallback);if(!Number.isInteger(n)||n<1||n>max)throw Error('Invalid approved refresh limit');return n;}
 async function refreshApproved({db,ticket,saveState,reference,env=process.env,now=Date.now}){
  const limit=bounded(env.RE_APPROVED_BATCH,BATCH_SIZE,3000);
@@ -8,10 +12,10 @@ async function refreshApproved({db,ticket,saveState,reference,env=process.env,no
  const state=(await db('real_estate_sync_state?name=eq.approved-refresh','GET',undefined,deadline))[0]?.value||{};
  let after=String(state.after||'');
  if(after&&!/^\d{4,8}$/.test(after))throw Error('Invalid approved refresh cursor');
- const known=new Map(reference.tickets.map(t=>[String(t.ticket_raiz),t]));
+ const known=new Map(reference.tickets.filter(t=>!isFinalWithValue(t)).map(t=>[String(t.ticket_raiz),t]));
  const retries=new Map((state.retries||[]).filter(r=>known.has(r.id)).map(r=>[r.id,r]));
  const due=[...retries.values()].filter(r=>r.next<=now()).sort((a,b)=>a.next-b.next).slice(0,Math.min(40,limit)).map(r=>r.id);
- // Reserve capacity for historical rotation even when the active queue is large.
+ // Rotate only unfinished or incomplete tickets; never revisit final valued ones.
  const active=[...known.values()].filter(t=>t.status==='Em andamento'&&(!t.sincronizado_em||now()-Date.parse(t.sincronizado_em)>=86400000)&&!retries.has(String(t.ticket_raiz)))
   .sort((a,b)=>String(a.sincronizado_em||'').localeCompare(String(b.sincronizado_em||''))||String(a.ticket_raiz).localeCompare(String(b.ticket_raiz)))
   .slice(0,Math.floor((limit-due.length)*0.7)).map(t=>String(t.ticket_raiz));
@@ -49,4 +53,4 @@ async function refreshApproved({db,ticket,saveState,reference,env=process.env,no
  result.retries_pending=retries.size;
  return result;
 }
-module.exports={refreshApproved,BATCH_SIZE};
+module.exports={refreshApproved,BATCH_SIZE,isFinalWithValue};

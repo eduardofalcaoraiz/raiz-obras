@@ -2807,7 +2807,7 @@ function uniqueNumbers(values: unknown[]) {
 async function knownTicketRefreshIds(limit: number, flows: number[] = []) {
   const n = Math.max(0, Math.min(Number(limit) || 0, 60))
   if (!n) return []
-  const flowFilter = flows.length ? `&flow_id=in.(${flows.join(',')})` : ''
+  const flowFilter = (flows.length ? `&flow_id=in.(${flows.join(',')})` : '') + '&or=(active.is.null,active.eq.true,valor.is.null,valor.lte.0)'
   const recentApprovedLimit = Math.max(1, Math.ceil(n / 4))
   const staleActiveLimit = Math.max(1, Math.ceil(n / 4))
   const linkedOpenLimit = Math.max(1, Math.ceil(n / 2))
@@ -2870,7 +2870,11 @@ async function knownTicketRefreshIds(limit: number, flows: number[] = []) {
     running: false,
     updated_at: new Date().toISOString(),
   })
-  return selected.slice(0, n)
+  const finalIds = selected.slice(0, n)
+  if (!finalIds.length) return []
+  const terminal = await rest(`/capex_zeev_solicitacoes?zeev_instance_id=in.(${finalIds.join(',')})&active=eq.false&valor=gt.0&select=zeev_instance_id`)
+  const terminalSet = new Set((terminal || []).map((row: AnyRecord) => Number(row.zeev_instance_id)))
+  return finalIds.filter((id) => !terminalSet.has(id))
 }
 
 async function runKnownTicketRefreshIds(input: AnyRecord = {}) {
