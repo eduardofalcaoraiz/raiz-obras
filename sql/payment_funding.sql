@@ -6,7 +6,7 @@ NOTIFY pgrst, 'reload schema';
 CREATE OR REPLACE FUNCTION public.payment_sa_funding_default() RETURNS trigger
 LANGUAGE plpgsql SET search_path=public AS $$
 BEGIN
- IF NEW.obra_id=7 AND coalesce(NEW.escopo_fin,'obra')='obra' AND NEW.nf_tipo='Sem nota' THEN
+ IF TG_OP='INSERT' AND coalesce(trim(NEW.pagn),'')='' AND NEW.obra_id=7 AND coalesce(NEW.escopo_fin,'obra')='obra' AND NEW.nf_tipo='Sem nota' THEN
   NEW.pagn:='DAVELINO IMOVEIS LTDA';
   NEW.funding_json:='[{"name":"R. E. PARTICIPACOES E EMPREENDIMENTOS LTDA","percent":50},{"name":"JP TERRAZI EMPREENDIMENTOS PARTICIPACOES E LOCACOES LTDA","percent":50}]'::jsonb;
  END IF;

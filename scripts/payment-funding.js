@@ -21,24 +21,22 @@
  function escape(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
  function detail(p,fmt){return p.funding?.length?'<div style="grid-column:1/-1"><b>Origem dos recursos</b><div>'+shares(p).map(s=>escape(s.name)+' ('+s.percent+'%): '+fmt(s.value)).join('<br>')+'</div></div>':'';}
  const saFunding=[{name:'R. E. PARTICIPACOES E EMPREENDIMENTOS LTDA',percent:50},{name:'JP TERRAZI EMPREENDIMENTOS PARTICIPACOES E LOCACOES LTDA',percent:50}];
- function applyPolicy(o,p){if(Number(o?.id)===7&&(p.escopoFin||'obra')==='obra'&&p.nfTipo==='Sem nota'){p.pagn='DAVELINO IMOVEIS LTDA';p.funding=saFunding.map(r=>({...r}));}return p;}
+ function applyPolicy(o,p){if(!p.dbId&&!p.id&&!p.pagn&&Number(o?.id)===7&&(p.escopoFin||'obra')==='obra'&&p.nfTipo==='Sem nota'){p.pagn='DAVELINO IMOVEIS LTDA';p.funding=saFunding.map(r=>({...r}));}return p;}
  function syncImport(project){
   const el=document.getElementById('imp-pag');if(!el)return;
   const forced=Number(project?.id)===7&&document.getElementById('imp-nftipo')?.value==='Sem nota'&&(document.getElementById('imp-escopo')?.value||'obra')==='obra';
   let note=document.getElementById('imp-funding-note');if(!note){note=document.createElement('p');note.id='imp-funding-note';el.after(note);}
-  if(forced){if(!el.disabled)el.dataset.previous=el.value;if(![...el.options].some(o=>o.value==='DAVELINO IMOVEIS LTDA'))el.add(new Option('DAVELINO IMOVEIS LTDA','DAVELINO IMOVEIS LTDA'));el.value='DAVELINO IMOVEIS LTDA';note.textContent='Recursos: R.E. 50% | JP 50%';}
-  else if(el.disabled){el.value=el.dataset.previous||'';}
-  el.disabled=forced;note.hidden=!forced;
+  if(forced&&!el.value){if(![...el.options].some(o=>o.value==='DAVELINO IMOVEIS LTDA'))el.add(new Option('DAVELINO IMOVEIS LTDA','DAVELINO IMOVEIS LTDA'));el.value='DAVELINO IMOVEIS LTDA';}
+  el.disabled=false;note.hidden=true;
  }
  let names=[],projectId=null,original=null;
  function isPolicy(){return Number(projectId)===7&&document.getElementById('pm-nf')?.value==='Sem nota'&&(document.getElementById('pm-escopo')?.value||'obra')==='obra';}
  function syncPolicy(){
   const box=document.getElementById('pm-funding');if(!box)return;
-  const forced=isPolicy(),check=document.getElementById('pm-funding-enabled');
-  if(forced){check.checked=true;document.getElementById('pm-funding-body').hidden=false;document.getElementById('pm-funding-manager').value='DAVELINO IMOVEIS LTDA';document.getElementById('pm-funding-rows').replaceChildren();saFunding.forEach(addRow);}
-  else if(box.dataset.forced==='true'&&!original?.funding?.length){check.checked=false;document.getElementById('pm-funding-body').hidden=true;}
-  box.dataset.forced=String(forced);check.disabled=forced;
-  for(const el of box.querySelectorAll('#pm-funding-body input,#pm-funding-body select,#pm-funding-body button'))el.disabled=forced;
+  const check=document.getElementById('pm-funding-enabled');
+  check.disabled=false;
+  document.getElementById('pm-funding-body').hidden=!check.checked;
+  for(const el of box.querySelectorAll('#pm-funding-body input,#pm-funding-body select,#pm-funding-body button'))el.disabled=false;
   document.getElementById('pm-pag').parentElement.style.display=check.checked?'none':'';
  }
  function addRow(row={name:'',percent:''}){
@@ -48,7 +46,7 @@
  }
  function open(p,investors,project){
   projectId=project?.id;original=p;
-  if(Number(projectId)===7&&(!p||((p.escopoFin||'obra')==='obra'&&p.nfTipo==='Sem nota')))p={...p,pagn:'DAVELINO IMOVEIS LTDA',funding:saFunding};
+  if(!p&&isPolicy())p={pagn:'DAVELINO IMOVEIS LTDA',funding:saFunding};
   names=investors.map(i=>i.nome);let box=document.getElementById('pm-funding');
   if(!box){box=document.createElement('section');box.id='pm-funding';box.style.cssText='margin:12px 0;padding:12px 0;border-top:1px solid var(--line)';
    box.innerHTML='<label><input id="pm-funding-enabled" type="checkbox"> Recursos de investidores / pagamento administrado</label><div id="pm-funding-body" hidden><label class="fl" for="pm-funding-manager">Quem realiza o pagamento</label><input id="pm-funding-manager" class="fi" placeholder="Razão social da administradora ou pagante"><div id="pm-funding-rows"></div><button type="button" class="btn btn-ghost" id="pm-funding-add">+ Investidor</button><span>Participação (%)</span></div>';
@@ -64,7 +62,6 @@
   syncPolicy();
  }
  function read(){
-  if(Number(projectId)===7&&document.getElementById('pm-nf')?.value==='Sem nota'&&(document.getElementById('pm-escopo')?.value||'obra')==='obra')return {funding:saFunding.map(r=>({...r})),payer:'DAVELINO IMOVEIS LTDA'};
   if(!document.getElementById('pm-funding-enabled')?.checked)return {funding:[]};
   const payer=document.getElementById('pm-funding-manager').value.trim();if(!payer)throw Error('Informe quem realiza o pagamento.');
   const funding=validate([...document.querySelectorAll('#pm-funding-rows .funding-row')].map(r=>({name:r.querySelector('select').value,percent:Number(r.querySelector('input').value)})));
