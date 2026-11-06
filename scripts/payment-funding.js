@@ -49,14 +49,17 @@
   if(!p&&isPolicy())p={pagn:'DAVELINO IMOVEIS LTDA',funding:saFunding};
   names=investors.map(i=>i.nome);let box=document.getElementById('pm-funding');
   if(!box){box=document.createElement('section');box.id='pm-funding';box.style.cssText='margin:12px 0;padding:12px 0;border-top:1px solid var(--line)';
-   box.innerHTML='<label><input id="pm-funding-enabled" type="checkbox"> Recursos de investidores / pagamento administrado</label><div id="pm-funding-body" hidden><label class="fl" for="pm-funding-manager">Quem realiza o pagamento</label><input id="pm-funding-manager" class="fi" placeholder="Razão social da administradora ou pagante"><div id="pm-funding-rows"></div><button type="button" class="btn btn-ghost" id="pm-funding-add">+ Investidor</button><span>Participação (%)</span></div>';
+   box.innerHTML='<label><input id="pm-funding-enabled" type="checkbox"> Recursos de investidores / pagamento administrado</label><div id="pm-funding-body" hidden><label class="fl" for="pm-funding-manager">Administradora do pagamento</label><select id="pm-funding-manager" class="fi"><option value="">Selecione a administradora</option></select><div id="pm-funding-rows"></div><button type="button" class="btn btn-ghost" id="pm-funding-add">+ Investidor</button><span>Participação (%)</span></div>';
    document.getElementById('pm-pag').parentElement.after(box);
    document.getElementById('pm-funding-enabled').onchange=e=>{document.getElementById('pm-funding-body').hidden=!e.target.checked;document.getElementById('pm-pag').parentElement.style.display=e.target.checked?'none':'';};
    document.getElementById('pm-funding-add').onclick=()=>addRow();
   }
   document.getElementById('pm-funding-enabled').checked=!!p?.funding?.length;
   document.getElementById('pm-funding-body').hidden=!p?.funding?.length;
-  document.getElementById('pm-funding-manager').value=p?.funding?.length?p.pagn:'';
+  const manager=document.getElementById('pm-funding-manager');
+  const managers=[...new Set(['DAVELINO IMOVEIS LTDA',...(project?.pag||[]).filter(payment=>payment.funding?.length).map(payment=>payment.pagn),p?.funding?.length?p.pagn:''].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  manager.innerHTML='<option value="">Selecione a administradora</option>'+managers.map(name=>'<option value="'+escape(name)+'">'+escape(name)+'</option>').join('');
+  manager.value=p?.funding?.length?p.pagn:'';
   document.getElementById('pm-funding-rows').replaceChildren();
   (p?.funding?.length?p.funding:[{name:'',percent:50},{name:'',percent:50}]).forEach(addRow);
   syncPolicy();
