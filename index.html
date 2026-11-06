@@ -13776,15 +13776,45 @@ async function openPaymentDocsModal(oid,i,proofsOnly=false){
   document.getElementById('payment-docs-overlay')?.classList.add('show');
   try{await ensurePaymentHeavyFields(p);}catch(e){console.warn('ensurePaymentHeavyFields:',e);}
   const docs=paymentAllDocs(p).filter(d=>!proofsOnly||paymentIsProofDoc(d));
-  activePaymentDocs={obraId:oid,index:i,docs};
+  activePaymentDocs={obraId:oid,index:i,docs,proofsOnly};
   const title=document.getElementById('payment-docs-title');
   if(title)title.textContent=proofsOnly?'Comprovantes do pagamento':'Arquivos do pagamento';
   const ctx=document.getElementById('payment-docs-context');
   if(ctx)ctx.innerHTML=`<b style="color:var(--ink)">${escHtml(p.ben||'Pagamento')}</b>${p.ticketRaiz?` &middot; TR ${escHtml(p.ticketRaiz)}`:''}${p.ref?`<br>${escHtml(p.ref)}`:''}`;
   body=document.getElementById('payment-docs-body');
-  if(body)body.innerHTML=docs.length?docs.map((d,idx)=>`<div class="payment-doc-row"><div><b>${escHtml(d.name||'Arquivo')}</b><span>${escHtml([d.kind||'',d.origin||'',d.source||''].filter(Boolean).join(' · ')||'Documento salvo na plataforma')}</span></div><button class="btn btn-sm" onclick="viewFile(activePaymentDocs.docs[${idx}]);closePaymentDocsModal()">Ver / baixar</button></div>`).join(''):'<div class="capex-zeev-empty">Nenhum arquivo salvo neste pagamento.</div>';
+  if(body)body.innerHTML=docs.length?docs.map((d,idx)=>`<div class="payment-doc-row"><div><b>${escHtml(d.name||'Arquivo')}</b><span>${escHtml([d.kind||'',d.origin||'',d.source||''].filter(Boolean).join(' · ')||'Documento salvo na plataforma')}</span></div><button class="btn btn-sm" onclick="viewFile(activePaymentDocs.docs[${idx}]);closePaymentDocsModal()">Ver / baixar</button>${AccessControl.canEdit()?`<button class="btn btn-sm btn-danger" title="Remover arquivo deste pagamento" aria-label="Remover ${escHtml(d.name||'arquivo')}" onclick="removePaymentAttachment(${idx})">Remover</button>`:''}</div>`).join(''):'<div class="capex-zeev-empty">Nenhum arquivo salvo neste pagamento.</div>';
   if(body&&proofsOnly)body.insertAdjacentHTML('afterbegin',`<button class="btn btn-sm" onclick="anexarComp(${oid},${i})">Adicionar comprovantes</button>`);
   if(body&&!proofsOnly&&AccessControl.canEdit())body.insertAdjacentHTML('afterbegin',`<button class="btn btn-sm" onclick="PaymentBundle.reviewLinks(${oid},${i})">Conferir vinculos</button>`);
+}
+
+async function removePaymentAttachment(index){
+  if(!AccessControl.canEdit()||!activePaymentDocs)return;
+  const context={...activePaymentDocs},target=context.docs[index];
+  const o=obras.find(x=>+x.id===+context.obraId),p=o?.pag?.[context.index];
+  if(!target||!p?.dbId)return;
+  const key=paymentDocKey(target);
+  askConfirm('Remover "'+(target.name||'Arquivo')+'" deste pagamento? Os outros anexos e o pagamento serao mantidos.',async()=>{
+    if(!AccessControl.canEdit())return;
+    try{
+      const loaded=await db.from('pagamentos').select('*,xmin').eq('id',p.dbId).eq('obra_id',o.id).single();
+      if(loaded.error)throw loaded.error;
+      const row=loaded.data;if(row.xmin==null)throw Error('Reabra os arquivos e tente novamente.');
+      const fresh={};applyPaymentHeavyRow(fresh,row);
+      const all=paymentAllDocs(fresh);
+      if(!all.some(d=>paymentDocKey(d)===key))throw Error('O arquivo ja foi removido. Reabra a lista.');
+      const docs=all.filter(d=>paymentDocKey(d)!==key&&!(d.generatedBundle&&(d.bundleSources||[]).includes(key)));
+      const nf=docs.find(d=>d.invoiceIdentity)||docs.find(paymentIsFiscalDoc),proof=docs.find(paymentIsProofDoc);
+      const patch={docs_json:docs,nf_doc_path:nf?.storagePath||'',comp_doc_path:proof?.storagePath||''};
+      const saved=await db.from('pagamentos').update(patch).eq('id',p.dbId).eq('obra_id',o.id).eq('xmin',row.xmin).select('*');
+      if(saved.error)throw saved.error;
+      if(!saved.data?.length)throw Error('O pagamento mudou. Reabra os arquivos antes de remover.');
+      applyPaymentHeavyRow(p,saved.data[0]);
+      if(typeof paymentSnapshot==='function')paymentSnapshot(o,p,saved.data[0],true);
+      if(cur&&+cur.id===+o.id)renderObra();
+      await openPaymentDocsModal(o.id,context.index,context.proofsOnly);
+      toast('Arquivo removido deste pagamento.');
+    }catch(e){toast('Nao foi possivel remover: '+e.message);}
+  });
 }
 
 function closePaymentDocsModal(){
