@@ -4133,10 +4133,29 @@ function explicitDocKindFromFileContext(doc: AnyRecord) {
   return ''
 }
 
+function hasVerifiedInvoiceIdentity(doc: AnyRecord) {
+  const identity = doc?.invoiceIdentity
+  if (!identity || typeof identity !== 'object') return false
+  const number = String(identity.invoiceNumber || '').trim()
+  const type = String(identity.type || '').toUpperCase().trim()
+  const issuer = String(identity.issuerCnpj || '').replace(/[.\/\s-]/g, '')
+  const key = String(identity.accessKey || '').trim()
+  const serviceKey = String(identity.serviceAccessKey || identity.accessKey || '').trim()
+  // Identity evidence, not the payee/issuer match status, establishes an invoice.
+  return /^\d+$/.test(number) && /[1-9]/.test(number)
+    && ['NF', 'NFE', 'NF-E', 'NFSE', 'NFS-E', 'NFCE', 'NFC-E', 'CTE', 'CT-E', 'DANFE', 'XML'].includes(type)
+    && ((/^\d{14}$/.test(issuer) && !/^(\d)\1+$/.test(issuer))
+      || (/^\d{44}$/.test(key) && !/^(\d)\1+$/.test(key))
+      || (['NFSE', 'NFS-E'].includes(type) && /^(?:\d{48}|\d{50})$/.test(serviceKey) && !/^(\d)\1+$/.test(serviceKey)))
+}
+
 function fiscalDocKind(doc: AnyRecord) {
+  if (hasVerifiedInvoiceIdentity(doc)) return 'NF'
+  const declaredKind = String(doc?.kind || '').toUpperCase().trim()
+  if (declaredKind === 'ORCAMENTO') return 'ORCAMENTO'
+  if (doc?.generatedBundle === true && ['NF', 'XML', 'BOLETO', 'FATURA', 'RECIBO', 'COMPROVANTE', 'DOCUMENTO'].includes(declaredKind)) return declaredKind
   const explicitKind = explicitDocKindFromFileContext(doc)
   if (explicitKind) return explicitKind
-  const declaredKind = String(doc?.kind || '').toUpperCase().trim()
   const urlName = doc?.url ? fileNameFromDownloadPath(doc.url, '') : ''
   const raw = [doc.name, doc.source, doc.type, urlName, doc.storagePath, doc.path].filter(Boolean).join(' ')
   const nameRaw = [doc.name, urlName, doc.storagePath].filter(Boolean).join(' ')
@@ -4241,6 +4260,7 @@ function zeevDocLooksLikeFinancialDocumentField(doc: AnyRecord) {
 
 function fiscalDocKindWithContext(doc: AnyRecord, ticket?: AnyRecord, row?: AnyRecord) {
   const baseKind = fiscalDocKind(doc)
+  if (hasVerifiedInvoiceIdentity(doc) || doc?.generatedBundle === true || baseKind === 'ORCAMENTO') return baseKind
   if (isPurchaseZeevTicket(ticket, row)) {
     if (zeevDocHasExplicitFiscalOrPaymentTerms(doc)) return baseKind
     return 'DOCUMENTO'

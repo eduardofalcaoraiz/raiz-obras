@@ -40,9 +40,8 @@
       const sha256=await paymentFileSha256(f);
       let doc=next.docs.find(d=>sha256&&d.sha256===sha256);
       if(!doc){
-        const budget=/or[cç]amento/i.test(p.nfTipo||'');
         const danfe=/danfe/i.test(f.name)&&keyFromText(f.name.replace(/_/g,' '));
-        const kind=ext(f)==='xml'?'XML':(/boleto/i.test(f.name)?'BOLETO':visual(f)?(danfe?'NF':budget?'ORCAMENTO':'NF'):'DOCUMENTO');
+        const kind=ext(f)==='xml'?'XML':(/boleto/i.test(f.name)?'BOLETO':danfe?'NF':'DOCUMENTO');
         const storagePath=await uploadPagDoc(oid,f,kind.toLowerCase());
         doc={name:f.name,type:f.type||inferType(f.name),size:f.size,storagePath,bucket:'pagamentos',kind,sha256};next.docs.push(doc);
       }
@@ -166,7 +165,11 @@
         const text=await extractPdfText(file);
         const service=nationalServiceInvoice(text);if(service)return service;
         const key=keyFromText(text);
-        if(text.length>100&&!key&&/or[cç]amento/i.test(text)&&!/danfe/i.test(text))return null;
+        const normalized=String(text).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+        const fiscalNumber=/\b(?:numero\s+(?:da\s+)?(?:nfs-?e|nf-?e|nota\s+fiscal)|nfs-?e\s*(?:n[.o\u00ba]*|numero))\s*[:#.-]?\s*\d+/i.test(normalized);
+        // A quote heading is evidence; boilerplate mentioning future invoices is not.
+        const budgetHeading=/(?:^|\n)\s*(?:orcamento|proposta\s+comercial)\b/i.test(normalized);
+        if(normalized.trim().length>100&&budgetHeading&&!key&&!fiscalNumber)return {tipo:'ORCAMENTO',classificationEvidence:'budget-heading'};
         let local=parseNFFromText(text);
         if(key){local=identifyByKey(local,key);const name=text.match(/RECEBEMOS D[EA]\s*:?\s*(?:\d+\s+)?(.+?)\s+OS PRODUTOS/i);if(name)local.ben=name[1].trim();}
         const totals=danfeTotals(text);
@@ -187,7 +190,6 @@
         const balanced=local.subtotal>0&&Math.abs(itemTotal-local.subtotal)<0.02&&Math.abs(itemTotal-(local.desconto||0)+(local.frete||0)-local.val)<0.02;
         if(key&&local.doc&&local.val>0&&balanced&&!receiptStub(local.itens))return local;
         if(key&&local.doc&&local.val>0)keyedFallback={...local,itens:[],xmlStatus:'Itens pendentes de conferencia; identificacao extraida da chave de acesso'};
-        if(/or[cç]amento/i.test(text)&&!/danfe|nota fiscal|chave de acesso/i.test(text))return null;
       }catch(e){console.warn('Leitura local indisponivel:',e.message);}
     }
     let timer,data;
@@ -256,22 +258,31 @@
     try{
       for(const file of [...files].sort((a,b)=>Number(ext(b)==='xml')-Number(ext(a)==='xml'))){
         if(ext(file)!=='xml'&&!visual(file))continue;
+        if(files.filter(f=>f.name===file.name).length>1){warnings.push(file.name+': nome repetido; classificacao preservada.');continue;}
         try{
           const data=await readFiscal(file);
           if(data&&fiscalTypes.has(data.tipo)&&data.doc)notes.push({...data,sourceName:file.name});
-          else if(data===null)nonFiscal.add(file.name);
+          else if(data&&['orcamento','orcamentocobrarnf'].includes(norm(data.tipo)))nonFiscal.add(file.name);
         }catch(e){warnings.push(file.name+': '+(e.message||String(e)).slice(0,120));}
       }
-      if(!notes.length)return {warning:'Arquivos salvos, mas a leitura nao identificou uma NF com numero. Use Reler NF ou confira os dados manualmente.'};
-      const xmlNotes=new Map(notes.filter(n=>ext({name:n.sourceName})==='xml'&&validAccessKey(n.chave)).map(n=>[taxId(n.chave),n]));
-      for(const note of notes){const xml=xmlNotes.get(taxId(note.chave));if(xml)Object.assign(note,xml,{sourceName:note.sourceName,xmlStatus:'Dados conferidos pelo XML anexado'});}
-      const data=notes[0];
+      if(!notes.length&&!nonFiscal.size)return {warning:[...warnings,'Arquivos salvos, mas a leitura nao identificou uma NF com numero. Use Reler NF ou confira os dados manualmente.'].join(' ')};
       // Re-read after OCR so edits made during the network request are preserved.
       const result=await db.from('pagamentos').select('*,xmin').eq('id',p.dbId).eq('obra_id',oid).single();
       if(result.error)throw result.error;
       const row=result.data;
+      const originals=(row.docs_json||[]).filter(d=>!d.generatedBundle);
+      const ambiguous=new Set(originals.filter(d=>originals.filter(other=>other.name===d.name).length>1).map(d=>d.name));
+      for(const name of ambiguous){
+        if(notes.some(n=>n.sourceName===name)||nonFiscal.has(name))warnings.push(name+': varios originais com o mesmo nome; classificacao preservada.');
+        for(let i=notes.length-1;i>=0;i--)if(notes[i].sourceName===name)notes.splice(i,1);
+        nonFiscal.delete(name);
+      }
+      if(!notes.length&&!nonFiscal.size)return {warning:warnings.join(' ')};
+      const xmlNotes=new Map(notes.filter(n=>ext({name:n.sourceName})==='xml'&&validAccessKey(n.chave)).map(n=>[taxId(n.chave),n]));
+      for(const note of notes){const xml=xmlNotes.get(taxId(note.chave));if(xml)Object.assign(note,xml,{sourceName:note.sourceName,xmlStatus:'Dados conferidos pelo XML anexado'});}
+      const data=notes[0];
       const downloaded=await retrieveFiscalFiles(oid,notes,row.docs_json||[],warnings,p.dbId);
-      const supplier=await db.from('fornecedores_cnpj').select('nome,cnpj').eq('nome',row.ben||'').maybeSingle();
+      const supplier=notes.length?await db.from('fornecedores_cnpj').select('nome,cnpj').eq('nome',row.ben||'').maybeSingle():{data:null};
       if(supplier.error)throw supplier.error;
       const payeeCnpj=taxId(supplier.data?.cnpj);
       const identityFor=data=>{
@@ -286,19 +297,35 @@
       const budget=/or[cç]amento|adiantamento|sem nota/i.test(row.nf_tipo||'');
       const primary=notes.find(n=>norm(n.doc)===norm(row.nf_num))||data;
       const correctedPrimary=(row.docs_json||[]).some(d=>d.invoiceIdentity&&norm(d.invoiceIdentity.invoiceNumber)===norm(row.nf_num)&&(nonFiscal.has(d.name)||notes.some(n=>n.sourceName===d.name&&norm(n.doc)!==norm(row.nf_num))));
-      const patch=blank(row.nf_num)||budget||correctedPrimary||norm(row.nf_num)===norm(primary.doc)?invoicePatch(row,primary):{};
-      if(budget||correctedPrimary){patch.nf_num=cleanImpDocNumber(primary.doc,primary.tipo);patch.nf_tipo=primary.tipo;patch.emissao=primary.date||row.emissao;patch.chave=primary.chave||'';patch.itens_pag=primary.itens||[];}
+      const patch=primary&&(blank(row.nf_num)||budget||correctedPrimary||norm(row.nf_num)===norm(primary.doc))?invoicePatch(row,primary):{};
+      if(primary&&(budget||correctedPrimary)){patch.nf_num=cleanImpDocNumber(primary.doc,primary.tipo);patch.nf_tipo=primary.tipo;patch.emissao=primary.date||row.emissao;patch.chave=primary.chave||'';patch.itens_pag=primary.itens||[];}
       const sourceNames=new Set(notes.map(n=>n.sourceName));
       if(Array.isArray(row.docs_json)||downloaded.length){
         const docs=[...(row.docs_json||[]),...downloaded].map(d=>{
-          if(!d.generatedBundle&&nonFiscal.has(d.name)&&d.invoiceIdentity){const clean={...d,kind:'ORCAMENTO'};delete clean.invoiceIdentity;return clean;}
+          if(!d.generatedBundle&&nonFiscal.has(d.name)){const clean={...d,kind:'ORCAMENTO'};delete clean.invoiceIdentity;return clean;}
           const note=notes.find(n=>n.sourceName===d.name);
           return !d.generatedBundle&&note?{...d,kind:ext(d)==='xml'?'XML':'NF',invoiceIdentity:identityFor(note),...(budget&&row.nf_num?{budgetReference:row.nf_num}:{})}:{...d};
         });
         for(const doc of docs){
           if(doc.generatedBundle&&doc.bundleSources?.some(key=>docs.some(d=>sourceNames.has(d.name)&&paymentDocKey(d)===key)))doc.kind='NF';
+          else if(doc.generatedBundle&&doc.bundleSources?.some(key=>docs.some(d=>nonFiscal.has(d.name)&&paymentDocKey(d)===key))){
+            const sources=doc.bundleSources.map(key=>docs.find(d=>!d.generatedBundle&&paymentDocKey(d)===key));
+            doc.kind=sources.some(d=>d&&paymentIsFiscalDoc(d))?'NF':sources.every(d=>d&&['ORCAMENTO','BOLETO'].includes(paymentDocKindLabel(d)))?'ORCAMENTO':'DOCUMENTO';
+            delete doc.invoiceIdentity;
+          }
         }
         if(JSON.stringify(docs)!==JSON.stringify(row.docs_json))patch.docs_json=docs;
+        const identified=docs.filter(d=>!d.generatedBundle&&paymentHasFiscalIdentity(d));
+        const completeBundle=docs.find(d=>d.generatedBundle&&d.storagePath&&paymentIsFiscalDoc(d)&&identified.length&&identified.every(original=>
+          identified.some(source=>d.bundleSources?.includes(paymentDocKey(source))&&invoiceKey(source.invoiceIdentity)===invoiceKey(original.invoiceIdentity))));
+        const storedOriginals=docs.filter(d=>!d.generatedBundle&&paymentIsFiscalDoc(d)&&d.storagePath);
+        const primaryDoc=completeBundle
+          ||identified.find(d=>d.storagePath&&ext(d)==='pdf')
+          ||identified.find(d=>d.storagePath&&visual(d))
+          ||identified.find(d=>d.storagePath)
+          ||storedOriginals.find(d=>ext(d)==='pdf')||storedOriginals[0];
+        const primaryPath=primaryDoc?.storagePath||'';
+        if(primaryPath!==(row.nf_doc_path||''))patch.nf_doc_path=primaryPath;
       }
       if(Object.keys(patch).length){
         let query=db.from('pagamentos').update(patch).eq('id',p.dbId).eq('obra_id',oid);
@@ -307,13 +334,15 @@
         const saved=await query.select('id');if(saved.error)throw saved.error;
         if(!saved.data?.length)throw Error('O cadastro mudou durante a leitura. Use Reler NF para tentar novamente.');
         const mapping={nf_num:'nfNum',nf_tipo:'nfTipo',emissao:'emissao',chave:'chave',itens_pag:'itens',docs_json:'docs'};
-        for(const [column,value] of Object.entries(patch))p[mapping[column]]=value;
-        if(patch.docs_json)hydratePaymentDocs(p);
+        for(const [column,value] of Object.entries(patch))if(mapping[column])p[mapping[column]]=value;
+        if(Object.prototype.hasOwnProperty.call(patch,'nf_doc_path'))p.nfDoc=paymentAllDocs(p).find(d=>d.storagePath===patch.nf_doc_path)||null;
+        if(patch.docs_json||Object.prototype.hasOwnProperty.call(patch,'nf_doc_path'))hydratePaymentDocs(p);
       }
       const all=invoices({docs:patch.docs_json||row.docs_json||[]});
-      const total=all.length?all.reduce((s,n)=>s+n.total,0):Number(data.val);
+      const total=all.length?all.reduce((s,n)=>s+n.total,0):Number(data?.val);
       if(total&&Math.abs(Number(row.v)-total)>0.01)warnings.push(total<Number(row.v)?'Documentacao parcial: outras notas podem ser anexadas a este pagamento. Valor cadastrado preservado.':'O total das notas excede o valor do pagamento; confira os vinculos. Valor cadastrado preservado.');
       if(notes.some(n=>!n.date||!n.itens?.length))warnings.push('A leitura ficou parcial; confira emissao e itens.');
+      if(nonFiscal.size)warnings.push('Orcamentos confirmados; classificacao dos anexos corrigida sem alterar valores.');
       return {updated:Object.keys(patch).length,warning:[...new Set(warnings)].join(' ')};
     }catch(e){return {warning:'Anexos preservados; dados fiscais nao atualizados: '+(e.message||String(e)).slice(0,180)};}
   }
