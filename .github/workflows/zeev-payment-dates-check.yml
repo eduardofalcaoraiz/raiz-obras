@@ -1,0 +1,45 @@
+name: Zeev - Validar leitura dos vencimentos
+on:
+  workflow_dispatch:
+    inputs:
+      ticket_ids:
+        description: Tickets para conferencia somente leitura
+        required: true
+        default: '230131,235125,226098'
+permissions:
+  contents: read
+concurrency:
+  group: zeev-payment-dates-readonly
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Read current repository
+        run: |
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "${GITHUB_SHA}"
+          git checkout --force --detach FETCH_HEAD
+      - name: Validate actual due date fields without changing records
+        env:
+          ZEEV_TOKEN: ${{ secrets.ZEEV_TOKEN }}
+          CHECK_TICKETS: ${{ inputs.ticket_ids }}
+        run: |
+          python3 - <<'PY'
+          import importlib.util, json, os
+          spec=importlib.util.spec_from_file_location('sync','scripts/zeev_capex_sync.py')
+          sync=importlib.util.module_from_spec(spec);spec.loader.exec_module(sync)
+          errors=[];results=[]
+          for tr in sync.parse_ticket_ids(os.environ['CHECK_TICKETS'])[:20]:
+              try:
+                  row, fields=sync.instance_fields(tr,sync.PAYMENT_DUE_DATE_FIELDS,timeout=35,retries=1)
+                  due=next((d for name in sync.PAYMENT_DUE_DATE_FIELDS if (d:=sync.normalize_date_only(sync.field_value_by_priority(fields,[name])))),None)
+                  result={'tr':tr,'vencimento':due,'campos_recebidos':len(fields)}
+                  results.append(result); print(json.dumps(result),flush=True)
+              except Exception as exc:
+                  errors.append({'tr':tr,'error':str(exc)[:200]})
+          print(json.dumps({'results':results,'errors':errors}),flush=True)
+          if errors or not any(r['vencimento'] for r in results):raise SystemExit(1)
+          PY
