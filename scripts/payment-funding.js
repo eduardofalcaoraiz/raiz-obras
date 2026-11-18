@@ -22,12 +22,33 @@
  function detail(p,fmt){return p.funding?.length?'<div style="grid-column:1/-1"><b>Origem dos recursos</b><div>'+shares(p).map(s=>escape(s.name)+' ('+s.percent+'%): '+fmt(s.value)).join('<br>')+'</div></div>':'';}
  const saFunding=[{name:'R. E. PARTICIPACOES E EMPREENDIMENTOS LTDA',percent:50},{name:'JP TERRAZI EMPREENDIMENTOS PARTICIPACOES E LOCACOES LTDA',percent:50}];
  function applyPolicy(o,p){if(!p.dbId&&!p.id&&!p.pagn&&Number(o?.id)===7&&(p.escopoFin||'obra')==='obra'&&p.nfTipo==='Sem nota'){p.pagn='DAVELINO IMOVEIS LTDA';p.funding=saFunding.map(r=>({...r}));}return p;}
- function syncImport(project){
+ function syncImport(project,investors=[],reset=false){
   const el=document.getElementById('imp-pag');if(!el)return;
   const forced=Number(project?.id)===7&&document.getElementById('imp-nftipo')?.value==='Sem nota'&&(document.getElementById('imp-escopo')?.value||'obra')==='obra';
   let note=document.getElementById('imp-funding-note');if(!note){note=document.createElement('p');note.id='imp-funding-note';el.after(note);}
   if(forced&&!el.value){if(![...el.options].some(o=>o.value==='DAVELINO IMOVEIS LTDA'))el.add(new Option('DAVELINO IMOVEIS LTDA','DAVELINO IMOVEIS LTDA'));el.value='DAVELINO IMOVEIS LTDA';}
   el.disabled=false;note.hidden=true;
+  let box=document.getElementById('imp-funding');
+  const fresh=!box||reset||box.dataset.project!==String(project?.id);
+  names=[...new Set([...investors.map(i=>i.nome),...saFunding.map(r=>r.name)].filter(Boolean))];
+  if(!box){
+   box=document.createElement('section');box.id='imp-funding';box.style.cssText='grid-column:1/-1;min-width:0;margin:12px 0;padding:12px 0;border-top:1px solid var(--line)';
+   box.innerHTML='<label><input id="imp-funding-enabled" type="checkbox"> Recursos de investidores / pagamento administrado</label><div id="imp-funding-body" hidden><label class="fl" for="imp-funding-manager">Administradora do pagamento</label><select id="imp-funding-manager" class="fi"><option value="">Selecione a administradora</option></select><div id="imp-funding-rows"></div><button type="button" class="btn btn-ghost" id="imp-funding-add">+ Investidor</button><span>Participação (%)</span></div>';
+   el.parentElement.after(box);
+   document.getElementById('imp-funding-add').onclick=()=>addRow(undefined,'imp');
+  }
+  const check=document.getElementById('imp-funding-enabled'),body=document.getElementById('imp-funding-body'),manager=document.getElementById('imp-funding-manager');
+  const toggle=()=>{body.hidden=!check.checked;el.parentElement.style.display=check.checked?'none':'';};
+  check.onchange=toggle;
+  if(fresh){
+   box.dataset.project=String(project?.id);
+   const managers=[...new Set(['DAVELINO IMOVEIS LTDA',...(project?.pag||[]).filter(p=>p.funding?.length).map(p=>p.pagn)].filter(Boolean))];
+   manager.innerHTML='<option value="">Selecione a administradora</option>'+managers.map(n=>'<option value="'+escape(n)+'">'+escape(n)+'</option>').join('');
+   check.checked=forced;manager.value=forced?'DAVELINO IMOVEIS LTDA':'';
+   document.getElementById('imp-funding-rows').replaceChildren();
+   (forced?saFunding:[{name:'',percent:50},{name:'',percent:50}]).forEach(r=>addRow(r,'imp'));
+  }
+  toggle();
  }
  let names=[],projectId=null,original=null;
  function isPolicy(){return Number(projectId)===7&&document.getElementById('pm-nf')?.value==='Sem nota'&&(document.getElementById('pm-escopo')?.value||'obra')==='obra';}
@@ -39,10 +60,10 @@
   for(const el of box.querySelectorAll('#pm-funding-body input,#pm-funding-body select,#pm-funding-body button'))el.disabled=false;
   document.getElementById('pm-pag').parentElement.style.display=check.checked?'none':'';
  }
- function addRow(row={name:'',percent:''}){
+ function addRow(row={name:'',percent:''},prefix='pm'){
   const tr=document.createElement('div');tr.className='funding-row';tr.style.cssText='display:grid;grid-template-columns:minmax(0,1fr) 90px 36px;gap:8px;margin-top:8px';
   tr.innerHTML='<select class="fi" aria-label="Investidor do rateio"><option value="">Selecione o investidor</option>'+[...new Set([...names,row.name].filter(Boolean))].map(n=>'<option value="'+escape(n)+'"'+(n===row.name?' selected':'')+'>'+escape(n)+'</option>').join('')+'</select><input class="fi" aria-label="Percentual do investidor" type="number" min="0.01" max="100" step="0.01" value="'+escape(row.percent)+'"><button type="button" class="btn btn-ghost" aria-label="Remover investidor" title="Remover investidor">&times;</button>';
-  tr.querySelector('button').onclick=()=>tr.remove();document.getElementById('pm-funding-rows').append(tr);
+  tr.querySelector('button').onclick=()=>tr.remove();document.getElementById(prefix+'-funding-rows').append(tr);
  }
  function open(p,investors,project){
   projectId=project?.id;original=p;
@@ -64,11 +85,13 @@
   (p?.funding?.length?p.funding:[{name:'',percent:50},{name:'',percent:50}]).forEach(addRow);
   syncPolicy();
  }
- function read(){
-  if(!document.getElementById('pm-funding-enabled')?.checked)return {funding:[]};
-  const payer=document.getElementById('pm-funding-manager').value.trim();if(!payer)throw Error('Informe quem realiza o pagamento.');
-  const funding=validate([...document.querySelectorAll('#pm-funding-rows .funding-row')].map(r=>({name:r.querySelector('select').value,percent:Number(r.querySelector('input').value)})));
+ function read(prefix='pm'){
+  if(!document.getElementById(prefix+'-funding-enabled')?.checked)return {funding:[]};
+  const payer=document.getElementById(prefix+'-funding-manager').value.trim();if(!payer)throw Error('Informe quem realiza o pagamento.');
+  const funding=validate([...document.querySelectorAll('#'+prefix+'-funding-rows .funding-row')].map(r=>({name:r.querySelector('select').value,percent:Number(r.querySelector('input').value)})));
   if(!funding.length)throw Error('Inclua ao menos um investidor.');return {funding,payer};
  }
  const api={validate,shares,allocatedPayments,detail,open,read,syncPolicy,syncImport,applyPolicy};root.PaymentFunding=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
+
+
