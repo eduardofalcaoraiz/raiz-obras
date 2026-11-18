@@ -4101,7 +4101,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <link rel="stylesheet" href="scripts/platform-usability.css?v=20261009-faithful">
 <script defer src="scripts/platform-usability.js?v=20260922-1"></script>
 <script defer src="vendor/pdf-lib/pdf-lib.min.js?v=1.17.1"></script>
-<script defer src="scripts/payment-bundle.js?v=20261118-import-funding"></script>
+<script defer src="scripts/payment-bundle.js?v=20261118-save-performance"></script>
 <script>
 
 const fmt=n=>"R$ "+(+n||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -15574,7 +15574,16 @@ async function applyPastDuePaidCheck(p,label){
   return true;
 }
 
-async function savePag(){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}let fundingInput;try{fundingInput=PaymentFunding.read();}catch(e){toast(e.message);return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const pmNfTipo=document.getElementById("pm-nf")?.value||'Sem nota';const nfNum=cleanImpDocNumber((document.getElementById("pm-nfnum")?.value||'').trim(),pmNfTipo);const cSeq=document.getElementById("pm-contrato")?.value||'';
+let paymentFormSaving=false;
+async function savePag(){
+  if(paymentFormSaving)return;
+  paymentFormSaving=true;
+  const button=document.querySelector('button[onclick="savePag()"]'),label=button?.innerHTML;
+  if(button){button.disabled=true;button.textContent='Salvando...';}
+  try{return await savePagForm();}
+  finally{paymentFormSaving=false;if(button){button.disabled=false;button.innerHTML=label;}}
+}
+async function savePagForm(){if(!AccessControl.canEdit()){toast('Sem permissão para esta operação.');return;}let fundingInput;try{fundingInput=PaymentFunding.read();}catch(e){toast(e.message);return;}const g=v=>document.getElementById(v).value;const ben=g("pm-ben").trim();if(!ben){toast("Informe o beneficiário.");return;}const pmNfTipo=document.getElementById("pm-nf")?.value||'Sem nota';const nfNum=cleanImpDocNumber((document.getElementById("pm-nfnum")?.value||'').trim(),pmNfTipo);const cSeq=document.getElementById("pm-contrato")?.value||'';
   // Preserva tipoCusto existente se for mat/svc/eqp; senão marca como 'outros' (categorizado)
   const oldPag=pagEditIdx!==null?cur.pag[pagEditIdx]:null;
   const _existTipo=oldPag?(oldPag.tipoCusto||''):'';
@@ -15592,7 +15601,7 @@ async function savePag(){if(!AccessControl.canEdit()){toast('Sem permissão para
   else{cur.pag.push({...obj,comp:""});pagEditIdx=cur.pag.length-1;}
   sincronizaPagoObra(cur);
 
-  if(!await persist(cur.id))return;
+  if(!await persist(cur.id,{paymentOnly:true}))return;
   closePagModal();renderObra();renderPainel();updateNavBadge();toast(wasEdit?"Pagamento atualizado":"Pagamento lançado");}
 
 const paymentDocUploadLocks=new Set();
@@ -17020,7 +17029,7 @@ async function persistAporteRows(o){
 }
 
 async function checkedPaymentWrite(query){const r=await query;if(r.error)throw r.error;return r;}
-async function persist(obraId){
+async function persist(obraId,options={}){
   const lockKey=obraId==null?'all':String(obraId);
   if(paymentPersistLocks.has(lockKey)||paymentPersistLocks.has('all')||(lockKey==='all'&&paymentPersistLocks.size)){toast('Aguarde a gravacao em andamento.');return false;}
   paymentPersistLocks.add(lockKey);
@@ -17033,23 +17042,25 @@ async function persist(obraId){
 
     for(const o of ts){
 
-      await ensureObraPaymentHeavyFields(o);
+      if(!options.paymentOnly)await ensureObraPaymentHeavyFields(o);
 
-      (o.pag||[]).forEach(hydratePaymentDocs);
+      (o.pag||[]).filter(p=>!options.paymentOnly||p._heavyLoaded||!p.dbId).forEach(hydratePaymentDocs);
 
       await persistPaymentRows(o);
-      await persistAporteRows(o);
+      if(!options.paymentOnly)await persistAporteRows(o);
 
       // contratos são salvos diretamente via saveContr/deleteContr — nunca pelo persist em lote
 
     }
 
+    if(!options.paymentOnly){
     const allCats=[...CATS,...DOC_CATS];
     if(allCats.length)await checkedPaymentWrite(db.from('categorias').upsert(allCats.map(c=>({id:c.id,nome:c.nome,subs:c.subs,tipo:c.tipo||'pagamento'}))));
 
     const cl=Object.entries(CNPJS).map(([n,c])=>({nome:n,cnpj:c}));
 
     if(cl.length)await checkedPaymentWrite(db.from('fornecedores_cnpj').upsert(cl));
+    }
 
     return true;
   }catch(e){console.error('[persist]',e);toast('Gravacao nao concluida: '+(e.message||'Verifique sua conexao.'));return false;}
@@ -17146,8 +17157,9 @@ async function loadFromDB(){
 
     if(cnpjR.data)cnpjR.data.forEach(r=>{CNPJS[r.nome]=r.cnpj;if(r.cnpj)FORN_DATA[r.cnpj.replace(/\D/g,'')]={nome:r.nome,email:r.email||'',telefone:r.telefone||'',municipio:r.municipio||'',uf:r.uf||'',atividade:r.atividade||'',porte:r.porte||'',endereco:r.endereco||''};});
 
+    const paymentRawById=new Map((pagR.data||[]).map(r=>[r.id,r]));
     for(const o of obras){
-      for(const p of o.pag)paymentSnapshot(o,p,pagR.data.find(r=>r.id===p.dbId));
+      for(const p of o.pag)paymentSnapshot(o,p,paymentRawById.get(p.dbId));
       aporteBaselines.set(o.id,new Map(o.aportes.map(a=>[a.dbId,aporteRow(o,a)])));
     }
     capexDataLoaded=false;
