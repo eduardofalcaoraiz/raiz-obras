@@ -432,18 +432,21 @@
   }
   async function insert(oid,payments){
     const rows=payments.map(p=>({funding_json:PaymentFunding.validate(p.funding||[]),obra_id:oid,ben:p.ben||'',v:p.v||0,ref:p.ref||'',nf_num:cleanImpDocNumber(p.nfNum||'',p.nfTipo||''),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:p.venc||'',nf_tipo:p.nfTipo||'Sem nota',comp:p.comp||'',nf_doc_path:p.nfDoc?.storagePath||'',comp_doc_path:p.compDoc?.storagePath||'',docs_json:paymentAllDocs(p),emissao:p.emissao||'',paga_em:p.pagaEm||'',escopo_fin:p.escopoFin||'obra',contrato_seq:p.contratoSeq||null,tipo_custo:p.tipoCusto||'',mat_tipo:p.matTipo||'',mat_qtd:p.matQtd||null,mat_unidade:p.matUnidade||'',chave:p.chave||'',obs:p.obs||'',pag_forma:p.pagForma||'A_VISTA',parcelas:p.parcelas||null,itens_pag:p.itens||null,construtora_seq:p.construtora_seq||null,ticket_raiz:p.ticketRaiz||'',compra_vinculada_json:paymentCompraLink(p)}));
-    const result=await db.from('pagamentos').insert(rows).select('id');if(result.error)throw result.error;
+    const result=await db.from('pagamentos').insert(rows).select('*');if(result.error)throw result.error;
     if(result.data?.length!==payments.length)throw Error('Confirmacao de gravacao incompleta. Atualize a pagina antes de tentar novamente.');
     payments.forEach((p,i)=>{p.dbId=result.data[i].id;p._heavyLoaded=true;});
     // New payments use the same enrichment as attachments on existing payments.
-    for(const p of payments){
-      if(p._fiscalFiles?.length)p.invoiceRead=await enrichExisting(oid,p,p._fiscalFiles);
+    for(const [index,p] of payments.entries()){
+      const enriched=!!p._fiscalFiles?.length;
+      if(enriched)p.invoiceRead=await enrichExisting(oid,p,p._fiscalFiles);
       delete p._fiscalFiles;
       if(typeof paymentSnapshot==='function'){
-        const fresh=await db.from('pagamentos').select('*').eq('id',p.dbId).single();
+        const fresh=enriched?await db.from('pagamentos').select('*').eq('id',p.dbId).single():{data:result.data[index]};
         if(!fresh.error&&fresh.data)paymentSnapshot({id:oid},p,fresh.data);
       }
     }
   }
   root.PaymentBundle={merge,stage,saveExisting,attach,open,insert,reprocess,enrichExisting,invoicePatch,identityDetails,invoices,keyFromText,validAccessKey,nationalServiceInvoice,readFiscal,danfeTotals,selectDocuments,reviewLinks,saveLinks,guardRevision,consultationWindow,retrieveFiscalFiles,confirming:false};
 })(typeof window==='undefined'?globalThis:window);
+
+
