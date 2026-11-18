@@ -4076,7 +4076,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 <script src="scripts/real-estate-property-page.js?v=20260922-priority"></script>
 <link rel="stylesheet" href="scripts/real-estate-property-page.css?v=20260921-readable">
 <link rel="stylesheet" href="scripts/real-estate-workspace.css?v=20260921-readable">
-<script src="scripts/payment-funding.js?v=20261106-admin-select"></script>
+<script src="scripts/payment-funding.js?v=20261118-import-funding"></script>
 <script src="scripts/dashboard-data.js?v=20261104-funding"></script>
 <script src="scripts/dashboards.js?v=20260922-contracts"></script>
 <link rel="stylesheet" href="scripts/dashboards.css?v=20260921-readable">
@@ -15508,7 +15508,7 @@ function pmNfChange(){
 }
 function impSetEscopo(v){
   document.getElementById('imp-escopo').value=v;
-  PaymentFunding.syncImport(cur);
+  PaymentFunding.syncImport(cur,investidores);
   const ob=document.getElementById('imp-escopo-obra-btn');
   const ex=document.getElementById('imp-escopo-extra-btn');
   const hint=document.getElementById('imp-escopo-hint');
@@ -19745,6 +19745,9 @@ function showImportReview(data){
 
   data=data||{};
 
+  document.getElementById('imp-funding')?.remove();
+  document.getElementById('imp-pag').parentElement.style.display='';
+
   document.getElementById("imp-reading").style.display="none";
 
   document.getElementById("imp-review").style.display="block";
@@ -19854,7 +19857,7 @@ function showImportReview(data){
 
 
 function impNfTipoChanged(tipo){
-  PaymentFunding.syncImport(cur);
+  PaymentFunding.syncImport(cur,investidores);
 
   const isNFSe=tipo==='NFS-e';
 
@@ -20178,7 +20181,8 @@ async function confirmImport(){
 
   const sub=0;
 
-  const pagn=document.getElementById("imp-pag").value;
+  const fundingInput=PaymentFunding.read('imp');
+  const pagn=fundingInput.payer||document.getElementById("imp-pag").value;
 
   const tipo=document.getElementById("imp-tipo").value;
 
@@ -20231,7 +20235,7 @@ async function confirmImport(){
 
   }
 
-  const p={ben,ref,nfNum,cat,sub,v:val,pagn,st,venc:impVenc||"",emissao:date,pagaEm:"",nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade,escopoFin:impEscopoFin,construtora_seq:impConstrSeq,ticketRaiz:impTicket};
+  const p={ben,ref,nfNum,cat,sub,v:val,pagn,funding:fundingInput.funding,st,venc:impVenc||"",emissao:date,pagaEm:"",nfTipo,tipo,contratoSeq:impContrSeq?+impContrSeq:null,tipoCusto,matTipo,matQtd,matUnidade,escopoFin:impEscopoFin,construtora_seq:impConstrSeq,ticketRaiz:impTicket};
 
   if(chave)p.chave=chave;
 
