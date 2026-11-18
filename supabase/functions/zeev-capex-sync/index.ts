@@ -1426,7 +1426,7 @@ function extractPagamento(fmap: Map<string, AnyRecord[]>, financeiro = false) {
   return {
     forma: firstField(fmap, ['formaDePagamento', 'formaPagamento', 'condicaoPagamento']) || null,
     data_pagamento: firstField(fmap, ['dataPagamento']) || null,
-    previsao_pagamento: firstField(fmap, ['previsaoPagamento', 'dataDeVencimento', 'dataVencimento']) || parcelas[0]?.vencimento || null,
+    previsao_pagamento: PAYMENT_DUE_DATE_FIELDS.map((name) => dateOnly(firstField(fmap, [name]))).find(Boolean) || (parcelas.length === 1 ? parcelas[0]?.vencimento : null) || null,
     data_entrega: firstField(fmap, ['dataEntrega', 'prazoEntrega']) || null,
     nota_fiscal: fiscalDocumentNumber(fmap, financeiro) || null,
     chave_acesso: firstField(fmap, ['chaveAcesso']) || null,
@@ -5117,11 +5117,20 @@ function paymentLifecycleStatusFromTicket(ticket: AnyRecord) {
 
 function dueDateFromTicket(ticket: AnyRecord) {
   const pagamento = ticket?.pagamento_json || ticket?.pagamento || {}
-  const fromJson = dateOnly(pagamento.previsao_pagamento || pagamento.previsaoPagamento || pagamento.dataVencimento || pagamento.data_vencimento)
-  if (fromJson) return fromJson
   const fmap = fieldMap(Array.isArray(ticket?.raw_fields) ? ticket.raw_fields : Array.isArray(ticket?.rawFields) ? ticket.rawFields : [])
-  return dateOnly(firstField(fmap, ['previsaoPagamento', 'previsao de pagamento', 'dataDeVencimento', 'data de vencimento', 'dataVencimento', 'vencimento']))
+  for (const name of PAYMENT_DUE_DATE_FIELDS) {
+    const value = dateOnly(firstField(fmap, [name]))
+    if (value) return value
+  }
+  for (const value of [pagamento.dataVencimento, pagamento.data_vencimento, pagamento.previsao_pagamento, pagamento.previsaoPagamento]) {
+    const date = dateOnly(value)
+    if (date) return date
+  }
+  const parcelas = pagamento.parcelas || []
+  return parcelas.length === 1 ? dateOnly(parcelas[0]?.vencimento) : ''
 }
+
+const PAYMENT_DUE_DATE_FIELDS = ['dataDeVencimento', 'dataVencimento', 'Data de vencimento', 'Data de vencimento *', 'Data de vencimento extraída', 'vencimento', 'previsaoPagamento', 'previsao de pagamento']
 
 function dateFromAnyObject(value: unknown): string {
   if (!value || typeof value !== 'object') return ''
@@ -5336,6 +5345,7 @@ function leanFieldsForFlow(flow: number) {
 
 function forcedPendingFieldsForFlow(flow: number) {
   const base = [
+    ...PAYMENT_DUE_DATE_FIELDS,
     ...INSTALLMENT_COUNT_FIELDS,
     ...INSTALLMENT_VALUE_FIELDS,
     ...INSTALLMENT_TOTAL_FIELDS,
@@ -7112,9 +7122,9 @@ async function runRefreshPaymentStatuses(input: AnyRecord = {}) {
       } else if (lifecycleStatus && row.st !== 'PAGO') {
         patch.st = lifecycleStatus
         patch.paga_em = ''
-      } else if (dueDate && dueDate !== row.venc) {
+      }
+      if (dueDate && dueDate !== row.venc) {
         patch.venc = dueDate
-        if (row.st !== 'PAGO') patch.st = 'PENDENTE'
         out.updatedDueDate++
       }
       const changed = Object.keys(patch).filter((key) => key !== 'zeev_docs_checked_at').length > 0
@@ -7687,8 +7697,7 @@ function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: st
   const hasFiscalFieldNumber = Boolean(String(ticket?.pagamento_json?.nota_fiscal || ticketFiscalDocumentNumber(ticket) || '').trim())
   const nfTipo = invoiceDocs.length || hasFiscalFieldNumber ? fiscalTypeForTicket(ticket, invoiceDocs) : 'Sem nota'
   const nfNum = invoiceDocs.length || hasFiscalFieldNumber ? fiscalDocNumberForTicket(ticket, invoiceDocs, nfTipo) : ''
-  const venc = dateOnly(ticket?.pagamento_json?.previsao_pagamento || ticket?.pagamento_json?.dataVencimento)
-    || dateOnly(ticketFirstField(ticket, ['previsaoPagamento', 'dataDeVencimento', 'dataVencimento', 'dataPagamento']))
+  const venc = dueDateFromTicket(ticket)
   const paidDate = paymentDateFromTicket(ticket)
   const lifecycleStatus = paymentLifecycleStatusFromTicket(ticket)
   const link = String(ticket?.ticket_link || '').trim()
@@ -7702,7 +7711,7 @@ function paymentPayloadFromTicket(ticket: AnyRecord, obra: AnyRecord, escopo: st
     sub: 0,
     pagn: defaultPagadorForObra(obra),
     st: paidDate ? 'PAGO' : lifecycleStatus || 'PENDENTE',
-    venc: venc || paidDate || '',
+    venc: venc || '',
     nf_tipo: nfTipo,
     comp: '',
     nf_doc_path: invoiceDocs[0]?.storagePath || '',

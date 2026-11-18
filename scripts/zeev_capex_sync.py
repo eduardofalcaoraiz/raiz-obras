@@ -546,7 +546,7 @@ def payment_payload(fields, financeiro, valor):
     return {
         "forma": field_value_by_priority(fields, ["formaDePagamento", "formaPagamento", "condicaoPagamento"]) or None,
         "data_pagamento": field_value(fields, ["dataPagamento"]) or None,
-        "previsao_pagamento": field_value_by_priority(fields, ["previsaoPagamento", "dataDeVencimento", "dataVencimento"]) or (installments[0].get("vencimento") if installments else None),
+        "previsao_pagamento": next((date for name in PAYMENT_DUE_DATE_FIELDS if (date := normalize_date_only(field_value_by_priority(fields, [name])))), None) or (installments[0].get("vencimento") if len(installments) == 1 else None),
         "data_entrega": field_value(fields, ["dataEntrega", "prazoEntrega"]) or None,
         "nota_fiscal": fiscal_document_number(fields, financeiro=financeiro) or None,
         "chave_acesso": field_value(fields, ["chaveAcesso"]) or None,
@@ -555,6 +555,8 @@ def payment_payload(fields, financeiro, valor):
         "parcelas": installments,
     }
 
+
+PAYMENT_DUE_DATE_FIELDS = ["dataDeVencimento", "dataVencimento", "Data de vencimento", "Data de vencimento *", "Data de vencimento extraída", "vencimento", "previsaoPagamento", "previsao de pagamento"]
 
 class ZeevAccessBlocked(RuntimeError):
     """An explicit gateway denial must not be hidden as an empty/successful sync."""
@@ -1645,7 +1647,7 @@ def enrich_instance(row):
         name for name in design_fields
         if not any(field_matches(field, [name]) for field in current_fields)
     ]
-    priority_alias_fields = []
+    priority_alias_fields = list(PAYMENT_DUE_DATE_FIELDS) if financeiro else []
     missing_alias_fields = []
     finance_description_fields = finance_request_description_fields(flow_id) if financeiro else []
     if financeiro and not field_value_by_priority(current_fields, finance_description_fields):
@@ -1684,7 +1686,7 @@ def enrich_instance(row):
     supplier_fields = ["fornecedor", "nomeFornecedor", "razaoSocial", "favorecido", "beneficiario", "fornecedorEscolhido"]
     if not field_value(current_fields, supplier_fields):
         missing_alias_fields.extend(supplier_fields)
-    payment_date_fields = ["dataPagamento", "previsaoPagamento", "dataDeVencimento", "dataVencimento"]
+    payment_date_fields = PAYMENT_DUE_DATE_FIELDS
     if financeiro and not field_value(current_fields, payment_date_fields):
         missing_alias_fields.extend(payment_date_fields)
     if not field_value(current_fields, DESTINATION_UNIT_FIELDS):

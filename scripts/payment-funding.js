@@ -82,7 +82,7 @@
   manager.innerHTML='<option value="">Selecione a administradora</option>'+managers.map(name=>'<option value="'+escape(name)+'">'+escape(name)+'</option>').join('');
   manager.value=p?.funding?.length?p.pagn:'';
   document.getElementById('pm-funding-rows').replaceChildren();
-  (p?.funding?.length?p.funding:[{name:'',percent:50},{name:'',percent:50}]).forEach(addRow);
+  (p?.funding?.length?p.funding:[{name:'',percent:50},{name:'',percent:50}]).forEach(row=>addRow(row));
   syncPolicy();
  }
  function read(prefix='pm'){
