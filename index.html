@@ -2118,7 +2118,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 
       </div>
 
-      <div style="margin:4px 0 20px"><input class="fi" id="esc-busca" style="max-width:340px;padding:8px 12px;font-size:14px" placeholder="Buscar escola ou marca…" oninput="renderEscolas()"></div>
+      <div style="margin:4px 0 20px"><input class="fi" id="esc-busca" style="max-width:340px;padding:8px 12px;font-size:14px" placeholder="Buscar escola ou marca…" oninput="scheduleListRender('escolas',renderEscolas)"></div>
 
       <div id="esc-body"></div>
 
@@ -2170,7 +2170,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
       <div class="realestate-toolbar">
         <div style="flex:1;min-width:260px">
           <label class="fl" id="realestate-search-label" for="realestate-search">Buscar im&oacute;vel, locador, unidade ocupante ou contrato</label>
-          <input class="fi" id="realestate-search" placeholder="Digite para filtrar..." oninput="renderRealEstate()">
+          <input class="fi" id="realestate-search" placeholder="Digite para filtrar..." oninput="scheduleListRender('realestate',renderRealEstate)">
         </div>
         <div style="min-width:210px">
           <label class="fl" id="realestate-status-label" for="realestate-status-filter">Status contratual</label>
@@ -2363,7 +2363,7 @@ textarea.fi::placeholder{color:var(--muted);font-size:14px}
 
       <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;align-items:center">
 
-        <input class="fi" id="forn-busca" placeholder="Buscar por nome, CNPJ ou atividade…" style="max-width:380px;flex:1;padding:9px 13px;font-size:14px" oninput="renderForn()">
+        <input class="fi" id="forn-busca" placeholder="Buscar por nome, CNPJ ou atividade…" style="max-width:380px;flex:1;padding:9px 13px;font-size:14px" oninput="scheduleListRender('fornecedores',renderForn)">
 
         <span id="forn-count" style="font-size:14px;color:var(--muted)"></span>
 
@@ -4755,7 +4755,12 @@ let zeevObraCompraLookupSeq=0,zeevObraCompraLookupTimer=null;
 let realEstateImoveis=[],realEstateLoadError=null,realEstateEditId=null,realEstateContractFiles=[],realEstateDevolucaoFiles=[],realEstateDraftObrigacoes=[],realEstateDraftAditivos=[];
 let realEstateArea='locacoes',realEstateSublocacoes=[],realEstateSublocLoadError=null,realEstateSublocEditId=null;
 
-function setEsfBusca(v){esfBusca=v;renderEsfera();}
+const listRenderTimers=new Map();
+function scheduleListRender(key,render){
+  clearTimeout(listRenderTimers.get(key));
+  listRenderTimers.set(key,setTimeout(()=>{listRenderTimers.delete(key);render();},150));
+}
+function setEsfBusca(v){esfBusca=v;scheduleListRender('esfera',renderEsfera);}
 
 function setEsfFiltro(m){esfFiltroMarca=m;renderEsfera();}
 
@@ -9097,19 +9102,30 @@ function applyPaymentHeavyRow(p,row){
   return p;
 }
 
+const paymentHeavyReads=new WeakMap();
 async function ensurePaymentHeavyFields(p){
   if(!p||p._heavyLoaded||!p.dbId)return p;
+  if(paymentHeavyReads.has(p)){await paymentHeavyReads.get(p);return p;}
+  const read=(async()=>{
   const{data,error}=await db.from('pagamentos')
     .select('id,docs_json,parcelas,itens_pag,nf_doc_path,comp_doc_path')
     .eq('id',p.dbId)
     .single();
   if(error)throw error;
-  return applyPaymentHeavyRow(p,data);
+  if(!data)throw Error('Pagamento indisponivel. Atualize a pagina.');
+  return p._heavyLoaded?p:applyPaymentHeavyRow(p,data);
+  })();
+  paymentHeavyReads.set(p,read);
+  try{return await read;}finally{if(paymentHeavyReads.get(p)===read)paymentHeavyReads.delete(p);}
 }
 
 async function ensureObraPaymentHeavyFields(o){
-  const pending=(o?.pag||[]).filter(p=>p&&p.dbId&&!p._heavyLoaded);
-  if(!pending.length)return;
+  const allPending=(o?.pag||[]).filter(p=>p&&p.dbId&&!p._heavyLoaded);
+  const existing=allPending.filter(p=>paymentHeavyReads.has(p)).map(p=>paymentHeavyReads.get(p));
+  const pending=allPending.filter(p=>!paymentHeavyReads.has(p));
+  if(!pending.length){await Promise.all(existing);return;}
+  // Publish the batch promise before starting I/O so individual views share it.
+  const batch=Promise.resolve().then(async()=>{
   const ids=pending.map(p=>p.dbId);
   const rows=[];
   for(let i=0;i<ids.length;i+=150){
@@ -9126,6 +9142,12 @@ async function ensureObraPaymentHeavyFields(o){
     if(row&&!p._heavyLoaded)applyPaymentHeavyRow(p,row);
     else if(!row)throw Error('Pagamento indisponivel. Atualize a pagina.');
   });
+  });
+  pending.forEach(p=>paymentHeavyReads.set(p,batch));
+  try{await Promise.all([...existing,batch]);}finally{
+    // Retain the lock until the batch settles, even if another read fails first.
+    await batch.finally(()=>pending.forEach(p=>{if(paymentHeavyReads.get(p)===batch)paymentHeavyReads.delete(p);}));
+  }
 }
 
 function paymentDocsAreLoaded(p){
@@ -13927,7 +13949,7 @@ function setPagAte(v){pagAte=v;pagPage=0;renderPag();}
 
 function setPagPage(p){pagPage=p;renderPag();}
 
-function setPagBusca(v){pagBusca=v;pagPage=0;renderPag();}
+function setPagBusca(v){pagBusca=v;pagPage=0;scheduleListRender('pagamentos',renderPag);}
 
 async function marcarPagoLista(oid,i){return markPaymentPaid(oid,i);}
 
@@ -15646,7 +15668,7 @@ function anexarComp(oid,i){
       const existing=paymentAllDocs(o.pag[i]).find(d=>paymentDocsMatch(d,candidate));
       if(existing){
         replacePaymentDocKind(o.pag[i],existing,'COMPROVANTE');
-        if(!await persist(oid))throw new Error('Comprovante nao confirmado no banco. Tente novamente.');
+        if(!await persist(oid,{paymentOnly:true}))throw new Error('Comprovante nao confirmado no banco. Tente novamente.');
         saved++;
         continue;
       }
@@ -15654,7 +15676,7 @@ function anexarComp(oid,i){
       const doc={...candidate,storagePath:path};
       addPaymentDoc(o.pag[i],doc,'COMPROVANTE');
       if(!o.pag[i].compDoc)o.pag[i].compDoc=doc;
-      if(!await persist(oid))throw new Error('Comprovante nao confirmado no banco. Tente novamente.');
+      if(!await persist(oid,{paymentOnly:true}))throw new Error('Comprovante nao confirmado no banco. Tente novamente.');
       saved++;
       }catch(error){failures.push(f.name);console.error('upload comp:',error);}
       }
@@ -17000,7 +17022,7 @@ async function markPaymentPaid(oid,i){
   const parsed=new Date(dt+'T12:00:00Z');
   if(!dt||!/^\d{4}-\d{2}-\d{2}$/.test(dt)||!Number.isFinite(parsed.getTime())||parsed.toISOString().slice(0,10)!==dt){toast('Informe uma data valida.');return;}
   const old={st:p.st,pagaEm:p.pagaEm};p.st='PAGO';p.pagaEm=dt;
-  if(!await persist(oid)){Object.assign(p,old);sincronizaPagoObra(o);return;}
+  if(!await persist(oid,{paymentOnly:true})){Object.assign(p,old);sincronizaPagoObra(o);return;}
   if(cur?.id===oid)renderObra();renderCobranca();updateNavBadge();toast('Pago em '+fmtD(dt));
 }
 
@@ -17109,6 +17131,15 @@ async function loadFromDB(){
 
     for(const r of [pagR,aprR,cntrR,catR])if(r.error)throw r.error;
     paymentBaselines.clear();aporteBaselines.clear();
+    const groupByObra=rows=>{
+      const grouped=new Map();
+      for(const row of rows||[]){
+        if(!grouped.has(row.obra_id))grouped.set(row.obra_id,[]);
+        grouped.get(row.obra_id).push(row);
+      }
+      return grouped;
+    };
+    const paymentsByObra=groupByObra(pagR.data),aportesByObra=groupByObra(aprR.data),contractsByObra=groupByObra(cntrR.data);
     obras=(od||[]).map(o=>({
 
       id:o.id,nome:o.nome,marca:o.marca||'—',constr:o.constr||'—',construtoras:Array.isArray(o.construtoras)?o.construtoras.map(function(c){return{seq:c.seq||1,nome:c.nome||'',cnpj:c.cnpj||'',valor:+c.valor||0};}):[],status:o.status||'Em andamento',esfera:o.esfera||'nova',
@@ -17130,11 +17161,11 @@ async function loadFromDB(){
 
       taxa:{total:+o.taxa_total||0,pago:+o.taxa_pago||0},
 
-      pag:(pagR.data||[]).filter(p=>p.obra_id===o.id).map(p=>({funding:p.funding_json||[],dbId:p.id,ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:cleanImpDocNumber(p.nf_num||'',p.nf_tipo||'Sem nota'),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:normalizeDateISO(p.venc)||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path),bucket:'pagamentos',kind:'NF'}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path),bucket:'pagamentos',kind:'COMPROVANTE'}:null,docs:[],contratoSeq:p.contrato_seq||null,emissao:normalizeDateISO(p.emissao)||'',pagaEm:normalizeDateISO(p.paga_em)||'',escopoFin:p.escopo_fin||'obra',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:[],itens:[],construtora_seq:p.construtora_seq||null,ticketRaiz:p.ticket_raiz||'',compraVinculada:paymentCompraLink({compraVinculada:p.compra_vinculada_json}),_heavyLoaded:false})),
+      pag:(paymentsByObra.get(o.id)||[]).map(p=>({funding:p.funding_json||[],dbId:p.id,ben:p.ben,v:+p.v||0,ref:p.ref||'',nfNum:cleanImpDocNumber(p.nf_num||'',p.nf_tipo||'Sem nota'),cat:p.cat||'outros',sub:p.sub||0,pagn:p.pagn||'',st:p.st||'PENDENTE',venc:normalizeDateISO(p.venc)||'',nfTipo:p.nf_tipo||'Sem nota',comp:p.comp||'',nfDoc:p.nf_doc_path?{name:p.nf_doc_path.split('/').pop(),storagePath:p.nf_doc_path,type:inferType(p.nf_doc_path),bucket:'pagamentos',kind:'NF'}:null,compDoc:p.comp_doc_path?{name:p.comp_doc_path.split('/').pop(),storagePath:p.comp_doc_path,type:inferType(p.comp_doc_path),bucket:'pagamentos',kind:'COMPROVANTE'}:null,docs:[],contratoSeq:p.contrato_seq||null,emissao:normalizeDateISO(p.emissao)||'',pagaEm:normalizeDateISO(p.paga_em)||'',escopoFin:p.escopo_fin||'obra',tipoCusto:p.tipo_custo||'',matTipo:p.mat_tipo||'',matQtd:p.mat_qtd||null,matUnidade:p.mat_unidade||'',chave:p.chave||'',obs:p.obs||'',pagForma:p.pag_forma||'A_VISTA',parcelas:[],itens:[],construtora_seq:p.construtora_seq||null,ticketRaiz:p.ticket_raiz||'',compraVinculada:paymentCompraLink({compraVinculada:p.compra_vinculada_json}),_heavyLoaded:false})),
 
-      aportes:(aprR.data||[]).filter(a=>a.obra_id===o.id).map(a=>({dbId:a.id,inv:a.inv||'',v:+a.v||0,d:a.d||''})),
+      aportes:(aportesByObra.get(o.id)||[]).map(a=>({dbId:a.id,inv:a.inv||'',v:+a.v||0,d:a.d||''})),
 
-      contratos:(cntrR.data||[]).filter(c=>c.obra_id===o.id).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||'',aditivos:Array.isArray(c.aditivos)?c.aditivos:[],pct_investimento:c.pct_investimento!==null?+c.pct_investimento:100,valor_investimento:c.valor_investimento!==null&&c.valor_investimento!==undefined?+c.valor_investimento:null}))
+      contratos:(contractsByObra.get(o.id)||[]).map((c,ci)=>({forn:c.forn||'',escopo:c.escopo||'',v:+c.v||0,pago:+c.pago||0,seq:c.seq||ci+1,numero:c.numero||'',nome_contr:c.nome_contr||c.numero||'',data_assn:c.data_assn||'',data_inicio:c.data_inicio||'',data_fim_prev:c.data_fim_prev||'',status_contr:c.status_contr||'Ativo',observacoes:c.observacoes||'',modelo:c.modelo||'Preço Global',plano_pagamento:c.plano_pagamento||'livre',num_parc_contr:c.num_parc_contr||0,parcelas_contr:Array.isArray(c.parcelas_contr)?c.parcelas_contr:[],medicao_freq:c.medicao_freq||null,contrato_doc_path:c.contrato_doc_path||'',data_fim_tipo:c.data_fim_tipo||'data',data_fim_gatilho:c.data_fim_gatilho||'',medicao_desc:c.medicao_desc||'',medicao_freq_texto:c.medicao_freq_texto||'',aditivos:Array.isArray(c.aditivos)?c.aditivos:[],pct_investimento:c.pct_investimento!==null?+c.pct_investimento:100,valor_investimento:c.valor_investimento!==null&&c.valor_investimento!==undefined?+c.valor_investimento:null}))
 
     }));
     obras.forEach(sincronizaPagoObra);
